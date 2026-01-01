@@ -1,88 +1,154 @@
 "use client";
 
-import axios, { AxiosRequestConfig } from "axios";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 
-export type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+export type RequestMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+export type RequestMode = "cors" | "no-cors" | "same-origin" | "navigate";
 
-interface ApiOptions {
-  method?: Method;
-  body?: any;
-  params?: Record<string, any>;
-  enabled?: boolean;
+interface RequestConfig {
+  mode?: RequestMode;
+  bodyType?: "json" | "formdata";
+  endpoint?: string;
+  exact?: boolean;
+  queryKey?: string[];
+  method?: RequestMethod;
+  params?: Record<string, string>;
   headers?: Record<string, string>;
-  invalidate?: string[]; // keys to invalidate
+  options?: Record<string, any>;
+  enabled?: boolean;
   onSuccess?: () => void;
-  onError?: (err: any) => void;
+  onError?: (error: {
+    name: string;
+    message: string;
+    cause?: any;
+    stack?: string;
+  }) => void;
+  baseUrl?: string;
+  queryString?: string;
 }
 
-const apiClient = axios.create({
-  baseURL: API_URL,
-  withCredentials: true,
-});
-
-export function useApi<T = any>(url: string, options: ApiOptions = {}) {
-  const {
-    method = "GET",
-    body,
-    params,
-    enabled = true,
-    headers,
-    invalidate,
-    onSuccess,
-    onError,
-  } = options;
-
+export default function useApiRequest({
+  bodyType = "json",
+  endpoint,
+  exact = true,
+  mode = "cors",
+  queryKey = [],
+  method = "GET",
+  params,
+  headers,
+  options,
+  enabled = true,
+  onSuccess,
+  onError,
+  baseUrl,
+}: RequestConfig) {
   const queryClient = useQueryClient();
-  const key = [url, params]; // auto key
+  const BASE_URL = baseUrl ?? API_URL;
+  console.log("API BASE URL:", BASE_URL);
+  const fetchData = async (body: any = null) => {
+    const queryStr = new URLSearchParams(params).toString();
 
-  const request = async () => {
-    const config: AxiosRequestConfig = {
-      url,
+    const url = `${BASE_URL}${endpoint ?? ""}${queryStr ? `?${queryStr}` : ""}`;
+
+    const config: RequestInit = {
+      mode,
       method,
-      params,
-      data: body,
-      headers,
+      headers: headers ?? {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      ...options,
     };
 
-    const res = await apiClient.request(config);
-    return res.data as T;
+    if (body && method !== "GET" && bodyType === "json") {
+      config.body = JSON.stringify(body);
+    }
+
+    if (bodyType === "formdata") {
+      config.body = body;
+    }
+
+    try {
+      const response = await fetch(url, config);
+      const statusCode = response.status;
+      if (statusCode === 204) {
+        return { data: null, status: statusCode };
+      }
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(`${JSON.stringify(data?.error || data)}`, {
+          cause: statusCode,
+        });
+      }
+
+      return { data, status: statusCode };
+    } catch (err) {
+      if (err instanceof Error) {
+        return {
+          error: err?.message ?? JSON.stringify(err),
+          status: err?.cause || 500,
+        };
+      }
+      return { data: { message: "From Internal error" }, status: 500 };
+    }
   };
 
-  // For GET requests → useQuery
-  if (method === "GET") {
+  if (enabled && method === "GET") {
     const query = useQuery({
-      queryKey: key,
-      queryFn: request,
-      enabled,
-      staleTime: 1000 * 60 * 3,
+      queryKey,
+      queryFn: () => fetchData(),
+      refetchOnWindowFocus: false,
+      retry: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
     });
 
     return {
-      ...query,
-      data: query.data as T,
+      data: query.data?.data,
+      error: query.error,
+      isPending: query.isPending,
+      isError: query.isError,
+      isSuccess: query.isSuccess,
     };
   }
 
-  // For Mutations
-  const mutation = useMutation({
-    mutationFn: request,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: key });
-
-      if (invalidate?.length) {
-        queryClient.invalidateQueries({ queryKey: invalidate });
-      }
-
-      onSuccess?.();
+  const {
+    data,
+    error,
+    mutate,
+    mutateAsync,
+    isPending,
+    isSuccess,
+    isError,
+    reset,
+  } = useMutation({
+    mutationFn: async (data?: Record<string, any> | FormData) => {
+      const response = await fetchData(data);
+      return response;
     },
-    onError: (err) => onError?.(err),
+    onSuccess: async ({ status }) => {
+      if ([200, 201].includes(status as number))
+        queryClient.invalidateQueries({ queryKey, exact });
+      if (onSuccess) onSuccess();
+    },
+    onError: ({ message, name, cause, stack }) => {
+      console.log({ message, name, cause, stack });
+      if (onError) onError({ message, name, cause, stack });
+    },
   });
 
   return {
-    ...mutation,
-    data: mutation.data as T,
+    data: data?.data,
+    error,
+    isPending,
+    isError,
+    isSuccess,
+    mutate,
+    mutateAsync,
+    reset,
   };
 }
