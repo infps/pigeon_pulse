@@ -1,15 +1,8 @@
 import useApiRequest from "@/hooks/useApi";
 import { apiEndpoints } from "../endpoints";
-import type {
-  PrizeSchemesResponse,
-  CreatePrizeSchemeInput,
-  UpdatePrizeSchemeInput,
-  DeletePrizeSchemeInput,
-  PrizeSchemeResponse,
-} from "../types";
 
 export function useListPrizeSchemes({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest<PrizeSchemesResponse>({
+  const res = useApiRequest({
     endpoint: apiEndpoints.prizeSchemes.base,
     queryKey: ["prizeSchemes", "list"],
     params,
@@ -18,7 +11,7 @@ export function useListPrizeSchemes({ params }: { params?: Record<string, string
 }
 
 export function useCreatePrizeScheme({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest<PrizeSchemeResponse, CreatePrizeSchemeInput>({
+  const res = useApiRequest({
     exact: false,
     method: "POST",
     endpoint: apiEndpoints.prizeSchemes.base,
@@ -29,7 +22,7 @@ export function useCreatePrizeScheme({ params }: { params?: Record<string, strin
 }
 
 export function useUpdatePrizeScheme({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest<PrizeSchemeResponse, UpdatePrizeSchemeInput>({
+  const res = useApiRequest({
     exact: false,
     method: "PUT",
     endpoint: apiEndpoints.prizeSchemes.base,
@@ -40,7 +33,7 @@ export function useUpdatePrizeScheme({ params }: { params?: Record<string, strin
 }
 
 export function useDeletePrizeScheme({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest<any, DeletePrizeSchemeInput>({
+  const res = useApiRequest({
     exact: false,
     method: "DELETE",
     endpoint: apiEndpoints.prizeSchemes.base,

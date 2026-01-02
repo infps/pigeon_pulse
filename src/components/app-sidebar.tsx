@@ -48,7 +48,7 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 const mainMenuItems = [
   {
     title: "Breeders",
-    url: "/admin/breeders",
+    url: "/admin/users",
     icon: Users,
     roles: ["ADMIN", "SUPERADMIN"],
   },

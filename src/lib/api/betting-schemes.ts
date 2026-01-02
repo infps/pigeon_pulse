@@ -1,15 +1,8 @@
 import useApiRequest from "@/hooks/useApi";
 import { apiEndpoints } from "../endpoints";
-import type {
-  BettingSchemesResponse,
-  CreateBettingSchemeInput,
-  UpdateBettingSchemeInput,
-  DeleteBettingSchemeInput,
-  BettingSchemeResponse,
-} from "../types";
 
 export function useListBettingSchemes({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest<BettingSchemesResponse>({
+  const res = useApiRequest({
     endpoint: apiEndpoints.bettingSchemes.base,
     queryKey: ["bettingSchemes", "list"],
     params,
@@ -18,7 +11,7 @@ export function useListBettingSchemes({ params }: { params?: Record<string, stri
 }
 
 export function useCreateBettingScheme({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest<BettingSchemeResponse, CreateBettingSchemeInput>({
+  const res = useApiRequest({
     exact: false,
     method: "POST",
     endpoint: apiEndpoints.bettingSchemes.base,
@@ -29,7 +22,7 @@ export function useCreateBettingScheme({ params }: { params?: Record<string, str
 }
 
 export function useUpdateBettingScheme({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest<BettingSchemeResponse, UpdateBettingSchemeInput>({
+  const res = useApiRequest({
     exact: false,
     method: "PUT",
     endpoint: apiEndpoints.bettingSchemes.base,
@@ -40,7 +33,7 @@ export function useUpdateBettingScheme({ params }: { params?: Record<string, str
 }
 
 export function useDeleteBettingScheme({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest<any, DeleteBettingSchemeInput>({
+  const res = useApiRequest({
     exact: false,
     method: "DELETE",
     endpoint: apiEndpoints.bettingSchemes.base,

@@ -18,10 +18,20 @@ const bettingSchemes = {
   base: "/api/betting-scheme",
 };
 
+const users = {
+  base: "/api/users",
+};
+
+const events = {
+  base: "/api/event",
+};
+
 export const apiEndpoints = {
   raceTypes,
   eventTypes,
   feeSchemes,
   prizeSchemes,
-  bettingSchemes
+  bettingSchemes,
+  users,
+  events,
 };

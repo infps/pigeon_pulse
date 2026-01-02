@@ -1,3 +1,96 @@
+// User Types
+export enum UserStatus {
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
+  PROSPECT = "PROSPECT",
+}
+
+export enum UserRole {
+  BREEDER = "BREEDER",
+  ADMIN = "ADMIN",
+  SUPERADMIN = "SUPERADMIN",
+}
+
+export interface User {
+  id: string;
+  name: string;
+  lastName?: string;
+  email: string;
+  emailVerified: boolean;
+  createdAt: string;
+  updatedAt: string;
+  username?: string;
+  displayUsername?: string;
+  country?: string;
+  state?: string;
+  city?: string;
+  address?: string;
+  postalCode?: string;
+  phoneNumber?: string;
+  webAddress?: string;
+  ssn?: string;
+  status: UserStatus;
+  statusDate: string;
+  note?: string;
+  role: UserRole;
+  taxNumber?: string;
+}
+
+export interface UsersResponse {
+  users: User[];
+  message: string;
+}
+
+export interface UserResponse {
+  user: User;
+  message: string;
+}
+
+export interface CreateUserInput {
+  email: string;
+  password: string;
+  name: string;
+  lastName?: string;
+  username?: string;
+  displayUsername?: string;
+  country?: string;
+  state?: string;
+  city?: string;
+  address?: string;
+  postalCode?: string;
+  phoneNumber?: string;
+  webAddress?: string;
+  ssn?: string;
+  status?: UserStatus;
+  role?: UserRole;
+  taxNumber?: string;
+  note?: string;
+}
+
+export interface UpdateUserInput {
+  id: string;
+  name?: string;
+  lastName?: string;
+  username?: string;
+  displayUsername?: string;
+  country?: string;
+  state?: string;
+  city?: string;
+  address?: string;
+  postalCode?: string;
+  phoneNumber?: string;
+  webAddress?: string;
+  ssn?: string;
+  status?: UserStatus;
+  role?: UserRole;
+  taxNumber?: string;
+  note?: string;
+}
+
+export interface DeleteUserInput {
+  id: string;
+}
+
 // Race Type Types
 export interface RaceType {
   id: string;
@@ -234,5 +327,100 @@ export interface DeleteBettingSchemeInput {
 
 export interface BettingSchemeResponse {
   bettingScheme: BettingScheme;
+  message: string;
+}
+
+// Event Types
+export interface Event {
+  eventId: string;
+  name: string;
+  shortName?: string;
+  description?: string;
+  startDate: string;
+  endDate?: string;
+  createdAt: string;
+  updatedAt: string;
+  isOpen: boolean;
+  typeId: string;
+  type?: EventType;
+  feeSchemeId: string;
+  feeScheme?: FeeScheme;
+  prizeSchemeId: string;
+  prizeScheme?: PrizeScheme;
+  bettingSchemeId: string;
+  bettingScheme?: BettingScheme;
+  createdById: string;
+  createdBy?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  contactWebsite?: string;
+  contactAddress?: string;
+  socialYt?: string;
+  socialFb?: string;
+  socialTwitter?: string;
+  socialInsta?: string;
+}
+
+export interface EventsResponse {
+  events: Event[];
+  message: string;
+}
+
+export interface CreateEventInput {
+  name: string;
+  shortName?: string;
+  description?: string;
+  startDate: string;
+  endDate?: string;
+  isOpen?: boolean;
+  typeId: string;
+  feeSchemeId: string;
+  prizeSchemeId: string;
+  bettingSchemeId: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  contactWebsite?: string;
+  contactAddress?: string;
+  socialYt?: string;
+  socialFb?: string;
+  socialTwitter?: string;
+  socialInsta?: string;
+}
+
+export interface UpdateEventInput {
+  eventId: string;
+  name?: string;
+  shortName?: string;
+  description?: string;
+  startDate?: string;
+  endDate?: string;
+  isOpen?: boolean;
+  typeId?: string;
+  feeSchemeId?: string;
+  prizeSchemeId?: string;
+  bettingSchemeId?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  contactWebsite?: string;
+  contactAddress?: string;
+  socialYt?: string;
+  socialFb?: string;
+  socialTwitter?: string;
+  socialInsta?: string;
+}
+
+export interface DeleteEventInput {
+  eventId: string;
+}
+
+export interface EventResponse {
+  event: Event;
   message: string;
 }

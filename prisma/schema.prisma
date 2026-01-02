@@ -205,16 +205,17 @@ model Event {
   createdById String
   createdBy   User   @relation(fields: [createdById], references: [id], onDelete: Cascade)
 
-  contactName    String?
-  contactEmail   String?
-  contactPhone   String?
-  contactWebsite String?
-  contactAddress String?
-  socialYt       String?
-  socialFb       String?
-  socialTwitter  String?
-  socialInsta    String?
-  races          Race[]
+  contactName      String?
+  contactEmail     String?
+  contactPhone     String?
+  contactWebsite   String?
+  contactAddress   String?
+  socialYt         String?
+  socialFb         String?
+  socialTwitter    String?
+  socialInsta      String?
+  races            Race[]
+  eventInventories EventInventory[]
 }
 
 enum BirdSex {
@@ -232,7 +233,7 @@ model Bird {
   band4               String
   birdName            String
   color               String
-  rfid                String?             @unique
+  rfid                String?              @unique
   sex                 BirdSex              @default(COCK)
   isActive            Boolean              @default(true)
   isLost              Boolean              @default(false)
@@ -253,6 +254,9 @@ model EventInventory {
   reservedBirds    Int
   loft             String
   note             String?
+
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [eventId], onDelete: Cascade)
 
   breederId           String
   breeder             User                 @relation(fields: [breederId], references: [id], onDelete: Cascade)
@@ -363,6 +367,7 @@ model Team {
 
   breederId String
   breeder   User   @relation(fields: [breederId], references: [id], onDelete: Cascade)
+
   @@unique([name, breederId])
 }
 
