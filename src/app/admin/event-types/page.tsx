@@ -5,14 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { createEventType, deleteEventType, listEventTypes, updateEventType } from "@/lib/api/event-types";
-
-interface EventType {
-  eventTypeId: string;
-  name: string;
-  description: string | null;
-  createdAt: string;
-}
+import { useCreateEventType, useDeleteEventType, useListEventTypes, useUpdateEventType } from "@/lib/api/event-types";
+import { DataTable } from "@/components/ui/data-table";
+import { createColumns, EventType } from "./columns";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function EventTypesPage() {
   const [isCreating, setIsCreating] = useState(false);
@@ -20,17 +16,17 @@ export default function EventTypesPage() {
   const [formData, setFormData] = useState({ name: "", description: "" });
 
   // Fetch event types
-  const { data: eventTypesData, isPending, isError } = listEventTypes({});
+  const { data: eventTypesData, isPending, isError } = useListEventTypes({});
   const eventTypes: EventType[] = eventTypesData?.eventTypes || [];
 
   // Create mutation
-  const createMutation = createEventType({});
+  const createMutation = useCreateEventType({});
 
   // Update mutation
-  const updateMutation = updateEventType({});
+  const updateMutation = useUpdateEventType({});
 
   // Delete mutation
-  const deleteMutation = deleteEventType({ eventTypeId: "" });
+  const deleteMutation = useDeleteEventType({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,9 +69,8 @@ export default function EventTypesPage() {
     if (!confirm("Are you sure you want to delete this event type?")) return;
 
     try {
-      const deleteMut = deleteEventType({ eventTypeId });
-      if(!deleteMut.mutateAsync) return;
-      await deleteMut.mutateAsync({});
+      if(!deleteMutation.mutateAsync) return;
+      await deleteMutation.mutateAsync({ eventTypeId });
       toast.success("Event type deleted successfully");
     } catch (error) {
       toast.error("Failed to delete event type");
@@ -88,11 +83,14 @@ export default function EventTypesPage() {
     setFormData({ name: "", description: "" });
   };
 
+  const columns = createColumns(handleEdit, handleDelete);
+
   if (isPending) {
     return (
       <div className="p-8">
-        <div className="flex items-center justify-center">
-          <p>Loading event types...</p>
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-62.5" />
+          <Skeleton className="h-100 w-full" />
         </div>
       </div>
     );
@@ -161,69 +159,12 @@ export default function EventTypesPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Name
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Description
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Created At
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {eventTypes.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
-                  No event types found. Create one to get started.
-                </td>
-              </tr>
-            ) : (
-              eventTypes.map((eventType) => (
-                <tr key={eventType.eventTypeId} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{eventType.name}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-500">
-                      {eventType.description || "-"}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(eventType.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(eventType)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleDelete(eventType.eventTypeId)}
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={columns}
+        data={eventTypes}
+        searchKey="name"
+        searchPlaceholder="Search event types..."
+      />
     </div>
   );
 }

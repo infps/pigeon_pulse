@@ -1,7 +1,7 @@
 import useApiRequest from "@/hooks/useApi";
 import { apiEndpoints } from "../endpoints";
 
-export function listEventTypes({ params }: { params?: Record<string, string> } = {}) {
+export function useListEventTypes({ params }: { params?: Record<string, string> } = {}) {
   const res = useApiRequest({
     endpoint: apiEndpoints.eventTypes.base,
     queryKey: ["eventTypes", "list"],
@@ -10,7 +10,7 @@ export function listEventTypes({ params }: { params?: Record<string, string> } =
   return res;
 }
 
-export function createEventType({ params }: { params?: Record<string, string> } = {}) {
+export function useCreateEventType({ params }: { params?: Record<string, string> } = {}) {
   const res = useApiRequest({
     exact: false,
     method: "POST",
@@ -21,7 +21,7 @@ export function createEventType({ params }: { params?: Record<string, string> } 
   return res;
 }
 
-export function updateEventType({ params }: { params?: Record<string, string> } = {}) {
+export function useUpdateEventType({ params }: { params?: Record<string, string> } = {}) {
   const res = useApiRequest({
     exact: false,
     method: "PUT",
@@ -32,12 +32,13 @@ export function updateEventType({ params }: { params?: Record<string, string> } 
   return res;
 }
 
-export function deleteEventType({ eventTypeId }: { eventTypeId: string }) {
+export function useDeleteEventType({ params }: { params?: Record<string, string> } = {}) {
   const res = useApiRequest({
     exact: false,
     method: "DELETE",
-    endpoint: apiEndpoints.eventTypes.delete(eventTypeId),
+    endpoint: apiEndpoints.eventTypes.base,
     queryKey: ["eventTypes"],
+    params,
   });
   return res;
 }

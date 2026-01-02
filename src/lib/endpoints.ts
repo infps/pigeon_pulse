@@ -1,14 +1,27 @@
 const raceTypes = {
   base: "/api/race-type",
-  delete: (id: string) => `/api/race-type?id=${id}`,
 };
 
 const eventTypes = {
   base: "/api/event-type",
-  delete: (eventTypeId: string) => `/api/event-type?eventTypeId=${eventTypeId}`,
+};
+
+const feeSchemes = {
+  base: "/api/fee-scheme",
+};
+
+const prizeSchemes = {
+  base: "/api/prize-scheme",
+};
+
+const bettingSchemes = {
+  base: "/api/betting-scheme",
 };
 
 export const apiEndpoints = {
   raceTypes,
-  eventTypes
+  eventTypes,
+  feeSchemes,
+  prizeSchemes,
+  bettingSchemes
 };

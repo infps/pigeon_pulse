@@ -1,7 +1,13 @@
 import useApiRequest from "@/hooks/useApi";
 import { apiEndpoints } from "../endpoints";
+import type {
+  RaceTypesResponse,
+  CreateRaceTypeInput,
+  UpdateRaceTypeInput,
+  DeleteRaceTypeInput,
+} from "../types";
 
-export function listRaceTypes({ params }: { params?: Record<string, string> } = {}) {
+export function useListRaceTypes({ params }: { params?: Record<string, string> } = {}) {
   const res = useApiRequest({
     endpoint: apiEndpoints.raceTypes.base,
     queryKey: ["raceTypes", "list"],
@@ -10,7 +16,7 @@ export function listRaceTypes({ params }: { params?: Record<string, string> } = 
   return res;
 }
 
-export function createRaceType({ params }: { params?: Record<string, string> } = {}) {
+export function useCreateRaceType({ params }: { params?: Record<string, string> } = {}) {
   const res = useApiRequest({
     exact: false,
     method: "POST",
@@ -21,7 +27,7 @@ export function createRaceType({ params }: { params?: Record<string, string> } =
   return res;
 }
 
-export function updateRaceType({ params }: { params?: Record<string, string> } = {}) {
+export function useUpdateRaceType({ params }: { params?: Record<string, string> } = {}) {
   const res = useApiRequest({
     exact: false,
     method: "PUT",
@@ -32,12 +38,13 @@ export function updateRaceType({ params }: { params?: Record<string, string> } =
   return res;
 }
 
-export function deleteRaceType({ id }: { id: string }) {
+export function useDeleteRaceType({ params }: { params?: Record<string, string> } = {}) {
   const res = useApiRequest({
     exact: false,
     method: "DELETE",
-    endpoint: apiEndpoints.raceTypes.delete(id),
+    endpoint: apiEndpoints.raceTypes.base,
     queryKey: ["raceTypes"],
+    params,
   });
   return res;
 }
