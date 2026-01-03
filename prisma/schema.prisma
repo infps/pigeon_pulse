@@ -62,6 +62,7 @@ model User {
   partnerEventInventories EventInventory[] @relation("EventInventoryPartners")
   baskets                 Basket[]
   teams                   Team[]
+  payments                Payments[]
 
   @@unique([email])
   @@unique([username])
@@ -172,6 +173,28 @@ model BettingScheme {
   createdBy   User    @relation(fields: [createdById], references: [id], onDelete: Cascade)
 }
 
+enum PaymentMethod {
+  CREDIT_CARD
+  PAYPAL
+  BANK_TRANSFER
+  CASH
+}
+
+model Payments {
+  paymentId        String         @id @default(uuid(7))
+  amount           Float
+  currency         String         @default("USD")
+  method           PaymentMethod
+  paidAt           DateTime       @default(now())
+  description      String?
+  eventInventoryId String
+  eventInventory   EventInventory @relation(fields: [eventInventoryId], references: [eventInventoryId], onDelete: Cascade)
+  breederId        String
+  breeder          User           @relation(fields: [breederId], references: [id], onDelete: Cascade)
+  paymentType       String
+  referenceNumber   String?
+}
+
 model EventType {
   eventTypeId String   @id @default(uuid(7))
   name        String   @unique
@@ -262,6 +285,7 @@ model EventInventory {
   breeder             User                 @relation(fields: [breederId], references: [id], onDelete: Cascade)
   partners            User[]               @relation("EventInventoryPartners")
   eventInventoryItems EventInventoryItem[]
+  payments            Payments[]
 }
 
 model EventInventoryItem {
