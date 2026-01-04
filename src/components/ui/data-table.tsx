@@ -69,6 +69,7 @@ export function DataTable<TData, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
+    globalFilterFn:"includesString",
   })
 
   return (
@@ -77,9 +78,9 @@ export function DataTable<TData, TValue>({
         {searchKey && (
           <Input
             placeholder={searchPlaceholder}
-            value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ""}
+            value={(table.getState().globalFilter as string) ?? ""}
             onChange={(event) =>
-              table.getColumn(searchKey)?.setFilterValue(event.target.value)
+              table.setGlobalFilter(event.target.value)
             }
             className="h-8 w-37.5 lg:w-62.5"
           />

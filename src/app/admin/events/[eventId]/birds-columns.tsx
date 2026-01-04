@@ -1,10 +1,21 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
+import { MoreHorizontal } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import type { EventInventoryItemDetail } from "@/lib/types";
+import type { EventInventoryItem } from "@/lib/types";
 
-export const birdsColumns: ColumnDef<EventInventoryItemDetail>[] = [
+export const createBirdsColumns = (
+  onEdit: (item: EventInventoryItem) => void
+): ColumnDef<EventInventoryItem>[] => [
   {
     accessorKey: "eventInventory.registrationDate",
     header: ({ column }) => (
@@ -52,6 +63,29 @@ export const birdsColumns: ColumnDef<EventInventoryItemDetail>[] = [
       if (!arrivalTime) return <span className="text-gray-400">-</span>;
       const date = new Date(arrivalTime);
       return <span>{date.toLocaleString()}</span>;
+    },
+  },
+  {
+    id: "actions",
+    cell: ({ row }) => {
+      const item = row.original;
+
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="h-8 w-8 p-0">
+              <span className="sr-only">Open menu</span>
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => onEdit(item)}>
+              Edit bird
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      );
     },
   },
 ];

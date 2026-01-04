@@ -21,7 +21,11 @@ export async function GET(request: Request) {
         },
         include: {
           type: true,
-          feeScheme: true,
+          feeScheme: {
+            include:{
+              perchFeeItems: true
+            }
+          },
           prizeScheme: true,
           bettingScheme: true,
           createdBy: {

@@ -1,5 +1,6 @@
-import useApiRequest from "@/hooks/useApi";
+import { useApiQuery } from "@/hooks/useApi";
 import { apiEndpoints } from "../endpoints";
+import { useApiMutation } from "@/hooks/useApiMutation";
 
 export function useListRaces({
   params,
@@ -12,7 +13,7 @@ export function useListRaces({
         .map((key) => `${key}-${params[key]}`)
         .join("_")
     : "all";
-  return useApiRequest({
+  return useApiQuery({
     endpoint: apiEndpoints.races.base,
     queryKey: ["races", "list", paramKeys],
     params,
@@ -24,7 +25,7 @@ export function useCreateRace({
 }: {
   params?: Record<string, string>;
 } = {}) {
-  const res = useApiRequest({
+  const res = useApiMutation({
     exact: false,
     method: "POST",
     endpoint: apiEndpoints.races.base,
@@ -39,7 +40,7 @@ export function useUpdateRace({
 }: {
   params?: Record<string, string>;
 } = {}) {
-  const res = useApiRequest({
+  const res = useApiMutation({
     exact: false,
     method: "PUT",
     endpoint: apiEndpoints.races.base,
@@ -54,7 +55,7 @@ export function useDeleteRace({
 }: {
   params?: Record<string, string>;
 } = {}) {
-  const res = useApiRequest({
+  const res = useApiMutation({
     exact: false,
     method: "DELETE",
     endpoint: apiEndpoints.races.base,

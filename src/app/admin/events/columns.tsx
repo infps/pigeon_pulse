@@ -52,7 +52,10 @@ export const createColumns = (
       const name = row.getValue("name") as string
       const shortName = row.original.shortName
       return (
-        <div className="flex flex-col">
+        <div 
+          className="flex flex-col cursor-pointer hover:underline" 
+          onClick={() => onEdit(row.original)}
+        >
           <span className="font-medium">{name}</span>
           {shortName && <span className="text-sm text-muted-foreground">{shortName}</span>}
         </div>

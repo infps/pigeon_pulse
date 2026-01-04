@@ -1,15 +1,10 @@
-import useApiRequest from "@/hooks/useApi";
+import { useApiQuery } from "@/hooks/useApi";
 import { apiEndpoints } from "../endpoints";
-import type {
-  FeeSchemesResponse,
-  CreateFeeSchemeInput,
-  UpdateFeeSchemeInput,
-  DeleteFeeSchemeInput,
-  FeeSchemeResponse,
-} from "../types";
+import { useApiMutation } from "@/hooks/useApiMutation";
+
 
 export function useListFeeSchemes({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest({
+  const res = useApiQuery({
     endpoint: apiEndpoints.feeSchemes.base,
     queryKey: ["feeSchemes", "list"],
     params,
@@ -18,7 +13,7 @@ export function useListFeeSchemes({ params }: { params?: Record<string, string> 
 }
 
 export function useCreateFeeScheme({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest({
+  const res = useApiMutation({
     exact: false,
     method: "POST",
     endpoint: apiEndpoints.feeSchemes.base,
@@ -29,7 +24,7 @@ export function useCreateFeeScheme({ params }: { params?: Record<string, string>
 }
 
 export function useUpdateFeeScheme({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest({
+  const res = useApiMutation({
     exact: false,
     method: "PUT",
     endpoint: apiEndpoints.feeSchemes.base,
@@ -40,7 +35,7 @@ export function useUpdateFeeScheme({ params }: { params?: Record<string, string>
 }
 
 export function useDeleteFeeScheme({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest({
+  const res = useApiMutation({
     exact: false,
     method: "DELETE",
     endpoint: apiEndpoints.feeSchemes.base,

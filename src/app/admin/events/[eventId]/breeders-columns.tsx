@@ -2,9 +2,11 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
-import type { EventInventoryItem } from "@/lib/types";
+import type { EventInventory } from "@/lib/types";
 
-export const breedersColumns: ColumnDef<EventInventoryItem>[] = [
+export const createBreedersColumns = (
+  onBreederClick: (eventInventoryId: string) => void
+): ColumnDef<EventInventory>[] => [
   {
     accessorKey: "loft",
     header: ({ column }) => (
@@ -19,7 +21,10 @@ export const breedersColumns: ColumnDef<EventInventoryItem>[] = [
     cell: ({ row }) => {
       const breeder = row.original.breeder;
       return (
-        <span>
+        <span
+          className="cursor-pointer hover:underline text-blue-600"
+          onClick={() => onBreederClick(row.original.eventInventoryId)}
+        >
           {breeder.name} {breeder.lastName || ""}
         </span>
       );
@@ -36,6 +41,10 @@ export const breedersColumns: ColumnDef<EventInventoryItem>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Registration Date" />
     ),
+    cell: ({ row }) => {
+      const date = new Date(row.original.registrationDate);
+      return <span>{date.toLocaleDateString()}</span>;
+    }
   },
   {
     header: "Perch Fees Value",
@@ -49,6 +58,20 @@ export const breedersColumns: ColumnDef<EventInventoryItem>[] = [
     cell: ({row})=>{
         const perchFeesPaid = row.original.payments.filter(p => p.paymentType === 'PERCH_FEE').reduce((sum, p) => sum + p.amountPaid, 0);
         return <span>${perchFeesPaid.toFixed(2)}</span>;
+    }
+  },
+  {
+    header: "Entry Fees Value",
+    cell: ({row})=>{
+        const entryFeesValue = row.original.payments.filter(p => p.paymentType === 'ENTRY_FEE').reduce((sum, p) => sum + p.amountToPay, 0);
+        return <span>${entryFeesValue.toFixed(2)}</span>;
+    }
+  },
+  {
+    header: "Entry Fees Paid",
+    cell: ({row})=>{
+        const entryFeesPaid = row.original.payments.filter(p => p.paymentType === 'ENTRY_FEE').reduce((sum, p) => sum + p.amountPaid, 0);
+        return <span>${entryFeesPaid.toFixed(2)}</span>;
     }
   }
 ];

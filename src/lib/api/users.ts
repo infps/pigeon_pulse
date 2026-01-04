@@ -1,5 +1,6 @@
-import useApiRequest from "@/hooks/useApi";
+import { useApiQuery } from "@/hooks/useApi";
 import { apiEndpoints } from "../endpoints";
+import { useApiMutation } from "@/hooks/useApiMutation";
 
 export function useListUsers({
   params,
@@ -9,7 +10,7 @@ export function useListUsers({
   enabled?: boolean;
 } = {}) {
 const paramKeys = params ? Object.keys(params).sort().map((key) => `${key}-${params[key]}`).join("_") : "all";
-  return useApiRequest({
+  return useApiQuery({
     endpoint: apiEndpoints.users.base,
     queryKey: ["users", "list", paramKeys],
     params,
@@ -19,7 +20,7 @@ const paramKeys = params ? Object.keys(params).sort().map((key) => `${key}-${par
 
 
 export function useCreateUser({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest({
+  const res = useApiMutation({
     exact: false,
     method: "POST",
     endpoint: apiEndpoints.users.base,
@@ -30,7 +31,7 @@ export function useCreateUser({ params }: { params?: Record<string, string> } = 
 }
 
 export function useUpdateUser({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest({
+  const res = useApiMutation({
     exact: false,
     method: "PUT",
     endpoint: apiEndpoints.users.base,
@@ -41,7 +42,7 @@ export function useUpdateUser({ params }: { params?: Record<string, string> } = 
 }
 
 export function useDeleteUser({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest({
+  const res = useApiMutation({
     exact: false,
     method: "DELETE",
     endpoint: apiEndpoints.users.base,

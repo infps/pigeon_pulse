@@ -21,6 +21,7 @@ import { EditEventTab } from "./edit-event-tab";
 import { BreedersTab } from "./breeders-tab";
 import { BirdsTab } from "./birds-tab";
 import { RacesTab } from "./races-tab";
+import { RegisterTab } from "./register-tab";
 
 export default function EventDetailsPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = use(params);
@@ -80,11 +81,12 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
       </div>
 
       <Tabs defaultValue="edit" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="edit">Edit</TabsTrigger>
           <TabsTrigger value="breeders">Breeders</TabsTrigger>
           <TabsTrigger value="birds">Birds</TabsTrigger>
           <TabsTrigger value="races">Races</TabsTrigger>
+          <TabsTrigger value="register">Register</TabsTrigger>
         </TabsList>
 
         <TabsContent value="edit" className="mt-6">
@@ -108,6 +110,10 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
 
         <TabsContent value="races" className="mt-6">
           <RacesTab event={event} eventId={eventId} />
+        </TabsContent>
+
+        <TabsContent value="register" className="mt-6">
+          <RegisterTab event={event} eventId={eventId} />
         </TabsContent>
       </Tabs>
     </div>

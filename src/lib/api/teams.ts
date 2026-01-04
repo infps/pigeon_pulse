@@ -1,9 +1,10 @@
-import useApiRequest from "@/hooks/useApi";
+import  { useApiQuery } from "@/hooks/useApi";
 import { apiEndpoints } from "../endpoints";
+import { useApiMutation } from "@/hooks/useApiMutation";
 
 export function useListTeams({ params }: { params?: Record<string, string> } = {}) {
   const paramKeys = params ? Object.keys(params).sort().map((key) => `${key}-${params[key]}`).join("_") : "all";
-  const res = useApiRequest({
+  const res = useApiQuery({
     endpoint: apiEndpoints.teams.base,
     queryKey: ["teams", "list", paramKeys],
     params,
@@ -12,7 +13,7 @@ export function useListTeams({ params }: { params?: Record<string, string> } = {
 }
 
 export function useCreateTeam({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest({
+  const res = useApiMutation({
     exact: false,
     method: "POST",
     endpoint: apiEndpoints.teams.base,
@@ -23,7 +24,7 @@ export function useCreateTeam({ params }: { params?: Record<string, string> } = 
 }
 
 export function useUpdateTeam({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest({
+  const res = useApiMutation({
     exact: false,
     method: "PUT",
     endpoint: apiEndpoints.teams.base,
@@ -34,7 +35,7 @@ export function useUpdateTeam({ params }: { params?: Record<string, string> } = 
 }
 
 export function useDeleteTeam({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest({
+  const res = useApiMutation({
     exact: false,
     method: "DELETE",
     endpoint: apiEndpoints.teams.base,

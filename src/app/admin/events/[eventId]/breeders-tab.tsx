@@ -1,10 +1,12 @@
 "use client";
 
-import type { Event, EventInventoryItem } from "@/lib/types";
+import type { Event, EventInventory, EventInventoryItem } from "@/lib/types";
+import { useState } from "react";
 import { useListEventInventory } from "@/lib/api/event-inventory";
 import { DataTable } from "@/components/ui/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { breedersColumns } from "./breeders-columns";
+import { createBreedersColumns } from "./breeders-columns";
+import { BreederDetailsDialog } from "@/components/breeder-details-dialog";
 
 interface BreedersTabProps {
   event: Event;
@@ -12,7 +14,17 @@ interface BreedersTabProps {
 }
 
 export function BreedersTab({ event, eventId }: BreedersTabProps) {
+  const [selectedEventInventoryId, setSelectedEventInventoryId] = useState<string | null>(null);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+
   const { data, isPending, error } = useListEventInventory(eventId);
+
+  const handleBreederClick = (eventInventoryId: string) => {
+    setSelectedEventInventoryId(eventInventoryId);
+    setIsDetailsDialogOpen(true);
+  };
+
+  const columns = createBreedersColumns(handleBreederClick);
 
   if (isPending) {
     return (
@@ -32,11 +44,18 @@ export function BreedersTab({ event, eventId }: BreedersTabProps) {
     );
   }
 
-  const eventInventory: EventInventoryItem[] = data?.eventInventory || [];
+  const eventInventory: EventInventory[] = data?.eventInventory || [];
 
   return (
     <div className="space-y-4">
-      <DataTable columns={breedersColumns} data={eventInventory} />
+      <DataTable columns={columns} data={eventInventory} />
+      
+      <BreederDetailsDialog
+        open={isDetailsDialogOpen}
+        onOpenChange={setIsDetailsDialogOpen}
+        eventInventoryId={selectedEventInventoryId}
+        event={event}
+      />
     </div>
   );
 }

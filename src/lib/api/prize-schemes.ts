@@ -1,8 +1,9 @@
-import useApiRequest from "@/hooks/useApi";
+import { useApiQuery } from "@/hooks/useApi";
 import { apiEndpoints } from "../endpoints";
+import { useApiMutation } from "@/hooks/useApiMutation";
 
 export function useListPrizeSchemes({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest({
+  const res = useApiQuery({
     endpoint: apiEndpoints.prizeSchemes.base,
     queryKey: ["prizeSchemes", "list"],
     params,
@@ -11,7 +12,7 @@ export function useListPrizeSchemes({ params }: { params?: Record<string, string
 }
 
 export function useCreatePrizeScheme({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest({
+  const res = useApiMutation({
     exact: false,
     method: "POST",
     endpoint: apiEndpoints.prizeSchemes.base,
@@ -22,7 +23,7 @@ export function useCreatePrizeScheme({ params }: { params?: Record<string, strin
 }
 
 export function useUpdatePrizeScheme({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest({
+  const res = useApiMutation({
     exact: false,
     method: "PUT",
     endpoint: apiEndpoints.prizeSchemes.base,
@@ -33,7 +34,7 @@ export function useUpdatePrizeScheme({ params }: { params?: Record<string, strin
 }
 
 export function useDeletePrizeScheme({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest({
+  const res = useApiMutation({
     exact: false,
     method: "DELETE",
     endpoint: apiEndpoints.prizeSchemes.base,

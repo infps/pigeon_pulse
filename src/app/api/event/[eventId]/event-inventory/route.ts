@@ -17,7 +17,12 @@ export async function GET(request: Request,{ params }: { params: Promise<{ event
             },
             include:{
                 breeder:true,
-                payments:true
+                payments:true,
+                eventInventoryItems:{
+                    include:{
+                        bird:true
+                    },
+                }
             }
         })
         return NextResponse.json(

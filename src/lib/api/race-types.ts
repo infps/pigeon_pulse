@@ -1,14 +1,9 @@
-import useApiRequest from "@/hooks/useApi";
+import { useApiQuery } from "@/hooks/useApi";
 import { apiEndpoints } from "../endpoints";
-import type {
-  RaceTypesResponse,
-  CreateRaceTypeInput,
-  UpdateRaceTypeInput,
-  DeleteRaceTypeInput,
-} from "../types";
+import { useApiMutation } from "@/hooks/useApiMutation";
 
 export function useListRaceTypes({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest({
+  const res = useApiQuery({
     endpoint: apiEndpoints.raceTypes.base,
     queryKey: ["raceTypes", "list"],
     params,
@@ -17,7 +12,7 @@ export function useListRaceTypes({ params }: { params?: Record<string, string> }
 }
 
 export function useCreateRaceType({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest({
+  const res = useApiMutation({
     exact: false,
     method: "POST",
     endpoint: apiEndpoints.raceTypes.base,
@@ -28,7 +23,7 @@ export function useCreateRaceType({ params }: { params?: Record<string, string> 
 }
 
 export function useUpdateRaceType({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest({
+  const res = useApiMutation({
     exact: false,
     method: "PUT",
     endpoint: apiEndpoints.raceTypes.base,
@@ -39,7 +34,7 @@ export function useUpdateRaceType({ params }: { params?: Record<string, string> 
 }
 
 export function useDeleteRaceType({ params }: { params?: Record<string, string> } = {}) {
-  const res = useApiRequest({
+  const res = useApiMutation({
     exact: false,
     method: "DELETE",
     endpoint: apiEndpoints.raceTypes.base,
