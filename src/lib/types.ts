@@ -1,3 +1,5 @@
+import { PaymentMethod, PaymentType } from "@/generated/prisma/enums";
+
 // User Types
 export enum UserStatus {
   ACTIVE = "ACTIVE",
@@ -34,6 +36,121 @@ export interface User {
   note?: string;
   role: UserRole;
   taxNumber?: string;
+}
+
+export interface Payment{
+        method: PaymentMethod;
+        eventInventoryId: string;
+        breederId: string;
+        description: string | null;
+        paymentId: string;
+        amountPaid: number;
+        amountToPay: number;
+        currency: string;
+        paidAt: Date;
+        paymentType: PaymentType;
+        referenceNumber: string | null;
+}
+export interface EventInventoryItem {
+  eventInventoryId: string;
+  registrationDate: string;
+  reservedBirds: number;
+  loft: string;
+  note?: string;
+  eventId: string;
+  breederId: string;
+  breeder: {
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        email: string;
+        emailVerified: boolean;
+        name: string;
+        image: string | null;
+        username: string | null;
+        lastName: string | null;
+        imageKey: string | null;
+        displayUsername: string | null;
+        country: string | null;
+        state: string | null;
+        city: string | null;
+        address: string | null;
+        postalCode: string | null;
+        phoneNumber: string | null;
+        webAddress: string | null;
+        ssn: string | null;
+        status: UserStatus;
+        statusDate: Date;
+        note: string | null;
+        role: UserRole;
+        taxNumber: string | null;
+    };
+    payments: Payment[];
+    eventInventoryItems?: any[];
+}
+
+export interface EventInventoryItemDetail {
+  eventInventoryItemId: string;
+  birdId: string;
+  eventInventoryId: string;
+  birdNo: number | null;
+  arrivalTime: string | null;
+  departureTime: string | null;
+  perchFeeValue: number;
+  entryFeeRefunded: boolean;
+  entryFeePaid: boolean;
+  isBackup: boolean;
+  belgianShowBet1: boolean;
+  belgianShowBet2: boolean;
+  belgianShowBet3: boolean;
+  belgianShowBet4: boolean;
+  belgianShowBet5: boolean;
+  belgianShowBet6: boolean;
+  belgianShowBet7: boolean;
+  standardShowBet1: boolean;
+  standardShowBet2: boolean;
+  standardShowBet3: boolean;
+  standardShowBet4: boolean;
+  standardShowBet5: boolean;
+  wtaBet1: boolean;
+  wtaBet2: boolean;
+  wtaBet3: boolean;
+  wtaBet4: boolean;
+  wtaBet5: boolean;
+  bird: {
+    birdId: string;
+    band: string;
+    band1: string;
+    band2: string;
+    band3: string;
+    band4: string;
+    birdName: string;
+    color: string;
+    rfid: string | null;
+    sex: string;
+    isActive: boolean;
+    isLost: boolean;
+    lostDate: string | null;
+    lostRaceId: string | null;
+    note: string | null;
+    picture: string | null;
+    breederId: string;
+  };
+  eventInventory: {
+    eventInventoryId: string;
+    registrationDate: string;
+    reservedBirds: number;
+    loft: string;
+    note: string | null;
+    eventId: string;
+    breederId: string;
+    breeder: {
+      id: string;
+      name: string;
+      lastName: string | null;
+      email: string;
+    };
+  };
 }
 
 export interface UsersResponse {
@@ -340,6 +457,8 @@ export interface Event {
   endDate?: string;
   createdAt: string;
   updatedAt: string;
+  bannerImage?: string | null;
+  logoImage?: string | null;
   isOpen: boolean;
   typeId: string;
   type?: EventType;
@@ -364,6 +483,7 @@ export interface Event {
   socialFb?: string;
   socialTwitter?: string;
   socialInsta?: string;
+  races?: Race[];
 }
 
 export interface EventsResponse {
@@ -422,5 +542,87 @@ export interface DeleteEventInput {
 
 export interface EventResponse {
   event: Event;
+  message: string;
+}
+
+// Race Types
+export interface Race {
+  raceId: string;
+  raceTypeId: string;
+  eventId: string;
+  name: string;
+  description?: string;
+  distance: number;
+  releaseStation: string;
+  releaseDate: string;
+  sunriseTime: string;
+  sunsetTime: string;
+  arrivalTemperature?: number;
+  arrivalWind?: string;
+  arrivalWeather?: string;
+  releaseTemperature?: number;
+  releaseWind?: string;
+  releaseWeather?: string;
+  isClosed: boolean;
+  createdAt: string;
+  updatedAt: string;
+  raceType?: RaceType;
+  event?: {
+    eventId: string;
+    name: string;
+    shortName?: string;
+  };
+}
+
+export interface RacesResponse {
+  races: Race[];
+  message: string;
+}
+
+export interface CreateRaceInput {
+  raceTypeId: string;
+  eventId: string;
+  name: string;
+  description?: string;
+  distance: number;
+  releaseStation: string;
+  releaseDate: string;
+  sunriseTime: string;
+  sunsetTime: string;
+  arrivalTemperature?: number;
+  arrivalWind?: string;
+  arrivalWeather?: string;
+  releaseTemperature?: number;
+  releaseWind?: string;
+  releaseWeather?: string;
+  isClosed?: boolean;
+}
+
+export interface UpdateRaceInput {
+  raceId: string;
+  raceTypeId?: string;
+  eventId?: string;
+  name?: string;
+  description?: string;
+  distance?: number;
+  releaseStation?: string;
+  releaseDate?: string;
+  sunriseTime?: string;
+  sunsetTime?: string;
+  arrivalTemperature?: number;
+  arrivalWind?: string;
+  arrivalWeather?: string;
+  releaseTemperature?: number;
+  releaseWind?: string;
+  releaseWeather?: string;
+  isClosed?: boolean;
+}
+
+export interface DeleteRaceInput {
+  raceId: string;
+}
+
+export interface RaceResponse {
+  race: Race;
   message: string;
 }

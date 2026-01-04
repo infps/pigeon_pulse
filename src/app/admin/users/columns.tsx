@@ -19,7 +19,8 @@ import type { User, UserRole, UserStatus } from "@/lib/types"
 
 export const createColumns = (
   onEdit: (user: User) => void,
-  onDelete: (id: string) => void
+  onDelete: (id: string) => void,
+  onViewTeams: (user: User) => void
 ): ColumnDef<User>[] => [
   {
     id: "select",
@@ -144,6 +145,10 @@ export const createColumns = (
               Copy Email
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => onViewTeams(user)}>
+                  View Teams
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => onEdit(user)}>
               Edit
             </DropdownMenuItem>

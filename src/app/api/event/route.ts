@@ -1,59 +1,93 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createEventSchema, updateEventSchema } from "@/lib/zod";
+import { uploadToR2, deleteFromR2, generateImageKey } from "@/lib/r2";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import z from "zod";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await auth.api.getSession({
-        headers: await headers(),
-    })
-    let events;
-    if(session && session.user.role ==="ADMIN"){
-        events = await prisma.event.findMany({
-            where: {
-                createdById: session.user.id,
+      headers: await headers(),
+    });
+    const { searchParams } = new URL(request.url);
+    const eventId = searchParams.get("eventId");
+
+    if (eventId) {
+      const event = await prisma.event.findUnique({
+        where: {
+          eventId: eventId,
+        },
+        include: {
+          type: true,
+          feeScheme: true,
+          prizeScheme: true,
+          bettingScheme: true,
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
             },
-            include: {
-                type: true,
-                feeScheme: true,
-                prizeScheme: true,
-                bettingScheme: true,
-                createdBy: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                    },
-                },
-            },
-            orderBy: {
-                createdAt: "desc",
-            },
-        });
-    }else{  
-            events = await prisma.event.findMany({
-                include: {
-                    type: true,
-                    feeScheme: true,
-                    prizeScheme: true,
-                    bettingScheme: true,
-                    createdBy: {
-                        select: {
-                            id: true,
-                            name: true,
-                            email: true,
-                        },
-                    },
-                },
-                orderBy: {
-                    createdAt: "desc",
-                },
-            });
-        }
+          },
+        },
+      });
+      if (!event) {
         return NextResponse.json(
+          { message: "Event not found" },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json(
+        { event, message: "Event fetched successfully" },
+        { status: 200 }
+      );
+    }
+    let events;
+    if (session && session.user.role === "ADMIN") {
+      events = await prisma.event.findMany({
+        where: {
+          createdById: session.user.id,
+        },
+        include: {
+          type: true,
+          feeScheme: true,
+          prizeScheme: true,
+          bettingScheme: true,
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+    } else {
+      events = await prisma.event.findMany({
+        include: {
+          type: true,
+          feeScheme: true,
+          prizeScheme: true,
+          bettingScheme: true,
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+    }
+    return NextResponse.json(
       { events, message: "Events fetched successfully" },
       { status: 200 }
     );
@@ -79,8 +113,41 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const validatedData = createEventSchema.parse(body);
+    const formData = await request.formData();
+    
+    // Extract files
+    const logoImageFile = formData.get("logoImage") as File | null;
+    const bannerImageFile = formData.get("bannerImage") as File | null;
+    
+    // Extract other fields
+    const bodyData: any = {};
+    formData.forEach((value, key) => {
+      if (key !== "logoImage" && key !== "bannerImage") {
+        bodyData[key] = value;
+      }
+    });
+
+    const validatedData = createEventSchema.parse(bodyData);
+
+    // Upload images to R2
+    let logoImageUrl = null;
+    let logoImageKey = null;
+    let bannerImageUrl = null;
+    let bannerImageKey = null;
+
+    if (logoImageFile && logoImageFile.size > 0) {
+      const key = generateImageKey("events/logos", logoImageFile.name);
+      const result = await uploadToR2(logoImageFile, key);
+      logoImageUrl = result.url;
+      logoImageKey = result.key;
+    }
+
+    if (bannerImageFile && bannerImageFile.size > 0) {
+      const key = generateImageKey("events/banners", bannerImageFile.name);
+      const result = await uploadToR2(bannerImageFile, key);
+      bannerImageUrl = result.url;
+      bannerImageKey = result.key;
+    }
 
     const newEvent = await prisma.event.create({
       data: {
@@ -104,6 +171,10 @@ export async function POST(request: Request) {
         socialFb: validatedData.socialFb,
         socialTwitter: validatedData.socialTwitter,
         socialInsta: validatedData.socialInsta,
+        logoImage: logoImageUrl,
+        logoImageKey: logoImageKey,
+        bannerImage: bannerImageUrl,
+        bannerImageKey: bannerImageKey,
       },
       include: {
         type: true,
@@ -152,8 +223,8 @@ export async function PUT(request: Request) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { eventId, ...updateData } = body;
+    const formData = await request.formData();
+    const eventId = formData.get("eventId") as string;
 
     if (!eventId) {
       return NextResponse.json(
@@ -162,7 +233,72 @@ export async function PUT(request: Request) {
       );
     }
 
-    const validatedData = updateEventSchema.parse(updateData);
+    // Get existing event to check for old images
+    const existingEvent = await prisma.event.findUnique({
+      where: { eventId },
+      select: { logoImageKey: true, bannerImageKey: true },
+    });
+
+    if (!existingEvent) {
+      return NextResponse.json(
+        { message: "Event not found" },
+        { status: 404 }
+      );
+    }
+
+    // Extract files
+    const logoImageFile = formData.get("logoImage") as File | null;
+    const bannerImageFile = formData.get("bannerImage") as File | null;
+    
+    // Extract other fields
+    const bodyData: any = {};
+    formData.forEach((value, key) => {
+      if (key !== "logoImage" && key !== "bannerImage" && key !== "eventId") {
+        bodyData[key] = value;
+      }
+    });
+
+    const validatedData = updateEventSchema.parse(bodyData);
+
+    // Handle logo image update
+    let logoImageUrl = undefined;
+    let logoImageKey = undefined;
+    if (logoImageFile && logoImageFile.size > 0) {
+      // Delete old logo if exists
+      if (existingEvent.logoImageKey) {
+        try {
+          await deleteFromR2(existingEvent.logoImageKey);
+        } catch (error) {
+          console.error("Error deleting old logo:", error);
+        }
+      }
+      
+      // Upload new logo
+      const key = generateImageKey("events/logos", logoImageFile.name);
+      const result = await uploadToR2(logoImageFile, key);
+      logoImageUrl = result.url;
+      logoImageKey = result.key;
+    }
+
+    // Handle banner image update
+    let bannerImageUrl = undefined;
+    let bannerImageKey = undefined;
+    if (bannerImageFile && bannerImageFile.size > 0) {
+      // Delete old banner if exists
+      if (existingEvent.bannerImageKey) {
+        try {
+          await deleteFromR2(existingEvent.bannerImageKey);
+        } catch (error) {
+          console.error("Error deleting old banner:", error);
+        }
+      }
+      
+      // Upload new banner
+      const key = generateImageKey("events/banners", bannerImageFile.name);
+      const result = await uploadToR2(bannerImageFile, key);
+      bannerImageUrl = result.url;
+      bannerImageKey = result.key;
+    }
 
     const updatedEvent = await prisma.event.update({
       where: { eventId },
@@ -178,7 +314,9 @@ export async function PUT(request: Request) {
           startDate: new Date(validatedData.startDate),
         }),
         ...(validatedData.endDate !== undefined && {
-          endDate: validatedData.endDate ? new Date(validatedData.endDate) : null,
+          endDate: validatedData.endDate
+            ? new Date(validatedData.endDate)
+            : null,
         }),
         ...(validatedData.isOpen !== undefined && {
           isOpen: validatedData.isOpen,
@@ -220,6 +358,10 @@ export async function PUT(request: Request) {
         ...(validatedData.socialInsta !== undefined && {
           socialInsta: validatedData.socialInsta,
         }),
+        ...(logoImageUrl !== undefined && { logoImage: logoImageUrl }),
+        ...(logoImageKey !== undefined && { logoImageKey: logoImageKey }),
+        ...(bannerImageUrl !== undefined && { bannerImage: bannerImageUrl }),
+        ...(bannerImageKey !== undefined && { bannerImageKey: bannerImageKey }),
       },
       include: {
         type: true,

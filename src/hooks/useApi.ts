@@ -55,19 +55,20 @@ export default function useApiRequest({
     const config: RequestInit = {
       mode,
       method,
-      headers: headers ?? {
+      headers: bodyType === "formdata" ? undefined : (headers ?? {
         "Content-Type": "application/json",
-      },
+      }),
       credentials: "include",
       ...options,
     };
 
-    if (body && method !== "GET" && bodyType === "json") {
-      config.body = JSON.stringify(body);
-    }
-
-    if (bodyType === "formdata") {
-      config.body = body;
+    if (body && method !== "GET") {
+      if (bodyType === "json") {
+        config.body = JSON.stringify(body);
+      } else if (bodyType === "formdata") {
+        // For FormData, don't set Content-Type header (browser will set it with boundary)
+        config.body = body;
+      }
     }
 
     try {

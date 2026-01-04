@@ -23,6 +23,7 @@ export async function GET(request: Request) {
     // Get eventId from query params
     const { searchParams } = new URL(request.url);
     const eventId = searchParams.get("eventId");
+    const role = searchParams.get("role");
 
     let users;
     if (session.user.role === "SUPERADMIN") {
@@ -35,6 +36,10 @@ export async function GET(request: Request) {
             },
           }
         : {};
+
+      if (role) {
+        Object.assign(whereClause, { role: role });
+      }
 
       users = await prisma.user.findMany({
         where: whereClause,

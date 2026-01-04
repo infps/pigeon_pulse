@@ -12,6 +12,12 @@ import {
   useUpdateUser,
 } from "@/lib/api/users";
 import { useListEvents } from "@/lib/api/events";
+import {
+  useCreateTeam,
+  useDeleteTeam,
+  useListTeams,
+  useUpdateTeam,
+} from "@/lib/api/teams";
 import { DataTable } from "@/components/ui/data-table";
 import { createColumns } from "./columns";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -35,6 +41,12 @@ export default function UsersPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [eventFilter, setEventFilter] = useState<string>("all");
+  const [isTeamsDialogOpen, setIsTeamsDialogOpen] = useState(false);
+  const [selectedBreeder, setSelectedBreeder] = useState<User | null>(null);
+  const [teamFormData, setTeamFormData] = useState({
+    name: "",
+  });
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -72,6 +84,15 @@ export default function UsersPage() {
   const createMutation = useCreateUser({});
   const updateMutation = useUpdateUser({});
   const deleteMutation = useDeleteUser({});
+
+  const { data: teamsData } = useListTeams({
+    params: selectedBreeder ? { breederId: selectedBreeder.id } : undefined,
+  });
+  const teams = teamsData?.teams || [];
+
+  const createTeamMutation = useCreateTeam({});
+  const updateTeamMutation = useUpdateTeam({});
+  const deleteTeamMutation = useDeleteTeam({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -170,7 +191,72 @@ export default function UsersPage() {
     });
   };
 
-  const columns = createColumns(handleEdit, handleDelete);
+  const handleViewTeams = (user: User) => {
+    setSelectedBreeder(user);
+    setIsTeamsDialogOpen(true);
+  };
+
+  const handleTeamSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!teamFormData.name.trim()) {
+      toast.error("Team name is required");
+      return;
+    }
+
+    if (!selectedBreeder) {
+      toast.error("No breeder selected");
+      return;
+    }
+
+    try {
+      if (editingTeamId) {
+        if (!updateTeamMutation.mutateAsync) return;
+        await updateTeamMutation.mutateAsync({ 
+          teamId: editingTeamId, 
+          name: teamFormData.name 
+        });
+        toast.success("Team updated successfully");
+      } else {
+        if (!createTeamMutation.mutateAsync) return;
+        await createTeamMutation.mutateAsync({
+          name: teamFormData.name,
+          breederId: selectedBreeder.id,
+        });
+        toast.success("Team created successfully");
+      }
+      setTeamFormData({ name: "" });
+      setEditingTeamId(null);
+    } catch (error) {
+      toast.error(editingTeamId ? "Failed to update team" : "Failed to create team");
+    }
+  };
+
+  const handleEditTeam = (teamId: string, teamName: string) => {
+    setEditingTeamId(teamId);
+    setTeamFormData({ name: teamName });
+  };
+
+  const handleDeleteTeam = async (teamId: string) => {
+    if (!confirm("Are you sure you want to delete this team?")) return;
+
+    try {
+      if (!deleteTeamMutation.mutateAsync) return;
+      await deleteTeamMutation.mutateAsync({ teamId });
+      toast.success("Team deleted successfully");
+    } catch (error) {
+      toast.error("Failed to delete team");
+    }
+  };
+
+  const handleCloseTeamsDialog = () => {
+    setIsTeamsDialogOpen(false);
+    setSelectedBreeder(null);
+    setTeamFormData({ name: "" });
+    setEditingTeamId(null);
+  };
+
+  const columns = createColumns(handleEdit, handleDelete, handleViewTeams);
 
   if (isPending) {
     return (
@@ -337,7 +423,7 @@ export default function UsersPage() {
                     setFormData({ ...formData, role: value as UserRole })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -356,7 +442,7 @@ export default function UsersPage() {
                     setFormData({ ...formData, status: value as UserStatus })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -503,6 +589,80 @@ export default function UsersPage() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isTeamsDialogOpen} onOpenChange={handleCloseTeamsDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Teams for {selectedBreeder?.name}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <form onSubmit={handleTeamSubmit} className="flex gap-2">
+              <Input
+                value={teamFormData.name}
+                onChange={(e) => setTeamFormData({ name: e.target.value })}
+                placeholder="Enter team name"
+                className="flex-1"
+              />
+              <Button type="submit" disabled={createTeamMutation.isPending || updateTeamMutation.isPending}>
+                {editingTeamId ? "Update" : "Add Team"}
+              </Button>
+              {editingTeamId && (
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => {
+                    setEditingTeamId(null);
+                    setTeamFormData({ name: "" });
+                  }}
+                >
+                  Cancel
+                </Button>
+              )}
+            </form>
+
+            <div className="border rounded-lg">
+              {teams.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">
+                  No teams found. Add a team to get started.
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {teams.map((team: any) => (
+                    <div key={team.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
+                      <div>
+                        <p className="font-medium">{team.name}</p>
+                        <p className="text-sm text-gray-500">
+                          Created {new Date(team.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEditTeam(team.id, team.name)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeleteTeam(team.id)}
+                          disabled={deleteTeamMutation.isPending}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

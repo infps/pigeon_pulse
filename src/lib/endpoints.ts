@@ -26,6 +26,20 @@ const events = {
   base: "/api/event",
 };
 
+const teams = {
+  base: "/api/team",
+};
+
+const eventInventory = {
+  base: "/api/event",
+  byEvent: (eventId: string) => `/api/event/${eventId}/event-inventory`,
+  itemsByEvent: (eventId: string) => `/api/event/${eventId}/event-inventory-items`,
+};
+
+const races = {
+  base: "/api/race",
+};
+
 export const apiEndpoints = {
   raceTypes,
   eventTypes,
@@ -34,4 +48,7 @@ export const apiEndpoints = {
   bettingSchemes,
   users,
   events,
+  teams,
+  eventInventory,
+  races,
 };

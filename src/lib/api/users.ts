@@ -3,13 +3,17 @@ import { apiEndpoints } from "../endpoints";
 
 export function useListUsers({
   params,
+  enabled = true,
 }: {
-  params?: { eventId?: string };
+  params?: Record<string, string>;
+  enabled?: boolean;
 } = {}) {
+const paramKeys = params ? Object.keys(params).sort().map((key) => `${key}-${params[key]}`).join("_") : "all";
   return useApiRequest({
     endpoint: apiEndpoints.users.base,
-    queryKey: ["users", "list", params?.eventId ?? "all"],
+    queryKey: ["users", "list", paramKeys],
     params,
+    enabled
   });
 }
 

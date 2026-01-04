@@ -32,6 +32,7 @@ model User {
   email           String
   emailVerified   Boolean    @default(false)
   image           String?
+  imageKey        String?
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
   username        String?
@@ -180,9 +181,18 @@ enum PaymentMethod {
   CASH
 }
 
+enum PaymentType {
+  ENTRY_FEE
+  PERCH_FEE
+  RACES_FEE
+  PAYOUTS
+  OTHER
+}
+
 model Payments {
   paymentId        String         @id @default(uuid(7))
-  amount           Float
+  amountPaid       Float
+  amountToPay      Float
   currency         String         @default("USD")
   method           PaymentMethod
   paidAt           DateTime       @default(now())
@@ -191,8 +201,8 @@ model Payments {
   eventInventory   EventInventory @relation(fields: [eventInventoryId], references: [eventInventoryId], onDelete: Cascade)
   breederId        String
   breeder          User           @relation(fields: [breederId], references: [id], onDelete: Cascade)
-  paymentType       String
-  referenceNumber   String?
+  paymentType      PaymentType
+  referenceNumber  String?
 }
 
 model EventType {
@@ -215,6 +225,8 @@ model Event {
   updatedAt       DateTime      @updatedAt
   bannerImage     String?
   logoImage       String?
+  bannerImageKey  String?
+  logoImageKey    String?
   isOpen          Boolean       @default(true)
   typeId          String
   type            EventType     @relation(fields: [typeId], references: [eventTypeId], onDelete: Cascade)
@@ -294,7 +306,7 @@ model EventInventoryItem {
   eventInventoryId     String
   eventInventory       EventInventory @relation(fields: [eventInventoryId], references: [eventInventoryId], onDelete: Cascade)
   bird                 Bird           @relation(fields: [birdId], references: [birdId], onDelete: Cascade)
-  birdNo               Int
+  birdNo               Int?
   arrivalTime          DateTime?
   departureTime        DateTime?
   perchFeeValue        Float          @default(0)
@@ -341,8 +353,8 @@ model Race {
   eventId            String
   event              Event      @relation(fields: [eventId], references: [eventId], onDelete: Cascade)
   raceType           RaceType   @relation(fields: [raceTypeId], references: [id], onDelete: Cascade)
-  location           String
   description        String?
+  name               String
   distance           Float      @default(0)
   releaseStation     String
   releaseDate        DateTime
@@ -384,7 +396,7 @@ model RaceItem {
 }
 
 model Team {
-  id        String   @id
+  id        String   @id @default(uuid(7))
   name      String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -32,10 +32,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { BettingScheme, Event, EventType, FeeScheme, PrizeScheme } from "@/lib/types";
+import { ImageUploadWithCrop } from "@/components/image-upload-with-crop";
+import { useRouter } from "next/navigation";
 
 export default function EventsPage() {
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [logoImageFile, setLogoImageFile] = useState<File | null>(null);
+  const [bannerImageFile, setBannerImageFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     shortName: "",
@@ -56,6 +61,8 @@ export default function EventsPage() {
     socialFb: "",
     socialTwitter: "",
     socialInsta: "",
+    logoImage: null as string | null,
+    bannerImage: null as string | null,
   });
 
   const { data: eventsData, isPending, isError } = useListEvents({});
@@ -108,13 +115,35 @@ export default function EventsPage() {
     }
 
     try {
+      const submitFormData = new FormData();
+      
+      // Add all text fields
+      Object.entries(formData).forEach(([key, value]) => {
+        if (key !== 'logoImage' && key !== 'bannerImage' && value !== null && value !== undefined) {
+          submitFormData.append(key, value.toString());
+        }
+      });
+
+      // Add images if they exist
+      if (logoImageFile) {
+        submitFormData.append('logoImage', logoImageFile);
+      }
+      if (bannerImageFile) {
+        submitFormData.append('bannerImage', bannerImageFile);
+      }
+
       if (editingId) {
         if (!updateMutation.mutateAsync) return;
-        await updateMutation.mutateAsync({ eventId: editingId, ...formData });
+        submitFormData.append('eventId', editingId);
+        await updateMutation.mutateAsync(submitFormData);
         toast.success("Event updated successfully");
       } else {
         if (!createMutation.mutateAsync) return;
-        await createMutation.mutateAsync(formData);
+        const {data,error,status} = await createMutation.mutateAsync(submitFormData);
+        if(error){
+          toast.error(error || "Failed to create event");
+          return;
+        }
         toast.success("Event created successfully");
       }
       handleClose();
@@ -124,29 +153,7 @@ export default function EventsPage() {
   };
 
   const handleEdit = (event: Event) => {
-    setEditingId(event.eventId);
-    setFormData({
-      name: event.name,
-      shortName: event.shortName || "",
-      description: event.description || "",
-      startDate: event.startDate ? new Date(event.startDate).toISOString().split("T")[0] : "",
-      endDate: event.endDate ? new Date(event.endDate).toISOString().split("T")[0] : "",
-      isOpen: event.isOpen,
-      typeId: event.typeId,
-      feeSchemeId: event.feeSchemeId,
-      prizeSchemeId: event.prizeSchemeId,
-      bettingSchemeId: event.bettingSchemeId,
-      contactName: event.contactName || "",
-      contactEmail: event.contactEmail || "",
-      contactPhone: event.contactPhone || "",
-      contactWebsite: event.contactWebsite || "",
-      contactAddress: event.contactAddress || "",
-      socialYt: event.socialYt || "",
-      socialFb: event.socialFb || "",
-      socialTwitter: event.socialTwitter || "",
-      socialInsta: event.socialInsta || "",
-    });
-    setIsOpen(true);
+    router.push(`/admin/events/${event.eventId}`);
   };
 
   const handleDelete = async (id: string) => {
@@ -164,6 +171,8 @@ export default function EventsPage() {
   const handleClose = () => {
     setIsOpen(false);
     setEditingId(null);
+    setLogoImageFile(null);
+    setBannerImageFile(null);
     setFormData({
       name: "",
       shortName: "",
@@ -184,6 +193,8 @@ export default function EventsPage() {
       socialFb: "",
       socialTwitter: "",
       socialInsta: "",
+      logoImage: null,
+      bannerImage: null,
     });
   };
 
@@ -230,6 +241,38 @@ export default function EventsPage() {
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-4">
+              <div>
+                <Label>Logo Image (Square)</Label>
+                <div className="flex justify-center">
+                  <ImageUploadWithCrop
+                    aspect={1}
+                    value={formData.logoImage}
+                    onChange={(url, file) => {
+                      setFormData({ ...formData, logoImage: url });
+                      setLogoImageFile(file || null);
+                    }}
+                    className="w-64 h-64"
+                    placeholder="Upload logo image (1:1 ratio)"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label>Banner Image (16:9)</Label>
+                <ImageUploadWithCrop
+                  aspect={16 / 9}
+                  value={formData.bannerImage}
+                  onChange={(url, file) => {
+                    setFormData({ ...formData, bannerImage: url });
+                    setBannerImageFile(file || null);
+                  }}
+                  className="w-full h-48"
+                  placeholder="Upload banner image (16:9 ratio)"
+                />
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="name">Event Name *</Label>
@@ -302,7 +345,7 @@ export default function EventsPage() {
                   setFormData({ ...formData, isOpen: value === "true" })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -321,7 +364,7 @@ export default function EventsPage() {
                     setFormData({ ...formData, typeId: value })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select event type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -342,7 +385,7 @@ export default function EventsPage() {
                     setFormData({ ...formData, feeSchemeId: value })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select fee scheme" />
                   </SelectTrigger>
                   <SelectContent>
@@ -365,7 +408,7 @@ export default function EventsPage() {
                     setFormData({ ...formData, prizeSchemeId: value })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select prize scheme" />
                   </SelectTrigger>
                   <SelectContent>
@@ -386,7 +429,7 @@ export default function EventsPage() {
                     setFormData({ ...formData, bettingSchemeId: value })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select betting scheme" />
                   </SelectTrigger>
                   <SelectContent>
