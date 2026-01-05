@@ -229,8 +229,10 @@ export default function EventsPage() {
       <DataTable
         columns={columns}
         data={events}
-        searchKey="name"
-        searchPlaceholder="Search events..."
+        filterableColumns={[
+          { id: "name", title: "Event Name" },
+          { id: "type", title: "Type" },
+        ]}
       />
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>

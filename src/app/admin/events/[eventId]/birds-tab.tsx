@@ -51,10 +51,18 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
 
   const eventInventoryItems: EventInventoryItem[] =
     data?.eventInventoryItems || [];
-
+  console.log(eventInventoryItems)
   return (
     <div className="space-y-4">
-      <DataTable columns={columns} data={eventInventoryItems} />
+      <DataTable 
+        columns={columns} 
+        data={eventInventoryItems}
+        filterableColumns={[
+          { id: "band", title: "Bird Band" },
+          { id: "birdName", title: "Bird Name" },
+          { id: "loft", title: "Loft" },
+        ]}
+      />
       
       <EditBirdDialog
         open={isEditDialogOpen}

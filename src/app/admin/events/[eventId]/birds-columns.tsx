@@ -17,6 +17,7 @@ export const createBirdsColumns = (
   onEdit: (item: EventInventoryItem) => void
 ): ColumnDef<EventInventoryItem>[] => [
   {
+    id: "registrationDate",
     accessorKey: "eventInventory.registrationDate",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Registration Date" />
@@ -27,6 +28,7 @@ export const createBirdsColumns = (
     },
   },
   {
+    id: "loft",
     accessorKey: "eventInventory.loft",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Loft" />
@@ -36,18 +38,21 @@ export const createBirdsColumns = (
     },
   },
   {
+    id: "band",
     accessorKey: "bird.band",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Bird Band" />
     ),
   },
   {
+    id: "color",
     accessorKey: "bird.color",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Color" />
     ),
   },
   {
+    id: "birdName",
     accessorKey: "bird.birdName",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Name" />

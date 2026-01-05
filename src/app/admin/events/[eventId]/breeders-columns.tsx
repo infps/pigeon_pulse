@@ -8,12 +8,14 @@ export const createBreedersColumns = (
   onBreederClick: (eventInventoryId: string) => void
 ): ColumnDef<EventInventory>[] => [
   {
+    id: "loft",
     accessorKey: "loft",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Loft" />
     ),
   },
   {
+    id: "breederName",
     accessorKey: "breeder.name",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Breeder Name" />

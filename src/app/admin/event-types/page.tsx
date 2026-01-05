@@ -162,8 +162,10 @@ export default function EventTypesPage() {
       <DataTable
         columns={columns}
         data={eventTypes}
-        searchKey="name"
-        searchPlaceholder="Search event types..."
+        filterableColumns={[
+          { id: "name", title: "Name" },
+          { id: "description", title: "Description" },
+        ]}
       />
     </div>
   );

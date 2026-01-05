@@ -27,12 +27,23 @@ import {
 import { DataTablePagination } from "@/components/ui/data-table-pagination"
 import { DataTableViewOptions } from "@/components/ui/data-table-view-options"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
   searchKey?: string
   searchPlaceholder?: string
+  filterableColumns?: {
+    id: string
+    title: string
+  }[]
 }
 
 export function DataTable<TData, TValue>({
@@ -40,6 +51,7 @@ export function DataTable<TData, TValue>({
   data,
   searchKey,
   searchPlaceholder = "Search...",
+  filterableColumns = [],
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] =
@@ -48,6 +60,9 @@ export function DataTable<TData, TValue>({
     []
   )
   const [sorting, setSorting] = React.useState<SortingState>([])
+  const [selectedColumn, setSelectedColumn] = React.useState<string>(
+    filterableColumns.length > 0 ? filterableColumns[0].id : ""
+  )
 
   const table = useReactTable({
     data,
@@ -69,22 +84,63 @@ export function DataTable<TData, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
-    globalFilterFn:"includesString",
   })
+
+  // Determine if we should use column-specific filtering or global filtering
+  const useColumnFiltering = filterableColumns.length > 0
+  const currentFilterValue = useColumnFiltering
+    ? (table.getColumn(selectedColumn)?.getFilterValue() as string) ?? ""
+    : (table.getState().globalFilter as string) ?? ""
+
+  const handleFilterChange = (value: string) => {
+    if (useColumnFiltering) {
+      table.getColumn(selectedColumn)?.setFilterValue(value)
+    } else {
+      table.setGlobalFilter(value)
+    }
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        {searchKey && (
-          <Input
-            placeholder={searchPlaceholder}
-            value={(table.getState().globalFilter as string) ?? ""}
-            onChange={(event) =>
-              table.setGlobalFilter(event.target.value)
-            }
-            className="h-8 w-37.5 lg:w-62.5"
-          />
-        )}
+        <div className="flex items-center gap-2">
+          {useColumnFiltering ? (
+            <>
+              <Select
+                value={selectedColumn}
+                onValueChange={(value) => {
+                  setSelectedColumn(value)
+                  // Clear the previous column filter
+                  table.resetColumnFilters()
+                }}
+              >
+                <SelectTrigger className="h-8 w-45">
+                  <SelectValue placeholder="Select column..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {filterableColumns.map((column) => (
+                    <SelectItem key={column.id} value={column.id}>
+                      {column.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                placeholder={`Filter ${filterableColumns.find((c) => c.id === selectedColumn)?.title.toLowerCase() || ""}...`}
+                value={currentFilterValue}
+                onChange={(event) => handleFilterChange(event.target.value)}
+                className="h-8 w-62.5"
+              />
+            </>
+          ) : searchKey ? (
+            <Input
+              placeholder={searchPlaceholder}
+              value={currentFilterValue}
+              onChange={(event) => handleFilterChange(event.target.value)}
+              className="h-8 w-37.5 lg:w-62.5"
+            />
+          ) : null}
+        </div>
         <DataTableViewOptions table={table} />
       </div>
       <div className="overflow-hidden rounded-md border">

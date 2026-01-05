@@ -162,8 +162,9 @@ export default function RaceTypesPage() {
       <DataTable
         columns={columns}
         data={raceTypes}
-        searchKey="name"
-        searchPlaceholder="Search race types..."
+        filterableColumns={[
+          { id: "name", title: "Name" },
+        ]}
       />
     </div>
   );

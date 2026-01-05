@@ -302,7 +302,14 @@ function toDateTimeLocal(iso: string) {
         </Button>
       </div>
 
-      <DataTable columns={createRacesColumns(handleEdit, handleDelete)} data={races} />
+      <DataTable 
+        columns={createRacesColumns(handleEdit, handleDelete)} 
+        data={races}
+        filterableColumns={[
+          { id: "name", title: "Race Name" },
+          { id: "releaseStation", title: "Release Station" },
+        ]}
+      />
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">

@@ -48,7 +48,14 @@ export function BreedersTab({ event, eventId }: BreedersTabProps) {
 
   return (
     <div className="space-y-4">
-      <DataTable columns={columns} data={eventInventory} />
+      <DataTable 
+        columns={columns} 
+        data={eventInventory}
+        filterableColumns={[
+          { id: "loft", title: "Loft" },
+          { id: "breederName", title: "Breeder Name" },
+        ]}
+      />
       
       <BreederDetailsDialog
         open={isDetailsDialogOpen}

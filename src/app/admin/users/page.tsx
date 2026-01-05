@@ -267,8 +267,12 @@ export default function UsersPage() {
       <DataTable
         columns={columns}
         data={filteredUsers}
-        searchKey="name"
-        searchPlaceholder="Search users..."
+        filterableColumns={[
+          { id: "name", title: "Name" },
+          { id: "email", title: "Email" },
+          { id: "username", title: "Username" },
+          { id: "phoneNumber", title: "Phone" },
+        ]}
         />
 
       <AddEditBreederDialog
