@@ -147,16 +147,18 @@ export async function POST(request: Request) {
         },
       },
     });
-
+    console.log(race)
     const raceItemsData = eventInventoryItems.map(item => ({
       raceId: race.raceId,
       birdId:item.birdId,
       eventInventoryItemId:item.eventInventoryItemId,
     }))
     await prisma.raceItem.createMany({
-      data: {
-        ...raceItemsData
-      }
+      data: eventInventoryItems.map(item => ({
+        raceId: race.raceId,
+        birdId:item.birdId,
+        eventInventoryItemId:item.eventInventoryItemId,
+      })),
     })
 
     return NextResponse.json(

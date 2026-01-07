@@ -18,6 +18,9 @@ export async function GET(request: Request) {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
+    if (!session || !session.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
 
     const { searchParams } = new URL(request.url);
     const breederId = searchParams.get("breederId");
@@ -55,7 +58,7 @@ export async function POST(request: Request) {
       headers: await headers(),
     });
 
-    if (!session) {
+    if (!session || !session.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
@@ -106,7 +109,7 @@ export async function PUT(request: Request) {
       headers: await headers(),
     });
 
-    if (!session) {
+    if (!session || !session.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
@@ -154,7 +157,7 @@ export async function DELETE(request: Request) {
       headers: await headers(),
     });
 
-    if (!session) {
+    if (!session || !session.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 

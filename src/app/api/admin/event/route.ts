@@ -11,14 +11,25 @@ export async function GET(request: Request) {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
+    if (!session || !session.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const eventId = searchParams.get("eventId");
 
     if (eventId) {
+      const whereClause: any = {
+        eventId: eventId,
+      };
+      
+      // If ADMIN, can only access their own events
+      if (session.user.role === "ADMIN") {
+        whereClause.createdById = session.user.id;
+      }
+
       const event = await prisma.event.findUnique({
-        where: {
-          eventId: eventId,
-        },
+        where: whereClause,
         include: {
           type: true,
           feeScheme: {
@@ -48,49 +59,31 @@ export async function GET(request: Request) {
         { status: 200 }
       );
     }
-    let events;
-    if (session && session.user.role === "ADMIN") {
-      events = await prisma.event.findMany({
-        where: {
-          createdById: session.user.id,
-        },
-        include: {
-          type: true,
-          feeScheme: true,
-          prizeScheme: true,
-          bettingScheme: true,
-          createdBy: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
+
+    const whereClause = session.user.role === "ADMIN" 
+      ? { createdById: session.user.id }
+      : {};
+
+    const events = await prisma.event.findMany({
+      where: whereClause,
+      include: {
+        type: true,
+        feeScheme: true,
+        prizeScheme: true,
+        bettingScheme: true,
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
           },
         },
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
-    } else {
-      events = await prisma.event.findMany({
-        include: {
-          type: true,
-          feeScheme: true,
-          prizeScheme: true,
-          bettingScheme: true,
-          createdBy: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
-    }
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
     return NextResponse.json(
       { events, message: "Events fetched successfully" },
       { status: 200 }

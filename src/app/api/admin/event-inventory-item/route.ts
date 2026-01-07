@@ -9,7 +9,7 @@ export async function POST(request: Request) {
       headers: await headers(),
     });
 
-    if (!session?.user) {
+    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 

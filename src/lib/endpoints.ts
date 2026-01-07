@@ -47,6 +47,7 @@ const baskets = {
 
 const raceItems = {
   base: "/api/admin/race-item",
+  basket: "/api/admin/race-item/basket",
 };
 
 export const apiEndpoints = {

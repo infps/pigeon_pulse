@@ -3,6 +3,7 @@
 import type { Event, Race } from "@/lib/types";
 import { useListRaces, useCreateRace, useUpdateRace, useDeleteRace } from "@/lib/api/races";
 import { useListRaceTypes } from "@/lib/api/race-types";
+import { WEATHER_OPTIONS, getWeatherIcon } from "@/lib/weather-constants";
 import { DataTable } from "@/components/ui/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createRacesColumns } from "./races-columns";
@@ -470,16 +471,26 @@ function toDateTimeLocal(iso: string) {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="arrivalWeather">Weather</Label>
-                  <Input
-                    id="arrivalWeather"
+                  <Select
                     value={formData.arrivalWeather}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        arrivalWeather: e.target.value,
-                      })
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, arrivalWeather: value })
                     }
-                  />
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select weather" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {WEATHER_OPTIONS.map((weather) => (
+                        <SelectItem key={weather} value={weather}>
+                          <div className="flex items-center gap-2">
+                            {getWeatherIcon(weather)}
+                            <span>{weather}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>
@@ -517,16 +528,26 @@ function toDateTimeLocal(iso: string) {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="releaseWeather">Weather</Label>
-                  <Input
-                    id="releaseWeather"
+                  <Select
                     value={formData.releaseWeather}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        releaseWeather: e.target.value,
-                      })
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, releaseWeather: value })
                     }
-                  />
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select weather" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {WEATHER_OPTIONS.map((weather) => (
+                        <SelectItem key={weather} value={weather}>
+                          <div className="flex items-center gap-2">
+                            {getWeatherIcon(weather)}
+                            <span>{weather}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>

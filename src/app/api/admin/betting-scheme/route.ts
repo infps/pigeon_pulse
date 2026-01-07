@@ -10,19 +10,16 @@ export async function GET() {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
-
-    if(session?.user?.role ==="ADMIN"){
-      const bettingSchemes = await prisma.bettingScheme.findMany({
-        where:{
-          createdById: session.user.id
-        }
-      })
-      return NextResponse.json(
-        { bettingSchemes, message: "Betting schemes fetched successfully" },
-        { status: 200 }
-      );
+    if (!session || !session.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
+
+    const whereClause = session.user.role === "ADMIN" 
+      ? { createdById: session.user.id }
+      : {};
+
     const bettingSchemes = await prisma.bettingScheme.findMany({
+      where: whereClause,
       orderBy: {
         name: "asc",
       },
@@ -54,7 +51,7 @@ export async function POST(request: Request) {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
-    if (!session || !session.user) {
+    if (!session || !session.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
@@ -114,7 +111,7 @@ export async function PUT(request: Request) {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
-    if (!session || !session.user) {
+    if (!session || !session.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
@@ -183,7 +180,7 @@ export async function DELETE(request: Request) {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
-    if (!session || !session.user) {
+    if (!session || !session.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 

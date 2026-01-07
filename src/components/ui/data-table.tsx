@@ -6,6 +6,7 @@ import {
   ColumnFiltersState,
   SortingState,
   VisibilityState,
+  RowSelectionState,
   flexRender,
   getCoreRowModel,
   getFacetedRowModel,
@@ -44,6 +45,8 @@ interface DataTableProps<TData, TValue> {
     id: string
     title: string
   }[]
+  rowSelection?: RowSelectionState
+  onRowSelectionChange?: (updater: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => void
 }
 
 export function DataTable<TData, TValue>({
@@ -52,8 +55,10 @@ export function DataTable<TData, TValue>({
   searchKey,
   searchPlaceholder = "Search...",
   filterableColumns = [],
+  rowSelection: externalRowSelection,
+  onRowSelectionChange: externalOnRowSelectionChange,
 }: DataTableProps<TData, TValue>) {
-  const [rowSelection, setRowSelection] = React.useState({})
+  const [internalRowSelection, setInternalRowSelection] = React.useState<RowSelectionState>({})
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -63,6 +68,10 @@ export function DataTable<TData, TValue>({
   const [selectedColumn, setSelectedColumn] = React.useState<string>(
     filterableColumns.length > 0 ? filterableColumns[0].id : ""
   )
+
+  // Use external state if provided, otherwise use internal state
+  const rowSelection = externalRowSelection ?? internalRowSelection
+  const setRowSelection = externalOnRowSelectionChange ?? setInternalRowSelection
 
   const table = useReactTable({
     data,

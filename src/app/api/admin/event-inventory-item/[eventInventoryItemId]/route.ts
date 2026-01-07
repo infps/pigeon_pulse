@@ -56,7 +56,7 @@ export async function PATCH(
       headers: await headers(),
     });
 
-    if (!session) {
+    if (!session || !session.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 

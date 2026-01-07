@@ -13,6 +13,9 @@ export async function GET(
     const session = await auth.api.getSession({
       headers: await headers(),
     });
+    if (!session || !session.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
 
     const eventInventory = await prisma.eventInventory.findUnique({
       where: {
