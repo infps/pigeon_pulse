@@ -6,7 +6,7 @@ export const useCreateBird = ({
   onSuccess?: () => void;
 } = {}) => {
   return useApiMutation({
-    endpoint: "/api/event-inventory-item",
+    endpoint: "/api/admin/event-inventory-item",
     method: "POST",
     queryKey: ["event-inventory-items"],
     onSuccess,
@@ -21,7 +21,7 @@ export const useUpdateEventInventoryItem = ({
   eventInventoryItemId: string;
 }) => {
   return useApiMutation({
-    endpoint: "/api/event-inventory-item/" + eventInventoryItemId,
+    endpoint: "/api/admin/event-inventory-item/" + eventInventoryItemId,
     method: "PATCH",
     queryKey: ["event-inventory-items"],
     onSuccess,

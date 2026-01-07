@@ -4,7 +4,7 @@ import { useApiMutation } from "@/hooks/useApiMutation";
 export const useGetEventInventory = (eventInventoryId: string) => {
   return useApiQuery({
     queryKey: ["event-inventory", "detail", eventInventoryId],
-    endpoint: `/api/event-inventory/${eventInventoryId}`,
+    endpoint: `/api/admin/event-inventory/${eventInventoryId}`,
     enabled: !!eventInventoryId,
   });
 };
@@ -15,7 +15,7 @@ export const useCreatePayment = ({
   onSuccess?: () => void;
 } = {}) => {
   return useApiMutation({
-    endpoint: "/api/payment",
+    endpoint: "/api/admin/payment",
     method: "POST",
     queryKey: ["event-inventory", "payments"],
     onSuccess,
@@ -28,7 +28,7 @@ export const useUpdatePayment = ({
   onSuccess?: () => void;
 } = {}) => {
   return useApiMutation({
-    endpoint: "/api/payment",
+    endpoint: "/api/admin/payment",
     method: "PUT",
     queryKey: ["event-inventory", "payments"],
     onSuccess,
@@ -41,7 +41,7 @@ export const useDeletePayment = ({
   onSuccess?: () => void;
 } = {}) => {
   return useApiMutation({
-    endpoint: "/api/payment",
+    endpoint: "/api/admin/payment",
     method: "DELETE",
     queryKey: ["event-inventory", "payments"],
     onSuccess,

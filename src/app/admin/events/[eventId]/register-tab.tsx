@@ -222,7 +222,7 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
     };
 
     try {
-      const response = await fetch(`/api/event/${eventId}/register`, {
+      const response = await fetch(`/api/admin/event/${eventId}/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

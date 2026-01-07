@@ -1,52 +1,52 @@
 const raceTypes = {
-  base: "/api/race-type",
+  base: "/api/admin/race-type",
 };
 
 const eventTypes = {
-  base: "/api/event-type",
+  base: "/api/admin/event-type",
 };
 
 const feeSchemes = {
-  base: "/api/fee-scheme",
+  base: "/api/admin/fee-scheme",
 };
 
 const prizeSchemes = {
-  base: "/api/prize-scheme",
+  base: "/api/admin/prize-scheme",
 };
 
 const bettingSchemes = {
-  base: "/api/betting-scheme",
+  base: "/api/admin/betting-scheme",
 };
 
 const users = {
-  base: "/api/users",
+  base: "/api/admin/users",
 };
 
 const events = {
-  base: "/api/event",
+  base: "/api/admin/event",
 };
 
 const teams = {
-  base: "/api/team",
+  base: "/api/admin/team",
 };
 
 const eventInventory = {
-  base: "/api/event",
-  byEvent: (eventId: string) => `/api/event/${eventId}/event-inventory`,
-  itemsByEvent: (eventId: string) => `/api/event/${eventId}/event-inventory-items`,
+  base: "/api/admin/event",
+  byEvent: (eventId: string) => `/api/admin/event/${eventId}/event-inventory`,
+  itemsByEvent: (eventId: string) => `/api/admin/event/${eventId}/event-inventory-items`,
 };
 
 const races = {
-  base: "/api/race",
+  base: "/api/admin/race",
 };
 
 const baskets = {
-  base: "/api/basket",
-  byId: "/api/basket/:basketId",
+  base: "/api/admin/basket",
+  byId: "/api/admin/basket/:basketId",
 };
 
 const raceItems = {
-  base: "/api/race-item",
+  base: "/api/admin/race-item",
 };
 
 export const apiEndpoints = {

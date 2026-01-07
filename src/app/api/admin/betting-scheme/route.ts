@@ -7,6 +7,21 @@ import z from "zod";
 
 export async function GET() {
   try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if(session?.user?.role ==="ADMIN"){
+      const bettingSchemes = await prisma.bettingScheme.findMany({
+        where:{
+          createdById: session.user.id
+        }
+      })
+      return NextResponse.json(
+        { bettingSchemes, message: "Betting schemes fetched successfully" },
+        { status: 200 }
+      );
+    }
     const bettingSchemes = await prisma.bettingScheme.findMany({
       orderBy: {
         name: "asc",
