@@ -16,6 +16,17 @@ const createPaymentSchema = z.object({
   referenceNumber: z.string().optional(),
 });
 
+const updatePaymentSchema = z.object({
+  paymentId: z.string(),
+  amountPaid: z.number(),
+  amountToPay: z.number(),
+  currency: z.string().default("USD"),
+  method: z.enum(["CREDIT_CARD", "PAYPAL", "BANK_TRANSFER", "CASH"]),
+  paymentType: z.enum(["ENTRY_FEE", "PERCH_FEE", "RACES_FEE", "PAYOUTS", "OTHER"]),
+  description: z.string().optional(),
+  referenceNumber: z.string().optional(),
+});
+
 export async function POST(request: Request) {
   try {
     const session = await auth.api.getSession({
@@ -49,6 +60,49 @@ export async function POST(request: Request) {
     }
 
     console.error("Error creating payment:", error);
+    return NextResponse.json(
+      { message: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const validatedData = updatePaymentSchema.parse(body);
+
+    const { paymentId, ...updateData } = validatedData;
+
+    const payment = await prisma.payments.update({
+      where: { paymentId },
+      data: updateData,
+    });
+
+    return NextResponse.json(
+      {
+        payment,
+        message: "Payment updated successfully",
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { message: "Validation error", errors: error.issues },
+        { status: 400 }
+      );
+    }
+
+    console.error("Error updating payment:", error);
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }

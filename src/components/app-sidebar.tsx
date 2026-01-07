@@ -64,24 +64,6 @@ const mainMenuItems = [
     icon: CalendarDays,
     roles: ["ADMIN", "SUPERADMIN"],
   },
-  {
-    title: "Event Inventory",
-    url: "/admin/event-inventory",
-    icon: Package,
-    roles: ["ADMIN", "SUPERADMIN"],
-  },
-  {
-    title: "Races",
-    url: "/admin/races",
-    icon: Trophy,
-    roles: ["ADMIN", "SUPERADMIN"],
-  },
-  {
-    title: "Birds",
-    url: "/admin/birds",
-    icon: Bird,
-    roles: ["ADMIN", "SUPERADMIN"],
-  },
 ]
 
 // Menu items only for super admin

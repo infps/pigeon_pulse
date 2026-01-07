@@ -40,6 +40,15 @@ const races = {
   base: "/api/race",
 };
 
+const baskets = {
+  base: "/api/basket",
+  byId: "/api/basket/:basketId",
+};
+
+const raceItems = {
+  base: "/api/race-item",
+};
+
 export const apiEndpoints = {
   raceTypes,
   eventTypes,
@@ -51,4 +60,6 @@ export const apiEndpoints = {
   teams,
   eventInventory,
   races,
+  baskets,
+  raceItems,
 };

@@ -17,7 +17,20 @@ export const useCreatePayment = ({
   return useApiMutation({
     endpoint: "/api/payment",
     method: "POST",
-    queryKey: ["payments"],
+    queryKey: ["event-inventory", "payments"],
+    onSuccess,
+  });
+};
+
+export const useUpdatePayment = ({
+  onSuccess,
+}: {
+  onSuccess?: () => void;
+} = {}) => {
+  return useApiMutation({
+    endpoint: "/api/payment",
+    method: "PUT",
+    queryKey: ["event-inventory", "payments"],
     onSuccess,
   });
 };
@@ -30,7 +43,7 @@ export const useDeletePayment = ({
   return useApiMutation({
     endpoint: "/api/payment",
     method: "DELETE",
-    queryKey: ["payments"],
+    queryKey: ["event-inventory", "payments"],
     onSuccess,
   });
 };

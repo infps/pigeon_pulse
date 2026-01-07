@@ -14,16 +14,29 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
 import type { Race } from "@/lib/types";
+import Link from "next/link";
 
 export const createRacesColumns = (
   onEdit: (race: Race) => void,
-  onDelete: (raceId: string) => void
+  onDelete: (raceId: string) => void,
+  eventId: string
 ): ColumnDef<Race>[] => [
   {
     accessorKey: "name",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Race Name" />
     ),
+    cell: ({ row }) => {
+      const race = row.original;
+      return (
+        <Link
+          href={`/admin/events/${eventId}/races/${race.raceId}`}
+          className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+        >
+          {race.name}
+        </Link>
+      );
+    },
   },
   {
     accessorKey: "releaseStation",

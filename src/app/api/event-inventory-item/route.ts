@@ -61,6 +61,7 @@ export async function POST(request: Request) {
             feeScheme: true,
           },
         },
+        eventInventoryItems: true,
       },
     });
 
@@ -68,6 +69,17 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { message: "Event inventory not found" },
         { status: 404 }
+      );
+    }
+
+    // Check if adding this bird would exceed the reserved birds limit
+    const currentBirdCount = eventInventory.eventInventoryItems.length;
+    if (currentBirdCount >= eventInventory.reservedBirds) {
+      return NextResponse.json(
+        { 
+          message: `Cannot add bird. Maximum number of birds (${eventInventory.reservedBirds}) already reached. Current count: ${currentBirdCount}` 
+        },
+        { status: 400 }
       );
     }
 
@@ -173,6 +185,16 @@ export async function POST(request: Request) {
           });
         }
       }
+
+      // Increment the reserved birds count
+      await tx.eventInventory.update({
+        where: { eventInventoryId },
+        data: {
+          reservedBirds: {
+            increment: 1,
+          },
+        },
+      });
 
       return eventInventoryItem;
     });

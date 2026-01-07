@@ -303,7 +303,7 @@ function toDateTimeLocal(iso: string) {
       </div>
 
       <DataTable 
-        columns={createRacesColumns(handleEdit, handleDelete)} 
+        columns={createRacesColumns(handleEdit, handleDelete, eventId)} 
         data={races}
         filterableColumns={[
           { id: "name", title: "Race Name" },

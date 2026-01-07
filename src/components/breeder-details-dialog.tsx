@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { useGetEventInventory, useCreatePayment, useDeletePayment } from "@/lib/api/payments";
-import { Plus, Trash2 } from "lucide-react";
+import { useGetEventInventory, useCreatePayment, useUpdatePayment, useDeletePayment } from "@/lib/api/payments";
+import { Plus, Trash2, Edit } from "lucide-react";
 import type { Event, EventInventory, EventInventoryItem } from "@/lib/types";
 import { EditBirdDialog } from "./edit-bird-dialog";
 import { CreateBirdDialog } from "./create-bird-dialog";
@@ -31,6 +31,7 @@ export function BreederDetailsDialog({
   const [editingBird, setEditingBird] = useState<EventInventoryItem | null>(null);
   const [isBirdDialogOpen, setIsBirdDialogOpen] = useState(false);
   const [isCreateBirdMode, setIsCreateBirdMode] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<any>(null);
 
   // Payment form state
   const [paymentAmount, setPaymentAmount] = useState("");
@@ -45,6 +46,15 @@ export function BreederDetailsDialog({
     onSuccess: () => {
       toast.success("Payment added successfully");
       resetPaymentForm();
+      setIsAddPaymentOpen(false);
+      refetch();
+    },
+  });
+  const updatePaymentMutation = useUpdatePayment({
+    onSuccess: () => {
+      toast.success("Payment updated successfully");
+      resetPaymentForm();
+      setEditingPayment(null);
       setIsAddPaymentOpen(false);
       refetch();
     },
@@ -64,6 +74,7 @@ export function BreederDetailsDialog({
     setPaymentType("OTHER");
     setPaymentDescription("");
     setReferenceNumber("");
+    setEditingPayment(null);
   };
 
   const handleAddPayment = async (e: React.FormEvent) => {
@@ -76,10 +87,12 @@ export function BreederDetailsDialog({
       toast.error("Please enter a valid amount");
       return;
     }
-    if(!createPaymentMutation.mutateAsync) return;
-    await createPaymentMutation.mutateAsync({
-        eventInventoryId: eventInventory.eventInventoryId,
-        breederId: eventInventory.breederId,
+
+    if (editingPayment) {
+      // Update existing payment
+      if(!updatePaymentMutation.mutateAsync) return;
+      await updatePaymentMutation.mutateAsync({
+        paymentId: editingPayment.paymentId,
         amountPaid: amount,
         amountToPay: amount,
         currency: "USD",
@@ -87,7 +100,32 @@ export function BreederDetailsDialog({
         paymentType: paymentType,
         description: paymentDescription || undefined,
         referenceNumber: referenceNumber || undefined,
-    });
+      });
+    } else {
+      // Create new payment
+      if(!createPaymentMutation.mutateAsync) return;
+      await createPaymentMutation.mutateAsync({
+          eventInventoryId: eventInventory.eventInventoryId,
+          breederId: eventInventory.breederId,
+          amountPaid: amount,
+          amountToPay: amount,
+          currency: "USD",
+          method: paymentMethod,
+          paymentType: paymentType,
+          description: paymentDescription || undefined,
+          referenceNumber: referenceNumber || undefined,
+      });
+    }
+  };
+
+  const handleEditPayment = (payment: any) => {
+    setEditingPayment(payment);
+    setPaymentAmount(payment.amountPaid.toString());
+    setPaymentMethod(payment.method);
+    setPaymentType(payment.paymentType);
+    setPaymentDescription(payment.description || "");
+    setReferenceNumber(payment.referenceNumber || "");
+    setIsAddPaymentOpen(true);
   };
 
   const handleDeletePayment = async (paymentId: string) => {
@@ -193,16 +231,20 @@ export function BreederDetailsDialog({
                   <h3 className="font-semibold text-lg">Payments</h3>
                   <Button
                     size="sm"
-                    onClick={() => setIsAddPaymentOpen(!isAddPaymentOpen)}
+                    onClick={() => {
+                      resetPaymentForm();
+                      setIsAddPaymentOpen(!isAddPaymentOpen);
+                    }}
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     Add Payment
                   </Button>
                 </div>
 
-                {/* Add Payment Form */}
+                {/* Add/Edit Payment Form */}
                 {isAddPaymentOpen && (
                   <form onSubmit={handleAddPayment} className="border rounded-lg p-4 space-y-3 bg-gray-50">
+                    <h4 className="font-medium">{editingPayment ? "Edit Payment" : "Add Payment"}</h4>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
                         <Label htmlFor="paymentAmount">Amount</Label>
@@ -272,8 +314,10 @@ export function BreederDetailsDialog({
                       >
                         Cancel
                       </Button>
-                      <Button type="submit" disabled={createPaymentMutation.isPending}>
-                        {createPaymentMutation.isPending ? "Adding..." : "Add"}
+                      <Button type="submit" disabled={createPaymentMutation.isPending || updatePaymentMutation.isPending}>
+                        {editingPayment
+                          ? (updatePaymentMutation.isPending ? "Updating..." : "Update")
+                          : (createPaymentMutation.isPending ? "Adding..." : "Add")}
                       </Button>
                     </div>
                   </form>
@@ -318,14 +362,24 @@ export function BreederDetailsDialog({
                               ${payment.amountPaid.toFixed(2)}
                             </td>
                             <td className="px-4 py-2 text-center">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleDeletePayment(payment.paymentId)}
-                                disabled={deletePaymentMutation.isPending}
-                              >
-                                <Trash2 className="h-4 w-4 text-red-500" />
-                              </Button>
+                              <div className="flex items-center justify-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleEditPayment(payment)}
+                                  disabled={deletePaymentMutation.isPending || updatePaymentMutation.isPending}
+                                >
+                                  <Edit className="h-4 w-4 text-blue-500" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleDeletePayment(payment.paymentId)}
+                                  disabled={deletePaymentMutation.isPending}
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </div>
                             </td>
                           </tr>
                         ))

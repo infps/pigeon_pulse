@@ -17,7 +17,7 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
   const [editingItem, setEditingItem] = useState<EventInventoryItem | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  const { data, isPending, error } = useListEventInventoryItems(eventId);
+  const { data, isPending, error, refetch } = useListEventInventoryItems(eventId);
 
   const handleEdit = (item: EventInventoryItem) => {
     setEditingItem(item);
@@ -26,6 +26,7 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
 
   const handleEditSuccess = () => {
     setEditingItem(null);
+    refetch();
   };
 
   const columns = createBirdsColumns(handleEdit);

@@ -15,6 +15,30 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const eventId = searchParams.get("eventId");
+    const raceId = searchParams.get("raceId");
+
+    // If raceId is provided, return single race
+    if (raceId) {
+      const race = await prisma.race.findUnique({
+        where: { raceId },
+        include: {
+          raceType: true,
+          event: true,
+        },
+      });
+
+      if (!race) {
+        return NextResponse.json(
+          { message: "Race not found" },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json(
+        { race, message: "Race fetched successfully" },
+        { status: 200 }
+      );
+    }
 
     const whereClause = eventId ? { eventId } : {};
 
@@ -78,6 +102,21 @@ export async function POST(request: Request) {
       isClosed,
     } = body;
 
+    const event = await prisma.event.findUnique({
+      where: { eventId },
+    });
+
+    if (!event) {
+      return NextResponse.json(
+        { message: "Event not found" },
+        { status: 404 }
+      );
+    }
+    const eventInventoryItems = await prisma.eventInventoryItem.findMany({
+      where: { eventInventory:{
+        eventId
+      } },
+    })
     const race = await prisma.race.create({
       data: {
         raceTypeId,
@@ -108,6 +147,17 @@ export async function POST(request: Request) {
         },
       },
     });
+
+    const raceItemsData = eventInventoryItems.map(item => ({
+      raceId: race.raceId,
+      birdId:item.birdId,
+      eventInventoryItemId:item.eventInventoryItemId,
+    }))
+    await prisma.raceItem.createMany({
+      data: {
+        ...raceItemsData
+      }
+    })
 
     return NextResponse.json(
       { race, message: "Race created successfully" },
