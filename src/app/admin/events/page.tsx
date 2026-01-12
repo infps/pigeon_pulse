@@ -139,11 +139,7 @@ export default function EventsPage() {
         toast.success("Event updated successfully");
       } else {
         if (!createMutation.mutateAsync) return;
-        const {data,error,status} = await createMutation.mutateAsync(submitFormData);
-        if(error){
-          toast.error(error || "Failed to create event");
-          return;
-        }
+        await createMutation.mutateAsync(submitFormData);
         toast.success("Event created successfully");
       }
       handleClose();

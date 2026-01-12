@@ -83,7 +83,7 @@ export default function PrizeSchemeComponent() {
     setFormData({
       name: prizeScheme.name,
       description: prizeScheme.description || "",
-      prizeSchemeItems: prizeScheme.prizeSchemeItems,
+      prizeSchemeItems: prizeScheme.prizeSchemeItems || [],
     });
     setIsOpen(true);
   };

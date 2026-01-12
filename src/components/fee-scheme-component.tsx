@@ -98,8 +98,8 @@ export default function FeeSchemeComponent() {
       isRefundable: feeScheme.isRefundable,
       maxBirds: feeScheme.maxBirds,
       feesCutPercent: feeScheme.feesCutPercent,
-      perchFeeItems: feeScheme.perchFeeItems,
-      raceTypes: feeScheme.raceTypes,
+      perchFeeItems: feeScheme.perchFeeItems || [],
+      raceTypes: feeScheme.raceTypes || [],
     });
     setIsOpen(true);
   };
