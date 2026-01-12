@@ -50,6 +50,12 @@ const raceItems = {
   basket: "/api/admin/race-item/basket",
 };
 
+const breeder = {
+  events: "/api/breeder/events",
+  eventDetails: "/api/breeder/events/[eventId]",
+  liveRaces: "/api/breeder/races/live",
+};
+
 export const apiEndpoints = {
   raceTypes,
   eventTypes,
@@ -63,4 +69,5 @@ export const apiEndpoints = {
   races,
   baskets,
   raceItems,
+  breeder,
 };

@@ -277,6 +277,7 @@ export interface Race {
   description: string | null;
   name: string;
   distance: number;
+  isLive: boolean;
   releaseStation: string;
   releaseDate: string;
   sunriseTime: string;
