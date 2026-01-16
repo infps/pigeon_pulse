@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useUpdateEventInventoryItem } from "@/lib/api/event-inventory-item";
 import { useListRaces } from "@/lib/api/races";
 import type { EventInventoryItem, Race, Event } from "@/lib/types";
+import { Wifi, WifiOff } from "lucide-react";
 
 interface EditBirdDialogProps {
   open: boolean;
@@ -34,6 +35,10 @@ export function EditBirdDialog({
       toast.success("Bird updated successfully");
       onSuccess?.();
       onOpenChange(false);
+    },
+    onError: (error) => {
+      const errorMessage = JSON.parse(error.message).message || "Failed to update bird";
+      toast.error(errorMessage);
     },
     eventInventoryItemId: eventInventoryItem?.eventInventoryItemId || "",
   });
@@ -81,6 +86,12 @@ export function EditBirdDialog({
   const [wtaBet3, setWtaBet3] = useState(false);
   const [wtaBet4, setWtaBet4] = useState(false);
   const [wtaBet5, setWtaBet5] = useState(false);
+
+  // WebSocket state
+  const [wsConnected, setWsConnected] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const intentionalDisconnectRef = useRef(false);
 
   useEffect(() => {
     if (eventInventoryItem) {
@@ -136,6 +147,103 @@ export function EditBirdDialog({
       setWtaBet5(eventInventoryItem.wtaBet5);
     }
   }, [eventInventoryItem]);
+
+  // WebSocket connection management
+  const connectWebSocket = () => {
+    if (wsRef.current?.readyState === WebSocket.OPEN || !eventInventoryItem?.bird.birdId) {
+      return;
+    }
+
+    intentionalDisconnectRef.current = false; // Reset the flag when connecting
+
+    try {
+      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "wss://ws.infps-demo.com";
+      const ws = new WebSocket(`${wsUrl}/ws?type=web&id=web-edit-bird-${eventInventoryItem.bird.birdId}`);
+
+      ws.onopen = () => {
+        console.log("WebSocket connected");
+        setWsConnected(true);
+
+        // Copy birdId to clipboard
+        navigator.clipboard.writeText(eventInventoryItem.bird.birdId).then(() => {
+          toast.success(`Scanner connected - Bird ID copied to clipboard`);
+        }).catch(() => {
+          toast.success("Scanner connected");
+        });
+
+        // Subscribe to this bird's channel
+        const subscribeMessage = {
+          type: "subscribe",
+          channel: `bird:${eventInventoryItem.bird.birdId}`,
+        };
+        ws.send(JSON.stringify(subscribeMessage));
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log("WebSocket message:", data);
+
+          if (data.type === "scan" && data.ringNo) {
+            // Auto-fill the RFID input
+            setRfid(data.ringNo);
+            toast.success(`RFID scanned: ${data.ringNo}`);
+          }
+        } catch (error) {
+          console.error("Error parsing WebSocket message:", error);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+        toast.error("Scanner connection error");
+      };
+
+      ws.onclose = () => {
+        console.log("WebSocket disconnected");
+        setWsConnected(false);
+        wsRef.current = null;
+
+        // Auto-reconnect after 3 seconds if dialog is still open AND disconnect was not intentional
+        if (open && !intentionalDisconnectRef.current) {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            toast.info("Attempting to reconnect scanner...");
+            connectWebSocket();
+          }, 3000);
+        }
+      };
+
+      wsRef.current = ws;
+    } catch (error) {
+      console.error("Error connecting to WebSocket:", error);
+      toast.error("Failed to connect to scanner");
+    }
+  };
+
+  const disconnectWebSocket = () => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
+    if (wsRef.current) {
+      intentionalDisconnectRef.current = true; // Mark as intentional disconnect
+      wsRef.current.close();
+      wsRef.current = null;
+      setWsConnected(false);
+      toast.info("Scanner disconnected");
+    }
+  };
+
+  // Cleanup on unmount or dialog close
+  useEffect(() => {
+    if (!open) {
+      disconnectWebSocket();
+    }
+    return () => {
+      disconnectWebSocket();
+    };
+  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -270,11 +378,30 @@ export function EditBirdDialog({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="rfid">RFID</Label>
-                <Input
-                  id="rfid"
-                  value={rfid}
-                  onChange={(e) => setRfid(e.target.value)}
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="rfid"
+                    value={rfid}
+                    onChange={(e) => setRfid(e.target.value)}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant={wsConnected ? "default" : "outline"}
+                    size="icon"
+                    onClick={wsConnected ? disconnectWebSocket : connectWebSocket}
+                    title={wsConnected ? "Disconnect scanner" : "Connect to scanner"}
+                  >
+                    {wsConnected ? (
+                      <Wifi className="h-4 w-4" />
+                    ) : (
+                      <WifiOff className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                {wsConnected && (
+                  <p className="text-xs text-green-600">Scanner connected - waiting for scan...</p>
+                )}
               </div>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import { useApiMutation } from "@/hooks/useApiMutation";
+import { toast } from "sonner";
 
 export const useCreateBird = ({
   onSuccess,
@@ -15,9 +16,11 @@ export const useCreateBird = ({
 
 export const useUpdateEventInventoryItem = ({
   onSuccess,
-  eventInventoryItemId
+  onError,
+  eventInventoryItemId,
 }: {
   onSuccess?: () => void,
+  onError?: (error:any) => void,
   eventInventoryItemId: string;
 }) => {
   return useApiMutation({
@@ -25,5 +28,6 @@ export const useUpdateEventInventoryItem = ({
     method: "PATCH",
     queryKey: ["event-inventory-items"],
     onSuccess,
+    onError,
   });
 };

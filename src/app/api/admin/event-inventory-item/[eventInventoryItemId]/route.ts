@@ -75,7 +75,20 @@ export async function PATCH(
         { status: 404 }
       );
     }
-
+    if(body.rfid){
+      const existingBirdWithRfid = await prisma.bird.findFirst({
+        where: {
+          rfid: body.rfid,
+          birdId: { not: eventInventoryItem.birdId },
+        },
+      });
+      if (existingBirdWithRfid) {
+        return NextResponse.json(
+          { message: "RFID already in use by another bird" },
+          { status: 400 }
+        );
+      }
+    }
     // Update both bird and event inventory item in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Update the bird
