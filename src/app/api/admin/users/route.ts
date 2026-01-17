@@ -15,7 +15,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    // Only ADMIN and SUPERADMIN can list all users
+    // Only ADMIN and SUPERADMIN can list users
     if (session.user.role !== "ADMIN" && session.user.role !== "SUPERADMIN") {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }

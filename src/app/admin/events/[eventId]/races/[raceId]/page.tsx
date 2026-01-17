@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useApiQuery } from "@/hooks/useApi";
+import { useApiMutation } from "@/hooks/useApiMutation";
 import { apiEndpoints } from "@/lib/endpoints";
 import { useListRaceItems } from "@/lib/api/race-items";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,7 +18,8 @@ import { getWeatherIcon } from "@/lib/weather-constants";
 import type { Race, Event, RaceItem } from "@/lib/types";
 import type { RowSelectionState } from "@tanstack/react-table";
 import Image from "next/image";
-import { Package } from "lucide-react";
+import { Package, Play } from "lucide-react";
+import { toast } from "sonner";
 
 export default function RaceDetailsPage() {
   const params = useParams();
@@ -44,6 +46,18 @@ export default function RaceDetailsPage() {
   // Fetch race items
   const { data: raceItemsData, isPending: raceItemsLoading } = useListRaceItems({
     params: { raceId },
+  });
+
+  // Start race mutation
+  const { mutate: startRace, isPending: isStartingRace } = useApiMutation({
+    method: "POST",
+    endpoint: apiEndpoints.races.start(raceId),
+    onSuccess: () => {
+      toast.success("Race started successfully!");
+    },
+    onError: (error) => {
+      toast.error(error?.message || "Failed to start race");
+    },
   });
 
   if (raceLoading || eventLoading || raceItemsLoading) {
@@ -118,12 +132,28 @@ export default function RaceDetailsPage() {
                     <Badge variant={race.isClosed ? "secondary" : "default"} className="text-sm">
                       {race.isClosed ? "Closed" : "Open"}
                     </Badge>
+                    {race.isLive && (
+                      <Badge variant="destructive" className="text-sm animate-pulse">
+                        🔴 LIVE
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex flex-wrap items-center gap-2 mt-2">
                     <span className="text-sm md:text-base text-gray-600 font-medium">{event.name}</span>
                     <Badge variant={race.isClosed ? "secondary" : "default"}>
                       {race.raceType?.name || "Race"}
                     </Badge>
+                    {!race.isLive && !race.isClosed && (
+                      <Button
+                        onClick={() => startRace({})}
+                        disabled={isStartingRace}
+                        size="sm"
+                        className="gap-2 bg-green-600 hover:bg-green-700"
+                      >
+                        <Play className="h-4 w-4" />
+                        {isStartingRace ? "Starting..." : "Start Race"}
+                      </Button>
+                    )}
                   </div>
                   <p className="text-sm md:text-base text-blue-600 mt-1">
                     Release Station: <span className="font-medium">{race.releaseStation}</span>

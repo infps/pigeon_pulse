@@ -24,6 +24,7 @@ export async function GET(request: Request) {
       };
       
       // If ADMIN, can only access their own events
+      // Breeders can view any event
       if (session.user.role === "ADMIN") {
         whereClause.createdById = session.user.id;
       }
@@ -60,6 +61,7 @@ export async function GET(request: Request) {
       );
     }
 
+    // Breeders can view all events, ADMIN can only view their own
     const whereClause = session.user.role === "ADMIN" 
       ? { createdById: session.user.id }
       : {};

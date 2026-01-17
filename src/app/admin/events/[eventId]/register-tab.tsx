@@ -100,22 +100,17 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
       }));
       setBirds(newBirds);
 
-      // Initialize payments
+      // Initialize single payment with combined total
       const entryFeeTotal = entryFee * reservedBirds;
       const perchFeeTotal = calculatePerchFee();
+      const totalAmount = entryFeeTotal + perchFeeTotal;
 
       setPayments([
         {
-          amountPaid: entryFeeTotal,
-          amountToPay: entryFeeTotal,
+          amountPaid: totalAmount,
+          amountToPay: totalAmount,
           method: "CASH",
           paymentType: "ENTRY_FEE",
-        },
-        {
-          amountPaid: perchFeeTotal,
-          amountToPay: perchFeeTotal,
-          method: "CASH",
-          paymentType: "PERCH_FEE",
         },
       ]);
     } else {
@@ -456,77 +451,67 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
         {reservedBirds > 0 && payments.length > 0 && (
           <div className="space-y-4">
             <h3 className="font-semibold">Payment Information</h3>
-            {payments.map((payment, index) => (
-              <div key={index} className="border rounded-lg p-4">
-                <h4 className="font-medium mb-4">
-                  {payment.paymentType === "ENTRY_FEE" ? "Entry Fee" : "Perch Fee"}
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor={`payment-${index}-type`}>Payment Type</Label>
-                    <Input
-                      id={`payment-${index}-type`}
-                      value={payment.paymentType === "ENTRY_FEE" ? "Entry Fee" : "Perch Fee"}
-                      disabled
-                      className="bg-gray-100"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor={`payment-${index}-amountToPay`}>Amount To Pay</Label>
-                    <Input
-                      id={`payment-${index}-amountToPay`}
-                      type="number"
-                      step="0.01"
-                      value={payment.amountToPay}
-                      disabled
-                      className="bg-gray-100"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor={`payment-${index}-amountPaid`}>Amount Paid</Label>
-                    <Input
-                      id={`payment-${index}-amountPaid`}
-                      type="number"
-                      step="0.01"
-                      value={payment.amountPaid}
-                      onChange={(e) =>
-                        handlePaymentChange(index, "amountPaid", parseFloat(e.target.value) || 0)
-                      }
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor={`payment-${index}-method`}>Payment Method</Label>
-                    <Select
-                      value={payment.method}
-                      onValueChange={(value: "CREDIT_CARD" | "PAYPAL" | "BANK_TRANSFER" | "CASH") =>
-                        handlePaymentChange(index, "method", value)
-                      }
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="CASH">Cash</SelectItem>
-                        <SelectItem value="CREDIT_CARD">Credit Card</SelectItem>
-                        <SelectItem value="PAYPAL">PayPal</SelectItem>
-                        <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+            <div className="border rounded-lg p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="payment-amountToPay">Total Amount To Pay</Label>
+                  <Input
+                    id="payment-amountToPay"
+                    type="number"
+                    step="0.01"
+                    value={payments[0].amountToPay}
+                    disabled
+                    className="bg-gray-100"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="payment-amountPaid">Amount Paid</Label>
+                  <Input
+                    id="payment-amountPaid"
+                    type="number"
+                    step="0.01"
+                    value={payments[0].amountPaid}
+                    onChange={(e) =>
+                      handlePaymentChange(0, "amountPaid", parseFloat(e.target.value) || 0)
+                    }
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="payment-method">Payment Method</Label>
+                  <Select
+                    value={payments[0].method}
+                    onValueChange={(value: "CREDIT_CARD" | "PAYPAL" | "BANK_TRANSFER" | "CASH") =>
+                      handlePaymentChange(0, "method", value)
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CASH">Cash</SelectItem>
+                      <SelectItem value="CREDIT_CARD">Credit Card</SelectItem>
+                      <SelectItem value="PAYPAL">PayPal</SelectItem>
+                      <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-            ))}
-            
-            {/* Total Summary */}
-            <div className="border rounded-lg p-4 bg-gray-50">
-              <div className="flex justify-between text-lg font-bold">
-                <span>Total Amount To Pay:</span>
-                <span>${payments.reduce((sum, p) => sum + p.amountToPay, 0).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-lg font-bold mt-2">
-                <span>Total Amount Paid:</span>
-                <span>${payments.reduce((sum, p) => sum + p.amountPaid, 0).toFixed(2)}</span>
+              
+              {/* Fee Breakdown */}
+              <div className="mt-4 pt-4 border-t space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Entry Fee ({reservedBirds} birds × ${entryFee}):</span>
+                  <span className="font-medium">${(entryFee * reservedBirds).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Perch Fee:</span>
+                  <span className="font-medium">${calculatePerchFee().toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-lg font-bold pt-2 border-t">
+                  <span>Total:</span>
+                  <span>${payments[0].amountToPay.toFixed(2)}</span>
+                </div>
               </div>
             </div>
           </div>

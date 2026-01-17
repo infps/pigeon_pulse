@@ -11,6 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { EventInventoryItem, EventInventory } from "@/lib/types";
+import { apiEndpoints } from "@/lib/endpoints";
+import { authClient } from "@/lib/auth-client";
+import { Button } from "@/components/ui/button";
+import { User } from "lucide-react";
 
 interface EventBirdsTabProps {
   eventId: string;
@@ -91,9 +95,23 @@ function BreederDialog({ open, onOpenChange, inventory, allBirds }: BreederDialo
 export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedInventory, setSelectedInventory] = useState<EventInventory | null>(null);
+  const { data: session } = authClient.useSession();
 
-  const { data, isPending } = useListEventInventoryItems(eventId);
-  const birds = (data?.eventInventoryItems || []) as EventInventoryItem[];
+  const { data, isPending } = useListEventInventoryItems(
+    eventId,
+    apiEndpoints.breeder.eventInventoryItems(eventId)
+  );
+  const allBirds = (data?.eventInventoryItems || []) as EventInventoryItem[];
+  
+  const loggedInBreederId = session?.user?.id;
+  
+  // Separate logged-in breeder's birds and others
+  const myBirds = allBirds.filter(bird => bird.eventInventory?.breederId === loggedInBreederId);
+  const otherBirds = allBirds.filter(bird => bird.eventInventory?.breederId !== loggedInBreederId);
+  const birds = [...myBirds, ...otherBirds];
+  
+  // Get logged-in breeder's inventory for "My Loft" button
+  const myInventory = myBirds.length > 0 ? myBirds[0].eventInventory : null;
 
   const handleLoftClick = (inventory: EventInventory) => {
     setSelectedInventory(inventory);
@@ -109,7 +127,14 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
     ),
     cell: ({ row }) => {
       const band = row.original.bird?.band;
-      return <span className="font-mono">{band || "-"}</span>;
+      const isMyBird = row.original.eventInventory?.breederId === loggedInBreederId;
+      return (
+        <div className={isMyBird ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>
+          <span className={`font-mono ${isMyBird ? "font-bold" : ""}`}>
+            {band || "-"}
+          </span>
+        </div>
+      );
     },
   },
   {
@@ -120,7 +145,14 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
     ),
     cell: ({ row }) => {
       const birdName = row.original.bird?.birdName;
-      return <span>{birdName || "-"}</span>;
+      const isMyBird = row.original.eventInventory?.breederId === loggedInBreederId;
+      return (
+        <div className={isMyBird ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>
+          <span className={isMyBird ? "font-bold" : ""}>
+            {birdName || "-"}
+          </span>
+        </div>
+      );
     },
   },
   {
@@ -131,7 +163,21 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
     ),
     cell: ({ row }) => {
       const breederName = row.original.eventInventory?.breeder?.name;
-      return <span>{breederName || "-"}</span>;
+      const isMyBird = row.original.eventInventory?.breederId === loggedInBreederId;
+      return (
+        <div className={isMyBird ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>
+          <div className="flex items-center gap-2">
+            <span className={isMyBird ? "font-bold" : ""}>
+              {breederName || "-"}
+            </span>
+            {isMyBird && (
+              <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">
+                You
+              </span>
+            )}
+          </div>
+        </div>
+      );
     },
   },
   {
@@ -143,13 +189,18 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
     cell: ({ row }) => {
       const loft = row.original.eventInventory?.loft;
       const inventory = row.original.eventInventory;
+      const isMyBird = row.original.eventInventory?.breederId === loggedInBreederId;
       return (
-        <button
-          onClick={() => handleLoftClick(inventory)}
-          className="text-blue-600 hover:underline font-medium cursor-pointer"
-        >
-          {loft || "-"}
-        </button>
+        <div className={isMyBird ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>
+          <button
+            onClick={() => handleLoftClick(inventory)}
+            className={`text-blue-600 hover:underline cursor-pointer ${
+              isMyBird ? "font-bold" : "font-medium"
+            }`}
+          >
+            {loft || "-"}
+          </button>
+        </div>
       );
     },
   },
@@ -162,8 +213,18 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
   return (
     <>
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Registered Birds ({birds.length})</CardTitle>
+          {myInventory && (
+            <Button
+              onClick={() => handleLoftClick(myInventory)}
+              className="gap-2"
+              variant="outline"
+            >
+              <User className="h-4 w-4" />
+              My Loft
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           <DataTable
@@ -182,7 +243,7 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         inventory={selectedInventory}
-        allBirds={birds}
+        allBirds={allBirds}
       />
     </>
   );

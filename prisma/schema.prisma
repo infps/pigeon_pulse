@@ -398,7 +398,7 @@ model RaceItem {
 
 model Team {
   id        String   @id @default(uuid(7))
-  name      String   @unique
+  name      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

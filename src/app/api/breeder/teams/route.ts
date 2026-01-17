@@ -25,7 +25,6 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const breederId = searchParams.get("breederId");
 
-    // Get teams by breeder ID
     if(!breederId){
         return NextResponse.json(
           { message: "Breeder ID is required" },
@@ -33,8 +32,8 @@ export async function GET(request: Request) {
         );
     }
 
-    // If user is a breeder, they can only view their own teams
-    if (session.user.role === "BREEDER" && session.user.id !== breederId) {
+    // Breeders can only view their own teams
+    if (session.user.id !== breederId) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
@@ -63,14 +62,13 @@ export async function POST(request: Request) {
       headers: await headers(),
     });
 
-   
-
     const body = await request.json();
     const validatedData = createTeamSchema.parse(body);
 
-     if (!session || !session.user  || validatedData.breederId !== session.user.id) {
+    if (!session || !session.user  || validatedData.breederId !== session.user.id) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
+    
     // Check if breeder exists
     const breeder = await prisma.user.findUnique({
       where: { id: validatedData.breederId },
@@ -143,8 +141,8 @@ export async function PUT(request: Request) {
       );
     }
 
-    // If user is a breeder, they can only update their own teams
-    if (session.user.role === "BREEDER" && session.user.id !== existingTeam.breederId) {
+    // Breeders can only update their own teams
+    if (session.user.id !== existingTeam.breederId) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
@@ -206,8 +204,8 @@ export async function DELETE(request: Request) {
       );
     }
 
-    // If user is a breeder, they can only delete their own teams
-    if (session.user.role === "BREEDER" && session.user.id !== existingTeam.breederId) {
+    // Breeders can only delete their own teams
+    if (session.user.id !== existingTeam.breederId) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 

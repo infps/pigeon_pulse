@@ -11,6 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { EventInventoryItem, EventInventory } from "@/lib/types";
+import { apiEndpoints } from "@/lib/endpoints";
+import { authClient } from "@/lib/auth-client";
+import { Button } from "@/components/ui/button";
+import { User } from "lucide-react";
 
 interface EventBreedersTabProps {
   eventId: string;
@@ -100,9 +104,15 @@ interface BreederRow {
 export function EventBreedersTab({ eventId }: EventBreedersTabProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedInventory, setSelectedInventory] = useState<EventInventory | null>(null);
+  const { data: session } = authClient.useSession();
 
-  const { data, isPending } = useListEventInventoryItems(eventId);
+  const { data, isPending } = useListEventInventoryItems(
+    eventId,
+    apiEndpoints.breeder.eventInventoryItems(eventId)
+  );
   const birds = (data?.eventInventoryItems || []) as EventInventoryItem[];
+
+  const loggedInBreederId = session?.user?.id;
 
   // Group birds by breeder
   const breederMap = new Map<string, BreederRow>();
@@ -129,7 +139,12 @@ export function EventBreedersTab({ eventId }: EventBreedersTabProps) {
     }
   });
 
-  const breeders = Array.from(breederMap.values());
+  const allBreeders = Array.from(breederMap.values());
+  
+  // Separate logged-in breeder and others
+  const myBreeder = allBreeders.find(b => b.breederId === loggedInBreederId);
+  const otherBreeders = allBreeders.filter(b => b.breederId !== loggedInBreederId);
+  const breeders = myBreeder ? [myBreeder, ...otherBreeders] : allBreeders;
 
   const handleBreederClick = (inventory: EventInventory) => {
     setSelectedInventory(inventory);
@@ -156,20 +171,30 @@ export function EventBreedersTab({ eventId }: EventBreedersTabProps) {
         const name = row.original.breederName;
         const image = row.original.breederImage;
         const inventory = row.original.inventory;
+        const isMe = row.original.breederId === loggedInBreederId;
         
         return (
-          <button
-            onClick={() => handleBreederClick(inventory)}
-            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-          >
+          <div className={isMe ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>
+            <button
+              onClick={() => handleBreederClick(inventory)}
+              className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+            >
             <Avatar className="h-10 w-10">
               <AvatarImage src={image || undefined} alt={name} />
               <AvatarFallback className="text-sm">
                 {getInitials(name)}
               </AvatarFallback>
             </Avatar>
-            <span className="text-blue-600 hover:underline font-medium">{name}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-blue-600 hover:underline font-medium">{name}</span>
+              {isMe && (
+                <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">
+                  You
+                </span>
+              )}
+            </div>
           </button>
+          </div>
         );
       },
     },
@@ -179,6 +204,15 @@ export function EventBreedersTab({ eventId }: EventBreedersTabProps) {
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Loft" />
       ),
+      cell: ({ row }) => {
+        const loft = row.original.loft;
+        const isMe = row.original.breederId === loggedInBreederId;
+        return (
+          <div className={isMe ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>
+            {loft}
+          </div>
+        );
+      },
     },
     {
       id: "birdCount",
@@ -188,7 +222,12 @@ export function EventBreedersTab({ eventId }: EventBreedersTabProps) {
       ),
       cell: ({ row }) => {
         const count = row.original.birdCount;
-        return <span className="font-semibold">{count}</span>;
+        const isMe = row.original.breederId === loggedInBreederId;
+        return (
+          <div className={isMe ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>
+            <span className="font-semibold">{count}</span>
+          </div>
+        );
       },
     },
   ];
@@ -200,18 +239,30 @@ export function EventBreedersTab({ eventId }: EventBreedersTabProps) {
   return (
     <>
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Registered Breeders ({breeders.length})</CardTitle>
+          {myBreeder && (
+            <Button
+              onClick={() => handleBreederClick(myBreeder.inventory)}
+              className="gap-2"
+              variant="outline"
+            >
+              <User className="h-4 w-4" />
+              My Loft
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
-          <DataTable
-            columns={columns}
-            data={breeders}
-            filterableColumns={[
-              { id: "breeder", title: "Breeder" },
-              { id: "loft", title: "Loft" },
-            ]}
-          />
+          <div className="space-y-4">
+            <DataTable
+              columns={columns}
+              data={breeders}
+              filterableColumns={[
+                { id: "breeder", title: "Breeder" },
+                { id: "loft", title: "Loft" },
+              ]}
+            />
+          </div>
         </CardContent>
       </Card>
 

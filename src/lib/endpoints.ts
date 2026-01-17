@@ -38,6 +38,7 @@ const eventInventory = {
 
 const races = {
   base: "/api/admin/race",
+  start: (raceId: string) => `/api/admin/race/${raceId}/start`,
 };
 
 const baskets = {
@@ -54,6 +55,14 @@ const breeder = {
   events: "/api/breeder/events",
   eventDetails: "/api/breeder/events/[eventId]",
   liveRaces: "/api/breeder/races/live",
+  eventTypes: "/api/breeder/event-types",
+  raceTypes: "/api/breeder/race-types",
+  feeSchemes: "/api/breeder/fee-schemes",
+  prizeSchemes: "/api/breeder/prize-schemes",
+  bettingSchemes: "/api/breeder/betting-schemes",
+  races: "/api/breeder/races",
+  teams: "/api/breeder/teams",
+  eventInventoryItems: (eventId: string) => `/api/breeder/event/${eventId}/inventory-items`,
 };
 
 export const apiEndpoints = {
