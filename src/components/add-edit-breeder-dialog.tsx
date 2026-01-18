@@ -20,6 +20,8 @@ import {
 import { toast } from "sonner";
 import { useCreateUser, useUpdateUser } from "@/lib/api/users";
 import type { User, UserRole, UserStatus } from "@/lib/types";
+import { COUNTRIES, STATES, getCountryFlag, getStateFlag, getCountryName, getStateName } from "@/lib/flag-constants";
+import Image from "next/image";
 
 interface AddEditBreederDialogProps {
   open: boolean;
@@ -308,24 +310,92 @@ export function AddEditBreederDialog({
           <div className="grid grid-cols-3 gap-4">
             <div>
               <Label htmlFor="country">Country</Label>
-              <Input
-                id="country"
+              <Select
                 value={formData.country}
-                onChange={(e) =>
-                  setFormData({ ...formData, country: e.target.value })
+                onValueChange={(value) =>
+                  setFormData({ ...formData, country: value })
                 }
-              />
+              >
+                <SelectTrigger id="country">
+                  <SelectValue placeholder="Select country">
+                    {formData.country && (
+                      <div className="flex items-center gap-2">
+                        {getCountryFlag(formData.country) && (
+                          <Image
+                            src={getCountryFlag(formData.country)!}
+                            alt={getCountryName(formData.country)}
+                            width={20}
+                            height={15}
+                            className="rounded"
+                          />
+                        )}
+                        <span>{getCountryName(formData.country)}</span>
+                      </div>
+                    )}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(COUNTRIES).map(([code, name]) => (
+                    <SelectItem key={code} value={code}>
+                      <div className="flex items-center gap-2">
+                        <Image
+                          src={`/countryflags/${code}.gif`}
+                          alt={name}
+                          width={20}
+                          height={15}
+                          className="rounded"
+                        />
+                        <span>{name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
               <Label htmlFor="state">State</Label>
-              <Input
-                id="state"
+              <Select
                 value={formData.state}
-                onChange={(e) =>
-                  setFormData({ ...formData, state: e.target.value })
+                onValueChange={(value) =>
+                  setFormData({ ...formData, state: value })
                 }
-              />
+              >
+                <SelectTrigger id="state">
+                  <SelectValue placeholder="Select state">
+                    {formData.state && (
+                      <div className="flex items-center gap-2">
+                        {getStateFlag(formData.state) && (
+                          <Image
+                            src={getStateFlag(formData.state)!}
+                            alt={getStateName(formData.state)}
+                            width={20}
+                            height={15}
+                            className="rounded"
+                          />
+                        )}
+                        <span>{getStateName(formData.state)}</span>
+                      </div>
+                    )}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(STATES).map(([code, name]) => (
+                    <SelectItem key={code} value={code}>
+                      <div className="flex items-center gap-2">
+                        <Image
+                          src={`/stateflags/${code}.gif`}
+                          alt={name}
+                          width={20}
+                          height={15}
+                          className="rounded"
+                        />
+                        <span>{name}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>

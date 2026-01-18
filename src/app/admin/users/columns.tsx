@@ -16,6 +16,8 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import type { User, UserRole, UserStatus } from "@/lib/types"
+import { getCountryFlag, getStateFlag, getCountryName, getStateName } from "@/lib/flag-constants"
+import Image from "next/image"
 
 export const createColumns = (
   onEdit: (user: User) => void,
@@ -107,6 +109,56 @@ export const createColumns = (
     cell: ({ row }) => {
       const phone = row.getValue("phoneNumber") as string | undefined
       return <span>{phone || "-"}</span>
+    },
+  },
+  {
+    accessorKey: "country",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Country" />
+    ),
+    cell: ({ row }) => {
+      const country = row.getValue("country") as string | undefined
+      if (!country) return <span>-</span>
+      const flag = getCountryFlag(country)
+      return (
+        <div className="flex items-center gap-2">
+          {flag && (
+            <Image
+              src={flag}
+              alt={getCountryName(country)}
+              width={20}
+              height={15}
+              className="rounded"
+            />
+          )}
+          <span>{getCountryName(country)}</span>
+        </div>
+      )
+    },
+  },
+  {
+    accessorKey: "state",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="State" />
+    ),
+    cell: ({ row }) => {
+      const state = row.getValue("state") as string | undefined
+      if (!state) return <span>-</span>
+      const flag = getStateFlag(state)
+      return (
+        <div className="flex items-center gap-2">
+          {flag && (
+            <Image
+              src={flag}
+              alt={getStateName(state)}
+              width={20}
+              height={15}
+              className="rounded"
+            />
+          )}
+          <span>{getStateName(state)}</span>
+        </div>
+      )
     },
   },
   {

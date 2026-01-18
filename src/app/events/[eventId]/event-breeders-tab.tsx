@@ -15,6 +15,8 @@ import { apiEndpoints } from "@/lib/endpoints";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { User } from "lucide-react";
+import { getCountryFlag, getStateFlag, getCountryName, getStateName } from "@/lib/flag-constants";
+import Image from "next/image";
 
 interface EventBreedersTabProps {
   eventId: string;
@@ -60,6 +62,42 @@ function BreederDialog({ open, onOpenChange, inventory, allBirds }: BreederDialo
               <div className="text-sm text-muted-foreground font-normal">
                 Loft: {inventory.loft}
               </div>
+              {(breeder.country || breeder.state) && (
+                <div className="flex items-center gap-3 mt-2">
+                  {breeder.country && (
+                    <div className="flex items-center gap-1.5">
+                      {getCountryFlag(breeder.country) && (
+                        <Image
+                          src={getCountryFlag(breeder.country)!}
+                          alt={getCountryName(breeder.country)}
+                          width={20}
+                          height={15}
+                          className="rounded"
+                        />
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        {getCountryName(breeder.country)}
+                      </span>
+                    </div>
+                  )}
+                  {breeder.state && (
+                    <div className="flex items-center gap-1.5">
+                      {getStateFlag(breeder.state) && (
+                        <Image
+                          src={getStateFlag(breeder.state)!}
+                          alt={getStateName(breeder.state)}
+                          width={20}
+                          height={15}
+                          className="rounded"
+                        />
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        {getStateName(breeder.state)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </DialogTitle>
         </DialogHeader>
@@ -99,6 +137,8 @@ interface BreederRow {
   birdCount: number;
   breederImage: string | null;
   inventory: EventInventory;
+  country?: string | null;
+  state?: string | null;
 }
 
 export function EventBreedersTab({ eventId }: EventBreedersTabProps) {
@@ -122,6 +162,8 @@ export function EventBreedersTab({ eventId }: EventBreedersTabProps) {
     const breederName = item.eventInventory?.breeder?.name;
     const loft = item.eventInventory?.loft;
     const breederImage = item.eventInventory?.breeder?.image;
+    const country = item.eventInventory?.breeder?.country;
+    const state = item.eventInventory?.breeder?.state;
     
     if (breederId && breederName && loft) {
       if (!breederMap.has(breederId)) {
@@ -132,6 +174,8 @@ export function EventBreedersTab({ eventId }: EventBreedersTabProps) {
           birdCount: 0,
           breederImage: breederImage || null,
           inventory: item.eventInventory,
+          country,
+          state,
         });
       }
       const breederData = breederMap.get(breederId)!;
@@ -210,6 +254,64 @@ export function EventBreedersTab({ eventId }: EventBreedersTabProps) {
         return (
           <div className={isMe ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>
             {loft}
+          </div>
+        );
+      },
+    },
+    {
+      id: "country",
+      accessorKey: "country",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Country" />
+      ),
+      cell: ({ row }) => {
+        const country = row.original.country;
+        const isMe = row.original.breederId === loggedInBreederId;
+        if (!country) return <div className={isMe ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>-</div>;
+        const flag = getCountryFlag(country);
+        return (
+          <div className={isMe ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>
+            <div className="flex items-center gap-2">
+              {flag && (
+                <Image
+                  src={flag}
+                  alt={getCountryName(country)}
+                  width={20}
+                  height={15}
+                  className="rounded"
+                />
+              )}
+              <span>{getCountryName(country)}</span>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      id: "state",
+      accessorKey: "state",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="State" />
+      ),
+      cell: ({ row }) => {
+        const state = row.original.state;
+        const isMe = row.original.breederId === loggedInBreederId;
+        if (!state) return <div className={isMe ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>-</div>;
+        const flag = getStateFlag(state);
+        return (
+          <div className={isMe ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>
+            <div className="flex items-center gap-2">
+              {flag && (
+                <Image
+                  src={flag}
+                  alt={getStateName(state)}
+                  width={20}
+                  height={15}
+                  className="rounded"
+                />
+              )}
+              <span>{getStateName(state)}</span>
+            </div>
           </div>
         );
       },

@@ -21,6 +21,8 @@ import {
 import { Monitor, Loader2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { Session, set } from "better-auth";
+import { COUNTRIES, STATES, getCountryFlag, getStateFlag, getCountryName, getStateName } from "@/lib/flag-constants";
+import Image from "next/image";
 
 interface UserProfile {
   id: string;
@@ -315,22 +317,87 @@ export default function ProfilePage() {
 
                     {/* Location Information */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="country">Country</Label>
-                        <Input
-                          id="country"
+                      <Select
                           value={formData.country}
-                          onChange={(e) => handleInputChange("country", e.target.value)}
-                        />
+                          onValueChange={(value) => handleInputChange("country", value)}
+                        >
+                          <SelectTrigger id="country">
+                            <SelectValue placeholder="Select country">
+                              {formData.country && (
+                                <div className="flex items-center gap-2">
+                                  {getCountryFlag(formData.country) && (
+                                    <Image
+                                      src={getCountryFlag(formData.country)!}
+                                      alt={getCountryName(formData.country)}
+                                      width={20}
+                                      height={15}
+                                      className="rounded"
+                                    />
+                                  )}
+                                  <span>{getCountryName(formData.country)}</span>
+                                </div>
+                              )}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(COUNTRIES).map(([code, name]) => (
+                              <SelectItem key={code} value={code}>
+                                <div className="flex items-center gap-2">
+                                  <Image
+                                    src={`/countryflags/${code}.gif`}
+                                    alt={name}
+                                    width={20}
+                                    height={15}
+                                    className="rounded"
+                                  />
+                                  <span>{name}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="state">State</Label>
-                        <Input
-                          id="state"
+                        <Select
                           value={formData.state}
-                          onChange={(e) => handleInputChange("state", e.target.value)}
-                        />
-                      </div>
+                          onValueChange={(value) => handleInputChange("state", value)}
+                        >
+                          <SelectTrigger id="state">
+                            <SelectValue placeholder="Select state">
+                              {formData.state && (
+                                <div className="flex items-center gap-2">
+                                  {getStateFlag(formData.state) && (
+                                    <Image
+                                      src={getStateFlag(formData.state)!}
+                                      alt={getStateName(formData.state)}
+                                      width={20}
+                                      height={15}
+                                      className="rounded"
+                                    />
+                                  )}
+                                  <span>{getStateName(formData.state)}</span>
+                                </div>
+                              )}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(STATES).map(([code, name]) => (
+                              <SelectItem key={code} value={code}>
+                                <div className="flex items-center gap-2">
+                                  <Image
+                                    src={`/stateflags/${code}.gif`}
+                                    alt={name}
+                                    width={20}
+                                    height={15}
+                                    className="rounded"
+                                  />
+                                  <span>{name}</span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       <div className="space-y-2">
                         <Label htmlFor="city">City</Label>
                         <Input
