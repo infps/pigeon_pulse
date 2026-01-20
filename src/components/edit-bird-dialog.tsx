@@ -87,11 +87,9 @@ export function EditBirdDialog({
   const [wtaBet4, setWtaBet4] = useState(false);
   const [wtaBet5, setWtaBet5] = useState(false);
 
-  // WebSocket state
-  const [wsConnected, setWsConnected] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const intentionalDisconnectRef = useRef(false);
+  // Polling state
+  const [isPolling, setIsPolling] = useState(false);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (eventInventoryItem) {
@@ -148,100 +146,60 @@ export function EditBirdDialog({
     }
   }, [eventInventoryItem]);
 
-  // WebSocket connection management
-  const connectWebSocket = () => {
-    if (wsRef.current?.readyState === WebSocket.OPEN || !eventInventoryItem?.bird.birdId) {
-      return;
-    }
-
-    intentionalDisconnectRef.current = false; // Reset the flag when connecting
-
+  // Polling management
+  const pollScanner = async () => {
     try {
-      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "wss://ws.infps-demo.com";
-      const ws = new WebSocket(`${wsUrl}/ws?type=web&id=web-edit-bird-${eventInventoryItem.bird.birdId}`);
+      const response = await fetch('/api/scanner/poll', {
+        method: 'POST',
+      });
 
-      ws.onopen = () => {
-        console.log("WebSocket connected");
-        setWsConnected(true);
-
-        // Copy birdId to clipboard
-        navigator.clipboard.writeText(eventInventoryItem.bird.birdId).then(() => {
-          toast.success(`Scanner connected - Bird ID copied to clipboard`);
-        }).catch(() => {
-          toast.success("Scanner connected");
-        });
-
-        // Subscribe to this bird's channel
-        const subscribeMessage = {
-          type: "subscribe",
-          channel: `bird:${eventInventoryItem.bird.birdId}`,
-        };
-        ws.send(JSON.stringify(subscribeMessage));
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log("WebSocket message:", data);
-
-          if (data.type === "scan" && data.ringNo) {
-            // Auto-fill the RFID input
-            setRfid(data.ringNo);
-            toast.success(`RFID scanned: ${data.ringNo}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.length > 0 && data[0].el) {
+          const newRfid = data[0].el;
+          // Only update if different from current value to avoid unnecessary re-renders
+          if (newRfid !== rfid) {
+            setRfid(newRfid);
+            toast.success(`RFID scanned: ${newRfid}`);
           }
-        } catch (error) {
-          console.error("Error parsing WebSocket message:", error);
         }
-      };
-
-      ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
-        toast.error("Scanner connection error");
-      };
-
-      ws.onclose = () => {
-        console.log("WebSocket disconnected");
-        setWsConnected(false);
-        wsRef.current = null;
-
-        // Auto-reconnect after 3 seconds if dialog is still open AND disconnect was not intentional
-        if (open && !intentionalDisconnectRef.current) {
-          reconnectTimeoutRef.current = setTimeout(() => {
-            toast.info("Attempting to reconnect scanner...");
-            connectWebSocket();
-          }, 3000);
-        }
-      };
-
-      wsRef.current = ws;
+      }
     } catch (error) {
-      console.error("Error connecting to WebSocket:", error);
-      toast.error("Failed to connect to scanner");
+      console.error('Error polling scanner:', error);
     }
   };
 
-  const disconnectWebSocket = () => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
+  const startPolling = () => {
+    if (pollingIntervalRef.current) {
+      return; // Already polling
     }
 
-    if (wsRef.current) {
-      intentionalDisconnectRef.current = true; // Mark as intentional disconnect
-      wsRef.current.close();
-      wsRef.current = null;
-      setWsConnected(false);
-      toast.info("Scanner disconnected");
+    setIsPolling(true);
+    toast.success('Scanner connected - polling started');
+    
+    // Poll immediately
+    pollScanner();
+    
+    // Then poll every 2 seconds
+    pollingIntervalRef.current = setInterval(pollScanner, 2000);
+  };
+
+  const stopPolling = () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
     }
+    setIsPolling(false);
+    toast.info('Scanner disconnected');
   };
 
   // Cleanup on unmount or dialog close
   useEffect(() => {
     if (!open) {
-      disconnectWebSocket();
+      stopPolling();
     }
     return () => {
-      disconnectWebSocket();
+      stopPolling();
     };
   }, [open]);
 
@@ -387,20 +345,20 @@ export function EditBirdDialog({
                   />
                   <Button
                     type="button"
-                    variant={wsConnected ? "default" : "outline"}
+                    variant={isPolling ? "default" : "outline"}
                     size="icon"
-                    onClick={wsConnected ? disconnectWebSocket : connectWebSocket}
-                    title={wsConnected ? "Disconnect scanner" : "Connect to scanner"}
+                    onClick={isPolling ? stopPolling : startPolling}
+                    title={isPolling ? "Disconnect scanner" : "Connect to scanner"}
                   >
-                    {wsConnected ? (
+                    {isPolling ? (
                       <Wifi className="h-4 w-4" />
                     ) : (
                       <WifiOff className="h-4 w-4" />
                     )}
                   </Button>
                 </div>
-                {wsConnected && (
-                  <p className="text-xs text-green-600">Scanner connected - waiting for scan...</p>
+                {isPolling && (
+                  <p className="text-xs text-green-600">Scanner connected - polling for RFID...</p>
                 )}
               </div>
             </div>
