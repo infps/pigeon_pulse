@@ -90,11 +90,24 @@ export async function POST(
       parseInt(timestamp.substring(12, 14)) // second
     );
 
-    // Update the race item with arrival time if not already set
+    // Calculate position if this is first arrival
+    let birdPosition: number | null = null;
+    if (!raceItem.arrivalTime) {
+      const arrivedCount = await prisma.raceItem.count({
+        where: {
+          raceId,
+          arrivalTime: { not: null },
+        },
+      });
+      birdPosition = arrivedCount + 1;
+    }
+
+    // Update the race item with arrival time and position if not already set
     const updatedRaceItem = await prisma.raceItem.update({
       where: { raceItemId: raceItem.raceItemId },
       data: {
         arrivalTime: raceItem.arrivalTime ? raceItem.arrivalTime : arrivalTime,
+        birdPosition: raceItem.arrivalTime ? raceItem.birdPosition : birdPosition,
       },
       include: {
         bird: {

@@ -26,11 +26,11 @@ export async function GET(request: Request) {
     const breederId = searchParams.get("breederId");
 
     // Get teams by breeder ID
-    if(!breederId){
-        return NextResponse.json(
-          { message: "Breeder ID is required" },
-          { status: 400 }
-        );
+    if (!breederId) {
+      return NextResponse.json(
+        { message: "Breeder ID is required" },
+        { status: 400 },
+      );
     }
 
     // If user is a breeder, they can only view their own teams
@@ -39,20 +39,20 @@ export async function GET(request: Request) {
     }
 
     const teams = await prisma.team.findMany({
-        where:{
-            breederId: breederId
-        }
-    })
+      where: {
+        breederId: breederId,
+      },
+    });
 
     return NextResponse.json(
       { teams, message: "Teams fetched successfully" },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("Error fetching teams:", error);
     return NextResponse.json(
       { message: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -63,12 +63,10 @@ export async function POST(request: Request) {
       headers: await headers(),
     });
 
-   
-
     const body = await request.json();
     const validatedData = createTeamSchema.parse(body);
 
-     if (!session || !session.user  || validatedData.breederId !== session.user.id) {
+    if (!session || !session.user) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
     // Check if breeder exists
@@ -79,7 +77,7 @@ export async function POST(request: Request) {
     if (!breeder) {
       return NextResponse.json(
         { message: "Breeder not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -92,19 +90,19 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       { message: "Team created successfully", team: newTeam },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { message: "Validation error", errors: error.issues },
-        { status: 400 }
+        { status: 400 },
       );
     }
     console.error("Error creating team:", error);
     return NextResponse.json(
       { message: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -125,7 +123,7 @@ export async function PUT(request: Request) {
     if (!teamId) {
       return NextResponse.json(
         { message: "Team ID is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -137,14 +135,14 @@ export async function PUT(request: Request) {
     });
 
     if (!existingTeam) {
-      return NextResponse.json(
-        { message: "Team not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ message: "Team not found" }, { status: 404 });
     }
 
     // If user is a breeder, they can only update their own teams
-    if (session.user.role === "BREEDER" && session.user.id !== existingTeam.breederId) {
+    if (
+      session.user.role === "BREEDER" &&
+      session.user.id !== existingTeam.breederId
+    ) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
@@ -157,19 +155,19 @@ export async function PUT(request: Request) {
 
     return NextResponse.json(
       { message: "Team updated successfully", team: updatedTeam },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { message: "Validation error", errors: error.issues },
-        { status: 400 }
+        { status: 400 },
       );
     }
     console.error("Error updating team:", error);
     return NextResponse.json(
       { message: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -190,7 +188,7 @@ export async function DELETE(request: Request) {
     if (!teamId) {
       return NextResponse.json(
         { message: "Team ID is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -200,14 +198,14 @@ export async function DELETE(request: Request) {
     });
 
     if (!existingTeam) {
-      return NextResponse.json(
-        { message: "Team not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ message: "Team not found" }, { status: 404 });
     }
 
     // If user is a breeder, they can only delete their own teams
-    if (session.user.role === "BREEDER" && session.user.id !== existingTeam.breederId) {
+    if (
+      session.user.role === "BREEDER" &&
+      session.user.id !== existingTeam.breederId
+    ) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
@@ -217,13 +215,13 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json(
       { message: "Team deleted successfully" },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("Error deleting team:", error);
     return NextResponse.json(
       { message: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

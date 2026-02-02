@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useApiQuery } from "@/hooks/useApi";
 import { useApiMutation } from "@/hooks/useApiMutation";
@@ -18,8 +18,9 @@ import { getWeatherIcon } from "@/lib/weather-constants";
 import type { Race, Event, RaceItem } from "@/lib/types";
 import type { RowSelectionState } from "@tanstack/react-table";
 import Image from "next/image";
-import { Package, Play } from "lucide-react";
+import { Package, Play, Radio, Square } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function RaceDetailsPage() {
   const params = useParams();
@@ -28,6 +29,10 @@ export default function RaceDetailsPage() {
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [basketDialogOpen, setBasketDialogOpen] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const lastScannedRfidRef = useRef<string | null>(null);
+  const scannerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const queryClient = useQueryClient();
 
   // Fetch race details
   const { data: raceData, isPending: raceLoading } = useApiQuery({
@@ -52,6 +57,7 @@ export default function RaceDetailsPage() {
   const { mutate: startRace, isPending: isStartingRace } = useApiMutation({
     method: "POST",
     endpoint: apiEndpoints.races.start(raceId),
+    queryKey: ["races", "detail", raceId],
     onSuccess: () => {
       toast.success("Race started successfully!");
     },
@@ -59,6 +65,74 @@ export default function RaceDetailsPage() {
       toast.error(error?.message || "Failed to start race");
     },
   });
+
+  // Scanner functions
+  const handleScan = useCallback(async (rfid: string) => {
+    const now = new Date();
+    const timestamp = now.getFullYear().toString() +
+      (now.getMonth() + 1).toString().padStart(2, '0') +
+      now.getDate().toString().padStart(2, '0') +
+      now.getHours().toString().padStart(2, '0') +
+      now.getMinutes().toString().padStart(2, '0') +
+      now.getSeconds().toString().padStart(2, '0');
+
+    try {
+      const res = await fetch(`/api/admin/race/${raceId}/scan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ringNo: rfid, timestamp }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.message || 'Scan failed');
+        return;
+      }
+
+      if (data.isNewArrival) {
+        const birdName = data.raceItem?.bird?.name || rfid;
+        toast.success(`${birdName} arrived! Position: ${data.raceItem?.birdPosition}`);
+        queryClient.invalidateQueries({ queryKey: ["raceItems", "list", `raceId-${raceId}`] });
+      } else {
+        toast.info('Bird already scanned');
+      }
+    } catch {
+      toast.error('Scan request failed');
+    }
+  }, [raceId, queryClient]);
+
+  const stopScanner = useCallback(() => {
+    if (scannerIntervalRef.current) {
+      clearInterval(scannerIntervalRef.current);
+      scannerIntervalRef.current = null;
+    }
+    setIsScanning(false);
+    lastScannedRfidRef.current = null;
+    toast.info('Scanner stopped');
+  }, []);
+
+  const startScanner = useCallback(() => {
+    setIsScanning(true);
+    lastScannedRfidRef.current = null;
+    toast.success('Scanner started');
+
+    scannerIntervalRef.current = setInterval(async () => {
+      try {
+        const res = await fetch('/api/scanner/poll', { method: 'POST' });
+        const data = await res.json();
+
+        if (data && data.length > 0 && data[0].el) {
+          const rfid = data[0].el;
+          if (rfid !== lastScannedRfidRef.current) {
+            lastScannedRfidRef.current = rfid;
+            handleScan(rfid);
+          }
+        }
+      } catch {
+        // silent fail on poll
+      }
+    }, 2000);
+  }, [handleScan]);
 
   if (raceLoading || eventLoading || raceItemsLoading) {
     return (
@@ -153,6 +227,27 @@ export default function RaceDetailsPage() {
                         <Play className="h-4 w-4" />
                         {isStartingRace ? "Starting..." : "Start Race"}
                       </Button>
+                    )}
+                    {race.isLive && (
+                      isScanning ? (
+                        <Button
+                          onClick={stopScanner}
+                          size="sm"
+                          className="gap-2 bg-red-600 hover:bg-red-700"
+                        >
+                          <Square className="h-4 w-4" />
+                          Stop Scanner
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={startScanner}
+                          size="sm"
+                          className="gap-2"
+                        >
+                          <Radio className="h-4 w-4" />
+                          Start Scanner
+                        </Button>
+                      )
                     )}
                   </div>
                   <p className="text-sm md:text-base text-blue-600 mt-1">

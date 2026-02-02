@@ -63,6 +63,7 @@ const breeder = {
   races: "/api/breeder/races",
   teams: "/api/breeder/teams",
   eventInventoryItems: (eventId: string) => `/api/breeder/event/${eventId}/inventory-items`,
+  raceItems: (raceId: string) => `/api/breeder/races/${raceId}/items`,
 };
 
 export const apiEndpoints = {
