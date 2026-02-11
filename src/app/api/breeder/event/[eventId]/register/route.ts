@@ -159,6 +159,22 @@ export async function POST(
         eventInventoryItems.push(eventInventoryItem);
       }
 
+      // Add birds to any existing races for this event
+      const existingRaces = await tx.race.findMany({
+        where: { eventId },
+        select: { raceId: true },
+      });
+      if (existingRaces.length > 0) {
+        const raceItemData = existingRaces.flatMap((race) =>
+          eventInventoryItems.map((item) => ({
+            raceId: race.raceId,
+            birdId: item.birdId,
+            eventInventoryItemId: item.eventInventoryItemId,
+          }))
+        );
+        await tx.raceItem.createMany({ data: raceItemData });
+      }
+
       // Create payments
       const payments = [];
       for (const paymentData of validatedData.payments) {
