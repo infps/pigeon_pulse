@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
         _count: {
           select: {
             races: true,
+            eventInventories: true,
           },
         },
       },

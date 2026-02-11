@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(req: NextRequest) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ eventId: string }> }
+) {
   try {
-    const searchParams = req.nextUrl.searchParams;
-    const eventId = searchParams.get("eventId");
-
-    if (!eventId) {
-      return NextResponse.json(
-        { error: "eventId is required" },
-        { status: 400 }
-      );
-    }
+    const { eventId } = await params;
 
     const event = await prisma.event.findUnique({
       where: { eventId },
@@ -63,6 +58,7 @@ export async function GET(req: NextRequest) {
         _count: {
           select: {
             races: true,
+            eventInventories: true,
           },
         },
       },
