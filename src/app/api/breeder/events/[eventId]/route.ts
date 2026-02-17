@@ -14,7 +14,7 @@ export async function GET(
         type: true,
         feeScheme: {
           include: {
-            perchFeeItems: {
+            birdFeeItems: {
               orderBy: {
                 birdNo: "asc",
               },

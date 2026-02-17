@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getPaymentStatus } from "@/lib/utils";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import z from "zod";
@@ -22,7 +23,7 @@ const paymentSchema = z.object({
   currency: z.string().default("USD"),
   method: z.enum(["CREDIT_CARD", "PAYPAL", "BANK_TRANSFER", "CASH"]),
   description: z.string().optional(),
-  paymentType: z.enum(["ENTRY_FEE", "PERCH_FEE", "RACES_FEE", "PAYOUTS", "OTHER"]),
+  paymentType: z.enum(["PERCH_FEE", "BIRD_FEE", "RACES_FEE", "PAYOUTS", "OTHER"]),
   referenceNumber: z.string().optional(),
 });
 
@@ -169,6 +170,7 @@ export async function POST(
       // Create payments
       const payments = [];
       for (const paymentData of validatedData.payments) {
+        const status = getPaymentStatus(paymentData.amountPaid, paymentData.amountToPay);
         const payment = await tx.payments.create({
           data: {
             eventInventoryId: eventInventory.eventInventoryId,
@@ -177,6 +179,7 @@ export async function POST(
             amountToPay: paymentData.amountToPay,
             currency: paymentData.currency,
             method: paymentData.method,
+            status,
             description: paymentData.description,
             paymentType: paymentData.paymentType,
             referenceNumber: paymentData.referenceNumber,

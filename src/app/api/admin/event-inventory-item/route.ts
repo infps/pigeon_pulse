@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { PaymentStatus } from "@/generated/prisma/enums";
 
 export async function POST(request: Request) {
   try {
@@ -141,18 +142,19 @@ export async function POST(request: Request) {
       if (eventInventory.event.feeScheme) {
         const feeScheme = eventInventory.event.feeScheme;
 
-        // Create entry fee payment
-        if (feeScheme.entryFee > 0) {
+        // Create purge fee payment
+        if (feeScheme.perchFee > 0) {
           await tx.payments.create({
             data: {
               eventInventoryId,
               breederId,
-              amountToPay: feeScheme.entryFee,
+              amountToPay: feeScheme.perchFee,
               amountPaid: 0,
               currency: "USD",
               method: "CASH",
+              status: PaymentStatus.PENDING,
               paymentType: "ENTRY_FEE",
-              description: `Entry fee for bird ${bird.band}`,
+              description: `Purge fee for bird ${bird.band}`,
             },
           });
         }
@@ -163,24 +165,25 @@ export async function POST(request: Request) {
         });
 
         // Find perch fee for this bird number
-        const perchFeeItem = await tx.perchFeeItem.findFirst({
+        const birdFeeItem = await tx.birdFeeItem.findFirst({
           where: {
             feeSchemeId: feeScheme.id,
             birdNo: birdCount,
           },
         });
 
-        if (perchFeeItem && perchFeeItem.fee > 0) {
+        if (birdFeeItem && birdFeeItem.fee > 0) {
           await tx.payments.create({
             data: {
               eventInventoryId,
               breederId,
-              amountToPay: perchFeeItem.fee,
+              amountToPay: birdFeeItem.fee,
               amountPaid: 0,
               currency: "USD",
               method: "CASH",
-              paymentType: "PERCH_FEE",
-              description: `Perch fee for bird #${birdCount} (${bird.band})`,
+              status: PaymentStatus.PENDING,
+              paymentType: "BIRD_FEE",
+              description: `Per bird fee for bird #${birdCount} (${bird.band})`,
             },
           });
         }

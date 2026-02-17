@@ -8,7 +8,7 @@ export async function GET() {
         name: "asc",
       },
       include: {
-        perchFeeItems: {
+        birdFeeItems: {
           orderBy: {
             birdNo: "asc",
           },

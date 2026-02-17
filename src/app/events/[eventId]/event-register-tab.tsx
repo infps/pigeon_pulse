@@ -72,20 +72,20 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
   const createTeamMutation = useCreateTeam({ endpoint: apiEndpoints.breeder.teams });
 
   const maxBirds = event.feeScheme?.maxBirds || 0;
-  const entryFee = event.feeScheme?.entryFee || 0;
-  const perchFeeItems = event.feeScheme?.perchFeeItems || [];
+  const perchFee = event.feeScheme?.perchFee || 0;
+  const birdFeeItems = event.feeScheme?.birdFeeItems || [];
 
-  const calculatePerchFee = () => {
-    let totalPerchFee = 0;
+  const calculateBirdFee = () => {
+    let totalBirdFee = 0;
     for (let i = 0; i < reservedBirds; i++) {
-      const perchFeeItem = perchFeeItems.find(
+      const birdFeeItem = birdFeeItems.find(
         (item) => item.birdNo === i + 1
       );
-      if (perchFeeItem) {
-        totalPerchFee += perchFeeItem.fee;
+      if (birdFeeItem) {
+        totalBirdFee += birdFeeItem.fee;
       }
     }
-    return totalPerchFee;
+    return totalBirdFee;
   };
 
   // Initialize birds array when reservedBirds changes
@@ -103,16 +103,16 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
       setBirds(newBirds);
 
       // Initialize single payment with combined total
-      const entryFeeTotal = entryFee * reservedBirds;
-      const perchFeeTotal = calculatePerchFee();
-      const totalAmount = entryFeeTotal + perchFeeTotal;
+      const perchFeeTotal = perchFee * reservedBirds;
+      const birdFeeTotal = calculateBirdFee();
+      const totalAmount = perchFeeTotal + birdFeeTotal;
 
       setPayments([
         {
           amountPaid: totalAmount,
           amountToPay: totalAmount,
           method: "CASH",
-          paymentType: "ENTRY_FEE",
+          paymentType: "PERCH_FEE",
         },
       ]);
     } else {
@@ -207,7 +207,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
         currency: "USD",
         method: payment.method,
         paymentType: payment.paymentType,
-        description: `${payment.paymentType === "ENTRY_FEE" ? "Entry" : "Perch"} fee for ${reservedBirds} birds`,
+        description: `${payment.paymentType === "ENTRY_FEE" ? "Purge" : "Per Bird"} fee for ${reservedBirds} birds`,
       })),
     };
 
@@ -504,11 +504,11 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                   {/* Fee Breakdown */}
                   <div className="mt-4 pt-4 border-t space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Entry Fee ({reservedBirds} birds × ${entryFee}):</span>
-                      <span className="font-medium">${(entryFee * reservedBirds).toFixed(2)}</span>
+                      <span className="text-muted-foreground">Purge Fee ({reservedBirds} birds × ${perchFee}):</span>
+                      <span className="font-medium">${(perchFee * reservedBirds).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Perch Fee:</span>
+                      <span className="text-muted-foreground">Per Bird Fee:</span>
                       <span className="font-medium">${calculatePerchFee().toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-lg font-bold pt-2 border-t">

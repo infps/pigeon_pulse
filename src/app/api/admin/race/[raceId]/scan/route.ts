@@ -25,11 +25,10 @@ export async function POST(
 
     const { raceId } = await params;
     const body = await request.json();
-    
-    const validatedData = scanSchema.parse(body);
-    const { ringNo, timestamp, antenna } = validatedData;
 
-    // Check if race exists and is live
+    const validatedData = scanSchema.parse(body);
+    const { ringNo, timestamp } = validatedData;
+
     const race = await prisma.race.findUnique({
       where: { raceId },
     });
@@ -41,16 +40,9 @@ export async function POST(
       );
     }
 
-    if (!race.isLive) {
-      return NextResponse.json(
-        { message: "Race is not live" },
-        { status: 400 }
-      );
-    }
-
-    // Find the bird by ring number
+    // Find the bird by ring number or rfid
     const bird = await prisma.bird.findFirst({
-      where: { 
+      where: {
         OR: [
           { band: ringNo },
           { rfid: ringNo },
@@ -80,34 +72,92 @@ export async function POST(
       );
     }
 
-    // Parse the timestamp from scanner format (YYYYMMDDHHMMSS)
-    const arrivalTime = new Date(
-      parseInt(timestamp.substring(0, 4)), // year
-      parseInt(timestamp.substring(4, 6)) - 1, // month (0-indexed)
-      parseInt(timestamp.substring(6, 8)), // day
-      parseInt(timestamp.substring(8, 10)), // hour
-      parseInt(timestamp.substring(10, 12)), // minute
-      parseInt(timestamp.substring(12, 14)) // second
-    );
+    // Pre-race scan (loft basketing)
+    if (!race.isLive) {
+      if (raceItem.status === "LOFT_BASKETED") {
+        return NextResponse.json(
+          {
+            raceItem,
+            message: "Bird already in loft basket",
+            isNewScan: false,
+            scanType: "loft",
+          },
+          { status: 200 }
+        );
+      }
 
-    // Calculate position if this is first arrival
-    let birdPosition: number | null = null;
-    if (!raceItem.arrivalTime) {
-      const arrivedCount = await prisma.raceItem.count({
-        where: {
-          raceId,
-          arrivalTime: { not: null },
+      const updatedRaceItem = await prisma.raceItem.update({
+        where: { raceItemId: raceItem.raceItemId },
+        data: {
+          status: "LOFT_BASKETED",
+          isLoftBasketed: true,
+        },
+        include: {
+          bird: {
+            include: {
+              breeder: {
+                select: {
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
         },
       });
-      birdPosition = arrivedCount + 1;
+
+      return NextResponse.json(
+        {
+          raceItem: updatedRaceItem,
+          message: "Bird added to loft basket",
+          isNewScan: true,
+          scanType: "loft",
+        },
+        { status: 200 }
+      );
     }
 
-    // Update the race item with arrival time and position if not already set
+    // Post-race scan (arrival)
+    // Parse the timestamp from scanner format (YYYYMMDDHHMMSS)
+    const arrivalTime = new Date(
+      parseInt(timestamp.substring(0, 4)),
+      parseInt(timestamp.substring(4, 6)) - 1,
+      parseInt(timestamp.substring(6, 8)),
+      parseInt(timestamp.substring(8, 10)),
+      parseInt(timestamp.substring(10, 12)),
+      parseInt(timestamp.substring(12, 14))
+    );
+
+    // Already scanned post-race
+    if (raceItem.status === "RACE_BASKETED") {
+      return NextResponse.json(
+        {
+          raceItem,
+          message: "Bird already scanned",
+          isNewScan: false,
+          scanType: "arrival",
+        },
+        { status: 200 }
+      );
+    }
+
+    // Calculate position
+    const arrivedCount = await prisma.raceItem.count({
+      where: {
+        raceId,
+        status: "RACE_BASKETED",
+      },
+    });
+    const birdPosition = arrivedCount + 1;
+
     const updatedRaceItem = await prisma.raceItem.update({
       where: { raceItemId: raceItem.raceItemId },
       data: {
-        arrivalTime: raceItem.arrivalTime ? raceItem.arrivalTime : arrivalTime,
-        birdPosition: raceItem.arrivalTime ? raceItem.birdPosition : birdPosition,
+        status: "RACE_BASKETED",
+        isRaceBasketed: true,
+        raceBasketedAt: arrivalTime,
+        arrivalTime,
+        birdPosition,
       },
       include: {
         bird: {
@@ -124,12 +174,11 @@ export async function POST(
     });
 
     return NextResponse.json(
-      { 
+      {
         raceItem: updatedRaceItem,
-        message: raceItem.arrivalTime 
-          ? "Bird already scanned" 
-          : "Arrival recorded successfully",
-        isNewArrival: !raceItem.arrivalTime,
+        message: "Arrival recorded successfully",
+        isNewScan: true,
+        scanType: "arrival",
       },
       { status: 200 }
     );
@@ -140,8 +189,8 @@ export async function POST(
         { status: 400 }
       );
     }
-    
-    console.error("Error recording arrival:", error);
+
+    console.error("Error recording scan:", error);
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }

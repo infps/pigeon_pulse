@@ -28,7 +28,7 @@ export async function GET(
             bettingScheme: true,
             feeScheme: {
               include: {
-                perchFeeItems: true,
+                birdFeeItems: true,
               },
             },
           },

@@ -50,7 +50,7 @@ export const createEventTypeSchema = z.object({
     description: z.string().optional(),
 })
 
-export const perchFeeItemSchema = z.object({
+export const birdFeeItemSchema = z.object({
     birdNo: z.number().int().positive("Bird number must be a positive integer"),
     fee: z.number().nonnegative("Fee must be a non-negative number"),
 })
@@ -63,17 +63,17 @@ export const raceTypeFeeSchema = z.object({
 export const createFeeSchemeSchema = z.object({
     name: z.string().min(1, "Name is required"),
     description: z.string().optional(),
-    entryFee: z.number().nonnegative("Entry fee must be a non-negative number").default(0),
+    perchFee: z.number().nonnegative("Perch fee must be a non-negative number").default(0),
     isRefundable: z.boolean().default(false),
     maxBirds: z.number().int().nonnegative("Max birds must be a non-negative integer").default(0),
     feesCutPercent: z.number().min(0).max(100, "Fees cut percent must be between 0 and 100").default(0),
-    perchFeeItems: z.array(perchFeeItemSchema).default([]),
+    birdFeeItems: z.array(birdFeeItemSchema).default([]),
     raceTypes: z.array(raceTypeFeeSchema).default([]),
 }).refine(
-    (data) => data.perchFeeItems.length === data.maxBirds,
+    (data) => data.birdFeeItems.length === data.maxBirds,
     {
-        message: "Number of perch fee items must equal maxBirds",
-        path: ["perchFeeItems"],
+        message: "Number of bird fee items must equal maxBirds",
+        path: ["birdFeeItems"],
     }
 )
 
