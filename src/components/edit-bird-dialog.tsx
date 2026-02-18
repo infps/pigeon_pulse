@@ -13,6 +13,12 @@ import { useListRaces } from "@/lib/api/races";
 import type { EventInventoryItem, Race, Event } from "@/lib/types";
 import { Wifi, WifiOff } from "lucide-react";
 
+const FEDERATIONS = ["AU", "IF", "NPA", "CU", "BB", "ARPU", "IPB"];
+const COLORS = [
+  "BB", "BC", "BBWF", "BBPD", "BCWF", "BCPD", "SPLA", "CHOC", "RC", "SIL",
+  "RCSP", "RR", "BLK", "OPAL", "SLAT", "PENC", "WHIT", "GRIZ", "DC", "DCWF",
+];
+
 interface EditBirdDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -256,45 +262,83 @@ export function EditBirdDialog({
           <DialogTitle>Edit Bird</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Band Information */}
+          {/* Band Information - 6 columns with separators */}
           <div className="space-y-4">
             <h3 className="font-semibold text-lg">Band Information</h3>
-            <div className="grid grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="band1">Band 1</Label>
-                <Input
-                  id="band1"
-                  value={band1}
-                  onChange={(e) => setBand1(e.target.value)}
-                  required
-                />
+            <div className="flex items-end gap-1 ">
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="band1">Federation</Label>
+                <Select value={band1} onValueChange={setBand1}>
+                  <SelectTrigger className="w-full h-9">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FEDERATIONS.map((fed) => (
+                      <SelectItem key={fed} value={fed}>{fed}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="band2">Band 2</Label>
+              <span className="pb-2 text-muted-foreground">-</span>
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="band2">Year</Label>
                 <Input
                   id="band2"
                   value={band2}
-                  onChange={(e) => setBand2(e.target.value)}
+                  className="h-9"
+                  onChange={(e) => setBand2(e.target.value.replace(/[^0-9]/g, ""))}
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="band3">Band 3</Label>
+              <span className="pb-2 text-muted-foreground">-</span>
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="band3">Letters</Label>
                 <Input
                   id="band3"
                   value={band3}
-                  onChange={(e) => setBand3(e.target.value)}
+                  className="h-9"
+                  onChange={(e) => setBand3(e.target.value.toUpperCase())}
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="band4">Band 4</Label>
+              <span className="pb-2 text-muted-foreground">-</span>
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="band4">Band No.</Label>
                 <Input
                   id="band4"
                   value={band4}
+                  className="h-9"
                   onChange={(e) => setBand4(e.target.value)}
                   required
                 />
+              </div>
+              <span className="pb-2 text-muted-foreground">-</span>
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="color">Color</Label>
+                <Select value={color} onValueChange={setColor}>
+                  <SelectTrigger className="w-full h-9">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COLORS.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <span className="pb-2 text-muted-foreground">-</span>
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="sex">Sex</Label>
+                <Select value={sex} onValueChange={(value: "COCK" | "HEN" | "UNKNOWN") => setSex(value)}>
+                  <SelectTrigger className="w-full h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="COCK">Cock</SelectItem>
+                    <SelectItem value="HEN">Hen</SelectItem>
+                    <SelectItem value="UNKNOWN">Unknown</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>
@@ -311,28 +355,6 @@ export function EditBirdDialog({
                   onChange={(e) => setBirdName(e.target.value)}
                   required
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="color">Color</Label>
-                <Input
-                  id="color"
-                  value={color}
-                  onChange={(e) => setColor(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="sex">Sex</Label>
-                <Select value={sex} onValueChange={(value: "COCK" | "HEN" | "UNKNOWN") => setSex(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="COCK">Cock</SelectItem>
-                    <SelectItem value="HEN">Hen</SelectItem>
-                    <SelectItem value="UNKNOWN">Unknown</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="rfid">RFID</Label>
