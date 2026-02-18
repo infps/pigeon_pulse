@@ -117,7 +117,7 @@ export async function POST(
       });
 
       // Create or find birds and add them to EventInventoryItems
-      const eventInventoryItems = [];
+      const eventInventoryItems: { birdId: string; eventInventoryItemId: string }[] = [];
       for (const birdData of validatedData.birds) {
         // Create unique band identifier
         const band = `${birdData.band1}-${birdData.band2}-${birdData.band3}-${birdData.band4}`;

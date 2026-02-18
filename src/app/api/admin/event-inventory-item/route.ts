@@ -153,7 +153,7 @@ export async function POST(request: Request) {
               currency: "USD",
               method: "CASH",
               status: PaymentStatus.PENDING,
-              paymentType: "ENTRY_FEE",
+              paymentType: "PERCH_FEE",
               description: `Purge fee for bird ${bird.band}`,
             },
           });

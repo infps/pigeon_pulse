@@ -509,7 +509,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Per Bird Fee:</span>
-                      <span className="font-medium">${calculatePerchFee().toFixed(2)}</span>
+                      <span className="font-medium">${calculateBirdFee().toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-lg font-bold pt-2 border-t">
                       <span>Total:</span>
