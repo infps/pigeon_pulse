@@ -20,7 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Pencil, Trash2 } from "lucide-react";
-import type { FeeScheme, PerchFeeItem, RaceType } from "@/lib/types";
+import type { FeeScheme, BirdFeeItem, RaceType } from "@/lib/types";
 
 export default function FeeSchemeComponent() {
   const [isOpen, setIsOpen] = useState(false);
@@ -28,11 +28,11 @@ export default function FeeSchemeComponent() {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    entryFee: 0,
+    perchFee: 0,
     isRefundable: false,
     maxBirds: 0,
     feesCutPercent: 0,
-    perchFeeItems: [] as { birdNo: number; fee: number }[],
+    birdFeeItems: [] as { birdNo: number; fee: number }[],
     raceTypes: [] as { raceTypeId: string; fee: number }[],
   });
 
@@ -48,10 +48,10 @@ export default function FeeSchemeComponent() {
   // Update perch fee items when maxBirds changes
   useEffect(() => {
     const newPerchFeeItems = Array.from({ length: formData.maxBirds }, (_, i) => {
-      const existing = formData.perchFeeItems[i];
+      const existing = formData.birdFeeItems[i];
       return existing || { birdNo: i + 1, fee: 0 };
     });
-    setFormData((prev) => ({ ...prev, perchFeeItems: newPerchFeeItems }));
+    setFormData((prev) => ({ ...prev, birdFeeItems: newPerchFeeItems }));
   }, [formData.maxBirds]);
 
   // Initialize race types when dialog opens
@@ -94,11 +94,11 @@ export default function FeeSchemeComponent() {
     setFormData({
       name: feeScheme.name,
       description: feeScheme.description || "",
-      entryFee: feeScheme.entryFee,
+      perchFee: feeScheme.perchFee,
       isRefundable: feeScheme.isRefundable,
       maxBirds: feeScheme.maxBirds,
       feesCutPercent: feeScheme.feesCutPercent,
-      perchFeeItems: feeScheme.perchFeeItems || [],
+      birdFeeItems: feeScheme.birdFeeItems || [],
       raceTypes: feeScheme.raceTypes || [],
     });
     setIsOpen(true);
@@ -122,11 +122,11 @@ export default function FeeSchemeComponent() {
     setFormData({
       name: "",
       description: "",
-      entryFee: 0,
+      perchFee: 0,
       isRefundable: false,
       maxBirds: 0,
       feesCutPercent: 0,
-      perchFeeItems: [],
+      birdFeeItems: [],
       raceTypes: [],
     });
   };
@@ -206,16 +206,16 @@ export default function FeeSchemeComponent() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="entryFee">Entry Fee</Label>
+                <Label htmlFor="perchFee">Purge Fee</Label>
                 <Input
-                  id="entryFee"
+                  id="perchFee"
                   type="number"
                   step="0.01"
-                  value={formData.entryFee}
+                  value={formData.perchFee}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      entryFee: parseFloat(e.target.value) || 0,
+                      perchFee: parseFloat(e.target.value) || 0,
                     })
                   }
                 />
@@ -272,9 +272,9 @@ export default function FeeSchemeComponent() {
 
             {formData.maxBirds > 0 && (
               <div>
-                <Label>Perch Fee Items</Label>
+                <Label>Per Bird Fee Items</Label>
                 <div className="grid grid-cols-2 gap-2 mt-2 max-h-40 overflow-y-auto">
-                  {formData.perchFeeItems.map((item, index) => (
+                  {formData.birdFeeItems.map((item, index) => (
                     <div key={index} className="flex gap-2 items-center">
                       <Label className="w-20">Bird {item.birdNo}:</Label>
                       <Input
@@ -282,9 +282,9 @@ export default function FeeSchemeComponent() {
                         step="0.01"
                         value={item.fee}
                         onChange={(e) => {
-                          const newItems = [...formData.perchFeeItems];
+                          const newItems = [...formData.birdFeeItems];
                           newItems[index].fee = parseFloat(e.target.value) || 0;
-                          setFormData({ ...formData, perchFeeItems: newItems });
+                          setFormData({ ...formData, birdFeeItems: newItems });
                         }}
                       />
                     </div>

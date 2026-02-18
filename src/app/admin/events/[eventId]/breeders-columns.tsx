@@ -49,31 +49,31 @@ export const createBreedersColumns = (
     }
   },
   {
-    header: "Perch Fees Value",
+    header: "Bird Fees Value",
+    cell: ({row})=>{
+        const birdFeesValue = row.original.payments.filter(p => p.paymentType === 'BIRD_FEE').reduce((sum, p) => sum + p.amountToPay, 0);
+        return <span>${birdFeesValue.toFixed(2)}</span>;
+    }
+  },
+  {
+    header: "Bird Fees Paid",
+    cell: ({row})=>{
+        const birdFeesPaid = row.original.payments.filter(p => p.paymentType === 'BIRD_FEE').reduce((sum, p) => sum + p.amountPaid, 0);
+        return <span>${birdFeesPaid.toFixed(2)}</span>;
+    }
+  },
+  {
+    header: "Purge Fees Value",
     cell: ({row})=>{
         const perchFeesValue = row.original.payments.filter(p => p.paymentType === 'PERCH_FEE').reduce((sum, p) => sum + p.amountToPay, 0);
         return <span>${perchFeesValue.toFixed(2)}</span>;
     }
   },
   {
-    header: "Perch Fees Paid",
+    header: "Purge Fees Paid",
     cell: ({row})=>{
         const perchFeesPaid = row.original.payments.filter(p => p.paymentType === 'PERCH_FEE').reduce((sum, p) => sum + p.amountPaid, 0);
         return <span>${perchFeesPaid.toFixed(2)}</span>;
-    }
-  },
-  {
-    header: "Entry Fees Value",
-    cell: ({row})=>{
-        const entryFeesValue = row.original.payments.filter(p => p.paymentType === 'ENTRY_FEE').reduce((sum, p) => sum + p.amountToPay, 0);
-        return <span>${entryFeesValue.toFixed(2)}</span>;
-    }
-  },
-  {
-    header: "Entry Fees Paid",
-    cell: ({row})=>{
-        const entryFeesPaid = row.original.payments.filter(p => p.paymentType === 'ENTRY_FEE').reduce((sum, p) => sum + p.amountPaid, 0);
-        return <span>${entryFeesPaid.toFixed(2)}</span>;
     }
   }
 ];

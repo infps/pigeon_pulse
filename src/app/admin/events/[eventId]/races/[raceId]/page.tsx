@@ -89,12 +89,16 @@ export default function RaceDetailsPage() {
         return;
       }
 
-      if (data.isNewArrival) {
-        const birdName = data.raceItem?.bird?.name || rfid;
-        toast.success(`${birdName} arrived! Position: ${data.raceItem?.birdPosition}`);
+      const birdName = data.raceItem?.bird?.birdName || rfid;
+      if (data.isNewScan) {
+        if (data.scanType === "loft") {
+          toast.success(`${birdName} added to loft basket`);
+        } else {
+          toast.success(`${birdName} arrived! Position: ${data.raceItem?.birdPosition}`);
+        }
         queryClient.invalidateQueries({ queryKey: ["raceItems", "list", `raceId-${raceId}`] });
       } else {
-        toast.info('Bird already scanned');
+        toast.info(data.message || 'Bird already scanned');
       }
     } catch {
       toast.error('Scan request failed');
@@ -228,7 +232,7 @@ export default function RaceDetailsPage() {
                         {isStartingRace ? "Starting..." : "Start Race"}
                       </Button>
                     )}
-                    {race.isLive && (
+                    {!race.isClosed && (
                       isScanning ? (
                         <Button
                           onClick={stopScanner}
@@ -245,7 +249,7 @@ export default function RaceDetailsPage() {
                           className="gap-2"
                         >
                           <Radio className="h-4 w-4" />
-                          Start Scanner
+                          {race.isLive ? "Start Scanner" : "Loft Scanner"}
                         </Button>
                       )
                     )}

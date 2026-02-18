@@ -30,15 +30,29 @@ export async function POST(
       );
     }
 
-    // Update race to live
-    const updatedRace = await prisma.race.update({
-      where: { raceId },
-      data: { isLive: true },
-      include: {
-        raceType: true,
-        event: true,
-      },
-    });
+    // Update race to live and release all loft-basketed birds
+    const [updatedRace] = await prisma.$transaction([
+      prisma.race.update({
+        where: { raceId },
+        data: { isLive: true },
+        include: {
+          raceType: true,
+          event: true,
+        },
+      }),
+      // Release all LOFT_BASKETED birds (clear basket but keep history)
+      prisma.raceItem.updateMany({
+        where: {
+          raceId,
+          status: "LOFT_BASKETED",
+        },
+        data: {
+          status: "RELEASED",
+          loftBasketId: null,
+          // isLoftBasketed stays true for history
+        },
+      }),
+    ]);
 
     return NextResponse.json(
       { race: updatedRace, message: "Race started successfully" },

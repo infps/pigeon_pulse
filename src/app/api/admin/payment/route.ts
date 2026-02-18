@@ -1,5 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getPaymentStatus } from "@/lib/utils";
+import { PaymentStatus } from "@/generated/prisma/enums";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -11,7 +13,8 @@ const createPaymentSchema = z.object({
   amountToPay: z.number(),
   currency: z.string().default("USD"),
   method: z.enum(["CREDIT_CARD", "PAYPAL", "BANK_TRANSFER", "CASH"]),
-  paymentType: z.enum(["ENTRY_FEE", "PERCH_FEE", "RACES_FEE", "PAYOUTS", "OTHER"]),
+  paymentType: z.enum(["PERCH_FEE", "BIRD_FEE", "RACES_FEE", "PAYOUTS", "OTHER"]),
+  status: z.enum(["PENDING", "PARTIAL", "PAID", "FAILED", "REFUNDED"]).optional(),
   description: z.string().optional(),
   referenceNumber: z.string().optional(),
 });
@@ -22,7 +25,8 @@ const updatePaymentSchema = z.object({
   amountToPay: z.number(),
   currency: z.string().default("USD"),
   method: z.enum(["CREDIT_CARD", "PAYPAL", "BANK_TRANSFER", "CASH"]),
-  paymentType: z.enum(["ENTRY_FEE", "PERCH_FEE", "RACES_FEE", "PAYOUTS", "OTHER"]),
+  paymentType: z.enum(["PERCH_FEE", "BIRD_FEE", "RACES_FEE", "PAYOUTS", "OTHER"]),
+  status: z.enum(["PENDING", "PARTIAL", "PAID", "FAILED", "REFUNDED"]).optional(),
   description: z.string().optional(),
   referenceNumber: z.string().optional(),
 });
@@ -40,8 +44,14 @@ export async function POST(request: Request) {
     const body = await request.json();
     const validatedData = createPaymentSchema.parse(body);
 
+    const status = getPaymentStatus(
+      validatedData.amountPaid,
+      validatedData.amountToPay,
+      validatedData.status as PaymentStatus | undefined
+    );
+
     const payment = await prisma.payments.create({
-      data: validatedData,
+      data: { ...validatedData, status },
     });
 
     return NextResponse.json(
@@ -82,9 +92,15 @@ export async function PUT(request: Request) {
 
     const { paymentId, ...updateData } = validatedData;
 
+    const status = getPaymentStatus(
+      updateData.amountPaid,
+      updateData.amountToPay,
+      updateData.status as PaymentStatus | undefined
+    );
+
     const payment = await prisma.payments.update({
       where: { paymentId },
-      data: updateData,
+      data: { ...updateData, status },
     });
 
     return NextResponse.json(

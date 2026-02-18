@@ -36,7 +36,7 @@ export function BreederDetailsDialog({
   // Payment form state
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"CREDIT_CARD" | "PAYPAL" | "BANK_TRANSFER" | "CASH">("CASH");
-  const [paymentType, setPaymentType] = useState<"ENTRY_FEE" | "PERCH_FEE" | "RACES_FEE" | "PAYOUTS" | "OTHER">("OTHER");
+  const [paymentType, setPaymentType] = useState<"PERCH_FEE" | "BIRD_FEE" | "RACES_FEE" | "PAYOUTS" | "OTHER">("OTHER");
   const [paymentDescription, setPaymentDescription] = useState("");
   const [referenceNumber, setReferenceNumber] = useState("");
 
@@ -278,8 +278,8 @@ export function BreederDetailsDialog({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="ENTRY_FEE">Entry Fee</SelectItem>
-                            <SelectItem value="PERCH_FEE">Perch Fee</SelectItem>
+                            <SelectItem value="PERCH_FEE">Purge Fee</SelectItem>
+                            <SelectItem value="BIRD_FEE">Per Bird Fee</SelectItem>
                             <SelectItem value="RACES_FEE">Races Fee</SelectItem>
                             <SelectItem value="PAYOUTS">Payouts</SelectItem>
                             <SelectItem value="OTHER">Other</SelectItem>

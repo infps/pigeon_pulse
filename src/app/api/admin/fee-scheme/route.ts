@@ -24,7 +24,7 @@ export async function GET() {
         name: "asc",
       },
       include: {
-        perchFeeItems: {
+        birdFeeItems: {
           orderBy: {
             birdNo: "asc",
           },
@@ -72,13 +72,13 @@ export async function POST(request: Request) {
       data: {
         name: validatedData.name,
         description: validatedData.description,
-        entryFee: validatedData.entryFee,
+        perchFee: validatedData.perchFee,
         isRefundable: validatedData.isRefundable,
         maxBirds: validatedData.maxBirds,
         feesCutPercent: validatedData.feesCutPercent,
         createdById: session.user.id,
-        perchFeeItems: {
-          create: validatedData.perchFeeItems.map((item) => ({
+        birdFeeItems: {
+          create: validatedData.birdFeeItems.map((item) => ({
             birdNo: item.birdNo,
             fee: item.fee,
           })),
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
         },
       },
       include: {
-        perchFeeItems: true,
+        birdFeeItems: true,
         raceTypes: {
           include: {
             raceType: true,
@@ -142,7 +142,7 @@ export async function PUT(request: Request) {
 
     // Delete existing related records first
     await prisma.$transaction([
-      prisma.perchFeeItem.deleteMany({
+      prisma.birdFeeItem.deleteMany({
         where: { feeSchemeId: id },
       }),
       prisma.raceTypeFeeScheme.deleteMany({
@@ -156,12 +156,12 @@ export async function PUT(request: Request) {
       data: {
         name: validatedData.name,
         description: validatedData.description,
-        entryFee: validatedData.entryFee,
+        perchFee: validatedData.perchFee,
         isRefundable: validatedData.isRefundable,
         maxBirds: validatedData.maxBirds,
         feesCutPercent: validatedData.feesCutPercent,
-        perchFeeItems: {
-          create: validatedData.perchFeeItems.map((item) => ({
+        birdFeeItems: {
+          create: validatedData.birdFeeItems.map((item) => ({
             birdNo: item.birdNo,
             fee: item.fee,
           })),
@@ -174,7 +174,7 @@ export async function PUT(request: Request) {
         },
       },
       include: {
-        perchFeeItems: true,
+        birdFeeItems: true,
         raceTypes: {
           include: {
             raceType: true,

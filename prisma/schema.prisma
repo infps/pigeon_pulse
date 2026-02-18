@@ -85,13 +85,13 @@ model FeeScheme {
   id             String              @id @default(uuid(7))
   name           String              @unique
   description    String?
-  entryFee       Float               @default(0)
+  perchFee       Float               @default(0) @map("entryFee")
   isRefundable   Boolean             @default(false)
   maxBirds       Int                 @default(0)
   feesCutPercent Float               @default(0)
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
-  perchFeeItems  PerchFeeItem[]
+  birdFeeItems   BirdFeeItem[]
   raceTypes      RaceTypeFeeScheme[]
   events         Event[]
 
@@ -99,13 +99,14 @@ model FeeScheme {
   createdBy   User   @relation(fields: [createdById], references: [id], onDelete: Cascade)
 }
 
-model PerchFeeItem {
+model BirdFeeItem {
   feeSchemeId String
   birdNo      Int
   fee         Float     @default(0)
   feeScheme   FeeScheme @relation(fields: [feeSchemeId], references: [id], onDelete: Cascade)
 
   @@id([feeSchemeId, birdNo])
+  @@map("PerchFeeItem")
 }
 
 model RaceTypeFeeScheme {
@@ -182,11 +183,19 @@ enum PaymentMethod {
 }
 
 enum PaymentType {
-  ENTRY_FEE
-  PERCH_FEE
+  PERCH_FEE @map("ENTRY_FEE")
+  BIRD_FEE  @map("PERCH_FEE")
   RACES_FEE
   PAYOUTS
   OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+  FAILED
+  REFUNDED
 }
 
 model Payments {
@@ -195,6 +204,7 @@ model Payments {
   amountToPay      Float
   currency         String         @default("USD")
   method           PaymentMethod
+  status           PaymentStatus  @default(PENDING)
   paidAt           DateTime       @default(now())
   description      String?
   eventInventoryId String
@@ -259,6 +269,14 @@ enum BirdSex {
   UNKNOWN
 }
 
+enum RaceItemStatus {
+  REGISTERED
+  LOFT_BASKETED
+  RELEASED
+  RACE_BASKETED
+  FOREIGN_BIRD
+}
+
 model Bird {
   birdId              String               @id @default(uuid(7))
   band                String               @unique
@@ -310,8 +328,8 @@ model EventInventoryItem {
   arrivalTime          DateTime?
   departureTime        DateTime?
   perchFeeValue        Float          @default(0)
-  entryFeeRefunded     Boolean        @default(false)
-  entryFeePaid         Boolean        @default(false)
+  perchFeeRefunded     Boolean        @default(false) @map("entryFeeRefunded")
+  perchFeePaid         Boolean        @default(false) @map("entryFeePaid")
   isBackup             Boolean        @default(false)
   belgianShowBet1      Boolean        @default(false)
   belgianShowBet2      Boolean        @default(false)
@@ -380,6 +398,7 @@ model RaceItem {
   raceId               String
   birdId               String
   eventInventoryItemId String
+  status               RaceItemStatus     @default(REGISTERED)
   race                 Race               @relation(fields: [raceId], references: [raceId], onDelete: Cascade)
   bird                 Bird               @relation(fields: [birdId], references: [birdId], onDelete: Cascade)
   eventInventoryItem   EventInventoryItem @relation(fields: [eventInventoryItemId], references: [eventInventoryItemId], onDelete: Cascade)

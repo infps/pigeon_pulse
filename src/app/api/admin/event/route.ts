@@ -35,7 +35,7 @@ export async function GET(request: Request) {
           type: true,
           feeScheme: {
             include:{
-              perchFeeItems: true
+              birdFeeItems: true
             }
           },
           prizeScheme: true,

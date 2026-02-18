@@ -41,20 +41,20 @@ export interface FeeScheme {
   id: string;
   name: string;
   description: string | null;
-  entryFee: number;
+  perchFee: number;
   isRefundable: boolean;
   maxBirds: number;
   feesCutPercent: number;
   createdAt: string;
   updatedAt: string;
   createdById: string;
-  perchFeeItems?: PerchFeeItem[];
+  birdFeeItems?: BirdFeeItem[];
   raceTypes?: RaceTypeFeeScheme[];
   events?: Event[];
   createdBy?: User;
 }
 
-export interface PerchFeeItem {
+export interface BirdFeeItem {
   feeSchemeId: string;
   birdNo: number;
   fee: number;
@@ -231,8 +231,8 @@ export interface EventInventoryItem {
   arrivalTime: string | null;
   departureTime: string | null;
   perchFeeValue: number;
-  entryFeeRefunded: boolean;
-  entryFeePaid: boolean;
+  perchFeeRefunded: boolean;
+  perchFeePaid: boolean;
   isBackup: boolean;
   belgianShowBet1: boolean;
   belgianShowBet2: boolean;
@@ -296,11 +296,14 @@ export interface Race {
   birds?: Bird[];
 }
 
+export type RaceItemStatus = "REGISTERED" | "LOFT_BASKETED" | "RELEASED" | "RACE_BASKETED" | "FOREIGN_BIRD";
+
 export interface RaceItem {
   raceItemId: string;
   raceId: string;
   birdId: string;
   eventInventoryItemId: string;
+  status: RaceItemStatus;
   race?: Race;
   bird?: Bird;
   eventInventoryItem?: EventInventoryItem;

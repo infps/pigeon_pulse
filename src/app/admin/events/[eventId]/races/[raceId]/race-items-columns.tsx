@@ -42,6 +42,24 @@ export const raceItemsColumns: ColumnDef<RaceItem>[] = [
     },
   },
   {
+    accessorKey: "status",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Status" />
+    ),
+    cell: ({ row }) => {
+      const status = row.original.status;
+      const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+        REGISTERED: { label: "Registered", variant: "outline" },
+        LOFT_BASKETED: { label: "Loft", variant: "secondary" },
+        RELEASED: { label: "Released", variant: "default" },
+        RACE_BASKETED: { label: "Arrived", variant: "default" },
+        FOREIGN_BIRD: { label: "Foreign", variant: "destructive" },
+      };
+      const config = statusConfig[status] || { label: status, variant: "outline" as const };
+      return <Badge variant={config.variant}>{config.label}</Badge>;
+    },
+  },
+  {
     id: "band",
     accessorKey: "bird.band",
     header: ({ column }) => (

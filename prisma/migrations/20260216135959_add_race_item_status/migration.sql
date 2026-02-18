@@ -1,0 +1,5 @@
+-- CreateEnum
+CREATE TYPE "RaceItemStatus" AS ENUM ('REGISTERED', 'LOFT_BASKETED', 'RELEASED', 'RACE_BASKETED', 'FOREIGN_BIRD');
+
+-- AlterTable
+ALTER TABLE "RaceItem" ADD COLUMN     "status" "RaceItemStatus" NOT NULL DEFAULT 'REGISTERED';
