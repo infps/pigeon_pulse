@@ -278,7 +278,7 @@ export function BreederDetailsDialog({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="PERCH_FEE">Purge Fee</SelectItem>
+                            <SelectItem value="PERCH_FEE">Perch Fee</SelectItem>
                             <SelectItem value="BIRD_FEE">Per Bird Fee</SelectItem>
                             <SelectItem value="RACES_FEE">Races Fee</SelectItem>
                             <SelectItem value="PAYOUTS">Payouts</SelectItem>

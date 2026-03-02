@@ -142,7 +142,7 @@ export async function POST(request: Request) {
       if (eventInventory.event.feeScheme) {
         const feeScheme = eventInventory.event.feeScheme;
 
-        // Create purge fee payment
+        // Create perch fee payment
         if (feeScheme.perchFee > 0) {
           await tx.payments.create({
             data: {
@@ -154,7 +154,7 @@ export async function POST(request: Request) {
               method: "CASH",
               status: PaymentStatus.PENDING,
               paymentType: "PERCH_FEE",
-              description: `Purge fee for bird ${bird.band}`,
+              description: `Perch fee for bird ${bird.band}`,
             },
           });
         }

@@ -206,7 +206,7 @@ export default function FeeSchemeComponent() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="perchFee">Purge Fee</Label>
+                <Label htmlFor="perchFee">Perch Fee</Label>
                 <Input
                   id="perchFee"
                   type="number"

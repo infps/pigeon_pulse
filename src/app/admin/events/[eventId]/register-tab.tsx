@@ -212,7 +212,7 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
         currency: "USD",
         method: payment.method,
         paymentType: payment.paymentType,
-        description: `${payment.paymentType === "ENTRY_FEE" ? "Purge" : "Per Bird"} fee for ${reservedBirds} birds`,
+        description: `${payment.paymentType === "ENTRY_FEE" ? "Perch" : "Per Bird"} fee for ${reservedBirds} birds`,
       })),
     };
 
@@ -501,7 +501,7 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
               {/* Fee Breakdown */}
               <div className="mt-4 pt-4 border-t space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Purge Fee ({reservedBirds} birds × ${perchFee}):</span>
+                  <span className="text-muted-foreground">Perch Fee ({reservedBirds} birds × ${perchFee}):</span>
                   <span className="font-medium">${(perchFee * reservedBirds).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
