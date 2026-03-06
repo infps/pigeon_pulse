@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth-client";
 import { LogOut, User, Shield } from "lucide-react";
+import { ModeToggle } from "@/components/mode-toggle";
 
 export function Header() {
   const pathname = usePathname();
@@ -53,6 +54,7 @@ export function Header() {
           <Link href="/updates">
             <Button variant="ghost">Updates</Button>
           </Link>
+          <ModeToggle />
 
           {session?.user ? (
             <DropdownMenu>

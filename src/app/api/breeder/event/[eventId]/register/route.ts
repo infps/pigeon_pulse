@@ -69,7 +69,7 @@ export async function POST(
     const event = await prisma.event.findUnique({
       where: { eventId },
       include: {
-        feeScheme: true,
+        feeScheme: { include: { birdFeeItems: true } },
       },
     });
 
@@ -176,25 +176,73 @@ export async function POST(
         await tx.raceItem.createMany({ data: raceItemData });
       }
 
-      // Create payments
+      // Create payments from request or auto-generate PENDING from fee scheme
       const payments = [];
-      for (const paymentData of validatedData.payments) {
-        const status = getPaymentStatus(paymentData.amountPaid, paymentData.amountToPay);
-        const payment = await tx.payments.create({
-          data: {
-            eventInventoryId: eventInventory.eventInventoryId,
-            breederId,
-            amountPaid: paymentData.amountPaid,
-            amountToPay: paymentData.amountToPay,
-            currency: paymentData.currency,
-            method: paymentData.method,
-            status,
-            description: paymentData.description,
-            paymentType: paymentData.paymentType,
-            referenceNumber: paymentData.referenceNumber,
-          },
-        });
-        payments.push(payment);
+      if (validatedData.payments.length > 0) {
+        for (const paymentData of validatedData.payments) {
+          const status = getPaymentStatus(paymentData.amountPaid, paymentData.amountToPay);
+          const payment = await tx.payments.create({
+            data: {
+              eventInventoryId: eventInventory.eventInventoryId,
+              breederId,
+              amountPaid: paymentData.amountPaid,
+              amountToPay: paymentData.amountToPay,
+              currency: paymentData.currency,
+              method: paymentData.method,
+              status,
+              description: paymentData.description,
+              paymentType: paymentData.paymentType,
+              referenceNumber: paymentData.referenceNumber,
+            },
+          });
+          payments.push(payment);
+        }
+      } else if (event.feeScheme) {
+        // Auto-create PENDING payment records from fee scheme
+        const feeScheme = event.feeScheme;
+
+        // Perch fee (one per registration)
+        if (feeScheme.perchFee > 0) {
+          const payment = await tx.payments.create({
+            data: {
+              eventInventoryId: eventInventory.eventInventoryId,
+              breederId,
+              amountToPay: feeScheme.perchFee,
+              amountPaid: 0,
+              currency: "USD",
+              method: "CASH",
+              status: "PENDING",
+              paymentType: "PERCH_FEE",
+              description: `Perch fee for ${validatedData.reservedBirds} birds`,
+            },
+          });
+          payments.push(payment);
+        }
+
+        // Bird fee per bird position
+        for (let i = 0; i < validatedData.birds.length; i++) {
+          const birdFeeItem = feeScheme.birdFeeItems.find(
+            (item) => item.birdNo === i + 1
+          );
+          if (birdFeeItem && birdFeeItem.fee > 0) {
+            const birdData = validatedData.birds[i];
+            const band = `${birdData.band1}-${birdData.band2}-${birdData.band3}-${birdData.band4}`;
+            const payment = await tx.payments.create({
+              data: {
+                eventInventoryId: eventInventory.eventInventoryId,
+                breederId,
+                amountToPay: birdFeeItem.fee,
+                amountPaid: 0,
+                currency: "USD",
+                method: "CASH",
+                status: "PENDING",
+                paymentType: "BIRD_FEE",
+                description: `Bird fee for bird #${i + 1} (${band})`,
+              },
+            });
+            payments.push(payment);
+          }
+        }
       }
 
       return {

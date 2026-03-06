@@ -200,23 +200,23 @@ export function BreederDetailsDialog({
 
           <div className="space-y-6">
             {/* Breeder Info */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-transparent border-border border rounded-lg">
               <div>
-                <p className="text-sm text-gray-500">Breeder Name</p>
+                <p className="text-sm text-muted-foreground">Breeder Name</p>
                 <p className="font-semibold">
                   {eventInventory?.breeder?.name} {eventInventory?.breeder?.lastName || ""}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Loft Name</p>
+                <p className="text-sm text-muted-foreground">Loft Name</p>
                 <p className="font-semibold">{eventInventory.loft}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Reserved Birds</p>
+                <p className="text-sm text-muted-foreground">Reserved Birds</p>
                 <p className="font-semibold">{eventInventory.reservedBirds}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Registration Date</p>
+                <p className="text-sm text-muted-foreground">Registration Date</p>
                 <p className="font-semibold">
                   {new Date(eventInventory.registrationDate).toLocaleDateString()}
                 </p>
@@ -243,10 +243,10 @@ export function BreederDetailsDialog({
 
                 {/* Add/Edit Payment Form */}
                 {isAddPaymentOpen && (
-                  <form onSubmit={handleAddPayment} className="border rounded-lg p-4 space-y-3 bg-gray-50">
+                  <form onSubmit={handleAddPayment} className="border rounded-lg p-4 space-y-3 bg-transparent border-border">
                     <h4 className="font-medium">{editingPayment ? "Edit Payment" : "Add Payment"}</h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-2">
+                    <div className="grid grid-cols-4 gap-3">
+                      <div className="space-y-2 col-span-2">
                         <Label htmlFor="paymentAmount">Amount</Label>
                         <Input
                           id="paymentAmount"
@@ -286,7 +286,7 @@ export function BreederDetailsDialog({
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-2 col-span-2">
                         <Label htmlFor="referenceNumber">Reference #</Label>
                         <Input
                           id="referenceNumber"
@@ -295,7 +295,7 @@ export function BreederDetailsDialog({
                         />
                       </div>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 col-span-2">
                       <Label htmlFor="paymentDescription">Description</Label>
                       <Input
                         id="paymentDescription"
@@ -326,7 +326,7 @@ export function BreederDetailsDialog({
                 {/* Payments List */}
                 <div className="border rounded-lg overflow-hidden">
                   <table className="w-full">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-primary">
                       <tr>
                         <th className="px-4 py-2 text-left text-sm font-medium">Date</th>
                         <th className="px-4 py-2 text-left text-sm font-medium">Type</th>
@@ -339,7 +339,7 @@ export function BreederDetailsDialog({
                     <tbody className="divide-y">
                       {eventInventory?.payments?.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                          <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                             No payments found
                           </td>
                         </tr>
@@ -392,13 +392,13 @@ export function BreederDetailsDialog({
               {/* Payment Summary */}
               <div className="space-y-4">
                 <h3 className="font-semibold text-lg">Payment Summary</h3>
-                <div className="border rounded-lg p-4 space-y-3 bg-gray-50">
+                <div className="border rounded-lg p-4 space-y-3 bg-transparent border-border">
                   <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Total To Pay:</span>
+                    <span className="text-sm text-muted-foreground">Total To Pay:</span>
                     <span className="font-semibold">${totalAmountToPay.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm text-gray-600">Total Paid:</span>
+                    <span className="text-sm text-muted-foreground">Total Paid:</span>
                     <span className="font-semibold text-green-600">${totalAmountPaid.toFixed(2)}</span>
                   </div>
                   <div className="border-t pt-3 flex justify-between">
@@ -425,7 +425,7 @@ export function BreederDetailsDialog({
               </div>
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-primary">
                     <tr>
                       <th className="px-4 py-2 text-left text-sm font-medium">Bird #</th>
                       <th className="px-4 py-2 text-left text-sm font-medium">Band</th>
@@ -438,7 +438,7 @@ export function BreederDetailsDialog({
                   <tbody className="divide-y">
                     {eventInventory?.eventInventoryItems?.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                        <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                           No birds found
                         </td>
                       </tr>
@@ -446,10 +446,10 @@ export function BreederDetailsDialog({
                       eventInventory?.eventInventoryItems?.map((item) => (
                         <tr
                           key={item.eventInventoryItemId}
-                          className="hover:bg-gray-50 cursor-pointer"
+                          className="hover:bg-primary/10 cursor-pointer"
                           onClick={() => handleBirdClick(item)}
                         >
-                          <td className="px-4 py-2 text-sm">{item.birdNo || "-"}</td>
+                          <td className="px-4 py-2 text-sm">{item?.birdNo || "-"}</td>
                           <td className="px-4 py-2 text-sm">{item?.bird?.band}</td>
                           <td className="px-4 py-2 text-sm">{item?.bird?.birdName}</td>
                           <td className="px-4 py-2 text-sm">{item?.bird?.color}</td>

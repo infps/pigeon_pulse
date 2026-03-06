@@ -63,10 +63,17 @@ export const raceTypeFeeSchema = z.object({
 export const createFeeSchemeSchema = z.object({
     name: z.string().min(1, "Name is required"),
     description: z.string().optional(),
-    perchFee: z.number().nonnegative("Perch fee must be a non-negative number").default(0),
+    perchFee: z.number().nonnegative("Entry fee must be a non-negative number").default(0),
     isRefundable: z.boolean().default(false),
     maxBirds: z.number().int().nonnegative("Max birds must be a non-negative integer").default(0),
     feesCutPercent: z.number().min(0).max(100, "Fees cut percent must be between 0 and 100").default(0),
+    minEntryFees: z.number().int().nonnegative("Min entry fees must be non-negative").default(0),
+    maxBackupBirdCount: z.number().int().nonnegative("Max backup birds must be non-negative").default(0),
+    isFloatingBackup: z.boolean().default(false),
+    hotSpot1Fee: z.number().nonnegative("Hot spot 1 fee must be non-negative").default(0),
+    hotSpot2Fee: z.number().nonnegative("Hot spot 2 fee must be non-negative").default(0),
+    hotSpot3Fee: z.number().nonnegative("Hot spot 3 fee must be non-negative").default(0),
+    hotSpotFinalFee: z.number().nonnegative("Hot spot final fee must be non-negative").default(0),
     birdFeeItems: z.array(birdFeeItemSchema).default([]),
     raceTypes: z.array(raceTypeFeeSchema).default([]),
 }).refine(
@@ -96,6 +103,11 @@ export const createPrizeSchemeSchema = z.object({
     prizeSchemeItems: z.array(prizeSchemeItemSchema).default([]),
 })
 
+export const standardShowPercentageSchema = z.object({
+    place: z.number().int().positive("Place must be at least 1"),
+    percValue: z.number().min(0).max(100, "Percentage must be between 0 and 100").default(0),
+})
+
 export const createBettingSchemeSchema = z.object({
     name: z.string().min(1, "Name is required"),
     description: z.string().optional(),
@@ -112,11 +124,13 @@ export const createBettingSchemeSchema = z.object({
     standardShow3: z.number().nonnegative("Standard show 3 must be non-negative").default(0),
     standardShow4: z.number().nonnegative("Standard show 4 must be non-negative").default(0),
     standardShow5: z.number().nonnegative("Standard show 5 must be non-negative").default(0),
+    standardShow6: z.number().nonnegative("Standard show 6 must be non-negative").default(0),
     wta1: z.number().nonnegative("WTA 1 must be non-negative").default(0),
     wta2: z.number().nonnegative("WTA 2 must be non-negative").default(0),
     wta3: z.number().nonnegative("WTA 3 must be non-negative").default(0),
     wta4: z.number().nonnegative("WTA 4 must be non-negative").default(0),
     wta5: z.number().nonnegative("WTA 5 must be non-negative").default(0),
+    standardShowPercentages: z.array(standardShowPercentageSchema).default([]),
 })
 
 export const createEventSchema = z.object({

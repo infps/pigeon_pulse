@@ -114,7 +114,7 @@ export default function EventTypesPage() {
       </div>
 
       {isCreating && (
-        <div className="bg-white p-6 rounded-lg shadow-md mb-6 border">
+        <div className="bg-transparent p-6 rounded-lg shadow-md mb-6 border">
           <h2 className="text-xl font-semibold mb-4">
             {editingId ? "Edit Event Type" : "Create New Event Type"}
           </h2>

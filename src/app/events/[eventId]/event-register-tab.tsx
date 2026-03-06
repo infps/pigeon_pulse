@@ -286,7 +286,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
             {/* Breeder Information (Display only) */}
             <div className="space-y-4">
               <h3 className="font-semibold">Breeder Information</h3>
-              <div className="p-4 bg-gray-50 rounded-lg">
+              <div className="p-4 bg-transparent rounded-lg">
                 <p className="text-sm text-muted-foreground">Registering as:</p>
                 <p className="font-medium">
                   {session.user.name} ({session.user.email})

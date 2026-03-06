@@ -67,12 +67,12 @@ function BreederDialog({ open, onOpenChange, inventory, allBirds }: BreederDialo
         <div className="mt-4">
           <h3 className="text-lg font-semibold mb-3">Birds ({breederBirds.length})</h3>
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-primary">
               <TableRow>
-                <TableHead>Band</TableHead>
-                <TableHead>Bird Name</TableHead>
-                <TableHead>Color</TableHead>
-                <TableHead>Sex</TableHead>
+                <TableHead className="text-primary-foreground font-medium">Band</TableHead>
+                <TableHead className="text-primary-foreground font-medium">Bird Name</TableHead>
+                <TableHead className="text-primary-foreground font-medium">Color</TableHead>
+                <TableHead className="text-primary-foreground font-medium">Sex</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -129,7 +129,7 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
       const band = row.original.bird?.band;
       const isMyBird = row.original.eventInventory?.breederId === loggedInBreederId;
       return (
-        <div className={isMyBird ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>
+        <div className={isMyBird ? "bg-transparent -mx-6 px-6 -my-3 py-3" : ""}>
           <span className={`font-mono ${isMyBird ? "font-bold" : ""}`}>
             {band || "-"}
           </span>
@@ -147,7 +147,7 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
       const birdName = row.original.bird?.birdName;
       const isMyBird = row.original.eventInventory?.breederId === loggedInBreederId;
       return (
-        <div className={isMyBird ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>
+        <div className={isMyBird ? "bg-transparent -mx-6 px-6 -my-3 py-3" : ""}>
           <span className={isMyBird ? "font-bold" : ""}>
             {birdName || "-"}
           </span>
@@ -165,7 +165,7 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
       const breederName = row.original.eventInventory?.breeder?.name;
       const isMyBird = row.original.eventInventory?.breederId === loggedInBreederId;
       return (
-        <div className={isMyBird ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>
+        <div className={isMyBird ? "bg-transparent -mx-6 px-6 -my-3 py-3" : ""}>
           <div className="flex items-center gap-2">
             <span className={isMyBird ? "font-bold" : ""}>
               {breederName || "-"}
@@ -191,7 +191,7 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
       const inventory = row.original.eventInventory;
       const isMyBird = row.original.eventInventory?.breederId === loggedInBreederId;
       return (
-        <div className={isMyBird ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>
+        <div className={isMyBird ? "bg-transparent -mx-6 px-6 -my-3 py-3" : ""}>
           <button
             onClick={() => handleLoftClick(inventory)}
             className={`text-blue-600 hover:underline cursor-pointer ${

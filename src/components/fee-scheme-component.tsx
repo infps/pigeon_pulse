@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import {
   useCreateFeeScheme,
@@ -32,6 +33,13 @@ export default function FeeSchemeComponent() {
     isRefundable: false,
     maxBirds: 0,
     feesCutPercent: 0,
+    minEntryFees: 0,
+    maxBackupBirdCount: 0,
+    isFloatingBackup: false,
+    hotSpot1Fee: 0,
+    hotSpot2Fee: 0,
+    hotSpot3Fee: 0,
+    hotSpotFinalFee: 0,
     birdFeeItems: [] as { birdNo: number; fee: number }[],
     raceTypes: [] as { raceTypeId: string; fee: number }[],
   });
@@ -98,6 +106,13 @@ export default function FeeSchemeComponent() {
       isRefundable: feeScheme.isRefundable,
       maxBirds: feeScheme.maxBirds,
       feesCutPercent: feeScheme.feesCutPercent,
+      minEntryFees: feeScheme.minEntryFees ?? 0,
+      maxBackupBirdCount: feeScheme.maxBackupBirdCount ?? 0,
+      isFloatingBackup: feeScheme.isFloatingBackup ?? false,
+      hotSpot1Fee: feeScheme.hotSpot1Fee ?? 0,
+      hotSpot2Fee: feeScheme.hotSpot2Fee ?? 0,
+      hotSpot3Fee: feeScheme.hotSpot3Fee ?? 0,
+      hotSpotFinalFee: feeScheme.hotSpotFinalFee ?? 0,
       birdFeeItems: feeScheme.birdFeeItems || [],
       raceTypes: feeScheme.raceTypes || [],
     });
@@ -126,6 +141,13 @@ export default function FeeSchemeComponent() {
       isRefundable: false,
       maxBirds: 0,
       feesCutPercent: 0,
+      minEntryFees: 0,
+      maxBackupBirdCount: 0,
+      isFloatingBackup: false,
+      hotSpot1Fee: 0,
+      hotSpot2Fee: 0,
+      hotSpot3Fee: 0,
+      hotSpotFinalFee: 0,
       birdFeeItems: [],
       raceTypes: [],
     });
@@ -150,7 +172,7 @@ export default function FeeSchemeComponent() {
         {feeSchemes.map((scheme) => (
           <div
             key={scheme.id}
-            className="flex items-center justify-between p-4 border rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow"
+            className="flex items-center justify-between p-4 border rounded-lg bg-transparent shadow-sm hover:shadow-md transition-shadow"
           >
             <span className="font-medium">{scheme.name}</span>
             <div className="flex gap-2">
@@ -174,13 +196,14 @@ export default function FeeSchemeComponent() {
       </div>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingId ? "Edit Fee Scheme" : "Add Fee Scheme"}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Name */}
             <div>
               <Label htmlFor="name">Name</Label>
               <Input
@@ -193,6 +216,7 @@ export default function FeeSchemeComponent() {
               />
             </div>
 
+            {/* Description (kept, not in reference) */}
             <div>
               <Label htmlFor="description">Description</Label>
               <Input
@@ -204,28 +228,120 @@ export default function FeeSchemeComponent() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="perchFee">Perch Fee</Label>
+            {/* Entry Fee + Fees Cut Percent */}
+            <div className="flex items-center space-x-4">
+              <div className="w-full">
+                <Label htmlFor="perchFee">Entry Fee</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                    $
+                  </span>
+                  <Input
+                    id="perchFee"
+                    type="text"
+                    value={formData.perchFee}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        perchFee: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    className="pl-8"
+                  />
+                </div>
+              </div>
+
+              <div className="w-full">
+                <Label htmlFor="feesCutPercent">Fees Cut Percent</Label>
+                <div className="relative">
+                  <Input
+                    id="feesCutPercent"
+                    type="text"
+                    value={formData.feesCutPercent}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        feesCutPercent: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    className="pr-8"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                    %
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Min Entry Fees + Is Refundable */}
+            <div className="flex space-x-4">
+              <div className="w-full">
+                <Label htmlFor="minEntryFees">Min entry fees per team</Label>
                 <Input
-                  id="perchFee"
-                  type="number"
-                  step="0.01"
-                  value={formData.perchFee}
+                  id="minEntryFees"
+                  type="text"
+                  value={formData.minEntryFees}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      perchFee: parseFloat(e.target.value) || 0,
+                      minEntryFees: parseInt(e.target.value) || 0,
                     })
                   }
                 />
               </div>
 
-              <div>
-                <Label htmlFor="maxBirds">Max Birds</Label>
+              <div className="flex flex-row space-x-3 w-full space-y-0 p-2 self-end items-center">
+                <Checkbox
+                  id="isRefundable"
+                  checked={formData.isRefundable}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, isRefundable: checked === true })
+                  }
+                />
+                <Label htmlFor="isRefundable" className="cursor-pointer">
+                  Allow entry fee refund when bird is lost
+                </Label>
+              </div>
+            </div>
+
+            {/* Hot Spot Fees */}
+            <div className="grid grid-cols-4 gap-4">
+              {[
+                { key: "hotSpot1Fee", label: "Hot Spot 1" },
+                { key: "hotSpot2Fee", label: "Hot Spot 2" },
+                { key: "hotSpot3Fee", label: "Hot Spot 3" },
+                { key: "hotSpotFinalFee", label: "Hot Spot Final" },
+              ].map(({ key, label }) => (
+                <div key={key}>
+                  <Label htmlFor={key}>{label}</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                      $
+                    </span>
+                    <Input
+                      id={key}
+                      type="text"
+                      value={(formData as any)[key]}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          [key]: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="pl-8"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Max Birds + Max Backup Birds */}
+            <div className="flex space-x-4">
+              <div className="w-full">
+                <Label htmlFor="maxBirds">Maximum number of birds</Label>
                 <Input
                   id="maxBirds"
-                  type="number"
+                  type="text"
                   value={formData.maxBirds}
                   onChange={(e) =>
                     setFormData({
@@ -235,69 +351,72 @@ export default function FeeSchemeComponent() {
                   }
                 />
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="feesCutPercent">Fees Cut Percent</Label>
+              <div className="w-full">
+                <Label htmlFor="maxBackupBirdCount">Maximum number of backup birds</Label>
                 <Input
-                  id="feesCutPercent"
-                  type="number"
-                  step="0.01"
-                  value={formData.feesCutPercent}
+                  id="maxBackupBirdCount"
+                  type="text"
+                  value={formData.maxBackupBirdCount}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      feesCutPercent: parseFloat(e.target.value) || 0,
+                      maxBackupBirdCount: parseInt(e.target.value) || 0,
                     })
                   }
                 />
               </div>
-
-              <div className="flex items-center space-x-2 pt-8">
-                <input
-                  id="isRefundable"
-                  type="checkbox"
-                  checked={formData.isRefundable}
-                  onChange={(e) =>
-                    setFormData({ ...formData, isRefundable: e.target.checked })
-                  }
-                  className="w-4 h-4"
-                />
-                <Label htmlFor="isRefundable" className="cursor-pointer">
-                  Is Refundable
-                </Label>
-              </div>
             </div>
 
+            {/* Perch Fees */}
             {formData.maxBirds > 0 && (
-              <div>
-                <Label>Per Bird Fee Items</Label>
-                <div className="grid grid-cols-2 gap-2 mt-2 max-h-40 overflow-y-auto">
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Perch Fees</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {formData.birdFeeItems.map((item, index) => (
-                    <div key={index} className="flex gap-2 items-center">
-                      <Label className="w-20">Bird {item.birdNo}:</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={item.fee}
-                        onChange={(e) => {
-                          const newItems = [...formData.birdFeeItems];
-                          newItems[index].fee = parseFloat(e.target.value) || 0;
-                          setFormData({ ...formData, birdFeeItems: newItems });
-                        }}
-                      />
+                    <div key={index}>
+                      <Label>Bird {item.birdNo} - Perch Fee</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                          $
+                        </span>
+                        <Input
+                          type="text"
+                          value={item.fee}
+                          onChange={(e) => {
+                            const newItems = [...formData.birdFeeItems];
+                            newItems[index].fee = parseFloat(e.target.value) || 0;
+                            setFormData({ ...formData, birdFeeItems: newItems });
+                          }}
+                          className="pl-8"
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
+            {/* Floating Backup */}
+            <div className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+              <Checkbox
+                id="isFloatingBackup"
+                checked={formData.isFloatingBackup}
+                onCheckedChange={(checked) =>
+                  setFormData({ ...formData, isFloatingBackup: checked === true })
+                }
+              />
+              <Label htmlFor="isFloatingBackup" className="cursor-pointer">
+                Floating Backup
+              </Label>
+            </div>
+
+            {/* Race Type Fees (kept, not in reference) */}
             {raceTypes.length > 0 && (
               <div>
                 <Label>Race Type Fees</Label>
                 <div className="space-y-2 mt-2 max-h-40 overflow-y-auto">
-                  {raceTypes.map((raceType, index) => {
+                  {raceTypes.map((raceType) => {
                     const raceTypeFee = formData.raceTypes.find(
                       (rt) => rt.raceTypeId === raceType.id
                     );

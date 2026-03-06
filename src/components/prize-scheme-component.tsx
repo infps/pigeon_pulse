@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Pencil, Trash2, Plus, X } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -159,7 +159,7 @@ export default function PrizeSchemeComponent() {
         {prizeSchemes.map((scheme) => (
           <div
             key={scheme.prizeSchemeId}
-            className="flex items-center justify-between p-4 border rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow"
+            className="flex items-center justify-between p-4 border rounded-lg bg-transparent shadow-sm hover:shadow-md transition-shadow"
           >
             <span className="font-medium">{scheme.name}</span>
             <div className="flex gap-2">
@@ -183,13 +183,14 @@ export default function PrizeSchemeComponent() {
       </div>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingId ? "Edit Prize Scheme" : "Add Prize Scheme"}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Name */}
             <div>
               <Label htmlFor="name">Name</Label>
               <Input
@@ -202,6 +203,7 @@ export default function PrizeSchemeComponent() {
               />
             </div>
 
+            {/* Description (kept, not in reference) */}
             <div>
               <Label htmlFor="description">Description</Label>
               <Input
@@ -213,120 +215,114 @@ export default function PrizeSchemeComponent() {
               />
             </div>
 
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <Label>Prize Scheme Items</Label>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={addPrizeSchemeItem}
-                  disabled={raceTypes.length === 0}
+            {/* Prize Distribution Items */}
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {formData.prizeSchemeItems.map((item, index) => (
+                <div
+                  key={index}
+                  className="flex items-start space-x-4"
                 >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Item
-                </Button>
-              </div>
-
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {formData.prizeSchemeItems.map((item, index) => (
-                  <div
-                    key={index}
-                    className="grid grid-cols-5 gap-2 items-end p-3 border rounded-lg"
-                  >
-                    <div>
-                      <Label>Race Type</Label>
-                      <Select
-                        value={item.raceTypeId}
-                        onValueChange={(value) =>
-                          updatePrizeSchemeItem(index, "raceTypeId", value)
-                        }
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {raceTypes.map((rt) => (
-                            <SelectItem key={rt.id} value={rt.id}>
-                              {rt.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label>From Position</Label>
-                      <Input
-                        type="number"
-                        value={item.fromPosition}
-                        onChange={(e) =>
-                          updatePrizeSchemeItem(
-                            index,
-                            "fromPosition",
-                            parseInt(e.target.value) || 1
-                          )
-                        }
-                      />
-                    </div>
-
-                    <div>
-                      <Label>To Position</Label>
-                      <Input
-                        type="number"
-                        value={item.toPosition}
-                        onChange={(e) =>
-                          updatePrizeSchemeItem(
-                            index,
-                            "toPosition",
-                            parseInt(e.target.value) || 1
-                          )
-                        }
-                      />
-                    </div>
-
-                    <div>
-                      <Label>Prize Amount</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={item.prizeAmount}
-                        onChange={(e) =>
-                          updatePrizeSchemeItem(
-                            index,
-                            "prizeAmount",
-                            parseFloat(e.target.value) || 0
-                          )
-                        }
-                      />
-                    </div>
-
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => removePrizeSchemeItem(index)}
+                  <div className="w-full">
+                    <Label>Race Type</Label>
+                    <Select
+                      value={item.raceTypeId}
+                      onValueChange={(value) =>
+                        updatePrizeSchemeItem(index, "raceTypeId", value)
+                      }
                     >
-                      <X className="h-4 w-4" />
-                    </Button>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {raceTypes.map((rt) => (
+                          <SelectItem key={rt.id} value={rt.id}>
+                            {rt.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                ))}
-              </div>
+
+                  <div className="w-full">
+                    <Label>From Position</Label>
+                    <Input
+                      type="text"
+                      value={item.fromPosition}
+                      onChange={(e) =>
+                        updatePrizeSchemeItem(
+                          index,
+                          "fromPosition",
+                          parseInt(e.target.value) || 1
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div className="w-full">
+                    <Label>To Position</Label>
+                    <Input
+                      type="text"
+                      value={item.toPosition}
+                      onChange={(e) =>
+                        updatePrizeSchemeItem(
+                          index,
+                          "toPosition",
+                          parseInt(e.target.value) || 1
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div className="w-full">
+                    <Label>Prize Amount</Label>
+                    <Input
+                      type="text"
+                      value={item.prizeAmount}
+                      onChange={(e) =>
+                        updatePrizeSchemeItem(
+                          index,
+                          "prizeAmount",
+                          parseFloat(e.target.value) || 0
+                        )
+                      }
+                    />
+                  </div>
+
+                  <Button
+                    className="mt-5"
+                    type="button"
+                    variant="destructive"
+                    onClick={() => removePrizeSchemeItem(index)}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
             </div>
 
-            <div className="flex gap-2 justify-end">
-              <Button type="button" variant="outline" onClick={handleClose}>
-                Cancel
-              </Button>
+            <div className="flex items-center justify-between">
               <Button
-                type="submit"
-                disabled={createMutation.isPending || updateMutation.isPending}
+                type="button"
+                onClick={addPrizeSchemeItem}
+                disabled={raceTypes.length === 0}
               >
-                {createMutation.isPending || updateMutation.isPending
-                  ? "Saving..."
-                  : editingId
-                  ? "Update"
-                  : "Create"}
+                Add Distribution
               </Button>
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" onClick={handleClose}>
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                >
+                  {createMutation.isPending || updateMutation.isPending
+                    ? "Saving..."
+                    : editingId
+                    ? "Update"
+                    : "Create"}
+                </Button>
+              </div>
             </div>
           </form>
         </DialogContent>

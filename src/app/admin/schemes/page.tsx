@@ -10,15 +10,15 @@ export default function SchemesPage() {
       <h1 className="text-3xl font-bold mb-8">Schemes Management</h1>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="border rounded-lg p-4 bg-gray-50">
+        <div className="border rounded-lg p-4 bg-transparent">
           <FeeSchemeComponent />
         </div>
         
-        <div className="border rounded-lg p-4 bg-gray-50">
+        <div className="border rounded-lg p-4 bg-transparent">
           <PrizeSchemeComponent />
         </div>
         
-        <div className="border rounded-lg p-4 bg-gray-50">
+        <div className="border rounded-lg p-4 bg-transparent">
           <BettingSchemeComponent />
         </div>
       </div>

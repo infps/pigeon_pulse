@@ -76,6 +76,13 @@ export async function POST(request: Request) {
         isRefundable: validatedData.isRefundable,
         maxBirds: validatedData.maxBirds,
         feesCutPercent: validatedData.feesCutPercent,
+        minEntryFees: validatedData.minEntryFees,
+        maxBackupBirdCount: validatedData.maxBackupBirdCount,
+        isFloatingBackup: validatedData.isFloatingBackup,
+        hotSpot1Fee: validatedData.hotSpot1Fee,
+        hotSpot2Fee: validatedData.hotSpot2Fee,
+        hotSpot3Fee: validatedData.hotSpot3Fee,
+        hotSpotFinalFee: validatedData.hotSpotFinalFee,
         createdById: session.user.id,
         birdFeeItems: {
           create: validatedData.birdFeeItems.map((item) => ({
@@ -160,6 +167,13 @@ export async function PUT(request: Request) {
         isRefundable: validatedData.isRefundable,
         maxBirds: validatedData.maxBirds,
         feesCutPercent: validatedData.feesCutPercent,
+        minEntryFees: validatedData.minEntryFees,
+        maxBackupBirdCount: validatedData.maxBackupBirdCount,
+        isFloatingBackup: validatedData.isFloatingBackup,
+        hotSpot1Fee: validatedData.hotSpot1Fee,
+        hotSpot2Fee: validatedData.hotSpot2Fee,
+        hotSpot3Fee: validatedData.hotSpot3Fee,
+        hotSpotFinalFee: validatedData.hotSpotFinalFee,
         birdFeeItems: {
           create: validatedData.birdFeeItems.map((item) => ({
             birdNo: item.birdNo,

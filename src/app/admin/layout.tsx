@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { ModeToggle } from "@/components/mode-toggle";
 
 export default async function AdminLayout({
   children,
@@ -33,6 +34,7 @@ export default async function AdminLayout({
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <div className="flex-1" />
+          <ModeToggle />
         </header>
         <main className="flex flex-1 flex-col gap-4 p-4 pt-0">
           {children}

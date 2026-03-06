@@ -260,7 +260,7 @@ export default function RaceDetailsPage() {
                 </div>
 
                 {/* Weather & Conditions - Compact Layout */}
-                <div className="border rounded-lg p-3 bg-gray-50 space-y-2">
+                <div className="border rounded-lg p-3 bg-transparent space-y-2">
                   {/* Release Conditions */}
                   <div className="flex flex-wrap items-center gap-3 text-sm md:text-base">
                     <div className="flex items-center gap-1.5">
@@ -350,7 +350,7 @@ export default function RaceDetailsPage() {
 
                 {/* Stats Row */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4">
-                  <div className="border rounded-lg p-2 md:p-3 bg-white text-center">
+                  <div className="border rounded-lg p-2 md:p-3 bg-transparent text-center">
                     <div className="text-lg md:text-xl font-bold text-gray-900">
                       {new Date(race.releaseDate).toLocaleDateString()}
                     </div>
@@ -359,12 +359,12 @@ export default function RaceDetailsPage() {
                     </div>
                     <div className="text-xs text-gray-500 mt-1">Release Date & Time</div>
                   </div>
-                  <div className="border rounded-lg p-2 md:p-3 bg-white text-center">
+                  <div className="border rounded-lg p-2 md:p-3 bg-transparent text-center">
                     <div className="text-lg md:text-xl font-bold text-gray-900">{race.distance}</div>
                     <div className="text-xs md:text-sm text-gray-600">Mi</div>
                     <div className="text-xs text-gray-500 mt-1">Distance</div>
                   </div>
-                  <div className="border rounded-lg p-2 md:p-3 bg-white text-center">
+                  <div className="border rounded-lg p-2 md:p-3 bg-transparent text-center">
                     <div className="text-lg md:text-xl font-bold text-gray-900">
                       {new Date(race.sunriseTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>

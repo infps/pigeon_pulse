@@ -113,7 +113,7 @@ export default function PublicRacePage() {
 
                 {/* Stats Row */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4">
-                  <div className="border rounded-lg p-2 md:p-3 bg-white text-center">
+                  <div className="border rounded-lg p-2 md:p-3 bg-transparent text-center">
                     <div className="text-lg md:text-xl font-bold text-gray-900">
                       {new Date(race.releaseDate).toLocaleDateString()}
                     </div>
@@ -127,14 +127,14 @@ export default function PublicRacePage() {
                       Release Date & Time
                     </div>
                   </div>
-                  <div className="border rounded-lg p-2 md:p-3 bg-white text-center">
+                  <div className="border rounded-lg p-2 md:p-3 bg-transparent text-center">
                     <div className="text-lg md:text-xl font-bold text-gray-900">
                       {race.distance}
                     </div>
                     <div className="text-xs md:text-sm text-gray-600">Mi</div>
                     <div className="text-xs text-gray-500 mt-1">Distance</div>
                   </div>
-                  <div className="border rounded-lg p-2 md:p-3 bg-white text-center">
+                  <div className="border rounded-lg p-2 md:p-3 bg-transparent text-center">
                     <div className="text-lg md:text-xl font-bold text-gray-900">
                       {raceItems.length}
                     </div>

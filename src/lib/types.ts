@@ -45,6 +45,13 @@ export interface FeeScheme {
   isRefundable: boolean;
   maxBirds: number;
   feesCutPercent: number;
+  minEntryFees: number;
+  maxBackupBirdCount: number;
+  isFloatingBackup: boolean;
+  hotSpot1Fee: number;
+  hotSpot2Fee: number;
+  hotSpot3Fee: number;
+  hotSpotFinalFee: number;
   createdAt: string;
   updatedAt: string;
   createdById: string;
@@ -56,7 +63,7 @@ export interface FeeScheme {
 
 export interface BirdFeeItem {
   feeSchemeId: string;
-  birdNo: number;
+  birdNo: number; 
   fee: number;
   feeScheme?: FeeScheme;
 }
@@ -110,14 +117,23 @@ export interface BettingScheme {
   standardShow3: number;
   standardShow4: number;
   standardShow5: number;
+  standardShow6: number;
   wta1: number;
   wta2: number;
   wta3: number;
   wta4: number;
   wta5: number;
+  standardShowPercentages?: StandardShowPercentage[];
   events?: Event[];
   createdById: string;
   createdBy?: User;
+}
+
+export interface StandardShowPercentage {
+  id: string;
+  bettingSchemeId: string;
+  place: number;
+  percValue: number;
 }
 
 export interface Payments {

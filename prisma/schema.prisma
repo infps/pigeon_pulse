@@ -82,18 +82,25 @@ model RaceType {
 }
 
 model FeeScheme {
-  id             String              @id @default(uuid(7))
-  name           String              @unique
-  description    String?
-  perchFee       Float               @default(0) @map("entryFee")
-  isRefundable   Boolean             @default(false)
-  maxBirds       Int                 @default(0)
-  feesCutPercent Float               @default(0)
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  birdFeeItems   BirdFeeItem[]
-  raceTypes      RaceTypeFeeScheme[]
-  events         Event[]
+  id                 String              @id @default(uuid(7))
+  name               String              @unique
+  description        String?
+  perchFee           Float               @default(0)
+  isRefundable       Boolean             @default(false)
+  maxBirds           Int                 @default(0)
+  feesCutPercent     Float               @default(0)
+  minEntryFees       Int                 @default(0)
+  maxBackupBirdCount Int                 @default(0)
+  isFloatingBackup   Boolean             @default(false)
+  hotSpot1Fee        Float               @default(0)
+  hotSpot2Fee        Float               @default(0)
+  hotSpot3Fee        Float               @default(0)
+  hotSpotFinalFee    Float               @default(0)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  birdFeeItems       BirdFeeItem[]
+  raceTypes          RaceTypeFeeScheme[]
+  events             Event[]
 
   createdById String
   createdBy   User   @relation(fields: [createdById], references: [id], onDelete: Cascade)
@@ -106,7 +113,7 @@ model BirdFeeItem {
   feeScheme   FeeScheme @relation(fields: [feeSchemeId], references: [id], onDelete: Cascade)
 
   @@id([feeSchemeId, birdNo])
-  @@map("PerchFeeItem")
+  @@map("BirdFeeItem")
 }
 
 model RaceTypeFeeScheme {
@@ -164,15 +171,27 @@ model BettingScheme {
   standardShow3     Float    @default(0)
   standardShow4     Float    @default(0)
   standardShow5     Float    @default(0)
+  standardShow6     Float    @default(0)
   wta1              Float    @default(0)
   wta2              Float    @default(0)
   wta3              Float    @default(0)
   wta4              Float    @default(0)
   wta5              Float    @default(0)
 
-  events      Event[]
-  createdById String
-  createdBy   User    @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  standardShowPercentages StandardShowPercentage[]
+  events                  Event[]
+  createdById             String
+  createdBy               User                    @relation(fields: [createdById], references: [id], onDelete: Cascade)
+}
+
+model StandardShowPercentage {
+  id              String        @id @default(uuid(7))
+  bettingSchemeId String
+  place           Int
+  percValue       Float         @default(0)
+  bettingScheme   BettingScheme @relation(fields: [bettingSchemeId], references: [bettingSchemeId], onDelete: Cascade)
+
+  @@unique([bettingSchemeId, place])
 }
 
 enum PaymentMethod {
@@ -183,8 +202,8 @@ enum PaymentMethod {
 }
 
 enum PaymentType {
-  PERCH_FEE @map("ENTRY_FEE")
-  BIRD_FEE  @map("PERCH_FEE")
+  PERCH_FEE
+  BIRD_FEE
   RACES_FEE
   PAYOUTS
   OTHER
@@ -328,8 +347,8 @@ model EventInventoryItem {
   arrivalTime          DateTime?
   departureTime        DateTime?
   perchFeeValue        Float          @default(0)
-  perchFeeRefunded     Boolean        @default(false) @map("entryFeeRefunded")
-  perchFeePaid         Boolean        @default(false) @map("entryFeePaid")
+  perchFeeRefunded     Boolean        @default(false)
+  perchFeePaid         Boolean        @default(false)
   isBackup             Boolean        @default(false)
   belgianShowBet1      Boolean        @default(false)
   belgianShowBet2      Boolean        @default(false)

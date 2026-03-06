@@ -105,12 +105,12 @@ function BreederDialog({ open, onOpenChange, inventory, allBirds }: BreederDialo
         <div className="mt-4">
           <h3 className="text-lg font-semibold mb-3">Birds ({breederBirds.length})</h3>
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-primary">
               <TableRow>
-                <TableHead>Band</TableHead>
-                <TableHead>Bird Name</TableHead>
-                <TableHead>Color</TableHead>
-                <TableHead>Sex</TableHead>
+                <TableHead className="text-primary-foreground font-medium">Band</TableHead>
+                <TableHead className="text-primary-foreground font-medium">Bird Name</TableHead>
+                <TableHead className="text-primary-foreground font-medium">Color</TableHead>
+                <TableHead className="text-primary-foreground font-medium">Sex</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -218,7 +218,7 @@ export function EventBreedersTab({ eventId }: EventBreedersTabProps) {
         const isMe = row.original.breederId === loggedInBreederId;
         
         return (
-          <div className={isMe ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>
+          <div className={isMe ? "bg-transparent -mx-6 px-6 -my-3 py-3" : ""}>
             <button
               onClick={() => handleBreederClick(inventory)}
               className="flex items-center gap-3 hover:opacity-80 transition-opacity"
@@ -252,7 +252,7 @@ export function EventBreedersTab({ eventId }: EventBreedersTabProps) {
         const loft = row.original.loft;
         const isMe = row.original.breederId === loggedInBreederId;
         return (
-          <div className={isMe ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>
+          <div className={isMe ? "bg-transparent -mx-6 px-6 -my-3 py-3" : ""}>
             {loft}
           </div>
         );
@@ -267,10 +267,10 @@ export function EventBreedersTab({ eventId }: EventBreedersTabProps) {
       cell: ({ row }) => {
         const country = row.original.country;
         const isMe = row.original.breederId === loggedInBreederId;
-        if (!country) return <div className={isMe ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>-</div>;
+        if (!country) return <div className={isMe ? "bg-transparent -mx-6 px-6 -my-3 py-3" : ""}>-</div>;
         const flag = getCountryFlag(country);
         return (
-          <div className={isMe ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>
+          <div className={isMe ? "bg-transparent -mx-6 px-6 -my-3 py-3" : ""}>
             <div className="flex items-center gap-2">
               {flag && (
                 <Image
@@ -296,10 +296,10 @@ export function EventBreedersTab({ eventId }: EventBreedersTabProps) {
       cell: ({ row }) => {
         const state = row.original.state;
         const isMe = row.original.breederId === loggedInBreederId;
-        if (!state) return <div className={isMe ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>-</div>;
+        if (!state) return <div className={isMe ? "bg-transparent -mx-6 px-6 -my-3 py-3" : ""}>-</div>;
         const flag = getStateFlag(state);
         return (
-          <div className={isMe ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>
+          <div className={isMe ? "bg-transparent -mx-6 px-6 -my-3 py-3" : ""}>
             <div className="flex items-center gap-2">
               {flag && (
                 <Image
@@ -326,7 +326,7 @@ export function EventBreedersTab({ eventId }: EventBreedersTabProps) {
         const count = row.original.birdCount;
         const isMe = row.original.breederId === loggedInBreederId;
         return (
-          <div className={isMe ? "bg-blue-50 -mx-6 px-6 -my-3 py-3" : ""}>
+          <div className={isMe ? "bg-transparent -mx-6 px-6 -my-3 py-3" : ""}>
             <span className="font-semibold">{count}</span>
           </div>
         );

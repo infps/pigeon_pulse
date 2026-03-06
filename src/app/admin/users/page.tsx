@@ -306,7 +306,7 @@ export default function UsersPage() {
               ) : (
                 <div className="divide-y">
                   {teams.map((team: any) => (
-                    <div key={team.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
+                    <div key={team.id} className="p-4 flex items-center justify-between hover:bg-transparent">
                       <div>
                         <p className="font-medium">{team.name}</p>
                         <p className="text-sm text-gray-500">

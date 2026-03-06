@@ -40,11 +40,13 @@ export default function BettingSchemeComponent() {
     standardShow3: 0,
     standardShow4: 0,
     standardShow5: 0,
+    standardShow6: 0,
     wta1: 0,
     wta2: 0,
     wta3: 0,
     wta4: 0,
     wta5: 0,
+    standardShowPercentages: [] as { place: number; percValue: number }[],
   });
 
   const { data: bettingSchemesData, isPending, isError } = useListBettingSchemes({});
@@ -98,11 +100,16 @@ export default function BettingSchemeComponent() {
       standardShow3: bettingScheme.standardShow3,
       standardShow4: bettingScheme.standardShow4,
       standardShow5: bettingScheme.standardShow5,
+      standardShow6: bettingScheme.standardShow6 ?? 0,
       wta1: bettingScheme.wta1,
       wta2: bettingScheme.wta2,
       wta3: bettingScheme.wta3,
       wta4: bettingScheme.wta4,
       wta5: bettingScheme.wta5,
+      standardShowPercentages: bettingScheme.standardShowPercentages?.map((p) => ({
+        place: p.place,
+        percValue: p.percValue,
+      })) || [],
     });
     setIsOpen(true);
   };
@@ -138,12 +145,43 @@ export default function BettingSchemeComponent() {
       standardShow3: 0,
       standardShow4: 0,
       standardShow5: 0,
+      standardShow6: 0,
       wta1: 0,
       wta2: 0,
       wta3: 0,
       wta4: 0,
       wta5: 0,
+      standardShowPercentages: [],
     });
+  };
+
+  const addPercentage = () => {
+    setFormData({
+      ...formData,
+      standardShowPercentages: [
+        ...formData.standardShowPercentages,
+        { place: 1, percValue: 0 },
+      ],
+    });
+  };
+
+  const removePercentage = (index: number) => {
+    setFormData({
+      ...formData,
+      standardShowPercentages: formData.standardShowPercentages.filter(
+        (_, i) => i !== index
+      ),
+    });
+  };
+
+  const updatePercentage = (
+    index: number,
+    field: "place" | "percValue",
+    value: number
+  ) => {
+    const updated = [...formData.standardShowPercentages];
+    updated[index][field] = value;
+    setFormData({ ...formData, standardShowPercentages: updated });
   };
 
   if (isPending) {
@@ -165,7 +203,7 @@ export default function BettingSchemeComponent() {
         {bettingSchemes.map((scheme) => (
           <div
             key={scheme.bettingSchemeId}
-            className="flex items-center justify-between p-4 border rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow"
+            className="flex items-center justify-between p-4 border rounded-lg bg-transparent shadow-sm hover:shadow-md transition-shadow"
           >
             <span className="font-medium">{scheme.name}</span>
             <div className="flex gap-2">
@@ -189,13 +227,14 @@ export default function BettingSchemeComponent() {
       </div>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingId ? "Edit Betting Scheme" : "Add Betting Scheme"}
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Name */}
             <div>
               <Label htmlFor="name">Name</Label>
               <Input
@@ -208,6 +247,7 @@ export default function BettingSchemeComponent() {
               />
             </div>
 
+            {/* Description (kept, not in reference) */}
             <div>
               <Label htmlFor="description">Description</Label>
               <Input
@@ -219,92 +259,182 @@ export default function BettingSchemeComponent() {
               />
             </div>
 
-            <div>
-              <Label htmlFor="bettingCutPercent">Betting Cut Percent</Label>
-              <Input
-                id="bettingCutPercent"
-                type="number"
-                step="0.01"
-                value={formData.bettingCutPercent}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    bettingCutPercent: parseFloat(e.target.value) || 0,
-                  })
-                }
-              />
-            </div>
-
-            <div>
-              <Label className="text-lg font-semibold">Belgian Show</Label>
-              <div className="grid grid-cols-3 gap-3 mt-2">
+            {/* Belgian Show */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Belgian Show</h3>
+              <div className="grid grid-cols-3 gap-4">
                 {[1, 2, 3, 4, 5, 6, 7].map((num) => (
                   <div key={num}>
-                    <Label htmlFor={`belgianShow${num}`}>Belgian Show {num}</Label>
-                    <Input
-                      id={`belgianShow${num}`}
-                      type="number"
-                      step="0.01"
-                      value={(formData as any)[`belgianShow${num}`]}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          [`belgianShow${num}`]: parseFloat(e.target.value) || 0,
-                        })
-                      }
-                    />
+                    <Label htmlFor={`belgianShow${num}`}>Show {num}</Label>
+                    <div className="relative">
+                      <Input
+                        id={`belgianShow${num}`}
+                        type="text"
+                        value={(formData as any)[`belgianShow${num}`]}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            [`belgianShow${num}`]: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        className="pr-8"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                        %
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div>
-              <Label className="text-lg font-semibold">Standard Show</Label>
-              <div className="grid grid-cols-3 gap-3 mt-2">
-                {[1, 2, 3, 4, 5].map((num) => (
-                  <div key={num}>
-                    <Label htmlFor={`standardShow${num}`}>Standard Show {num}</Label>
-                    <Input
-                      id={`standardShow${num}`}
-                      type="number"
-                      step="0.01"
-                      value={(formData as any)[`standardShow${num}`]}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          [`standardShow${num}`]: parseFloat(e.target.value) || 0,
-                        })
-                      }
-                    />
+            {/* Standard Show - 2 column layout */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Standard Show</h3>
+              <div className="grid grid-cols-2 gap-8">
+                {/* Left: Standard Show values */}
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    {[1, 2, 3, 4, 5, 6].map((num) => (
+                      <div key={num}>
+                        <Label htmlFor={`standardShow${num}`}>Show {num}</Label>
+                        <div className="relative">
+                          <Input
+                            id={`standardShow${num}`}
+                            type="text"
+                            value={(formData as any)[`standardShow${num}`]}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                [`standardShow${num}`]: parseFloat(e.target.value) || 0,
+                              })
+                            }
+                            className="pr-8"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                            %
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+
+                {/* Right: Position Percentages */}
+                <div className="space-y-4">
+                  <h4 className="font-medium">Position Percentages</h4>
+                  <div className="space-y-2">
+                    {formData.standardShowPercentages.map((item, index) => (
+                      <div key={index} className="flex items-start space-x-2">
+                        <div className="flex-1">
+                          <Input
+                            type="text"
+                            placeholder="Place"
+                            value={item.place}
+                            onChange={(e) =>
+                              updatePercentage(
+                                index,
+                                "place",
+                                parseInt(e.target.value) || 1
+                              )
+                            }
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <div className="relative">
+                            <Input
+                              type="text"
+                              placeholder="Percentage"
+                              value={item.percValue}
+                              onChange={(e) =>
+                                updatePercentage(
+                                  index,
+                                  "percValue",
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              className="pr-8"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                              %
+                            </span>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          onClick={() => removePercentage(index)}
+                        >
+                          &times;
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={addPercentage}
+                    className="w-full"
+                  >
+                    Add Position
+                  </Button>
+                </div>
               </div>
             </div>
 
-            <div>
-              <Label className="text-lg font-semibold">WTA</Label>
-              <div className="grid grid-cols-3 gap-3 mt-2">
+            {/* WTA */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">WTA (Winner Takes All)</h3>
+              <div className="grid grid-cols-3 gap-4">
                 {[1, 2, 3, 4, 5].map((num) => (
                   <div key={num}>
                     <Label htmlFor={`wta${num}`}>WTA {num}</Label>
-                    <Input
-                      id={`wta${num}`}
-                      type="number"
-                      step="0.01"
-                      value={(formData as any)[`wta${num}`]}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          [`wta${num}`]: parseFloat(e.target.value) || 0,
-                        })
-                      }
-                    />
+                    <div className="relative">
+                      <Input
+                        id={`wta${num}`}
+                        type="text"
+                        value={(formData as any)[`wta${num}`]}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            [`wta${num}`]: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        className="pr-8"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                        %
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="flex gap-2 justify-end">
+            {/* Percent for Expenses (moved to bottom like reference) */}
+            <div>
+              <Label htmlFor="bettingCutPercent">Percent for Expenses</Label>
+              <div className="relative max-w-md">
+                <Input
+                  id="bettingCutPercent"
+                  type="text"
+                  value={formData.bettingCutPercent}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      bettingCutPercent: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                  className="pr-8"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                  %
+                </span>
+              </div>
+            </div>
+
+            <div className="flex gap-4 justify-end">
               <Button type="button" variant="outline" onClick={handleClose}>
                 Cancel
               </Button>

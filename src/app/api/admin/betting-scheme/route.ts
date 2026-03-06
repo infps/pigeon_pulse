@@ -14,7 +14,7 @@ export async function GET() {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const whereClause = session.user.role === "ADMIN" 
+    const whereClause = session.user.role === "ADMIN"
       ? { createdById: session.user.id }
       : {};
 
@@ -24,6 +24,9 @@ export async function GET() {
         name: "asc",
       },
       include: {
+        standardShowPercentages: {
+          orderBy: { place: "asc" },
+        },
         createdBy: {
           select: {
             id: true,
@@ -75,12 +78,22 @@ export async function POST(request: Request) {
         standardShow3: validatedData.standardShow3,
         standardShow4: validatedData.standardShow4,
         standardShow5: validatedData.standardShow5,
+        standardShow6: validatedData.standardShow6,
         wta1: validatedData.wta1,
         wta2: validatedData.wta2,
         wta3: validatedData.wta3,
         wta4: validatedData.wta4,
         wta5: validatedData.wta5,
         createdById: session.user.id,
+        standardShowPercentages: {
+          create: validatedData.standardShowPercentages.map((item) => ({
+            place: item.place,
+            percValue: item.percValue,
+          })),
+        },
+      },
+      include: {
+        standardShowPercentages: true,
       },
     });
 
@@ -127,6 +140,11 @@ export async function PUT(request: Request) {
 
     const validatedData = createBettingSchemeSchema.parse(updateData);
 
+    // Delete existing percentages before recreating
+    await prisma.standardShowPercentage.deleteMany({
+      where: { bettingSchemeId: id },
+    });
+
     const updatedBettingScheme = await prisma.bettingScheme.update({
       where: { bettingSchemeId: id },
       data: {
@@ -145,11 +163,21 @@ export async function PUT(request: Request) {
         standardShow3: validatedData.standardShow3,
         standardShow4: validatedData.standardShow4,
         standardShow5: validatedData.standardShow5,
+        standardShow6: validatedData.standardShow6,
         wta1: validatedData.wta1,
         wta2: validatedData.wta2,
         wta3: validatedData.wta3,
         wta4: validatedData.wta4,
         wta5: validatedData.wta5,
+        standardShowPercentages: {
+          create: validatedData.standardShowPercentages.map((item) => ({
+            place: item.place,
+            percValue: item.percValue,
+          })),
+        },
+      },
+      include: {
+        standardShowPercentages: true,
       },
     });
 
