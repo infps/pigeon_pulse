@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
 import { prisma } from "@/lib/prisma";
+import { PaymentStatus } from "@/generated/prisma/enums";
 import { calculateFees } from "@/lib/fee-calculator";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -213,7 +214,7 @@ export async function POST(
             paymentDate: new Date(),
             paymentTimestamp: new Date(),
             paymentDesc: `Registration: ${validatedData.reservedBirds} birds`,
-            status: 0, // PENDING
+            status: PaymentStatus.PENDING,
           },
         });
       }

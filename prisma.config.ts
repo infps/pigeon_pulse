@@ -10,6 +10,7 @@ export default defineConfig({
   },
   datasource: {
     url: process.env["DATABASE_URL"],
+    // @ts-expect-error directUrl is valid in Prisma 7 but missing from types
     directUrl: process.env["DIRECT_URL"],
   },
 });

@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { PaymentStatus } from "@/generated/prisma/enums";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -10,7 +11,7 @@ const createPaymentSchema = z.object({
   paymentValue: z.number().optional(),
   paymentMethod: z.number().optional(),
   paymentType: z.number().optional(),
-  status: z.number().optional(),
+  status: z.nativeEnum(PaymentStatus).optional(),
   paymentDesc: z.string().optional(),
   transactionId: z.string().optional(),
 });
@@ -20,7 +21,7 @@ const updatePaymentSchema = z.object({
   paymentValue: z.number().optional(),
   paymentMethod: z.number().optional(),
   paymentType: z.number().optional(),
-  status: z.number().optional(),
+  status: z.nativeEnum(PaymentStatus).optional(),
   paymentDesc: z.string().optional(),
   transactionId: z.string().optional(),
 });
