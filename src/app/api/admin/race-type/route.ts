@@ -38,7 +38,6 @@ export async function POST(request: Request) {
     const newRaceType = await prisma.raceType.create({
       data: {
         name: validatedData.name,
-        isPaid: validatedData.isPaid,
       },
     });
     return NextResponse.json(
@@ -70,7 +69,7 @@ export async function PUT(request: Request) {
     }
     const body = await request.json();
     const { id, ...updateData } = body;
-    
+
     if (!id) {
       return NextResponse.json(
         { message: "Race type ID is required" },
@@ -79,15 +78,14 @@ export async function PUT(request: Request) {
     }
 
     const validatedData = createRaceTypeSchema.parse(updateData);
-    
+
     const updatedRaceType = await prisma.raceType.update({
-      where: { id },
+      where: { id: parseInt(id) },
       data: {
         name: validatedData.name,
-        isPaid: validatedData.isPaid,
       },
     });
-    
+
     return NextResponse.json(
       { message: "Race type updated successfully", raceType: updatedRaceType },
       { status: 200 }
@@ -115,10 +113,10 @@ export async function DELETE(request: Request) {
     if (!session || !session.user.role || session.user.role !== "SUPERADMIN") {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
-    
+
     const body = await request.json();
     const { id } = body;
-    
+
     if (!id) {
       return NextResponse.json(
         { message: "Race type ID is required" },
@@ -127,9 +125,9 @@ export async function DELETE(request: Request) {
     }
 
     await prisma.raceType.delete({
-      where: { id },
+      where: { id: parseInt(id) },
     });
-    
+
     return NextResponse.json(
       { message: "Race type deleted successfully" },
       { status: 200 }

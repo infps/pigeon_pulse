@@ -7,7 +7,12 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ paymentId: string }> }
 ) {
-  const { paymentId } = await params;
+  const { paymentId: paymentIdParam } = await params;
+  const paymentId = parseInt(paymentIdParam);
+
+  if (isNaN(paymentId)) {
+    return NextResponse.json({ message: "Invalid payment ID" }, { status: 400 });
+  }
 
   try {
     const session = await auth.api.getSession({
@@ -18,8 +23,8 @@ export async function DELETE(
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    await prisma.payments.delete({
-      where: { paymentId },
+    await prisma.payment.delete({
+      where: { id: paymentId },
     });
 
     return NextResponse.json(

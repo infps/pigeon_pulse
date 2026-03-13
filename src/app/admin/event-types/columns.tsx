@@ -16,15 +16,14 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import { Checkbox } from "@/components/ui/checkbox"
 
 export type EventType = {
-  eventTypeId: string
+  id: number
   name: string
   description: string | null
-  createdAt: string
 }
 
 export const createColumns = (
   onEdit: (eventType: EventType) => void,
-  onDelete: (eventTypeId: string) => void
+  onDelete: (eventTypeId: number) => void
 ): ColumnDef<EventType>[] => [
   {
     id: "select",
@@ -65,16 +64,6 @@ export const createColumns = (
     },
   },
   {
-    accessorKey: "createdAt",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Created At" />
-    ),
-    cell: ({ row }) => {
-      const date = new Date(row.getValue("createdAt"))
-      return <span>{date.toLocaleDateString()}</span>
-    },
-  },
-  {
     id: "actions",
     cell: ({ row }) => {
       const eventType = row.original
@@ -90,7 +79,7 @@ export const createColumns = (
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(eventType.eventTypeId)}
+              onClick={() => navigator.clipboard.writeText(eventType.id.toString())}
             >
               Copy ID
             </DropdownMenuItem>
@@ -98,9 +87,9 @@ export const createColumns = (
             <DropdownMenuItem onClick={() => onEdit(eventType)}>
               Edit
             </DropdownMenuItem>
-            <DropdownMenuItem 
+            <DropdownMenuItem
               className="text-destructive"
-              onClick={() => onDelete(eventType.eventTypeId)}
+              onClick={() => onDelete(eventType.id)}
             >
               Delete
             </DropdownMenuItem>

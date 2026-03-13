@@ -29,39 +29,36 @@ export function EventRacesTab({ event }: EventRacesTabProps) {
       ) : (
         <div className="space-y-3">
           {races.map((race) => (
-            <Link key={race.raceId} href={`/races/${race.raceId}`}>
+            <Link key={race.id} href={`/races/${race.id}`}>
               <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-2">
-                        <h4 className="text-lg font-semibold line-clamp-1">{race.name}</h4>
-                        {race.isLive && !race.isClosed && (
+                        <h4 className="text-lg font-semibold line-clamp-1">{race.description}</h4>
+                        {race.startTime && race.isClosed !== 1 && (
                           <Badge variant="destructive" className="gap-1">
                             <Radio className="h-3 w-3 animate-pulse" />
                             LIVE
                           </Badge>
                         )}
-                        {race.isClosed && (
+                        {race.isClosed === 1 ? (
                           <Badge variant="secondary">Closed</Badge>
-                        )}
-                        {!race.isClosed && !race.isLive && (
+                        ) : !race.startTime ? (
                           <Badge variant="default">Open</Badge>
-                        )}
+                        ) : null}
                       </div>
                       <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <MapPin className="h-4 w-4" />
-                          <span>{race.releaseStation}</span>
+                          <span>{race.location}</span>
                         </div>
                         <div className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
                           <span>
-                            {new Date(race.releaseDate).toLocaleDateString()} at{" "}
-                            {new Date(race.releaseDate).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+                            {race.startTime
+                              ? `${new Date(race.startTime).toLocaleDateString()} at ${new Date(race.startTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                              : "TBD"}
                           </span>
                         </div>
                         <div className="flex items-center gap-1">

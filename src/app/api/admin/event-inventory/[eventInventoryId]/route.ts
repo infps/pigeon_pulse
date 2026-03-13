@@ -7,7 +7,12 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventInventoryId: string }> }
 ) {
-  const { eventInventoryId } = await params;
+  const { eventInventoryId: eventInventoryIdParam } = await params;
+  const eventInventoryId = parseInt(eventInventoryIdParam);
+
+  if (isNaN(eventInventoryId)) {
+    return NextResponse.json({ message: "Invalid event inventory ID" }, { status: 400 });
+  }
 
   try {
     const session = await auth.api.getSession({
@@ -19,7 +24,7 @@ export async function GET(
 
     const eventInventory = await prisma.eventInventory.findUnique({
       where: {
-        eventInventoryId,
+        id: eventInventoryId,
       },
       include: {
         breeder: true,
@@ -35,10 +40,10 @@ export async function GET(
         },
         payments: {
           orderBy: {
-            paidAt: "desc",
+            paymentDate: "desc",
           },
         },
-        eventInventoryItems: {
+        items: {
           include: {
             bird: true,
           },

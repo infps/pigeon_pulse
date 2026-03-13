@@ -40,7 +40,7 @@ export const raceResultsColumns: ColumnDef<RaceItem>[] = [
   },
   {
     id: "breeder",
-    accessorKey: "bird.breeder.name",
+    accessorKey: "bird.breeder.firstName",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Breeder" />
     ),

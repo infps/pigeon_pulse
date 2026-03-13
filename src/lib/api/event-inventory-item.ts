@@ -21,7 +21,7 @@ export const useUpdateEventInventoryItem = ({
 }: {
   onSuccess?: () => void,
   onError?: (error:any) => void,
-  eventInventoryItemId: string;
+  eventInventoryItemId: number | string;
 }) => {
   return useApiMutation({
     endpoint: "/api/admin/event-inventory-item/" + eventInventoryItemId,

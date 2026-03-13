@@ -21,19 +21,13 @@ export async function GET(req: NextRequest) {
 
     const baskets = await prisma.basket.findMany({
       where: {
-        raceId,
+        raceId: parseInt(raceId),
       },
       include: {
-        createdBy: {
-          select: {
-            name: true,
-            email: true,
-          },
-        },
         _count: {
           select: {
             raceItems: true,
-            loftItems: true,
+            distItems: true,
           },
         },
       },
@@ -72,12 +66,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const raceIdInt = parseInt(raceId);
+    const isRaceBasketInt = isRaceBasket ? 1 : 0;
+
     // Check if basket number already exists for this race
     const existingBasket = await prisma.basket.findFirst({
       where: {
-        raceId,
+        raceId: raceIdInt,
         basketNo,
-        isRaceBasket,
+        isRaceBasket: isRaceBasketInt,
       },
     });
 
@@ -90,22 +87,15 @@ export async function POST(req: NextRequest) {
 
     const basket = await prisma.basket.create({
       data: {
-        raceId,
+        raceId: raceIdInt,
         basketNo,
-        isRaceBasket: isRaceBasket ?? false,
-        createdById: session.user.id,
+        isRaceBasket: isRaceBasketInt,
       },
       include: {
-        createdBy: {
-          select: {
-            name: true,
-            email: true,
-          },
-        },
         _count: {
           select: {
             raceItems: true,
-            loftItems: true,
+            distItems: true,
           },
         },
       },

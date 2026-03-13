@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
+import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
 import { prisma } from "@/lib/prisma";
-import { getPaymentStatus } from "@/lib/utils";
+import { calculateFees } from "@/lib/fee-calculator";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import z from "zod";
@@ -16,23 +17,11 @@ const birdSchema = z.object({
   band4: z.string().min(1, "Band 4 is required"),
 });
 
-// Define the payment schema
-const paymentSchema = z.object({
-  amountPaid: z.number().nonnegative("Amount paid must be non-negative"),
-  amountToPay: z.number().nonnegative("Amount to pay must be non-negative"),
-  currency: z.string().default("USD"),
-  method: z.enum(["CREDIT_CARD", "PAYPAL", "BANK_TRANSFER", "CASH"]),
-  description: z.string().optional(),
-  paymentType: z.enum(["PERCH_FEE", "BIRD_FEE", "RACES_FEE", "PAYOUTS", "OTHER"]),
-  referenceNumber: z.string().optional(),
-});
-
 // Define the registration schema (breederId comes from session, not request)
 const registrationSchema = z.object({
   loftName: z.string().min(1, "Loft name is required"),
   reservedBirds: z.number().int().positive("Reserved birds must be a positive integer"),
   birds: z.array(birdSchema),
-  payments: z.array(paymentSchema).default([]),
   note: z.string().optional(),
 }).refine(
   (data) => data.birds.length === data.reservedBirds,
@@ -58,18 +47,30 @@ export async function POST(
       );
     }
 
-    const breederId = session.user.id;
-    const { eventId } = await params;
-    
+    const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
+    const breederId = breeder.id;
+
+    const { eventId: eventIdParam } = await params;
+    const eventId = parseInt(eventIdParam);
+    if (isNaN(eventId)) {
+      return NextResponse.json({ message: "Invalid event ID" }, { status: 400 });
+    }
+
     // Parse and validate request body
     const body = await request.json();
     const validatedData = registrationSchema.parse(body);
 
     // Check if event exists and is open
     const event = await prisma.event.findUnique({
-      where: { eventId },
+      where: { id: eventId },
       include: {
-        feeScheme: { include: { birdFeeItems: true } },
+        feeScheme: {
+          include: {
+            birdFeeItems: { orderBy: { birdNo: "asc" } },
+            raceTypeFees: true,
+          },
+        },
+        races: true,
       },
     });
 
@@ -87,7 +88,7 @@ export async function POST(
       );
     }
 
-    // Check if breeder has already registered for this event
+    // Check if breeder has already registered for this event with same loft
     const existingRegistration = await prisma.eventInventory.findFirst({
       where: {
         eventId,
@@ -117,13 +118,13 @@ export async function POST(
       });
 
       // Create or find birds and add them to EventInventoryItems
-      const eventInventoryItems: { birdId: string; eventInventoryItemId: string }[] = [];
+      const inventoryItems: { birdId: number; id: number }[] = [];
       for (const birdData of validatedData.birds) {
         // Create unique band identifier
         const band = `${birdData.band1}-${birdData.band2}-${birdData.band3}-${birdData.band4}`;
 
         // Check if bird already exists
-        let bird = await tx.bird.findUnique({
+        let bird = await tx.bird.findFirst({
           where: { band },
         });
 
@@ -138,7 +139,6 @@ export async function POST(
               band4: birdData.band4,
               birdName: birdData.name,
               color: birdData.color,
-              sex: birdData.sex,
               breederId,
             },
           });
@@ -150,105 +150,77 @@ export async function POST(
         }
 
         // Create EventInventoryItem
-        const eventInventoryItem = await tx.eventInventoryItem.create({
+        const item = await tx.eventInventoryItem.create({
           data: {
-            birdId: bird.birdId,
-            eventInventoryId: eventInventory.eventInventoryId,
+            birdId: bird.id,
+            eventInventoryId: eventInventory.id,
           },
         });
 
-        eventInventoryItems.push(eventInventoryItem);
+        inventoryItems.push({ birdId: item.birdId!, id: item.id });
       }
 
       // Add birds to any existing races for this event
       const existingRaces = await tx.race.findMany({
         where: { eventId },
-        select: { raceId: true },
+        select: { id: true },
       });
       if (existingRaces.length > 0) {
         const raceItemData = existingRaces.flatMap((race) =>
-          eventInventoryItems.map((item) => ({
-            raceId: race.raceId,
-            birdId: item.birdId,
-            eventInventoryItemId: item.eventInventoryItemId,
+          inventoryItems.map((item) => ({
+            raceId: race.id,
+            inventoryItemId: item.id,
           }))
         );
         await tx.raceItem.createMany({ data: raceItemData });
       }
 
-      // Create payments from request or auto-generate PENDING from fee scheme
-      const payments = [];
-      if (validatedData.payments.length > 0) {
-        for (const paymentData of validatedData.payments) {
-          const status = getPaymentStatus(paymentData.amountPaid, paymentData.amountToPay);
-          const payment = await tx.payments.create({
+      // Calculate fees and populate EventInventoryItem fee fields
+      if (event.feeScheme) {
+        const fees = calculateFees({
+          numBirds: validatedData.reservedBirds,
+          feeScheme: {
+            ...event.feeScheme,
+            birdFeeItems: event.feeScheme.birdFeeItems || [],
+            raceTypeFees: event.feeScheme.raceTypeFees || [],
+          },
+          races: event.races || [],
+        });
+
+        const raceFeePerBird = validatedData.reservedBirds > 0
+          ? fees.raceFees / validatedData.reservedBirds
+          : 0;
+
+        for (let i = 0; i < inventoryItems.length; i++) {
+          const birdBreakdown = fees.perBirdBreakdown[i];
+          await tx.eventInventoryItem.update({
+            where: { id: inventoryItems[i].id },
             data: {
-              eventInventoryId: eventInventory.eventInventoryId,
-              breederId,
-              amountPaid: paymentData.amountPaid,
-              amountToPay: paymentData.amountToPay,
-              currency: paymentData.currency,
-              method: paymentData.method,
-              status,
-              description: paymentData.description,
-              paymentType: paymentData.paymentType,
-              referenceNumber: paymentData.referenceNumber,
+              entryFeeValue: i === 0 ? fees.purgeFee : 0,
+              perchFeeValue: birdBreakdown?.perchFee ?? 0,
+              hotSpotFeeValue: birdBreakdown?.hotspotFee ?? 0,
+              raceFeeValue: raceFeePerBird,
             },
           });
-          payments.push(payment);
-        }
-      } else if (event.feeScheme) {
-        // Auto-create PENDING payment records from fee scheme
-        const feeScheme = event.feeScheme;
-
-        // Perch fee (one per registration)
-        if (feeScheme.perchFee > 0) {
-          const payment = await tx.payments.create({
-            data: {
-              eventInventoryId: eventInventory.eventInventoryId,
-              breederId,
-              amountToPay: feeScheme.perchFee,
-              amountPaid: 0,
-              currency: "USD",
-              method: "CASH",
-              status: "PENDING",
-              paymentType: "PERCH_FEE",
-              description: `Perch fee for ${validatedData.reservedBirds} birds`,
-            },
-          });
-          payments.push(payment);
         }
 
-        // Bird fee per bird position
-        for (let i = 0; i < validatedData.birds.length; i++) {
-          const birdFeeItem = feeScheme.birdFeeItems.find(
-            (item) => item.birdNo === i + 1
-          );
-          if (birdFeeItem && birdFeeItem.fee > 0) {
-            const birdData = validatedData.birds[i];
-            const band = `${birdData.band1}-${birdData.band2}-${birdData.band3}-${birdData.band4}`;
-            const payment = await tx.payments.create({
-              data: {
-                eventInventoryId: eventInventory.eventInventoryId,
-                breederId,
-                amountToPay: birdFeeItem.fee,
-                amountPaid: 0,
-                currency: "USD",
-                method: "CASH",
-                status: "PENDING",
-                paymentType: "BIRD_FEE",
-                description: `Bird fee for bird #${i + 1} (${band})`,
-              },
-            });
-            payments.push(payment);
-          }
-        }
+        // Create Payment record (PENDING - breeder pays later or via PayPal)
+        await tx.payment.create({
+          data: {
+            eventInventoryId: eventInventory.id,
+            breederId,
+            paymentValue: fees.total,
+            paymentDate: new Date(),
+            paymentTimestamp: new Date(),
+            paymentDesc: `Registration: ${validatedData.reservedBirds} birds`,
+            status: 0, // PENDING
+          },
+        });
       }
 
       return {
         eventInventory,
-        eventInventoryItems,
-        payments,
+        inventoryItems,
       };
     });
 

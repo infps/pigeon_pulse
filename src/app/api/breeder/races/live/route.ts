@@ -3,19 +3,18 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
   try {
+    // Live = startTime is set and not closed
     const liveRaces = await prisma.race.findMany({
       where: {
-        isLive: true,
-        isClosed: false,
+        startTime: { not: null },
+        NOT: { isClosed: 1 },
       },
       include: {
         event: {
           select: {
-            eventId: true,
+            id: true,
             name: true,
             shortName: true,
-            logoImage: true,
-            bannerImage: true,
             isOpen: true,
           },
         },
@@ -32,7 +31,7 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: {
-        releaseDate: "desc",
+        startTime: "desc",
       },
     });
 

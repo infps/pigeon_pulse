@@ -1,8 +1,11 @@
 import { auth } from "@/lib/auth";
+import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import z from "zod";
+
+const SEX_MAP: Record<string, number> = { COCK: 1, HEN: 2, UNKNOWN: 0 };
 
 const updateBirdSchema = z.object({
   name: z.string().min(1).optional(),
@@ -27,9 +30,12 @@ export async function PATCH(
     }
 
     const { birdId } = await params;
+    const birdIdInt = parseInt(birdId);
+
+    const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
 
     const existingBird = await prisma.bird.findUnique({
-      where: { birdId },
+      where: { id: birdIdInt },
     });
 
     if (!existingBird) {
@@ -39,7 +45,7 @@ export async function PATCH(
       );
     }
 
-    if (existingBird.breederId !== session.user.id) {
+    if (existingBird.breederId !== breeder.id) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
@@ -57,11 +63,11 @@ export async function PATCH(
       validatedData.band4;
 
     const bird = await prisma.bird.update({
-      where: { birdId },
+      where: { id: birdIdInt },
       data: {
         ...(validatedData.name && { birdName: validatedData.name }),
         ...(validatedData.color && { color: validatedData.color }),
-        ...(validatedData.sex && { sex: validatedData.sex }),
+        ...(validatedData.sex && { sex: SEX_MAP[validatedData.sex] ?? 0 }),
         ...(validatedData.band1 && { band1: validatedData.band1 }),
         ...(validatedData.band2 && { band2: validatedData.band2 }),
         ...(validatedData.band3 && { band3: validatedData.band3 }),

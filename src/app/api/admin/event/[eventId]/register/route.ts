@@ -1,47 +1,32 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getPaymentStatus } from "@/lib/utils";
+import { calculateFees } from "@/lib/fee-calculator";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import z from "zod";
 
-// Define the bird schema for registration
-const birdSchema = z.object({
-  name: z.string().min(1, "Bird name is required"),
-  color: z.string().min(1, "Bird color is required"),
-  sex: z.enum(["COCK", "HEN", "UNKNOWN"]),
-  band1: z.string().min(1, "Band 1 is required"),
-  band2: z.string().min(1, "Band 2 is required"),
-  band3: z.string().min(1, "Band 3 is required"),
-  band4: z.string().min(1, "Band 4 is required"),
-});
+// Define the bird schema — either existing bird by ID or new bird details
+const birdSchema = z.union([
+  z.object({ birdId: z.number().int().positive() }),
+  z.object({
+    name: z.string().min(1, "Bird name is required"),
+    color: z.string().min(1, "Bird color is required"),
+    sex: z.enum(["COCK", "HEN", "UNKNOWN"]),
+    band1: z.string().min(1, "Band 1 is required"),
+    band2: z.string().min(1, "Band 2 is required"),
+    band3: z.string().min(1, "Band 3 is required"),
+    band4: z.string().min(1, "Band 4 is required"),
+  }),
+]);
 
-// Define the payment schema
-const paymentSchema = z.object({
-  amountPaid: z.number().nonnegative("Amount paid must be non-negative"),
-  amountToPay: z.number().nonnegative("Amount to pay must be non-negative"),
-  currency: z.string().default("USD"),
-  method: z.enum(["CREDIT_CARD", "PAYPAL", "BANK_TRANSFER", "CASH"]),
-  description: z.string().optional(),
-  paymentType: z.enum(["PERCH_FEE", "BIRD_FEE", "RACES_FEE", "PAYOUTS", "OTHER"]),
-  referenceNumber: z.string().optional(),
-});
-
-// Define the registration schema
+// Birds array is optional — admin can register slots without specifying birds upfront
 const registrationSchema = z.object({
-  breederId: z.string().min(1, "Breeder ID is required"),
+  breederId: z.union([z.string(), z.number()]).transform(v => typeof v === 'string' ? parseInt(v) : v),
   loftName: z.string().min(1, "Loft name is required"),
   reservedBirds: z.number().int().positive("Reserved birds must be a positive integer"),
-  birds: z.array(birdSchema),
-  payments: z.array(paymentSchema).default([]),
+  birds: z.array(birdSchema).optional().default([]),
   note: z.string().optional(),
-}).refine(
-  (data) => data.birds.length === data.reservedBirds,
-  {
-    message: "Number of birds must equal reserved birds count",
-    path: ["birds"],
-  }
-);
+});
 
 export async function POST(
   request: Request,
@@ -59,17 +44,28 @@ export async function POST(
       );
     }
 
-    const { eventId } = await params;
-    
+    const { eventId: eventIdParam } = await params;
+    const eventId = parseInt(eventIdParam);
+    if (isNaN(eventId)) {
+      return NextResponse.json({ message: "Invalid event ID" }, { status: 400 });
+    }
+
     // Parse and validate request body
     const body = await request.json();
     const validatedData = registrationSchema.parse(body);
+    const breederId = validatedData.breederId;
 
     // Check if event exists and is open
     const event = await prisma.event.findUnique({
-      where: { eventId },
+      where: { id: eventId },
       include: {
-        feeScheme: true,
+        feeScheme: {
+          include: {
+            birdFeeItems: { orderBy: { birdNo: "asc" } },
+            raceTypeFees: true,
+          },
+        },
+        races: true,
       },
     });
 
@@ -88,8 +84,8 @@ export async function POST(
     }
 
     // Check if breeder exists
-    const breeder = await prisma.user.findUnique({
-      where: { id: validatedData.breederId },
+    const breeder = await prisma.breeder.findUnique({
+      where: { id: breederId },
     });
 
     if (!breeder) {
@@ -105,7 +101,7 @@ export async function POST(
       const eventInventory = await tx.eventInventory.create({
         data: {
           eventId,
-          breederId: validatedData.breederId,
+          breederId,
           loft: validatedData.loftName,
           reservedBirds: validatedData.reservedBirds,
           note: validatedData.note,
@@ -113,85 +109,116 @@ export async function POST(
       });
 
       // Create or find birds and add them to EventInventoryItems
-      const eventInventoryItems: { birdId: string; eventInventoryItemId: string }[] = [];
+      const inventoryItems: { birdId: number; id: number }[] = [];
       for (const birdData of validatedData.birds) {
-        // Create unique band identifier
-        const band = `${birdData.band1}-${birdData.band2}-${birdData.band3}-${birdData.band4}`;
+        let bird;
 
-        // Check if bird already exists
-        let bird = await tx.bird.findUnique({
-          where: { band },
-        });
+        if ("birdId" in birdData) {
+          // Use existing bird — verify it belongs to this breeder
+          bird = await tx.bird.findUnique({ where: { id: birdData.birdId } });
+          if (!bird || bird.breederId !== breederId) {
+            throw new Error(`Bird ${birdData.birdId} not found or does not belong to this breeder`);
+          }
+        } else {
+          // Create unique band identifier
+          const band = `${birdData.band1}-${birdData.band2}-${birdData.band3}-${birdData.band4}`;
 
-        // If bird doesn't exist, create it
-        if (!bird) {
-          bird = await tx.bird.create({
-            data: {
-              band,
-              band1: birdData.band1,
-              band2: birdData.band2,
-              band3: birdData.band3,
-              band4: birdData.band4,
-              birdName: birdData.name,
-              color: birdData.color,
-              sex: birdData.sex,
-              breederId: validatedData.breederId,
-            },
-          });
+          // Check if bird already exists by band
+          bird = await tx.bird.findFirst({ where: { band } });
+
+          // If bird doesn't exist, create it
+          if (!bird) {
+            bird = await tx.bird.create({
+              data: {
+                band,
+                band1: birdData.band1,
+                band2: birdData.band2,
+                band3: birdData.band3,
+                band4: birdData.band4,
+                birdName: birdData.name,
+                color: birdData.color,
+                sex: birdData.sex === "COCK" ? 1 : birdData.sex === "HEN" ? 2 : 0,
+                breederId,
+                isActive: 1,
+                isLost: 0,
+              },
+            });
+          }
         }
 
         // Create EventInventoryItem
-        const eventInventoryItem = await tx.eventInventoryItem.create({
+        const item = await tx.eventInventoryItem.create({
           data: {
-            birdId: bird.birdId,
-            eventInventoryId: eventInventory.eventInventoryId,
+            birdId: bird.id,
+            eventInventoryId: eventInventory.id,
           },
         });
 
-        eventInventoryItems.push(eventInventoryItem);
+        inventoryItems.push({ birdId: item.birdId!, id: item.id });
       }
 
       // Add birds to any existing races for this event
       const existingRaces = await tx.race.findMany({
         where: { eventId },
-        select: { raceId: true },
+        select: { id: true },
       });
       if (existingRaces.length > 0) {
         const raceItemData = existingRaces.flatMap((race) =>
-          eventInventoryItems.map((item) => ({
-            raceId: race.raceId,
-            birdId: item.birdId,
-            eventInventoryItemId: item.eventInventoryItemId,
+          inventoryItems.map((item) => ({
+            raceId: race.id,
+            inventoryItemId: item.id,
           }))
         );
         await tx.raceItem.createMany({ data: raceItemData });
       }
 
-      // Create payments
-      const payments = [];
-      for (const paymentData of validatedData.payments) {
-        const status = getPaymentStatus(paymentData.amountPaid, paymentData.amountToPay);
-        const payment = await tx.payments.create({
+      // Calculate fees and populate EventInventoryItem fee fields
+      if (event.feeScheme) {
+        const fees = calculateFees({
+          numBirds: validatedData.reservedBirds,
+          feeScheme: {
+            ...event.feeScheme,
+            birdFeeItems: event.feeScheme.birdFeeItems || [],
+            raceTypeFees: event.feeScheme.raceTypeFees || [],
+          },
+          races: event.races || [],
+        });
+
+        // Update each inventory item with per-bird fees
+        const raceFeePerBird = validatedData.reservedBirds > 0
+          ? fees.raceFees / validatedData.reservedBirds
+          : 0;
+
+        for (let i = 0; i < inventoryItems.length; i++) {
+          const birdBreakdown = fees.perBirdBreakdown[i];
+          await tx.eventInventoryItem.update({
+            where: { id: inventoryItems[i].id },
+            data: {
+              entryFeeValue: i === 0 ? fees.purgeFee : 0, // purge fee on first bird only
+              perchFeeValue: birdBreakdown?.perchFee ?? 0,
+              hotSpotFeeValue: birdBreakdown?.hotspotFee ?? 0,
+              raceFeeValue: raceFeePerBird,
+            },
+          });
+        }
+
+        // Create Payment record
+        await tx.payment.create({
           data: {
-            eventInventoryId: eventInventory.eventInventoryId,
-            breederId: validatedData.breederId,
-            amountPaid: paymentData.amountPaid,
-            amountToPay: paymentData.amountToPay,
-            currency: paymentData.currency,
-            method: paymentData.method,
-            status,
-            description: paymentData.description,
-            paymentType: paymentData.paymentType,
-            referenceNumber: paymentData.referenceNumber,
+            eventInventoryId: eventInventory.id,
+            breederId,
+            paymentValue: fees.total,
+            paymentDate: new Date(),
+            paymentTimestamp: new Date(),
+            paymentDesc: `Registration: ${validatedData.reservedBirds} birds`,
+            status: "PENDING",
           },
         });
-        payments.push(payment);
       }
 
       return {
         eventInventory,
-        eventInventoryItems,
-        payments,
+        inventoryItems,
       };
     });
 

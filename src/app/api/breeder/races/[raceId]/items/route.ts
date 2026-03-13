@@ -15,22 +15,30 @@ export async function GET(
       );
     }
 
+    const raceIdInt = parseInt(raceId);
+
     const raceItems = await prisma.raceItem.findMany({
-      where: { raceId },
+      where: { raceId: raceIdInt },
       include: {
-        bird: {
+        inventoryItem: {
           include: {
-            breeder: {
-              select: {
-                name: true,
+            bird: {
+              include: {
+                breeder: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
               },
             },
           },
         },
+        result: true,
       },
       orderBy: [
-        { birdPosition: "asc" },
-        { arrivalTime: "asc" },
+        { result: { birdPosition: "asc" } },
+        { result: { arrivalTime: "asc" } },
       ],
     });
 

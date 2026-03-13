@@ -5,7 +5,12 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
-  const { eventId } = await params;
+  const { eventId: eventIdParam } = await params;
+  const eventId = parseInt(eventIdParam);
+
+  if (isNaN(eventId)) {
+    return NextResponse.json({ message: "Invalid event ID" }, { status: 400 });
+  }
 
   try {
     const eventInventoryItems = await prisma.eventInventoryItem.findMany({
@@ -24,7 +29,7 @@ export async function GET(
       },
       orderBy: {
         eventInventory: {
-          registrationDate: "desc",
+          signInDate: "desc",
         },
       },
     });

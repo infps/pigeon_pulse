@@ -16,12 +16,11 @@ export function useListBreederEvents({
 export function useGetBreederEvent({
   eventId,
 }: {
-  eventId: string;
+  eventId: number | string;
 }) {
   return useApiQuery({
-    endpoint: apiEndpoints.breeder.eventDetails,
-    queryKey: ["breeder", "events", "detail", eventId],
-    params: { eventId },
+    endpoint: apiEndpoints.breeder.eventDetails(eventId),
+    queryKey: ["breeder", "events", "detail", String(eventId)],
   });
 }
 

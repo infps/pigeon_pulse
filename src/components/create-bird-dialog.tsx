@@ -21,8 +21,8 @@ const COLORS = [
 interface CreateBirdDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  eventInventoryId: string;
-  breederId: string;
+  eventInventoryId: number;
+  breederId: number;
   event: Event;
   onSuccess?: () => void;
 }
@@ -45,7 +45,7 @@ export function CreateBirdDialog({
   });
 
   const { data: racesData } = useListRaces({
-    params: { eventId: event.eventId },
+    params: { eventId: String(event.id) },
   });
   const races:Race[] = racesData?.races || [];
 
@@ -320,8 +320,8 @@ export function CreateBirdDialog({
                       </SelectTrigger>
                       <SelectContent>
                         {races.map((race) => (
-                          <SelectItem key={race.raceId} value={race.raceId}>
-                            {race.name}
+                          <SelectItem key={race.id} value={String(race.id)}>
+                            {race.description ?? `Race ${race.raceNumber}`}
                           </SelectItem>
                         ))}
                       </SelectContent>

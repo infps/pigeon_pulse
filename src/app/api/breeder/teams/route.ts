@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -6,7 +7,7 @@ import z from "zod";
 
 const createTeamSchema = z.object({
   name: z.string().min(1, "Team name is required"),
-  breederId: z.string().min(1, "Breeder ID is required"),
+  breederId: z.union([z.string(), z.number()]).transform(v => parseInt(String(v))),
 });
 
 const updateTeamSchema = z.object({
@@ -32,14 +33,17 @@ export async function GET(request: Request) {
         );
     }
 
+    const breederIdInt = parseInt(breederId);
+
     // Breeders can only view their own teams
-    if (session.user.id !== breederId) {
+    const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
+    if (!breeder || breeder.id !== breederIdInt) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
     const teams = await prisma.team.findMany({
         where:{
-            breederId: breederId
+            breederId: breederIdInt
         }
     })
 
@@ -65,20 +69,14 @@ export async function POST(request: Request) {
     const body = await request.json();
     const validatedData = createTeamSchema.parse(body);
 
-    if (!session || !session.user  || validatedData.breederId !== session.user.id) {
+    if (!session || !session.user) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
-    
-    // Check if breeder exists
-    const breeder = await prisma.user.findUnique({
-      where: { id: validatedData.breederId },
-    });
 
-    if (!breeder) {
-      return NextResponse.json(
-        { message: "Breeder not found" },
-        { status: 404 }
-      );
+    // Verify the breeder matches the logged-in user
+    const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
+    if (!breeder || breeder.id !== validatedData.breederId) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
     const newTeam = await prisma.team.create({
@@ -128,10 +126,11 @@ export async function PUT(request: Request) {
     }
 
     const validatedData = updateTeamSchema.parse(updateData);
+    const teamIdInt = parseInt(teamId);
 
     // Check if team exists and get its owner
     const existingTeam = await prisma.team.findUnique({
-      where: { id: teamId },
+      where: { id: teamIdInt },
     });
 
     if (!existingTeam) {
@@ -142,12 +141,13 @@ export async function PUT(request: Request) {
     }
 
     // Breeders can only update their own teams
-    if (session.user.id !== existingTeam.breederId) {
+    const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
+    if (!breeder || breeder.id !== existingTeam.breederId) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
     const updatedTeam = await prisma.team.update({
-      where: { id: teamId },
+      where: { id: teamIdInt },
       data: {
         ...(validatedData.name && { name: validatedData.name }),
       },
@@ -192,9 +192,11 @@ export async function DELETE(request: Request) {
       );
     }
 
+    const teamIdInt = parseInt(teamId);
+
     // Check if team exists and get its owner
     const existingTeam = await prisma.team.findUnique({
-      where: { id: teamId },
+      where: { id: teamIdInt },
     });
 
     if (!existingTeam) {
@@ -205,12 +207,13 @@ export async function DELETE(request: Request) {
     }
 
     // Breeders can only delete their own teams
-    if (session.user.id !== existingTeam.breederId) {
+    const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
+    if (!breeder || breeder.id !== existingTeam.breederId) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
     await prisma.team.delete({
-      where: { id: teamId },
+      where: { id: teamIdInt },
     });
 
     return NextResponse.json(

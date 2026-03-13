@@ -47,8 +47,8 @@ export function BasketTabs({ raceId }: BasketTabsProps) {
   }
 
   const baskets = (data?.baskets || []) as Basket[];
-  const loftBaskets = baskets.filter((b) => !b.isRaceBasket);
-  const raceBaskets = baskets.filter((b) => b.isRaceBasket);
+  const loftBaskets = baskets.filter((b) => b.isRaceBasket !== 1);
+  const raceBaskets = baskets.filter((b) => b.isRaceBasket === 1);
 
   const handleCreateBasket = async () => {
     if (!basketNo || !basketNo.trim()) {
@@ -123,7 +123,7 @@ export function BasketTabs({ raceId }: BasketTabsProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => handleDeleteBasket(basket.basketId, hasItems)}
+                onClick={() => handleDeleteBasket(String(basket.basketId ?? basket.id), hasItems)}
                 disabled={deleteBasketMutation.isPending}
                 className="text-red-500 hover:text-red-700"
               >

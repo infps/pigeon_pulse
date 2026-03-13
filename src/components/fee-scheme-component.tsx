@@ -20,8 +20,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Pencil, Trash2 } from "lucide-react";
-import type { FeeScheme, BirdFeeItem, RaceType } from "@/lib/types";
+import type { FeeScheme, RaceType } from "@/lib/types";
 
 export default function FeeSchemeComponent() {
   const [isOpen, setIsOpen] = useState(false);
@@ -29,9 +36,9 @@ export default function FeeSchemeComponent() {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    perchFee: 0,
+    entryFee: 0,
     isRefundable: false,
-    maxBirds: 0,
+    maxBirdCount: 0,
     feesCutPercent: 0,
     minEntryFees: 0,
     maxBackupBirdCount: 0,
@@ -40,8 +47,9 @@ export default function FeeSchemeComponent() {
     hotSpot2Fee: 0,
     hotSpot3Fee: 0,
     hotSpotFinalFee: 0,
-    birdFeeItems: [] as { birdNo: number; fee: number }[],
-    raceTypes: [] as { raceTypeId: string; fee: number }[],
+    raceFeeMode: "PER_BIRD_PER_RACE" as "PER_BIRD_PER_RACE" | "FLAT_PER_RACE",
+    birdFeeItems: [] as { birdNo: number; birdFee: number }[],
+    raceTypeFees: [] as { raceTypeId: number; fee: number }[],
   });
 
   const { data: feeSchemesData, isPending, isError } = useListFeeSchemes({});
@@ -53,23 +61,23 @@ export default function FeeSchemeComponent() {
   const updateMutation = useUpdateFeeScheme({});
   const deleteMutation = useDeleteFeeScheme({});
 
-  // Update perch fee items when maxBirds changes
+  // Update perch fee items when maxBirdCount changes
   useEffect(() => {
-    const newPerchFeeItems = Array.from({ length: formData.maxBirds }, (_, i) => {
+    const newPerchFeeItems = Array.from({ length: formData.maxBirdCount }, (_, i) => {
       const existing = formData.birdFeeItems[i];
-      return existing || { birdNo: i + 1, fee: 0 };
+      return existing || { birdNo: i + 1, birdFee: 0 };
     });
     setFormData((prev) => ({ ...prev, birdFeeItems: newPerchFeeItems }));
-  }, [formData.maxBirds]);
+  }, [formData.maxBirdCount]);
 
-  // Initialize race types when dialog opens
+  // Initialize race type fees when dialog opens
   useEffect(() => {
     if (isOpen && !editingId && raceTypes.length > 0) {
-      const initialRaceTypes = raceTypes.map((rt) => ({
+      const initialRaceTypeFees = raceTypes.map((rt) => ({
         raceTypeId: rt.id,
         fee: 0,
       }));
-      setFormData((prev) => ({ ...prev, raceTypes: initialRaceTypes }));
+      setFormData((prev) => ({ ...prev, raceTypeFees: initialRaceTypeFees }));
     }
   }, [isOpen, editingId, raceTypes]);
 
@@ -98,28 +106,35 @@ export default function FeeSchemeComponent() {
   };
 
   const handleEdit = (feeScheme: FeeScheme) => {
-    setEditingId(feeScheme.id);
+    setEditingId(String(feeScheme.id));
     setFormData({
-      name: feeScheme.name,
-      description: feeScheme.description || "",
-      perchFee: feeScheme.perchFee,
-      isRefundable: feeScheme.isRefundable,
-      maxBirds: feeScheme.maxBirds,
-      feesCutPercent: feeScheme.feesCutPercent,
+      name: feeScheme.name || "",
+      description: "",
+      entryFee: feeScheme.entryFee ?? 0,
+      isRefundable: !!feeScheme.isRefundable,
+      maxBirdCount: feeScheme.maxBirdCount ?? 0,
+      feesCutPercent: feeScheme.feesCutPercent ?? 0,
       minEntryFees: feeScheme.minEntryFees ?? 0,
       maxBackupBirdCount: feeScheme.maxBackupBirdCount ?? 0,
-      isFloatingBackup: feeScheme.isFloatingBackup ?? false,
+      isFloatingBackup: !!feeScheme.isFloatingBackup,
       hotSpot1Fee: feeScheme.hotSpot1Fee ?? 0,
       hotSpot2Fee: feeScheme.hotSpot2Fee ?? 0,
       hotSpot3Fee: feeScheme.hotSpot3Fee ?? 0,
       hotSpotFinalFee: feeScheme.hotSpotFinalFee ?? 0,
-      birdFeeItems: feeScheme.birdFeeItems || [],
-      raceTypes: feeScheme.raceTypes || [],
+      raceFeeMode: feeScheme.raceFeeMode ?? "PER_BIRD_PER_RACE",
+      birdFeeItems: (feeScheme.birdFeeItems || []).map((item) => ({
+        birdNo: item.birdNo ?? 0,
+        birdFee: item.birdFee ?? 0,
+      })),
+      raceTypeFees: (feeScheme.raceTypeFees || []).map((rt) => ({
+        raceTypeId: rt.raceTypeId,
+        fee: rt.fee,
+      })),
     });
     setIsOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     if (!confirm("Are you sure you want to delete this fee scheme?")) return;
 
     try {
@@ -137,9 +152,9 @@ export default function FeeSchemeComponent() {
     setFormData({
       name: "",
       description: "",
-      perchFee: 0,
+      entryFee: 0,
       isRefundable: false,
-      maxBirds: 0,
+      maxBirdCount: 0,
       feesCutPercent: 0,
       minEntryFees: 0,
       maxBackupBirdCount: 0,
@@ -148,8 +163,9 @@ export default function FeeSchemeComponent() {
       hotSpot2Fee: 0,
       hotSpot3Fee: 0,
       hotSpotFinalFee: 0,
+      raceFeeMode: "PER_BIRD_PER_RACE",
       birdFeeItems: [],
-      raceTypes: [],
+      raceTypeFees: [],
     });
   };
 
@@ -231,19 +247,19 @@ export default function FeeSchemeComponent() {
             {/* Entry Fee + Fees Cut Percent */}
             <div className="flex items-center space-x-4">
               <div className="w-full">
-                <Label htmlFor="perchFee">Entry Fee</Label>
+                <Label htmlFor="entryFee">Entry Fee</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
                     $
                   </span>
                   <Input
-                    id="perchFee"
+                    id="entryFee"
                     type="text"
-                    value={formData.perchFee}
+                    value={formData.entryFee}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        perchFee: parseFloat(e.target.value) || 0,
+                        entryFee: parseFloat(e.target.value) || 0,
                       })
                     }
                     className="pl-8"
@@ -338,15 +354,15 @@ export default function FeeSchemeComponent() {
             {/* Max Birds + Max Backup Birds */}
             <div className="flex space-x-4">
               <div className="w-full">
-                <Label htmlFor="maxBirds">Maximum number of birds</Label>
+                <Label htmlFor="maxBirdCount">Maximum number of birds</Label>
                 <Input
-                  id="maxBirds"
+                  id="maxBirdCount"
                   type="text"
-                  value={formData.maxBirds}
+                  value={formData.maxBirdCount}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      maxBirds: parseInt(e.target.value) || 0,
+                      maxBirdCount: parseInt(e.target.value) || 0,
                     })
                   }
                 />
@@ -368,24 +384,24 @@ export default function FeeSchemeComponent() {
               </div>
             </div>
 
-            {/* Perch Fees */}
-            {formData.maxBirds > 0 && (
+            {/* Per Bird Fees */}
+            {formData.maxBirdCount > 0 && (
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Perch Fees</h3>
+                <h3 className="text-lg font-semibold">Per Bird Fees</h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {formData.birdFeeItems.map((item, index) => (
                     <div key={index}>
-                      <Label>Bird {item.birdNo} - Perch Fee</Label>
+                      <Label>Bird {item.birdNo} - Per Bird Fee</Label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
                           $
                         </span>
                         <Input
                           type="text"
-                          value={item.fee}
+                          value={item.birdFee}
                           onChange={(e) => {
                             const newItems = [...formData.birdFeeItems];
-                            newItems[index].fee = parseFloat(e.target.value) || 0;
+                            newItems[index].birdFee = parseFloat(e.target.value) || 0;
                             setFormData({ ...formData, birdFeeItems: newItems });
                           }}
                           className="pl-8"
@@ -411,39 +427,63 @@ export default function FeeSchemeComponent() {
               </Label>
             </div>
 
-            {/* Race Type Fees (kept, not in reference) */}
+            {/* Race Fee Mode */}
+            <div>
+              <Label>Race Fee Mode</Label>
+              <Select
+                value={formData.raceFeeMode}
+                onValueChange={(value: "PER_BIRD_PER_RACE" | "FLAT_PER_RACE") =>
+                  setFormData({ ...formData, raceFeeMode: value })
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PER_BIRD_PER_RACE">Per Bird Per Race</SelectItem>
+                  <SelectItem value="FLAT_PER_RACE">Flat Per Race</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Race Type Fees */}
             {raceTypes.length > 0 && (
-              <div>
+              <div className="space-y-3">
                 <Label>Race Type Fees</Label>
-                <div className="space-y-2 mt-2 max-h-40 overflow-y-auto">
+                <div className="grid grid-cols-2 gap-4">
                   {raceTypes.map((raceType) => {
-                    const raceTypeFee = formData.raceTypes.find(
+                    const raceTypeFee = formData.raceTypeFees.find(
                       (rt) => rt.raceTypeId === raceType.id
                     );
                     return (
-                      <div key={raceType.id} className="flex gap-2 items-center">
-                        <Label className="w-40">{raceType.name}:</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={raceTypeFee?.fee || 0}
-                          onChange={(e) => {
-                            const newRaceTypes = [...formData.raceTypes];
-                            const existingIndex = newRaceTypes.findIndex(
-                              (rt) => rt.raceTypeId === raceType.id
-                            );
-                            if (existingIndex >= 0) {
-                              newRaceTypes[existingIndex].fee =
-                                parseFloat(e.target.value) || 0;
-                            } else {
-                              newRaceTypes.push({
-                                raceTypeId: raceType.id,
-                                fee: parseFloat(e.target.value) || 0,
-                              });
-                            }
-                            setFormData({ ...formData, raceTypes: newRaceTypes });
-                          }}
-                        />
+                      <div key={raceType.id}>
+                        <Label>{raceType.name}</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                            $
+                          </span>
+                          <Input
+                            type="text"
+                            value={raceTypeFee?.fee || 0}
+                            onChange={(e) => {
+                              const newRaceTypeFees = [...formData.raceTypeFees];
+                              const existingIndex = newRaceTypeFees.findIndex(
+                                (rt) => rt.raceTypeId === raceType.id
+                              );
+                              if (existingIndex >= 0) {
+                                newRaceTypeFees[existingIndex].fee =
+                                  parseFloat(e.target.value) || 0;
+                              } else {
+                                newRaceTypeFees.push({
+                                  raceTypeId: raceType.id,
+                                  fee: parseFloat(e.target.value) || 0,
+                                });
+                              }
+                              setFormData({ ...formData, raceTypeFees: newRaceTypeFees });
+                            }}
+                            className="pl-8"
+                          />
+                        </div>
                       </div>
                     );
                   })}

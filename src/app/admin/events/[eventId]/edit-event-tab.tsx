@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useUpdateEvent } from "@/lib/api/events";
+import { useListEventTypes } from "@/lib/api/event-types";
 import {
   Select,
   SelectContent,
@@ -19,7 +20,6 @@ import type { BettingScheme, Event, EventType, FeeScheme, PrizeScheme } from "@/
 interface EditEventTabProps {
   event: Event;
   eventId: string;
-  eventTypes: EventType[];
   feeSchemes: FeeScheme[];
   prizeSchemes: PrizeScheme[];
   bettingSchemes: BettingScheme[];
@@ -28,7 +28,6 @@ interface EditEventTabProps {
 export function EditEventTab({
   event,
   eventId,
-  eventTypes,
   feeSchemes,
   prizeSchemes,
   bettingSchemes,
@@ -36,16 +35,16 @@ export function EditEventTab({
   const [logoImageFile, setLogoImageFile] = useState<File | null>(null);
   const [bannerImageFile, setBannerImageFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
-    name: event.name,
+    name: event.name ?? "",
     shortName: event.shortName || "",
     description: event.description || "",
-    startDate: new Date(event.startDate).toISOString().split("T")[0],
+    eventDate: event.eventDate ? new Date(event.eventDate).toISOString().split("T")[0] : "",
     endDate: event.endDate ? new Date(event.endDate).toISOString().split("T")[0] : "",
-    isOpen: event.isOpen,
-    typeId: event.typeId,
-    feeSchemeId: event.feeSchemeId,
-    prizeSchemeId: event.prizeSchemeId,
-    bettingSchemeId: event.bettingSchemeId,
+    isOpen: event.isOpen ?? 1,
+    eventTypeId: event.eventTypeId?.toString() || "",
+    feeSchemeId: String(event.feeSchemeId ?? ""),
+    finalPrizeSchemeId: String(event.finalPrizeSchemeId ?? ""),
+    bettingSchemeId: String(event.bettingSchemeId ?? ""),
     contactName: event.contactName || "",
     contactEmail: event.contactEmail || "",
     contactPhone: event.contactPhone || "",
@@ -59,6 +58,8 @@ export function EditEventTab({
     bannerImage: event.bannerImage || null,
   });
 
+  const { data: eventTypesData } = useListEventTypes({});
+  const eventTypes: EventType[] = eventTypesData?.eventTypes || [];
   const updateMutation = useUpdateEvent({});
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,12 +70,12 @@ export function EditEventTab({
       return;
     }
 
-    if (!formData.startDate) {
-      toast.error("Start date is required");
+    if (!formData.eventDate) {
+      toast.error("Event date is required");
       return;
     }
 
-    if (!formData.typeId) {
+    if (!formData.eventTypeId) {
       toast.error("Event type is required");
       return;
     }
@@ -84,7 +85,7 @@ export function EditEventTab({
       return;
     }
 
-    if (!formData.prizeSchemeId) {
+    if (!formData.finalPrizeSchemeId) {
       toast.error("Prize scheme is required");
       return;
     }
@@ -112,7 +113,7 @@ export function EditEventTab({
         submitFormData.append('bannerImage', bannerImageFile);
       }
 
-      submitFormData.append('eventId', eventId);
+      submitFormData.append('id', eventId);
 
       if (!updateMutation.mutateAsync) return;
       await updateMutation.mutateAsync(submitFormData);
@@ -195,13 +196,13 @@ export function EditEventTab({
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="startDate">Start Date *</Label>
+          <Label htmlFor="eventDate">Event Date *</Label>
           <Input
-            id="startDate"
+            id="eventDate"
             type="date"
-            value={formData.startDate}
+            value={formData.eventDate}
             onChange={(e) =>
-              setFormData({ ...formData, startDate: e.target.value })
+              setFormData({ ...formData, eventDate: e.target.value })
             }
             required
           />
@@ -225,35 +226,35 @@ export function EditEventTab({
         <Select
           value={formData.isOpen.toString()}
           onValueChange={(value) =>
-            setFormData({ ...formData, isOpen: value === "true" })
+            setFormData({ ...formData, isOpen: parseInt(value) })
           }
         >
           <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="true">Open</SelectItem>
-            <SelectItem value="false">Closed</SelectItem>
+            <SelectItem value="1">Open</SelectItem>
+            <SelectItem value="0">Closed</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="typeId">Event Type *</Label>
+          <Label htmlFor="eventTypeId">Event Type *</Label>
           <Select
-            value={formData.typeId}
+            value={formData.eventTypeId}
             onValueChange={(value) =>
-              setFormData({ ...formData, typeId: value })
+              setFormData({ ...formData, eventTypeId: value })
             }
           >
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Select event type" />
             </SelectTrigger>
             <SelectContent>
-              {eventTypes.map((type) => (
-                <SelectItem key={type.eventTypeId} value={type.eventTypeId}>
-                  {type.name}
+              {eventTypes.map((et) => (
+                <SelectItem key={et.id} value={String(et.id)}>
+                  {et.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -273,7 +274,7 @@ export function EditEventTab({
             </SelectTrigger>
             <SelectContent>
               {feeSchemes.map((scheme) => (
-                <SelectItem key={scheme.id} value={scheme.id}>
+                <SelectItem key={scheme.id} value={String(scheme.id)}>
                   {scheme.name}
                 </SelectItem>
               ))}
@@ -284,11 +285,11 @@ export function EditEventTab({
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="prizeSchemeId">Prize Scheme *</Label>
+          <Label htmlFor="finalPrizeSchemeId">Prize Scheme *</Label>
           <Select
-            value={formData.prizeSchemeId}
+            value={formData.finalPrizeSchemeId}
             onValueChange={(value) =>
-              setFormData({ ...formData, prizeSchemeId: value })
+              setFormData({ ...formData, finalPrizeSchemeId: value })
             }
           >
             <SelectTrigger className="w-full">
@@ -296,7 +297,7 @@ export function EditEventTab({
             </SelectTrigger>
             <SelectContent>
               {prizeSchemes.map((scheme) => (
-                <SelectItem key={scheme.prizeSchemeId} value={scheme.prizeSchemeId}>
+                <SelectItem key={scheme.id} value={String(scheme.id)}>
                   {scheme.name}
                 </SelectItem>
               ))}
@@ -317,7 +318,7 @@ export function EditEventTab({
             </SelectTrigger>
             <SelectContent>
               {bettingSchemes.map((scheme) => (
-                <SelectItem key={scheme.bettingSchemeId} value={scheme.bettingSchemeId}>
+                <SelectItem key={scheme.id} value={String(scheme.id)}>
                   {scheme.name}
                 </SelectItem>
               ))}

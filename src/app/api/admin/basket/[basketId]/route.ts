@@ -16,15 +16,16 @@ export async function DELETE(
     }
 
     const { basketId } = await params;
+    const basketIdInt = parseInt(basketId);
 
     // Check if basket has any items
     const basket = await prisma.basket.findUnique({
-      where: { basketId },
+      where: { id: basketIdInt },
       include: {
         _count: {
           select: {
             raceItems: true,
-            loftItems: true,
+            distItems: true,
           },
         },
       },
@@ -34,7 +35,7 @@ export async function DELETE(
       return Response.json({ error: "Basket not found" }, { status: 404 });
     }
 
-    if (basket._count.raceItems > 0 || basket._count.loftItems > 0) {
+    if (basket._count.raceItems > 0 || basket._count.distItems > 0) {
       return Response.json(
         { error: "Cannot delete basket with items" },
         { status: 400 }
@@ -42,7 +43,7 @@ export async function DELETE(
     }
 
     await prisma.basket.delete({
-      where: { basketId },
+      where: { id: basketIdInt },
     });
 
     return Response.json({ success: true });

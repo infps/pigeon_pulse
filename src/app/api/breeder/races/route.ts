@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     // If raceId is provided, return single race
     if (raceId) {
       const race = await prisma.race.findUnique({
-        where: { raceId },
+        where: { id: parseInt(raceId) },
         include: {
           raceType: true,
           event: true,
@@ -30,7 +30,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const whereClause = eventId ? { eventId } : {};
+    const whereClause = eventId ? { eventId: parseInt(eventId) } : {};
 
     const races = await prisma.race.findMany({
       where: whereClause,
@@ -38,14 +38,14 @@ export async function GET(request: Request) {
         raceType: true,
         event: {
           select: {
-            eventId: true,
+            id: true,
             name: true,
             shortName: true,
           },
         },
       },
       orderBy: {
-        releaseDate: "desc",
+        startTime: "desc",
       },
     });
 

@@ -6,12 +6,17 @@ export async function GET(
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   try {
-    const { eventId } = await params;
+    const { eventId: eventIdParam } = await params;
+    const eventId = parseInt(eventIdParam);
+
+    if (isNaN(eventId)) {
+      return NextResponse.json({ error: "Invalid event ID" }, { status: 400 });
+    }
 
     const event = await prisma.event.findUnique({
-      where: { eventId },
+      where: { id: eventId },
       include: {
-        type: true,
+        eventType: true,
         feeScheme: {
           include: {
             birdFeeItems: {
@@ -19,40 +24,30 @@ export async function GET(
                 birdNo: "asc",
               },
             },
-            raceTypes: {
+            raceTypeFees: {
               include: {
                 raceType: true,
               },
             },
           },
         },
-        prizeScheme: {
+        finalPrize: {
           include: {
             prizeSchemeItems: {
-              include: {
-                raceType: true,
-              },
               orderBy: [
-                { raceTypeId: "asc" },
                 { fromPosition: "asc" },
               ],
             },
           },
         },
         bettingScheme: true,
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
+        createdBy: true,
         races: {
           include: {
             raceType: true,
           },
           orderBy: {
-            releaseDate: "asc",
+            startTime: "asc",
           },
         },
         _count: {

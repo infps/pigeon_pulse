@@ -52,16 +52,16 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
 
   const eventInventoryItems: EventInventoryItem[] =
     data?.eventInventoryItems || [];
-  console.log(eventInventoryItems)
   return (
     <div className="space-y-4">
       <DataTable 
         columns={columns} 
         data={eventInventoryItems}
         filterableColumns={[
-          { id: "band", title: "Bird Band" },
+          { id: "band", title: "Full Band" },
           { id: "birdName", title: "Bird Name" },
-          { id: "loft", title: "Loft" },
+          { id: "breeder", title: "Breeder" },
+          { id: "color", title: "Color" },
         ]}
       />
       
@@ -70,7 +70,7 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
         onOpenChange={setIsEditDialogOpen}
         eventInventoryItem={editingItem}
         event={event}
-        eventId={eventId}
+        eventId={parseInt(eventId)}
         onSuccess={handleEditSuccess}
       />
     </div>

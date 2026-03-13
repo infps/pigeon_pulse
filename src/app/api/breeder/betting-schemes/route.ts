@@ -8,6 +8,9 @@ export async function GET() {
         name: "asc",
       },
       include: {
+        standardShowPercentages: {
+          orderBy: { place: "asc" },
+        },
         createdBy: {
           select: {
             id: true,

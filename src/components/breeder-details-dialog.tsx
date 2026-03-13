@@ -17,7 +17,7 @@ import { CreateBirdDialog } from "./create-bird-dialog";
 interface BreederDetailsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  eventInventoryId: string | null;
+  eventInventoryId: number | null;
   event: Event;
 }
 
@@ -41,7 +41,7 @@ export function BreederDetailsDialog({
   const [referenceNumber, setReferenceNumber] = useState("");
 
   // All hooks must be called before any conditional returns
-  const { data, isPending, error,refetch } = useGetEventInventory(eventInventoryId || "");
+  const { data, isPending, error,refetch } = useGetEventInventory(eventInventoryId ? String(eventInventoryId) : "");
   const createPaymentMutation = useCreatePayment({
     onSuccess: () => {
       toast.success("Payment added successfully");
@@ -92,7 +92,7 @@ export function BreederDetailsDialog({
       // Update existing payment
       if(!updatePaymentMutation.mutateAsync) return;
       await updatePaymentMutation.mutateAsync({
-        paymentId: editingPayment.paymentId,
+        paymentId: editingPayment.id,
         amountPaid: amount,
         amountToPay: amount,
         currency: "USD",
@@ -105,7 +105,7 @@ export function BreederDetailsDialog({
       // Create new payment
       if(!createPaymentMutation.mutateAsync) return;
       await createPaymentMutation.mutateAsync({
-          eventInventoryId: eventInventory.eventInventoryId,
+          eventInventoryId: eventInventory.id,
           breederId: eventInventory.breederId,
           amountPaid: amount,
           amountToPay: amount,
@@ -128,7 +128,7 @@ export function BreederDetailsDialog({
     setIsAddPaymentOpen(true);
   };
 
-  const handleDeletePayment = async (paymentId: string) => {
+  const handleDeletePayment = async (paymentId: number) => {
     if (!confirm("Are you sure you want to delete this payment?")) return;
     if(!deletePaymentMutation.mutateAsync) return;
     await deletePaymentMutation.mutateAsync({ paymentId });
@@ -186,9 +186,7 @@ export function BreederDetailsDialog({
     );
   }
 
-  const totalAmountToPay = eventInventory?.payments?.reduce((sum, p) => sum + p.amountToPay, 0) ?? 0;
-  const totalAmountPaid = eventInventory?.payments?.reduce((sum, p) => sum + p.amountPaid, 0) ?? 0;
-  const amountLeft = totalAmountToPay - totalAmountPaid;
+  const totalPaid = eventInventory?.payments?.reduce((sum, p) => sum + (p.paymentValue ?? 0), 0) ?? 0;
 
   return (
     <>
@@ -204,23 +202,45 @@ export function BreederDetailsDialog({
               <div>
                 <p className="text-sm text-muted-foreground">Breeder Name</p>
                 <p className="font-semibold">
-                  {eventInventory?.breeder?.name} {eventInventory?.breeder?.lastName || ""}
+                  {eventInventory?.breeder?.firstName} {eventInventory?.breeder?.lastName || ""}
                 </p>
               </div>
               <div>
+                <p className="text-sm text-muted-foreground">Email</p>
+                <p className="font-semibold">{eventInventory?.breeder?.email || "-"}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Phone</p>
+                <p className="font-semibold">{eventInventory?.breeder?.phone || "-"}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Country</p>
+                <p className="font-semibold">{eventInventory?.breeder?.country || "-"}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">State</p>
+                <p className="font-semibold">{eventInventory?.breeder?.state1 || "-"}</p>
+              </div>
+              <div>
                 <p className="text-sm text-muted-foreground">Loft Name</p>
-                <p className="font-semibold">{eventInventory.loft}</p>
+                <p className="font-semibold">{eventInventory.loft || "-"}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Reserved Birds</p>
                 <p className="font-semibold">{eventInventory.reservedBirds}</p>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Registration Date</p>
+                <p className="text-sm text-muted-foreground">Sign In Date</p>
                 <p className="font-semibold">
-                  {new Date(eventInventory.registrationDate).toLocaleDateString()}
+                  {eventInventory.signInDate ? new Date(eventInventory.signInDate).toLocaleDateString() : "-"}
                 </p>
               </div>
+              {eventInventory.note && (
+                <div className="col-span-2 md:col-span-4">
+                  <p className="text-sm text-muted-foreground">Note</p>
+                  <p className="font-semibold">{eventInventory.note}</p>
+                </div>
+              )}
             </div>
 
             {/* Payments and Summary Side by Side */}
@@ -331,35 +351,31 @@ export function BreederDetailsDialog({
                         <th className="px-4 py-2 text-left text-sm font-medium">Date</th>
                         <th className="px-4 py-2 text-left text-sm font-medium">Type</th>
                         <th className="px-4 py-2 text-left text-sm font-medium">Method</th>
-                        <th className="px-4 py-2 text-right text-sm font-medium">Amount To Pay</th>
-                        <th className="px-4 py-2 text-right text-sm font-medium">Amount Paid</th>
+                        <th className="px-4 py-2 text-right text-sm font-medium">Amount</th>
                         <th className="px-4 py-2 text-center text-sm font-medium">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
                       {eventInventory?.payments?.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                          <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
                             No payments found
                           </td>
                         </tr>
                       ) : (
                         eventInventory?.payments?.map((payment) => (
-                          <tr key={payment.paymentId}>
+                          <tr key={payment.id}>
                             <td className="px-4 py-2 text-sm">
-                              {new Date(payment.paidAt).toLocaleDateString()}
+                              {payment.paymentDate ? new Date(payment.paymentDate).toLocaleDateString() : "-"}
                             </td>
                             <td className="px-4 py-2 text-sm">
-                              {payment.paymentType.replace(/_/g, " ")}
+                              {payment.paymentType ?? "-"}
                             </td>
                             <td className="px-4 py-2 text-sm">
-                              {payment.method.replace(/_/g, " ")}
+                              {payment.paymentMethod ?? "-"}
                             </td>
                             <td className="px-4 py-2 text-sm text-right">
-                              ${payment.amountToPay.toFixed(2)}
-                            </td>
-                            <td className="px-4 py-2 text-sm text-right">
-                              ${payment.amountPaid.toFixed(2)}
+                              ${(payment.paymentValue ?? 0).toFixed(2)}
                             </td>
                             <td className="px-4 py-2 text-center">
                               <div className="flex items-center justify-center gap-2">
@@ -374,7 +390,7 @@ export function BreederDetailsDialog({
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  onClick={() => handleDeletePayment(payment.paymentId)}
+                                  onClick={() => handleDeletePayment(payment.id)}
                                   disabled={deletePaymentMutation.isPending}
                                 >
                                   <Trash2 className="h-4 w-4 text-red-500" />
@@ -394,18 +410,8 @@ export function BreederDetailsDialog({
                 <h3 className="font-semibold text-lg">Payment Summary</h3>
                 <div className="border rounded-lg p-4 space-y-3 bg-transparent border-border">
                   <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Total To Pay:</span>
-                    <span className="font-semibold">${totalAmountToPay.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Total Paid:</span>
-                    <span className="font-semibold text-green-600">${totalAmountPaid.toFixed(2)}</span>
-                  </div>
-                  <div className="border-t pt-3 flex justify-between">
-                    <span className="font-semibold">Amount Left:</span>
-                    <span className={`font-bold ${amountLeft > 0 ? "text-red-600" : "text-green-600"}`}>
-                      ${amountLeft.toFixed(2)}
-                    </span>
+                    <span className="font-semibold text-green-600">${totalPaid.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -414,7 +420,7 @@ export function BreederDetailsDialog({
             {/* Birds Table */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-lg">Birds ({eventInventory?.eventInventoryItems?.length || 0})</h3>
+                <h3 className="font-semibold text-lg">Birds ({eventInventory?.items?.length || 0})</h3>
                 <Button
                   size="sm"
                   onClick={handleCreateBird}
@@ -432,20 +438,24 @@ export function BreederDetailsDialog({
                       <th className="px-4 py-2 text-left text-sm font-medium">Name</th>
                       <th className="px-4 py-2 text-left text-sm font-medium">Color</th>
                       <th className="px-4 py-2 text-left text-sm font-medium">Sex</th>
+                      <th className="px-4 py-2 text-right text-sm font-medium">Entry Fee</th>
+                      <th className="px-4 py-2 text-right text-sm font-medium">Per Bird Fee</th>
+                      <th className="px-4 py-2 text-right text-sm font-medium">Race Fee</th>
+                      <th className="px-4 py-2 text-right text-sm font-medium">Hotspot Fee</th>
                       <th className="px-4 py-2 text-center text-sm font-medium">Backup</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {eventInventory?.eventInventoryItems?.length === 0 ? (
+                    {eventInventory?.items?.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                        <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
                           No birds found
                         </td>
                       </tr>
                     ) : (
-                      eventInventory?.eventInventoryItems?.map((item) => (
+                      eventInventory?.items?.map((item) => (
                         <tr
-                          key={item.eventInventoryItemId}
+                          key={item.id}
                           className="hover:bg-primary/10 cursor-pointer"
                           onClick={() => handleBirdClick(item)}
                         >
@@ -454,6 +464,10 @@ export function BreederDetailsDialog({
                           <td className="px-4 py-2 text-sm">{item?.bird?.birdName}</td>
                           <td className="px-4 py-2 text-sm">{item?.bird?.color}</td>
                           <td className="px-4 py-2 text-sm">{item?.bird?.sex}</td>
+                          <td className="px-4 py-2 text-sm text-right">${(item.entryFeeValue ?? 0).toFixed(2)}</td>
+                          <td className="px-4 py-2 text-sm text-right">${(item.perchFeeValue ?? 0).toFixed(2)}</td>
+                          <td className="px-4 py-2 text-sm text-right">${(item.raceFeeValue ?? 0).toFixed(2)}</td>
+                          <td className="px-4 py-2 text-sm text-right">${(item.hotSpotFeeValue ?? 0).toFixed(2)}</td>
                           <td className="px-4 py-2 text-center text-sm">
                             {item.isBackup ? "✓" : "-"}
                           </td>
@@ -474,7 +488,7 @@ export function BreederDetailsDialog({
         onOpenChange={setIsBirdDialogOpen}
         eventInventoryItem={editingBird}
         event={event}
-        eventId={event.eventId}
+        eventId={event.id}
         onSuccess={handleBirdEditSuccess}
       />
 
@@ -483,7 +497,7 @@ export function BreederDetailsDialog({
         open={isBirdDialogOpen && isCreateBirdMode}
         onOpenChange={setIsBirdDialogOpen}
         eventInventoryId={eventInventoryId!}
-        breederId={eventInventory.breederId}
+        breederId={eventInventory.breederId ?? 0}
         event={event}
         onSuccess={() => {
           handleBirdEditSuccess();

@@ -13,7 +13,7 @@ export async function GET() {
             birdNo: "asc",
           },
         },
-        raceTypes: {
+        raceTypeFees: {
           include: {
             raceType: true,
           },

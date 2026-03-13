@@ -9,13 +9,7 @@ export async function GET() {
       },
       include: {
         prizeSchemeItems: {
-          include: {
-            raceType: true,
-          },
           orderBy: [
-            {
-              raceTypeId: "asc",
-            },
             {
               fromPosition: "asc",
             },

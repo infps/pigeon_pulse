@@ -24,13 +24,14 @@ export async function POST(
     }
 
     const { raceId } = await params;
+    const raceIdInt = parseInt(raceId);
     const body = await request.json();
 
     const validatedData = scanSchema.parse(body);
     const { ringNo, timestamp } = validatedData;
 
     const race = await prisma.race.findUnique({
-      where: { raceId },
+      where: { id: raceIdInt },
     });
 
     if (!race) {
@@ -40,7 +41,7 @@ export async function POST(
       );
     }
 
-    // Find the bird by ring number or rfid
+    // Find the bird by band or rfid
     const bird = await prisma.bird.findFirst({
       where: {
         OR: [
@@ -57,11 +58,13 @@ export async function POST(
       );
     }
 
-    // Find the race item for this bird in this race
+    // Find the race item for this bird in this race (through inventoryItem)
     const raceItem = await prisma.raceItem.findFirst({
       where: {
-        raceId,
-        birdId: bird.birdId,
+        raceId: raceIdInt,
+        inventoryItem: {
+          birdId: bird.id,
+        },
       },
     });
 
@@ -72,13 +75,16 @@ export async function POST(
       );
     }
 
-    // Pre-race scan (loft basketing)
-    if (!race.isLive) {
-      if (raceItem.status === "LOFT_BASKETED") {
+    // Determine if race is live: startTime is set and not closed
+    const isLive = race.startTime !== null && race.isClosed !== 1;
+
+    // Pre-race scan (dist basketing)
+    if (!isLive) {
+      if (raceItem.isDistBasketed === 1) {
         return NextResponse.json(
           {
             raceItem,
-            message: "Bird already in loft basket",
+            message: "Bird already in dist basket",
             isNewScan: false,
             scanType: "loft",
           },
@@ -87,18 +93,22 @@ export async function POST(
       }
 
       const updatedRaceItem = await prisma.raceItem.update({
-        where: { raceItemId: raceItem.raceItemId },
+        where: { id: raceItem.id },
         data: {
-          status: "LOFT_BASKETED",
-          isLoftBasketed: true,
+          isDistBasketed: 1,
         },
         include: {
-          bird: {
+          inventoryItem: {
             include: {
-              breeder: {
-                select: {
-                  name: true,
-                  email: true,
+              bird: {
+                include: {
+                  breeder: {
+                    select: {
+                      firstName: true,
+                      lastName: true,
+                      email: true,
+                    },
+                  },
                 },
               },
             },
@@ -109,7 +119,7 @@ export async function POST(
       return NextResponse.json(
         {
           raceItem: updatedRaceItem,
-          message: "Bird added to loft basket",
+          message: "Bird added to dist basket",
           isNewScan: true,
           scanType: "loft",
         },
@@ -129,7 +139,7 @@ export async function POST(
     );
 
     // Already scanned post-race
-    if (raceItem.status === "RACE_BASKETED") {
+    if (raceItem.raceBasketId !== null) {
       return NextResponse.json(
         {
           raceItem,
@@ -144,32 +154,47 @@ export async function POST(
     // Calculate position
     const arrivedCount = await prisma.raceItem.count({
       where: {
-        raceId,
-        status: "RACE_BASKETED",
+        raceId: raceIdInt,
+        raceBasketId: { not: null },
       },
     });
     const birdPosition = arrivedCount + 1;
 
     const updatedRaceItem = await prisma.raceItem.update({
-      where: { raceItemId: raceItem.raceItemId },
+      where: { id: raceItem.id },
       data: {
-        status: "RACE_BASKETED",
-        isRaceBasketed: true,
-        raceBasketedAt: arrivalTime,
-        arrivalTime,
-        birdPosition,
+        raceBasketTime: arrivalTime,
       },
       include: {
-        bird: {
+        inventoryItem: {
           include: {
-            breeder: {
-              select: {
-                name: true,
-                email: true,
+            bird: {
+              include: {
+                breeder: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                  },
+                },
               },
             },
           },
         },
+      },
+    });
+
+    // Upsert race item result for arrival
+    await prisma.raceItemResult.upsert({
+      where: { raceItemId: raceItem.id },
+      create: {
+        raceItemId: raceItem.id,
+        arrivalTime,
+        birdPosition,
+      },
+      update: {
+        arrivalTime,
+        birdPosition,
       },
     });
 

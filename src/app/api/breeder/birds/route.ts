@@ -1,8 +1,12 @@
 import { auth } from "@/lib/auth";
+import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import z from "zod";
+
+// Sex mapping: COCK=1, HEN=2, UNKNOWN=0
+const SEX_MAP: Record<string, number> = { COCK: 1, HEN: 2, UNKNOWN: 0 };
 
 const createBirdSchema = z.object({
   name: z.string().min(1, "Bird name is required"),
@@ -23,8 +27,10 @@ export async function GET() {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
+    const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
+
     const birds = await prisma.bird.findMany({
-      where: { breederId: session.user.id },
+      where: { breederId: breeder.id },
       orderBy: { birdName: "asc" },
     });
 
@@ -50,6 +56,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
+    const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
+
     const body = await request.json();
     const validatedData = createBirdSchema.parse(body);
 
@@ -64,8 +72,10 @@ export async function POST(request: Request) {
         band4: validatedData.band4,
         birdName: validatedData.name,
         color: validatedData.color,
-        sex: validatedData.sex,
-        breederId: session.user.id,
+        sex: SEX_MAP[validatedData.sex] ?? 0,
+        breederId: breeder.id,
+        isActive: 1,
+        isLost: 0,
       },
     });
 

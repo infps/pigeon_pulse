@@ -17,19 +17,18 @@ interface EventWithRaces extends Event {
 }
 
 interface RaceWithEvent {
-  raceId: string;
+  id: number;
   name: string;
-  releaseStation: string;
-  releaseDate: string;
-  isLive: boolean;
-  isClosed: boolean;
+  location: string;
+  startTime: string;
+  isClosed: number;
   event: {
-    eventId: string;
+    id: number;
     name: string;
     shortName: string | null;
     logoImage: string | null;
     bannerImage: string | null;
-    isOpen: boolean;
+    isOpen: number;
   };
   _count: {
     raceItems: number;
@@ -63,23 +62,23 @@ export default function Home() {
         <h2 className="text-2xl font-bold mb-4">All Events</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {events.map((event) => {
-            const liveRacesCount = event.races.filter((r) => r.isLive && !r.isClosed).length;
+            const liveRacesCount = event.races.filter((r) => r.startTime && !r.isClosed).length;
             
             return (
-              <Card key={event.eventId} className="overflow-hidden hover:shadow-lg transition-shadow">
+              <Card key={event.id} className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col">
                 {/* Banner Image */}
                 <div className="relative h-48 bg-linear-to-br from-blue-500 to-purple-500">
                   {event.bannerImage ? (
                     <Image
                       src={event.bannerImage}
-                      alt={event.name}
+                      alt={event.name ?? ""}
                       fill
                       className="object-cover"
                     />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <span className="text-4xl font-bold text-white opacity-50">
-                        {event.name.substring(0, 2).toUpperCase()}
+                        {(event.name ?? "").substring(0, 2).toUpperCase()}
                       </span>
                     </div>
                   )}
@@ -87,6 +86,7 @@ export default function Home() {
                   <div className="absolute top-2 right-2">
                     <Badge variant={event.isOpen ? "default" : "secondary"}>
                       {event.isOpen ? "Open" : "Closed"}
+
                     </Badge>
                   </div>
                   {/* Live Indicator */}
@@ -100,37 +100,34 @@ export default function Home() {
                   )}
                 </div>
 
-                <CardHeader>
-                  <div className="flex items-start gap-3">
-                    {/* Logo */}
+                <CardContent className="flex flex-col justify-between flex-1 pt-4">
+                  {/* Top: title + short name */}
+                  <div className="flex items-start gap-3 mb-4">
                     {event.logoImage && (
                       <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-md shrink-0">
                         <Image
                           src={event.logoImage}
-                          alt={event.name}
+                          alt={event.name ?? ""}
                           fill
                           className="object-cover"
                         />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <CardTitle className="line-clamp-2">{event.name}</CardTitle>
+                      <p className="text-lg font-semibold leading-tight line-clamp-2">{event.name}</p>
                       {event.shortName && (
                         <p className="text-sm text-muted-foreground mt-1">{event.shortName}</p>
                       )}
                     </div>
                   </div>
-                </CardHeader>
 
-                <CardContent>
+                  {/* Bottom: date, races, button */}
                   <div className="space-y-3">
-                    {/* Event Info */}
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 text-sm">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
                         <span>
-                          {new Date(event.startDate).toLocaleDateString()}
-                          {event.endDate && ` - ${new Date(event.endDate).toLocaleDateString()}`}
+                          {event.eventDate ? new Date(event.eventDate).toLocaleDateString() : "TBD"}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
@@ -138,17 +135,13 @@ export default function Home() {
                         <span>{event._count.races} Races</span>
                       </div>
                     </div>
-
-                    {/* Description */}
                     {event.description && (
                       <p className="text-sm text-muted-foreground line-clamp-2">
                         {event.description}
                       </p>
                     )}
-
-                    {/* Action Button */}
                     <Link
-                      href={`/events/${event.eventId}`}
+                      href={`/events/${event.id}`}
                       className="inline-block w-full text-center bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"
                     >
                       View Details
@@ -177,7 +170,7 @@ export default function Home() {
           
           <div className="space-y-3">
             {liveRaces.map((race) => (
-              <Link key={race.raceId} href={`/races/${race.raceId}`}>
+              <Link key={race.id} href={`/races/${race.id}`}>
                 <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                   <CardContent className="p-4">
                     <div className="flex items-center gap-4">
@@ -212,7 +205,7 @@ export default function Home() {
                         <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <MapPin className="h-4 w-4" />
-                            <span>{race.releaseStation}</span>
+                            <span>{race.location}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <Trophy className="h-4 w-4" />
@@ -220,7 +213,7 @@ export default function Home() {
                           </div>
                           <div className="flex items-center gap-1">
                             <Calendar className="h-4 w-4" />
-                            <span>{new Date(race.releaseDate).toLocaleDateString()}</span>
+                            <span>{race.startTime ? new Date(race.startTime).toLocaleDateString() : "TBD"}</span>
                           </div>
                         </div>
                       </div>

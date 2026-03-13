@@ -10,33 +10,32 @@ export async function GET(req: NextRequest) {
 
     // Filter by open/closed status if specified
     if (isOpen !== null) {
-      whereClause.isOpen = isOpen === "true";
+      whereClause.isOpen = isOpen === "true" ? 1 : 0;
     }
 
     const events = await prisma.event.findMany({
       where: whereClause,
       include: {
-        type: true,
-        feeScheme: true,
-        prizeScheme: true,
-        bettingScheme: true,
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+        eventType: true,
+        feeScheme: {
+          include: {
+            birdFeeItems: { orderBy: { birdNo: "asc" as const } },
+            raceTypeFees: true,
           },
         },
+        finalPrize: true,
+        bettingScheme: true,
+        createdBy: true,
         races: {
           select: {
-            raceId: true,
-            name: true,
-            isLive: true,
+            id: true,
+            description: true,
             isClosed: true,
-            releaseDate: true,
+            startTime: true,
+            raceTypeId: true,
           },
           orderBy: {
-            releaseDate: "asc",
+            startTime: "asc",
           },
         },
         _count: {
@@ -47,7 +46,7 @@ export async function GET(req: NextRequest) {
         },
       },
       orderBy: {
-        startDate: "desc",
+        eventDate: "desc",
       },
     });
 

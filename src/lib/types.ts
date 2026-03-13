@@ -1,6 +1,10 @@
-import { PaymentMethod, PaymentType, BirdSex, UserStatus, UserRole } from "@/generated/prisma/enums";
+import { UserStatus, UserRole } from "@/generated/prisma/enums";
 
-export { PaymentMethod, PaymentType, BirdSex, UserStatus, UserRole };
+export { UserStatus, UserRole };
+
+// ============================================================
+// AUTH
+// ============================================================
 
 export interface User {
   id: string;
@@ -29,162 +33,197 @@ export interface User {
   taxNumber: string | null;
 }
 
+// ============================================================
+// LEGACY PEOPLE
+// ============================================================
+
+export interface Breeder {
+  id: number;
+  userId: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  phone: string | null;
+  cell: string | null;
+  country: string | null;
+  address1: string | null;
+  city1: string | null;
+  state1: string | null;
+  zip1: string | null;
+  webAddress: string | null;
+  ssn: string | null;
+  taxNumber: string | null;
+  loginName: string | null;
+  note: string | null;
+  number: number | null;
+  status: number | null;
+  statusDate: string | null;
+  pictureId: number | null;
+  // UI compat aliases
+  name?: string | null;
+  image?: string | null;
+  state?: string | null;
+}
+
+export interface OrganizerData {
+  id: number;
+  name: string | null;
+  email: string;
+  phone: string | null;
+  cell: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+  web: string | null;
+  note: string | null;
+  password: string | null;
+}
+
+// ============================================================
+// SCHEMES
+// ============================================================
+
 export interface RaceType {
-  id: string;
-  name: string;
-  isPaid: boolean;
-  createdAt: string;
-  updatedAt: string;
+  id: number;
+  name: string | null;
+  numberGroupId: number | null;
 }
 
 export interface FeeScheme {
-  id: string;
-  name: string;
-  description: string | null;
-  perchFee: number;
-  isRefundable: boolean;
-  maxBirds: number;
-  feesCutPercent: number;
-  minEntryFees: number;
-  maxBackupBirdCount: number;
-  isFloatingBackup: boolean;
-  hotSpot1Fee: number;
-  hotSpot2Fee: number;
-  hotSpot3Fee: number;
-  hotSpotFinalFee: number;
-  createdAt: string;
-  updatedAt: string;
-  createdById: string;
+  id: number;
+  name: string | null;
+  entryFee: number | null;
+  isRefundable: number | null;
+  maxBirdCount: number | null;
+  feesCutPercent: number | null;
+  minEntryFees: number | null;
+  maxBackupBirdCount: number | null;
+  isFloatingBackup: number | null;
+  hotSpot1Fee: number | null;
+  hotSpot2Fee: number | null;
+  hotSpot3Fee: number | null;
+  hotSpotFinalFee: number | null;
+  raceFeeMode: "PER_BIRD_PER_RACE" | "FLAT_PER_RACE";
+  createdById: number | null;
+  createdBy?: OrganizerData;
   birdFeeItems?: BirdFeeItem[];
-  raceTypes?: RaceTypeFeeScheme[];
+  raceTypeFees?: RaceTypeFeeScheme[];
   events?: Event[];
-  createdBy?: User;
+  // UI compat aliases
+  maxBirds?: number | null;
+  birdFee?: number | null;
 }
 
 export interface BirdFeeItem {
-  feeSchemeId: string;
-  birdNo: number; 
-  fee: number;
+  id: number;
+  birdNo: number | null;
+  feeSchemeId: number | null;
+  birdFee: number | null;
   feeScheme?: FeeScheme;
+  // UI compat aliases
+  fee?: number | null;
 }
 
 export interface RaceTypeFeeScheme {
-  feeSchemeId: string;
-  raceTypeId: string;
+  feeSchemeId: number;
+  raceTypeId: number;
   fee: number;
   raceType?: RaceType;
   feeScheme?: FeeScheme;
 }
 
 export interface PrizeScheme {
-  prizeSchemeId: string;
-  name: string;
-  description: string | null;
-  createdAt: string;
-  updatedAt: string;
-  createdById: string;
-  createdBy?: User;
-  events?: Event[];
+  id: number;
+  name: string | null;
+  createdById: number | null;
+  createdBy?: OrganizerData;
   prizeSchemeItems?: PrizeSchemeItem[];
+  // UI compat aliases
+  prizeSchemeId?: number;
 }
 
 export interface PrizeSchemeItem {
-  prizeSchemeId: string;
-  raceTypeId: string;
-  fromPosition: number;
-  toPosition: number;
-  prizeAmount: number;
+  id: number;
+  prizeSchemeId: number | null;
+  fromPosition: number | null;
+  toPosition: number | null;
+  prizeValue: number | null;
   prizeScheme?: PrizeScheme;
-  raceType?: RaceType;
 }
 
 export interface BettingScheme {
-  bettingSchemeId: string;
-  name: string;
-  description: string | null;
-  createdAt: string;
-  updatedAt: string;
-  bettingCutPercent: number;
-  belgianShow1: number;
-  belgianShow2: number;
-  belgianShow3: number;
-  belgianShow4: number;
-  belgianShow5: number;
-  belgianShow6: number;
-  belgianShow7: number;
-  standardShow1: number;
-  standardShow2: number;
-  standardShow3: number;
-  standardShow4: number;
-  standardShow5: number;
-  standardShow6: number;
-  wta1: number;
-  wta2: number;
-  wta3: number;
-  wta4: number;
-  wta5: number;
+  id: number;
+  name: string | null;
+  bettingCutPercent: number | null;
+  belgianShow1: number | null;
+  belgianShow2: number | null;
+  belgianShow3: number | null;
+  belgianShow4: number | null;
+  belgianShow5: number | null;
+  belgianShow6: number | null;
+  belgianShow7: number | null;
+  standardShow1: number | null;
+  standardShow2: number | null;
+  standardShow3: number | null;
+  standardShow4: number | null;
+  standardShow5: number | null;
+  standardShow6: number | null;
+  wta1: number | null;
+  wta2: number | null;
+  wta3: number | null;
+  wta4: number | null;
+  wta5: number | null;
+  createdById: number | null;
+  createdBy?: OrganizerData;
   standardShowPercentages?: StandardShowPercentage[];
   events?: Event[];
-  createdById: string;
-  createdBy?: User;
+  // UI compat aliases
+  bettingSchemeId?: number;
 }
 
 export interface StandardShowPercentage {
-  id: string;
-  bettingSchemeId: string;
-  place: number;
-  percValue: number;
+  id: number;
+  bettingSchemeId: number | null;
+  place: number | null;
+  percValue: number | null;
 }
 
-export interface Payments {
-  paymentId: string;
-  amountPaid: number;
-  amountToPay: number;
-  currency: string;
-  method: PaymentMethod;
-  paidAt: string;
-  description: string | null;
-  eventInventoryId: string;
-  eventInventory?: EventInventory;
-  breederId: string;
-  breeder?: User;
-  paymentType: PaymentType;
-  referenceNumber: string | null;
-}
+// ============================================================
+// EVENTS
+// ============================================================
 
 export interface EventType {
-  eventTypeId: string;
-  name: string;
+  id: number;
+  name: string | null;
   description: string | null;
-  createdAt: string;
-  updatedAt: string;
-  events?: Event[];
 }
 
 export interface Event {
-  eventId: string;
-  name: string;
+  id: number;
+  name: string | null;
   shortName: string | null;
-  description: string | null;
-  startDate: string;
-  endDate: string | null;
-  createdAt: string;
-  updatedAt: string;
-  bannerImage: string | null;
-  logoImage: string | null;
-  bannerImageKey: string | null;
-  logoImageKey: string | null;
-  isOpen: boolean;
-  typeId: string;
-  type?: EventType;
-  feeSchemeId: string;
+  eventDate: string | null;
+  eventTypeId: number | null;
+  eventType?: EventType;
+  isOpen: number | null;
+  feeSchemeId: number | null;
+  bettingSchemeId: number | null;
+  finalPrizeSchemeId: number | null;
+  hotSpot1PrizeSchemeId: number | null;
+  hotSpot2PrizeSchemeId: number | null;
+  hotSpot3PrizeSchemeId: number | null;
+  hotSpotAvgPrizeSchemeId: number | null;
+  createdById: number | null;
+  createdBy?: OrganizerData;
   feeScheme?: FeeScheme;
-  prizeSchemeId: string;
-  prizeScheme?: PrizeScheme;
-  bettingSchemeId: string;
   bettingScheme?: BettingScheme;
-  createdById: string;
-  createdBy?: User;
+  finalPrize?: PrizeScheme;
+  races?: Race[];
+  eventInventories?: EventInventory[];
+  // UI compat aliases
+  description: string | null;
+  endDate: string | null;
   contactName: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
@@ -194,153 +233,224 @@ export interface Event {
   socialFb: string | null;
   socialTwitter: string | null;
   socialInsta: string | null;
-  races?: Race[];
-  eventInventories?: EventInventory[];
-}
-
-export interface Bird {
-  birdId: string;
-  band: string;
-  band1: string;
-  band2: string;
-  band3: string;
-  band4: string;
-  birdName: string;
-  color: string;
-  rfid: string | null;
-  sex: BirdSex;
-  isActive: boolean;
-  isLost: boolean;
-  lostDate: string | null;
-  lostRaceId: string | null;
-  lostRace?: Race;
-  note: string | null;
-  picture: string | null;
-  breederId: string;
-  breeder?: User;
-  eventInventoryItems?: EventInventoryItem[];
-  raceItems?: RaceItem[];
+  logoImage: string | null;
+  logoImageKey: string | null;
+  bannerImage: string | null;
+  bannerImageKey: string | null;
 }
 
 export interface EventInventory {
-  eventInventoryId: string;
-  registrationDate: string;
-  reservedBirds: number;
-  loft: string;
+  id: number;
+  eventId: number | null;
+  breederId: number | null;
+  reservedBirds: number | null;
+  loft: string | null;
   note: string | null;
-  eventId: string;
-  event: Event;
-  breederId: string;
-  breeder: User;
-  partners: User[];
-  eventInventoryItems?: EventInventoryItem[];
-  payments: Payments[];
+  signInDate: string | null;
+  isWaiting: number | null;
+  waitingDate: string | null;
+  event?: Event;
+  breeder?: Breeder;
+  items?: EventInventoryItem[];
+  partners?: Partner[];
+  payments?: Payment[];
 }
 
 export interface EventInventoryItem {
-  eventInventoryItemId: string;
-  birdId: string;
-  eventInventoryId: string;
-  eventInventory: EventInventory;
-  bird: Bird;
+  id: number;
+  birdId: number | null;
+  eventInventoryId: number | null;
+  replacedItemId: number | null;
   birdNo: number | null;
-  arrivalTime: string | null;
-  departureTime: string | null;
-  perchFeeValue: number;
-  perchFeeRefunded: boolean;
-  perchFeePaid: boolean;
-  isBackup: boolean;
-  belgianShowBet1: boolean;
-  belgianShowBet2: boolean;
-  belgianShowBet3: boolean;
-  belgianShowBet4: boolean;
-  belgianShowBet5: boolean;
-  belgianShowBet6: boolean;
-  belgianShowBet7: boolean;
-  standardShowBet1: boolean;
-  standardShowBet2: boolean;
-  standardShowBet3: boolean;
-  standardShowBet4: boolean;
-  standardShowBet5: boolean;
-  wtaBet1: boolean;
-  wtaBet2: boolean;
-  wtaBet3: boolean;
-  wtaBet4: boolean;
-  wtaBet5: boolean;
+  arrivalDate: string | null;
+  departureDate: string | null;
+  entryFeeValue: number | null;
+  entryFeePaid: number | null;
+  entryRefund: number | null;
+  perchFeeValue: number | null;
+  hotSpotFeeValue: number | null;
+  raceFeeValue: number | null;
+  hotSpotRefund: number | null;
+  betsRefund: number | null;
+  isBackup: number | null;
+  isBetActive: number | null;
+  transferDue: number | null;
+  belgianShowBet1: number | null;
+  belgianShowBet2: number | null;
+  belgianShowBet3: number | null;
+  belgianShowBet4: number | null;
+  belgianShowBet5: number | null;
+  belgianShowBet6: number | null;
+  belgianShowBet7: number | null;
+  standardShowBet1: number | null;
+  standardShowBet2: number | null;
+  standardShowBet3: number | null;
+  standardShowBet4: number | null;
+  standardShowBet5: number | null;
+  standardShowBet6: number | null;
+  wtaBet1: number | null;
+  wtaBet2: number | null;
+  wtaBet3: number | null;
+  wtaBet4: number | null;
+  wtaBet5: number | null;
+  eventInventory?: EventInventory;
+  bird?: Bird;
   raceItems?: RaceItem[];
+  // UI compat aliases
+  arrivalTime?: string | null;
+  departureTime?: string | null;
 }
 
-export interface Basket {
-  basketId: string;
-  createdAt: string;
-  updatedAt: string;
-  createdById: string;
-  createdBy?: User;
-  basketNo: number;
-  isRaceBasket: boolean;
-  raceId: string;
-  race?: Race;
-  raceItems?: RaceItem[];
-  loftItems?: RaceItem[];
+export interface Partner {
+  breederId: number;
+  eventInventoryId: number;
+  breeder?: Breeder;
+  eventInventory?: EventInventory;
 }
+
+export interface Payment {
+  id: number;
+  eventInventoryId: number | null;
+  breederId: number | null;
+  pictureId: number | null;
+  paymentValue: number | null;
+  paymentMethod: number | null;
+  paymentType: number | null;
+  paymentDate: string | null;
+  paymentTimestamp: string | null;
+  paymentDesc: string | null;
+  transactionId: string | null;
+  status: number | null;
+  eventInventory?: EventInventory;
+  breeder?: Breeder;
+}
+
+// ============================================================
+// RACES
+// ============================================================
 
 export interface Race {
-  raceId: string;
-  raceTypeId: string;
-  eventId: string;
+  id: number;
+  raceTypeId: number | null;
+  eventId: number | null;
+  raceNumber: number | null;
+  description: string | null;
+  distance: number | null;
+  location: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  sunrise: string | null;
+  sunset: string | null;
+  temperature: string | null;
+  weather: string | null;
+  wind: string | null;
+  arrivalTemperature: string | null;
+  arrivalWeather: string | null;
+  arrivalWind: string | null;
+  isClosed: number | null;
   event?: Event;
   raceType?: RaceType;
-  description: string | null;
-  name: string;
-  distance: number;
-  isLive: boolean;
-  releaseStation: string;
-  releaseDate: string;
-  sunriseTime: string;
-  sunsetTime: string;
-  arrivalTemperature: number | null;
-  arrivalWind: string | null;
-  arrivalWeather: string | null;
-  releaseTemperature: number | null;
-  releaseWind: string | null;
-  releaseWeather: string | null;
-  isClosed: boolean;
-  createdAt: string;
-  updatedAt: string;
-  baskets?: Basket[];
   raceItems?: RaceItem[];
-  birds?: Bird[];
+  baskets?: Basket[];
 }
 
-export type RaceItemStatus = "REGISTERED" | "LOFT_BASKETED" | "RELEASED" | "RACE_BASKETED" | "FOREIGN_BIRD";
-
 export interface RaceItem {
-  raceItemId: string;
-  raceId: string;
-  birdId: string;
-  eventInventoryItemId: string;
-  status: RaceItemStatus;
+  id: number;
+  raceId: number | null;
+  inventoryItemId: number | null;
+  distBasketId: number | null;
+  raceBasketId: number | null;
+  isDistBasketed: number | null;
+  isLost: number | null;
+  lostRaceId: number | null;
+  raceBasketTime: string | null;
   race?: Race;
+  inventoryItem?: EventInventoryItem;
+  result?: RaceItemResult;
+  // UI compat aliases
   bird?: Bird;
+  status?: string | null;
+  speed?: number | null;
   eventInventoryItem?: EventInventoryItem;
-  isLoftBasketed: boolean;
-  isRaceBasketed: boolean;
-  raceBasketedAt: string | null;
+  birdPosition?: number | null;
+  arrivalTime?: string | null;
+  isLoftBasketed?: boolean | number | null;
+  isRaceBasketed?: boolean | number | null;
   loftBasket?: Basket;
-  loftBasketId: string | null;
   raceBasket?: Basket;
-  raceBasketId: string | null;
-  birdPosition: number | null;
+  raceItemId?: number;
+  distBasket?: Basket;
+}
+
+export interface RaceItemResult {
+  raceItemId: number;
   arrivalTime: string | null;
-  speed: number | null;
+  birdDrop: number | null;
+  birdPosition: number | null;
+  birdPositionHotSpot: number | null;
   prizeValue: number | null;
 }
 
+// ============================================================
+// BIRDS
+// ============================================================
+
+export interface Bird {
+  id: number;
+  band: string | null;
+  band1: string | null;
+  band2: string | null;
+  band3: string | null;
+  band4: string | null;
+  birdName: string | null;
+  color: string | null;
+  rfid: string | null;
+  sex: number | null;
+  isActive: number | null;
+  isLost: number | null;
+  lostDate: string | null;
+  lostRaceId: number | null;
+  note: string | null;
+  pictureId: number | null;
+  breederId: number | null;
+  breeder?: Breeder;
+  inventoryItems?: EventInventoryItem[];
+}
+
+// ============================================================
+// OTHER
+// ============================================================
+
+export interface Basket {
+  id: number;
+  basketNo: number | null;
+  capacity: number | null;
+  raceId: number | null;
+  isRaceBasket: number | null;
+  race?: Race;
+  distItems?: RaceItem[];
+  raceItems?: RaceItem[];
+  // UI compat aliases
+  basketId?: number;
+}
+
 export interface Team {
-  id: string;
-  name: string;
+  id: number;
+  name: string | null;
+  breederId: number | null;
+  breeder?: Breeder;
+}
+
+export interface RfidScan {
+  id: number;
+  rfidTag: string;
+  scannerId: string;
+  timestamp: string;
+  processed: boolean;
+  birdId: number | null;
+  raceId: number | null;
+  notes: string | null;
   createdAt: string;
-  updatedAt: string;
-  breederId: string;
-  breeder?: User;
+  bird?: Bird;
+  race?: Race;
 }

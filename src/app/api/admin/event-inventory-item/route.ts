@@ -2,7 +2,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { PaymentStatus } from "@/generated/prisma/enums";
+
+const SEX_MAP: Record<string, number> = { COCK: 1, HEN: 2, UNKNOWN: 0 };
 
 export async function POST(request: Request) {
   try {
@@ -16,8 +17,8 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const {
-      eventInventoryId,
-      breederId,
+      eventInventoryId: eventInventoryIdParam,
+      breederId: breederIdParam,
       band1,
       band2,
       band3,
@@ -53,16 +54,19 @@ export async function POST(request: Request) {
       wtaBet5,
     } = body;
 
+    const eventInventoryId = parseInt(eventInventoryIdParam);
+    const breederId = parseInt(breederIdParam);
+
     // Get the event inventory to find the event
     const eventInventory = await prisma.eventInventory.findUnique({
-      where: { eventInventoryId },
+      where: { id: eventInventoryId },
       include: {
         event: {
           include: {
             feeScheme: true,
           },
         },
-        eventInventoryItems: true,
+        items: true,
       },
     });
 
@@ -74,11 +78,11 @@ export async function POST(request: Request) {
     }
 
     // Check if adding this bird would exceed the reserved birds limit
-    const currentBirdCount = eventInventory.eventInventoryItems.length;
-    if (currentBirdCount >= eventInventory.reservedBirds) {
+    const currentBirdCount = eventInventory.items.length;
+    if (eventInventory.reservedBirds && currentBirdCount >= eventInventory.reservedBirds) {
       return NextResponse.json(
-        { 
-          message: `Cannot add bird. Maximum number of birds (${eventInventory.reservedBirds}) already reached. Current count: ${currentBirdCount}` 
+        {
+          message: `Cannot add bird. Maximum number of birds (${eventInventory.reservedBirds}) already reached. Current count: ${currentBirdCount}`
         },
         { status: 400 }
       );
@@ -96,12 +100,12 @@ export async function POST(request: Request) {
           band: `${band1}-${band2}-${band3}-${band4}`,
           birdName,
           color,
-          sex,
+          sex: SEX_MAP[sex] ?? 0,
           rfid,
-          isActive: isActive ?? true,
-          isLost: isLost ?? false,
+          isActive: isActive != null ? (isActive ? 1 : 0) : 1,
+          isLost: isLost != null ? (isLost ? 1 : 0) : 0,
           lostDate: lostDate ? new Date(lostDate) : null,
-          lostRaceId: lostRaceId || null,
+          lostRaceId: lostRaceId ? parseInt(lostRaceId) : null,
           note: note || null,
           breederId,
         },
@@ -111,87 +115,36 @@ export async function POST(request: Request) {
       const eventInventoryItem = await tx.eventInventoryItem.create({
         data: {
           eventInventoryId,
-          birdId: bird.birdId,
-          arrivalTime: arrivalTime ? new Date(arrivalTime) : null,
-          departureTime: departureTime ? new Date(departureTime) : null,
-          isBackup: isBackup ?? false,
-          belgianShowBet1: belgianShowBet1 ?? false,
-          belgianShowBet2: belgianShowBet2 ?? false,
-          belgianShowBet3: belgianShowBet3 ?? false,
-          belgianShowBet4: belgianShowBet4 ?? false,
-          belgianShowBet5: belgianShowBet5 ?? false,
-          belgianShowBet6: belgianShowBet6 ?? false,
-          belgianShowBet7: belgianShowBet7 ?? false,
-          standardShowBet1: standardShowBet1 ?? false,
-          standardShowBet2: standardShowBet2 ?? false,
-          standardShowBet3: standardShowBet3 ?? false,
-          standardShowBet4: standardShowBet4 ?? false,
-          standardShowBet5: standardShowBet5 ?? false,
-          wtaBet1: wtaBet1 ?? false,
-          wtaBet2: wtaBet2 ?? false,
-          wtaBet3: wtaBet3 ?? false,
-          wtaBet4: wtaBet4 ?? false,
-          wtaBet5: wtaBet5 ?? false,
+          birdId: bird.id,
+          arrivalDate: arrivalTime ? new Date(arrivalTime) : null,
+          departureDate: departureTime ? new Date(departureTime) : null,
+          isBackup: isBackup != null ? (isBackup ? 1 : 0) : 0,
+          belgianShowBet1: belgianShowBet1 ?? null,
+          belgianShowBet2: belgianShowBet2 ?? null,
+          belgianShowBet3: belgianShowBet3 ?? null,
+          belgianShowBet4: belgianShowBet4 ?? null,
+          belgianShowBet5: belgianShowBet5 ?? null,
+          belgianShowBet6: belgianShowBet6 ?? null,
+          belgianShowBet7: belgianShowBet7 ?? null,
+          standardShowBet1: standardShowBet1 ?? null,
+          standardShowBet2: standardShowBet2 ?? null,
+          standardShowBet3: standardShowBet3 ?? null,
+          standardShowBet4: standardShowBet4 ?? null,
+          standardShowBet5: standardShowBet5 ?? null,
+          wtaBet1: wtaBet1 ?? null,
+          wtaBet2: wtaBet2 ?? null,
+          wtaBet3: wtaBet3 ?? null,
+          wtaBet4: wtaBet4 ?? null,
+          wtaBet5: wtaBet5 ?? null,
         },
         include: {
           bird: true,
         },
       });
 
-      // Create payment entries if fee scheme exists
-      if (eventInventory.event.feeScheme) {
-        const feeScheme = eventInventory.event.feeScheme;
-
-        // Create perch fee payment
-        if (feeScheme.perchFee > 0) {
-          await tx.payments.create({
-            data: {
-              eventInventoryId,
-              breederId,
-              amountToPay: feeScheme.perchFee,
-              amountPaid: 0,
-              currency: "USD",
-              method: "CASH",
-              status: PaymentStatus.PENDING,
-              paymentType: "PERCH_FEE",
-              description: `Perch fee for bird ${bird.band}`,
-            },
-          });
-        }
-
-        // Get current bird count for this event inventory to determine perch fee
-        const birdCount = await tx.eventInventoryItem.count({
-          where: { eventInventoryId },
-        });
-
-        // Find perch fee for this bird number
-        const birdFeeItem = await tx.birdFeeItem.findFirst({
-          where: {
-            feeSchemeId: feeScheme.id,
-            birdNo: birdCount,
-          },
-        });
-
-        if (birdFeeItem && birdFeeItem.fee > 0) {
-          await tx.payments.create({
-            data: {
-              eventInventoryId,
-              breederId,
-              amountToPay: birdFeeItem.fee,
-              amountPaid: 0,
-              currency: "USD",
-              method: "CASH",
-              status: PaymentStatus.PENDING,
-              paymentType: "BIRD_FEE",
-              description: `Per bird fee for bird #${birdCount} (${bird.band})`,
-            },
-          });
-        }
-      }
-
       // Increment the reserved birds count
       await tx.eventInventory.update({
-        where: { eventInventoryId },
+        where: { id: eventInventoryId },
         data: {
           reservedBirds: {
             increment: 1,

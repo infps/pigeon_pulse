@@ -47,7 +47,7 @@ export default function LoginPage() {
         password: data.password,
       });
       if (error) {
-        toast.error("Invalid username or password.");
+        toast.error(error.message || "Invalid username or password.");
         return;
       }
       toast.success("Login successful!");

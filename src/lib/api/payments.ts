@@ -1,9 +1,9 @@
 import  { useApiQuery } from "@/hooks/useApi";
 import { useApiMutation } from "@/hooks/useApiMutation";
 
-export const useGetEventInventory = (eventInventoryId: string) => {
+export const useGetEventInventory = (eventInventoryId: number | string) => {
   return useApiQuery({
-    queryKey: ["event-inventory", "detail", eventInventoryId],
+    queryKey: ["event-inventory", "detail", String(eventInventoryId)],
     endpoint: `/api/admin/event-inventory/${eventInventoryId}`,
     enabled: !!eventInventoryId,
   });

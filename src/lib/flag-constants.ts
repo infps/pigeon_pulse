@@ -1,3 +1,10 @@
+import { State } from "country-state-city";
+
+// Map non-standard country codes to ISO 3166-1 alpha-2 for country-state-city lookup
+const COUNTRY_ISO_MAP: Record<string, string> = {
+  UK: "GB", // United Kingdom → Great Britain ISO code
+};
+
 // Country code to name mapping
 export const COUNTRIES = {
   AE: "United Arab Emirates",
@@ -151,4 +158,12 @@ export const getStateName = (code: string | null | undefined) => {
   if (!code) return "";
   const upperCode = code.toUpperCase() as StateCode;
   return STATES[upperCode] || code;
+};
+
+/** Get states/provinces for a country using country-state-city package */
+export const getStatesForCountry = (countryCode: string | null | undefined): { code: string; name: string }[] => {
+  if (!countryCode) return [];
+  const isoCode = COUNTRY_ISO_MAP[countryCode.toUpperCase()] || countryCode.toUpperCase();
+  const states = State.getStatesOfCountry(isoCode);
+  return states.map(s => ({ code: s.isoCode, name: s.name }));
 };

@@ -14,9 +14,8 @@ export async function GET() {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const whereClause = session.user.role === "ADMIN"
-      ? { createdById: session.user.id }
-      : {};
+    // TODO: createdById is now Int (OrganizerData), session.user.id is String. Skip ownership filter until auth bridge.
+    const whereClause = {};
 
     const bettingSchemes = await prisma.bettingScheme.findMany({
       where: whereClause,
@@ -64,7 +63,6 @@ export async function POST(request: Request) {
     const newBettingScheme = await prisma.bettingScheme.create({
       data: {
         name: validatedData.name,
-        description: validatedData.description,
         bettingCutPercent: validatedData.bettingCutPercent,
         belgianShow1: validatedData.belgianShow1,
         belgianShow2: validatedData.belgianShow2,
@@ -84,7 +82,8 @@ export async function POST(request: Request) {
         wta3: validatedData.wta3,
         wta4: validatedData.wta4,
         wta5: validatedData.wta5,
-        createdById: session.user.id,
+        // TODO: createdById is now Int (OrganizerData), session.user.id is String. Need auth bridge.
+        // createdById: ???,
         standardShowPercentages: {
           create: validatedData.standardShowPercentages.map((item) => ({
             place: item.place,
@@ -138,18 +137,18 @@ export async function PUT(request: Request) {
       );
     }
 
+    const parsedId = parseInt(id);
     const validatedData = createBettingSchemeSchema.parse(updateData);
 
     // Delete existing percentages before recreating
     await prisma.standardShowPercentage.deleteMany({
-      where: { bettingSchemeId: id },
+      where: { bettingSchemeId: parsedId },
     });
 
     const updatedBettingScheme = await prisma.bettingScheme.update({
-      where: { bettingSchemeId: id },
+      where: { id: parsedId },
       data: {
         name: validatedData.name,
-        description: validatedData.description,
         bettingCutPercent: validatedData.bettingCutPercent,
         belgianShow1: validatedData.belgianShow1,
         belgianShow2: validatedData.belgianShow2,
@@ -223,7 +222,7 @@ export async function DELETE(request: Request) {
     }
 
     await prisma.bettingScheme.delete({
-      where: { bettingSchemeId: id },
+      where: { id: parseInt(id) },
     });
 
     return NextResponse.json(

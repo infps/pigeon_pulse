@@ -38,19 +38,19 @@ import { useRouter } from "next/navigation";
 export default function EventsPage() {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [logoImageFile, setLogoImageFile] = useState<File | null>(null);
   const [bannerImageFile, setBannerImageFile] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     shortName: "",
     description: "",
-    startDate: "",
+    eventDate: "",
     endDate: "",
-    isOpen: true,
-    typeId: "",
+    isOpen: 1 as number,
+    eventTypeId: "" as string,
     feeSchemeId: "",
-    prizeSchemeId: "",
+    finalPrizeSchemeId: "",
     bettingSchemeId: "",
     contactName: "",
     contactEmail: "",
@@ -89,12 +89,12 @@ export default function EventsPage() {
       return;
     }
 
-    if (!formData.startDate) {
-      toast.error("Start date is required");
+    if (!formData.eventDate) {
+      toast.error("Event date is required");
       return;
     }
 
-    if (!formData.typeId) {
+    if (!formData.eventTypeId) {
       toast.error("Event type is required");
       return;
     }
@@ -104,7 +104,7 @@ export default function EventsPage() {
       return;
     }
 
-    if (!formData.prizeSchemeId) {
+    if (!formData.finalPrizeSchemeId) {
       toast.error("Prize scheme is required");
       return;
     }
@@ -134,7 +134,7 @@ export default function EventsPage() {
 
       if (editingId) {
         if (!updateMutation.mutateAsync) return;
-        submitFormData.append('eventId', editingId);
+        submitFormData.append('id', editingId.toString());
         await updateMutation.mutateAsync(submitFormData);
         toast.success("Event updated successfully");
       } else {
@@ -149,15 +149,15 @@ export default function EventsPage() {
   };
 
   const handleEdit = (event: Event) => {
-    router.push(`/admin/events/${event.eventId}`);
+    router.push(`/admin/events/${event.id}`);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     if (!confirm("Are you sure you want to delete this event?")) return;
 
     try {
       if (!deleteMutation.mutateAsync) return;
-      await deleteMutation.mutateAsync({ eventId: id });
+      await deleteMutation.mutateAsync({ id });
       toast.success("Event deleted successfully");
     } catch (error) {
       toast.error("Failed to delete event");
@@ -173,12 +173,12 @@ export default function EventsPage() {
       name: "",
       shortName: "",
       description: "",
-      startDate: "",
+      eventDate: "",
       endDate: "",
-      isOpen: true,
-      typeId: "",
+      isOpen: 1,
+      eventTypeId: "",
       feeSchemeId: "",
-      prizeSchemeId: "",
+      finalPrizeSchemeId: "",
       bettingSchemeId: "",
       contactName: "",
       contactEmail: "",
@@ -227,7 +227,6 @@ export default function EventsPage() {
         data={events}
         filterableColumns={[
           { id: "name", title: "Event Name" },
-          { id: "type", title: "Type" },
         ]}
       />
 
@@ -310,13 +309,13 @@ export default function EventsPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="startDate">Start Date *</Label>
+                <Label htmlFor="eventDate">Event Date *</Label>
                 <Input
-                  id="startDate"
+                  id="eventDate"
                   type="date"
-                  value={formData.startDate}
+                  value={formData.eventDate}
                   onChange={(e) =>
-                    setFormData({ ...formData, startDate: e.target.value })
+                    setFormData({ ...formData, eventDate: e.target.value })
                   }
                   required
                 />
@@ -340,35 +339,35 @@ export default function EventsPage() {
               <Select
                 value={formData.isOpen.toString()}
                 onValueChange={(value) =>
-                  setFormData({ ...formData, isOpen: value === "true" })
+                  setFormData({ ...formData, isOpen: parseInt(value) })
                 }
               >
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="true">Open</SelectItem>
-                  <SelectItem value="false">Closed</SelectItem>
+                  <SelectItem value="1">Open</SelectItem>
+                  <SelectItem value="0">Closed</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="typeId">Event Type *</Label>
+                <Label htmlFor="eventTypeId">Event Type *</Label>
                 <Select
-                  value={formData.typeId}
+                  value={formData.eventTypeId}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, typeId: value })
+                    setFormData({ ...formData, eventTypeId: value })
                   }
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select event type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {eventTypes.map((type: any) => (
-                      <SelectItem key={type.eventTypeId} value={type.eventTypeId}>
-                        {type.name}
+                    {eventTypes.map((et) => (
+                      <SelectItem key={et.id} value={String(et.id)}>
+                        {et.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -387,8 +386,8 @@ export default function EventsPage() {
                     <SelectValue placeholder="Select fee scheme" />
                   </SelectTrigger>
                   <SelectContent>
-                    {feeSchemes.map((scheme: any) => (
-                      <SelectItem key={scheme.id} value={scheme.id}>
+                    {feeSchemes.map((scheme) => (
+                      <SelectItem key={scheme.id} value={String(scheme.id)}>
                         {scheme.name}
                       </SelectItem>
                     ))}
@@ -399,19 +398,19 @@ export default function EventsPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="prizeSchemeId">Prize Scheme *</Label>
+                <Label htmlFor="finalPrizeSchemeId">Prize Scheme *</Label>
                 <Select
-                  value={formData.prizeSchemeId}
+                  value={formData.finalPrizeSchemeId}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, prizeSchemeId: value })
+                    setFormData({ ...formData, finalPrizeSchemeId: value })
                   }
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select prize scheme" />
                   </SelectTrigger>
                   <SelectContent>
-                    {prizeSchemes.map((scheme: any) => (
-                      <SelectItem key={scheme.prizeSchemeId} value={scheme.prizeSchemeId}>
+                    {prizeSchemes.map((scheme) => (
+                      <SelectItem key={scheme.id} value={String(scheme.id)}>
                         {scheme.name}
                       </SelectItem>
                     ))}
@@ -431,8 +430,8 @@ export default function EventsPage() {
                     <SelectValue placeholder="Select betting scheme" />
                   </SelectTrigger>
                   <SelectContent>
-                    {bettingSchemes.map((scheme: any) => (
-                      <SelectItem key={scheme.bettingSchemeId} value={scheme.bettingSchemeId}>
+                    {bettingSchemes.map((scheme) => (
+                      <SelectItem key={scheme.id} value={String(scheme.id)}>
                         {scheme.name}
                       </SelectItem>
                     ))}

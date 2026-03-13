@@ -78,11 +78,19 @@ export default function UsersPage() {
   const deleteTeamMutation = useDeleteTeam({});
 
   const handleEdit = (user: User) => {
+    if (user.id.startsWith("legacy-")) {
+      toast.error("Legacy breeder — create a user account to edit");
+      return;
+    }
     setEditingUser(user);
     setIsOpen(true);
   };
 
   const handleDelete = async (id: string) => {
+    if (id.startsWith("legacy-")) {
+      toast.error("Legacy breeder — cannot delete from here");
+      return;
+    }
     if (!confirm("Are you sure you want to delete this user?")) return;
 
     try {
@@ -247,7 +255,7 @@ export default function UsersPage() {
             <SelectContent>
               <SelectItem value="all">All Events</SelectItem>
               {events.map((event) => (
-                <SelectItem key={event.eventId} value={event.eventId}>
+                <SelectItem key={event.id} value={String(event.id)}>
                   {event.name}
                 </SelectItem>
               ))}

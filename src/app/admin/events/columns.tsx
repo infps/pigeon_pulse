@@ -19,7 +19,7 @@ import type { Event } from "@/lib/types"
 
 export const createColumns = (
   onEdit: (event: Event) => void,
-  onDelete: (id: string) => void
+  onDelete: (id: number) => void
 ): ColumnDef<Event>[] => [
   {
     id: "select",
@@ -63,22 +63,23 @@ export const createColumns = (
     },
   },
   {
-    accessorKey: "type",
+    id: "eventType",
+    accessorKey: "eventType.name",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Type" />
     ),
     cell: ({ row }) => {
-      const type = row.original.type
-      return <span>{type?.name || "-"}</span>
+      const eventType = row.original.eventType
+      return <span>{eventType?.name ?? "-"}</span>
     },
   },
   {
-    accessorKey: "startDate",
+    accessorKey: "eventDate",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Start Date" />
+      <DataTableColumnHeader column={column} title="Event Date" />
     ),
     cell: ({ row }) => {
-      const date = new Date(row.getValue("startDate"))
+      const date = new Date(row.getValue("eventDate"))
       return <span>{date.toLocaleDateString()}</span>
     },
   },
@@ -100,13 +101,34 @@ export const createColumns = (
       <DataTableColumnHeader column={column} title="Status" />
     ),
     cell: ({ row }) => {
-      const isOpen = row.getValue("isOpen") as boolean
+      const isOpen = row.getValue("isOpen") as number
       return (
-        <Badge variant={isOpen ? "default" : "secondary"}>
-          {isOpen ? "Open" : "Closed"}
+        <Badge variant={isOpen === 1 ? "default" : "secondary"}>
+          {isOpen === 1 ? "Open" : "Closed"}
         </Badge>
       )
     },
+  },
+  {
+    id: "feeScheme",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Fee Scheme" />
+    ),
+    cell: ({ row }) => <span>{row.original.feeScheme?.name || "-"}</span>,
+  },
+  {
+    id: "bettingScheme",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Betting Scheme" />
+    ),
+    cell: ({ row }) => <span>{row.original.bettingScheme?.name || "-"}</span>,
+  },
+  {
+    id: "finalPrize",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Final Prize" />
+    ),
+    cell: ({ row }) => <span>{row.original.finalPrize?.name || "-"}</span>,
   },
   {
     accessorKey: "createdBy",
@@ -138,7 +160,7 @@ export const createColumns = (
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onClick={() => onDelete(event.eventId)}
+              onClick={() => onDelete(event.id)}
               className="text-red-600"
             >
               Delete event

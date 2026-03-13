@@ -6,7 +6,7 @@ import z from "zod";
 
 const createTeamSchema = z.object({
   name: z.string().min(1, "Team name is required"),
-  breederId: z.string().min(1, "Breeder ID is required"),
+  breederId: z.union([z.string(), z.number()]).transform(v => parseInt(String(v))),
 });
 
 const updateTeamSchema = z.object({
@@ -33,14 +33,19 @@ export async function GET(request: Request) {
       );
     }
 
+    const breederIdInt = parseInt(breederId);
+
     // If user is a breeder, they can only view their own teams
-    if (session.user.role === "BREEDER" && session.user.id !== breederId) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    if (session.user.role === "BREEDER") {
+      const breeder = await prisma.breeder.findUnique({ where: { userId: session.user.id } });
+      if (!breeder || breeder.id !== breederIdInt) {
+        return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+      }
     }
 
     const teams = await prisma.team.findMany({
       where: {
-        breederId: breederId,
+        breederId: breederIdInt,
       },
     });
 
@@ -70,7 +75,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
     // Check if breeder exists
-    const breeder = await prisma.user.findUnique({
+    const breeder = await prisma.breeder.findUnique({
       where: { id: validatedData.breederId },
     });
 
@@ -131,7 +136,7 @@ export async function PUT(request: Request) {
 
     // Check if team exists and get its owner
     const existingTeam = await prisma.team.findUnique({
-      where: { id: teamId },
+      where: { id: parseInt(teamId) },
     });
 
     if (!existingTeam) {
@@ -139,15 +144,15 @@ export async function PUT(request: Request) {
     }
 
     // If user is a breeder, they can only update their own teams
-    if (
-      session.user.role === "BREEDER" &&
-      session.user.id !== existingTeam.breederId
-    ) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    if (session.user.role === "BREEDER") {
+      const breeder = await prisma.breeder.findUnique({ where: { userId: session.user.id } });
+      if (!breeder || breeder.id !== existingTeam.breederId) {
+        return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+      }
     }
 
     const updatedTeam = await prisma.team.update({
-      where: { id: teamId },
+      where: { id: parseInt(teamId) },
       data: {
         ...(validatedData.name && { name: validatedData.name }),
       },
@@ -192,9 +197,11 @@ export async function DELETE(request: Request) {
       );
     }
 
+    const teamIdInt = parseInt(teamId);
+
     // Check if team exists and get its owner
     const existingTeam = await prisma.team.findUnique({
-      where: { id: teamId },
+      where: { id: teamIdInt },
     });
 
     if (!existingTeam) {
@@ -202,15 +209,15 @@ export async function DELETE(request: Request) {
     }
 
     // If user is a breeder, they can only delete their own teams
-    if (
-      session.user.role === "BREEDER" &&
-      session.user.id !== existingTeam.breederId
-    ) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    if (session.user.role === "BREEDER") {
+      const breeder = await prisma.breeder.findUnique({ where: { userId: session.user.id } });
+      if (!breeder || breeder.id !== existingTeam.breederId) {
+        return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+      }
     }
 
     await prisma.team.delete({
-      where: { id: teamId },
+      where: { id: teamIdInt },
     });
 
     return NextResponse.json(

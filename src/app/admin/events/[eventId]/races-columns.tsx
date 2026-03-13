@@ -18,11 +18,11 @@ import Link from "next/link";
 
 export const createRacesColumns = (
   onEdit: (race: Race) => void,
-  onDelete: (raceId: string) => void,
+  onDelete: (raceId: number) => void,
   eventId: string
 ): ColumnDef<Race>[] => [
   {
-    accessorKey: "name",
+    accessorKey: "description",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Race Name" />
     ),
@@ -30,18 +30,18 @@ export const createRacesColumns = (
       const race = row.original;
       return (
         <Link
-          href={`/admin/events/${eventId}/races/${race.raceId}`}
+          href={`/admin/events/${eventId}/races/${race.id}`}
           className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
         >
-          {race.name}
+          {race.description}
         </Link>
       );
     },
   },
   {
-    accessorKey: "releaseStation",
+    accessorKey: "location",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Release Station" />
+      <DataTableColumnHeader column={column} title="Location" />
     ),
   },
   {
@@ -65,12 +65,14 @@ export const createRacesColumns = (
     },
   },
   {
-    accessorKey: "releaseDate",
+    accessorKey: "startTime",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Release Date" />
+      <DataTableColumnHeader column={column} title="Start Time" />
     ),
     cell: ({ row }) => {
-      const date = new Date(row.original.releaseDate);
+      const startTime = row.original.startTime;
+      if (!startTime) return <span>-</span>;
+      const date = new Date(startTime);
       return <span>{date.toLocaleDateString()}</span>;
     },
   },
@@ -82,8 +84,8 @@ export const createRacesColumns = (
     cell: ({ row }) => {
       const isClosed = row.original.isClosed;
       return (
-        <Badge variant={isClosed ? "secondary" : "default"}>
-          {isClosed ? "Closed" : "Open"}
+        <Badge variant={isClosed === 1 ? "secondary" : "default"}>
+          {isClosed === 1 ? "Closed" : "Open"}
         </Badge>
       );
     },
@@ -128,7 +130,7 @@ export const createRacesColumns = (
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onClick={() => onDelete(race.raceId)}
+              onClick={() => onDelete(race.id)}
               className="text-red-600"
             >
               Delete race

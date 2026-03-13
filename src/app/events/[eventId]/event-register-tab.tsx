@@ -72,7 +72,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
   const createTeamMutation = useCreateTeam({ endpoint: apiEndpoints.breeder.teams });
 
   const maxBirds = event.feeScheme?.maxBirds || 0;
-  const perchFee = event.feeScheme?.perchFee || 0;
+  const birdFee = event.feeScheme?.birdFee || 0;
   const birdFeeItems = event.feeScheme?.birdFeeItems || [];
 
   const calculateBirdFee = () => {
@@ -82,7 +82,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
         (item) => item.birdNo === i + 1
       );
       if (birdFeeItem) {
-        totalBirdFee += birdFeeItem.fee;
+        totalBirdFee += birdFeeItem.fee ?? 0;
       }
     }
     return totalBirdFee;
@@ -103,7 +103,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
       setBirds(newBirds);
 
       // Initialize single payment with combined total
-      const perchFeeTotal = perchFee * reservedBirds;
+      const perchFeeTotal = birdFee * reservedBirds;
       const birdFeeTotal = calculateBirdFee();
       const totalAmount = perchFeeTotal + birdFeeTotal;
 
@@ -504,8 +504,8 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                   {/* Fee Breakdown */}
                   <div className="mt-4 pt-4 border-t space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Perch Fee ({reservedBirds} birds × ${perchFee}):</span>
-                      <span className="font-medium">${(perchFee * reservedBirds).toFixed(2)}</span>
+                      <span className="text-muted-foreground">Per Bird Fee ({reservedBirds} birds × ${birdFee}):</span>
+                      <span className="font-medium">${(birdFee * reservedBirds).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Per Bird Fee:</span>

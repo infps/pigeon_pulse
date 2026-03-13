@@ -22,6 +22,11 @@ const users = {
   base: "/api/admin/users",
 };
 
+const breeders = {
+  base: "/api/admin/breeders",
+  birds: (breederId: number | string) => `/api/admin/breeders/${breederId}/birds`,
+};
+
 const events = {
   base: "/api/admin/event",
 };
@@ -32,13 +37,13 @@ const teams = {
 
 const eventInventory = {
   base: "/api/admin/event",
-  byEvent: (eventId: string) => `/api/admin/event/${eventId}/event-inventory`,
-  itemsByEvent: (eventId: string) => `/api/admin/event/${eventId}/event-inventory-items`,
+  byEvent: (eventId: number | string) => `/api/admin/event/${eventId}/event-inventory`,
+  itemsByEvent: (eventId: number | string) => `/api/admin/event/${eventId}/event-inventory-items`,
 };
 
 const races = {
   base: "/api/admin/race",
-  start: (raceId: string) => `/api/admin/race/${raceId}/start`,
+  start: (raceId: number | string) => `/api/admin/race/${raceId}/start`,
 };
 
 const baskets = {
@@ -53,7 +58,7 @@ const raceItems = {
 
 const breeder = {
   events: "/api/breeder/events",
-  eventDetails: "/api/breeder/events/[eventId]",
+  eventDetails: (eventId: number | string) => `/api/breeder/events/${eventId}`,
   liveRaces: "/api/breeder/races/live",
   eventTypes: "/api/breeder/event-types",
   raceTypes: "/api/breeder/race-types",
@@ -62,8 +67,9 @@ const breeder = {
   bettingSchemes: "/api/breeder/betting-schemes",
   races: "/api/breeder/races",
   teams: "/api/breeder/teams",
-  eventInventoryItems: (eventId: string) => `/api/breeder/event/${eventId}/inventory-items`,
-  raceItems: (raceId: string) => `/api/breeder/races/${raceId}/items`,
+  eventInventoryItems: (eventId: number | string) => `/api/breeder/event/${eventId}/inventory-items`,
+  eventInventory: (eventId: number | string) => `/api/breeder/event/${eventId}/inventory`,
+  raceItems: (raceId: number | string) => `/api/breeder/races/${raceId}/items`,
 };
 
 export const apiEndpoints = {
@@ -73,6 +79,7 @@ export const apiEndpoints = {
   prizeSchemes,
   bettingSchemes,
   users,
+  breeders,
   events,
   teams,
   eventInventory,

@@ -37,9 +37,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const basketIdInt = parseInt(basketId);
+    const raceItemIdInts = raceItemIds.map((id: string | number) => parseInt(String(id)));
+
     // Verify basket exists and belongs to the correct race
     const basket = await prisma.basket.findUnique({
-      where: { basketId },
+      where: { id: basketIdInt },
       include: { race: true },
     });
 
@@ -50,37 +53,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify basket type matches
-    if (basketType === "race" && !basket.isRaceBasket) {
+    // Verify basket type matches (isRaceBasket is Int: 1=race, 0/null=dist)
+    if (basketType === "race" && basket.isRaceBasket !== 1) {
       return NextResponse.json(
         { error: "Basket is not a race basket" },
         { status: 400 }
       );
     }
 
-    if (basketType === "loft" && basket.isRaceBasket) {
+    if (basketType === "loft" && basket.isRaceBasket === 1) {
       return NextResponse.json(
         { error: "Basket is not a loft basket" },
         { status: 400 }
       );
     }
 
-    // Check if user has permission
-    if (session.user.role === "ADMIN" && basket.createdById !== session.user.id) {
-      return NextResponse.json(
-        { error: "You can only basket items to your own baskets" },
-        { status: 403 }
-      );
-    }
-
     // Verify all race items exist and belong to the same race as basket
     const raceItems = await prisma.raceItem.findMany({
       where: {
-        raceItemId: { in: raceItemIds },
+        id: { in: raceItemIdInts },
       },
     });
 
-    if (raceItems.length !== raceItemIds.length) {
+    if (raceItems.length !== raceItemIdInts.length) {
       return NextResponse.json(
         { error: "Some race items not found" },
         { status: 404 }
@@ -102,18 +97,17 @@ export async function POST(req: NextRequest) {
     const updateData =
       basketType === "loft"
         ? {
-            loftBasketId: basketId,
-            isLoftBasketed: true,
+            distBasketId: basketIdInt,
+            isDistBasketed: 1,
           }
         : {
-            raceBasketId: basketId,
-            isRaceBasketed: true,
-            raceBasketedAt: new Date(),
+            raceBasketId: basketIdInt,
+            raceBasketTime: new Date(),
           };
 
     await prisma.raceItem.updateMany({
       where: {
-        raceItemId: { in: raceItemIds },
+        id: { in: raceItemIdInts },
       },
       data: updateData,
     });
@@ -121,20 +115,20 @@ export async function POST(req: NextRequest) {
     // Fetch updated race items
     const updatedRaceItems = await prisma.raceItem.findMany({
       where: {
-        raceItemId: { in: raceItemIds },
+        id: { in: raceItemIdInts },
       },
       include: {
-        bird: {
+        inventoryItem: {
           include: {
-            breeder: true,
-          },
-        },
-        eventInventoryItem: {
-          include: {
+            bird: {
+              include: {
+                breeder: true,
+              },
+            },
             eventInventory: true,
           },
         },
-        loftBasket: true,
+        distBasket: true,
         raceBasket: true,
       },
     });
@@ -180,22 +174,23 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
+    const raceItemIdInts = raceItemIds.map((id: string | number) => parseInt(String(id)));
+
     // Update race items to remove basket assignment
     const updateData =
       basketType === "loft"
         ? {
-            loftBasketId: null,
-            isLoftBasketed: false,
+            distBasketId: null,
+            isDistBasketed: 0,
           }
         : {
             raceBasketId: null,
-            isRaceBasketed: false,
-            raceBasketedAt: null,
+            raceBasketTime: null,
           };
 
     await prisma.raceItem.updateMany({
       where: {
-        raceItemId: { in: raceItemIds },
+        id: { in: raceItemIdInts },
       },
       data: updateData,
     });

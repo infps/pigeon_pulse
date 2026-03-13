@@ -17,10 +17,11 @@ export async function POST(
     }
 
     const { raceId } = await params;
+    const raceIdInt = parseInt(raceId);
 
     // Check if race exists
     const race = await prisma.race.findUnique({
-      where: { raceId },
+      where: { id: raceIdInt },
     });
 
     if (!race) {
@@ -30,26 +31,24 @@ export async function POST(
       );
     }
 
-    // Update race to live and release all loft-basketed birds
+    // Update race: set startTime to now (marks as live) and release all dist-basketed birds
     const [updatedRace] = await prisma.$transaction([
       prisma.race.update({
-        where: { raceId },
-        data: { isLive: true },
+        where: { id: raceIdInt },
+        data: { startTime: new Date() },
         include: {
           raceType: true,
           event: true,
         },
       }),
-      // Release all LOFT_BASKETED birds (clear basket but keep history)
+      // Release all dist-basketed birds (clear distBasketId but keep isDistBasketed for history)
       prisma.raceItem.updateMany({
         where: {
-          raceId,
-          status: "LOFT_BASKETED",
+          raceId: raceIdInt,
+          isDistBasketed: 1,
         },
         data: {
-          status: "RELEASED",
-          loftBasketId: null,
-          // isLoftBasketed stays true for history
+          distBasketId: null,
         },
       }),
     ]);

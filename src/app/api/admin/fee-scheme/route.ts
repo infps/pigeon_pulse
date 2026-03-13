@@ -14,9 +14,8 @@ export async function GET() {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const whereClause = session.user.role === "ADMIN" 
-      ? { createdById: session.user.id }
-      : {};
+    // TODO: createdById is now Int (OrganizerData), session.user.id is String (auth). Skip ownership filter until auth bridge is built.
+    const whereClause = {};
 
     const feeSchemes = await prisma.feeScheme.findMany({
       where: whereClause,
@@ -29,7 +28,7 @@ export async function GET() {
             birdNo: "asc",
           },
         },
-        raceTypes: {
+        raceTypeFees: {
           include: {
             raceType: true,
           },
@@ -71,10 +70,9 @@ export async function POST(request: Request) {
     const newFeeScheme = await prisma.feeScheme.create({
       data: {
         name: validatedData.name,
-        description: validatedData.description,
-        perchFee: validatedData.perchFee,
+        entryFee: validatedData.entryFee,
         isRefundable: validatedData.isRefundable,
-        maxBirds: validatedData.maxBirds,
+        maxBirdCount: validatedData.maxBirdCount,
         feesCutPercent: validatedData.feesCutPercent,
         minEntryFees: validatedData.minEntryFees,
         maxBackupBirdCount: validatedData.maxBackupBirdCount,
@@ -83,15 +81,15 @@ export async function POST(request: Request) {
         hotSpot2Fee: validatedData.hotSpot2Fee,
         hotSpot3Fee: validatedData.hotSpot3Fee,
         hotSpotFinalFee: validatedData.hotSpotFinalFee,
-        createdById: session.user.id,
+        raceFeeMode: validatedData.raceFeeMode,
         birdFeeItems: {
           create: validatedData.birdFeeItems.map((item) => ({
             birdNo: item.birdNo,
-            fee: item.fee,
+            birdFee: item.birdFee,
           })),
         },
-        raceTypes: {
-          create: validatedData.raceTypes.map((item) => ({
+        raceTypeFees: {
+          create: validatedData.raceTypeFees.map((item) => ({
             raceTypeId: item.raceTypeId,
             fee: item.fee,
           })),
@@ -99,7 +97,7 @@ export async function POST(request: Request) {
       },
       include: {
         birdFeeItems: true,
-        raceTypes: {
+        raceTypeFees: {
           include: {
             raceType: true,
           },
@@ -145,27 +143,27 @@ export async function PUT(request: Request) {
       );
     }
 
+    const parsedId = parseInt(id);
     const validatedData = createFeeSchemeSchema.parse(updateData);
 
     // Delete existing related records first
     await prisma.$transaction([
       prisma.birdFeeItem.deleteMany({
-        where: { feeSchemeId: id },
+        where: { feeSchemeId: parsedId },
       }),
       prisma.raceTypeFeeScheme.deleteMany({
-        where: { feeSchemeId: id },
+        where: { feeSchemeId: parsedId },
       }),
     ]);
 
     // Update the fee scheme with new data
     const updatedFeeScheme = await prisma.feeScheme.update({
-      where: { id },
+      where: { id: parsedId },
       data: {
         name: validatedData.name,
-        description: validatedData.description,
-        perchFee: validatedData.perchFee,
+        entryFee: validatedData.entryFee,
         isRefundable: validatedData.isRefundable,
-        maxBirds: validatedData.maxBirds,
+        maxBirdCount: validatedData.maxBirdCount,
         feesCutPercent: validatedData.feesCutPercent,
         minEntryFees: validatedData.minEntryFees,
         maxBackupBirdCount: validatedData.maxBackupBirdCount,
@@ -174,14 +172,15 @@ export async function PUT(request: Request) {
         hotSpot2Fee: validatedData.hotSpot2Fee,
         hotSpot3Fee: validatedData.hotSpot3Fee,
         hotSpotFinalFee: validatedData.hotSpotFinalFee,
+        raceFeeMode: validatedData.raceFeeMode,
         birdFeeItems: {
           create: validatedData.birdFeeItems.map((item) => ({
             birdNo: item.birdNo,
-            fee: item.fee,
+            birdFee: item.birdFee,
           })),
         },
-        raceTypes: {
-          create: validatedData.raceTypes.map((item) => ({
+        raceTypeFees: {
+          create: validatedData.raceTypeFees.map((item) => ({
             raceTypeId: item.raceTypeId,
             fee: item.fee,
           })),
@@ -189,7 +188,7 @@ export async function PUT(request: Request) {
       },
       include: {
         birdFeeItems: true,
-        raceTypes: {
+        raceTypeFees: {
           include: {
             raceType: true,
           },
@@ -239,7 +238,7 @@ export async function DELETE(request: Request) {
     }
 
     await prisma.feeScheme.delete({
-      where: { id },
+      where: { id: parseInt(id) },
     });
 
     return NextResponse.json(

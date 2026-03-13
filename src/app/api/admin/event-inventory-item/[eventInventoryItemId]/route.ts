@@ -12,44 +12,49 @@ const updateEventInventoryItemSchema = z.object({
   band4: z.string().min(1),
   birdName: z.string().min(1),
   color: z.string().min(1),
-  sex: z.enum(["COCK", "HEN", "UNKNOWN"]),
+  sex: z.union([z.string(), z.number()]).optional(),
   rfid: z.string().optional().nullable(),
-  isActive: z.boolean(),
-  isLost: z.boolean(),
+  isActive: z.union([z.boolean(), z.number()]),
+  isLost: z.union([z.boolean(), z.number()]),
   lostDate: z.string().optional().nullable(),
-  lostRaceId: z.string().optional().nullable(),
+  lostRaceId: z.union([z.string(), z.number()]).optional().nullable(),
   note: z.string().optional().nullable(),
-  
+
   // Event Inventory Item fields
-  arrivalTime: z.string().optional().nullable(),
-  departureTime: z.string().optional().nullable(),
-  isBackup: z.boolean(),
-  
-  // Betting classes
-  belgianShowBet1: z.boolean(),
-  belgianShowBet2: z.boolean(),
-  belgianShowBet3: z.boolean(),
-  belgianShowBet4: z.boolean(),
-  belgianShowBet5: z.boolean(),
-  belgianShowBet6: z.boolean(),
-  belgianShowBet7: z.boolean(),
-  standardShowBet1: z.boolean(),
-  standardShowBet2: z.boolean(),
-  standardShowBet3: z.boolean(),
-  standardShowBet4: z.boolean(),
-  standardShowBet5: z.boolean(),
-  wtaBet1: z.boolean(),
-  wtaBet2: z.boolean(),
-  wtaBet3: z.boolean(),
-  wtaBet4: z.boolean(),
-  wtaBet5: z.boolean(),
+  arrivalDate: z.string().optional().nullable(),
+  departureDate: z.string().optional().nullable(),
+  isBackup: z.union([z.boolean(), z.number()]),
+
+  // Betting classes (Float, not Boolean)
+  belgianShowBet1: z.number().optional().nullable(),
+  belgianShowBet2: z.number().optional().nullable(),
+  belgianShowBet3: z.number().optional().nullable(),
+  belgianShowBet4: z.number().optional().nullable(),
+  belgianShowBet5: z.number().optional().nullable(),
+  belgianShowBet6: z.number().optional().nullable(),
+  belgianShowBet7: z.number().optional().nullable(),
+  standardShowBet1: z.number().optional().nullable(),
+  standardShowBet2: z.number().optional().nullable(),
+  standardShowBet3: z.number().optional().nullable(),
+  standardShowBet4: z.number().optional().nullable(),
+  standardShowBet5: z.number().optional().nullable(),
+  wtaBet1: z.number().optional().nullable(),
+  wtaBet2: z.number().optional().nullable(),
+  wtaBet3: z.number().optional().nullable(),
+  wtaBet4: z.number().optional().nullable(),
+  wtaBet5: z.number().optional().nullable(),
 });
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ eventInventoryItemId: string }> }
 ) {
-  const { eventInventoryItemId } = await params;
+  const { eventInventoryItemId: eventInventoryItemIdParam } = await params;
+  const eventInventoryItemId = parseInt(eventInventoryItemIdParam);
+
+  if (isNaN(eventInventoryItemId)) {
+    return NextResponse.json({ message: "Invalid event inventory item ID" }, { status: 400 });
+  }
 
   try {
     const session = await auth.api.getSession({
@@ -65,7 +70,7 @@ export async function PATCH(
 
     // Get the event inventory item to find the bird
     const eventInventoryItem = await prisma.eventInventoryItem.findUnique({
-      where: { eventInventoryItemId },
+      where: { id: eventInventoryItemId },
       include: { bird: true },
     });
 
@@ -75,11 +80,11 @@ export async function PATCH(
         { status: 404 }
       );
     }
-    if(body.rfid){
+    if(body.rfid && eventInventoryItem.birdId){
       const existingBirdWithRfid = await prisma.bird.findFirst({
         where: {
           rfid: body.rfid,
-          birdId: { not: eventInventoryItem.birdId },
+          id: { not: eventInventoryItem.birdId },
         },
       });
       if (existingBirdWithRfid) {
@@ -93,7 +98,7 @@ export async function PATCH(
     const result = await prisma.$transaction(async (tx) => {
       // Update the bird
       const updatedBird = await tx.bird.update({
-        where: { birdId: eventInventoryItem.birdId },
+        where: { id: eventInventoryItem.birdId! },
         data: {
           band1: validatedData.band1,
           band2: validatedData.band2,
@@ -102,40 +107,39 @@ export async function PATCH(
           band: `${validatedData.band1}-${validatedData.band2}-${validatedData.band3}-${validatedData.band4}`,
           birdName: validatedData.birdName,
           color: validatedData.color,
-          sex: validatedData.sex,
           rfid: validatedData.rfid || null,
-          isActive: validatedData.isActive,
-          isLost: validatedData.isLost,
+          isActive: validatedData.isActive ? 1 : 0,
+          isLost: validatedData.isLost ? 1 : 0,
           lostDate: validatedData.lostDate ? new Date(validatedData.lostDate) : null,
-          lostRaceId: validatedData.lostRaceId || null,
+          lostRaceId: validatedData.lostRaceId ? parseInt(String(validatedData.lostRaceId)) : null,
           note: validatedData.note || null,
         },
       });
 
       // Update the event inventory item
       const updatedEventInventoryItem = await tx.eventInventoryItem.update({
-        where: { eventInventoryItemId },
+        where: { id: eventInventoryItemId },
         data: {
-          arrivalTime: validatedData.arrivalTime ? new Date(validatedData.arrivalTime) : null,
-          departureTime: validatedData.departureTime ? new Date(validatedData.departureTime) : null,
-          isBackup: validatedData.isBackup,
-          belgianShowBet1: validatedData.belgianShowBet1,
-          belgianShowBet2: validatedData.belgianShowBet2,
-          belgianShowBet3: validatedData.belgianShowBet3,
-          belgianShowBet4: validatedData.belgianShowBet4,
-          belgianShowBet5: validatedData.belgianShowBet5,
-          belgianShowBet6: validatedData.belgianShowBet6,
-          belgianShowBet7: validatedData.belgianShowBet7,
-          standardShowBet1: validatedData.standardShowBet1,
-          standardShowBet2: validatedData.standardShowBet2,
-          standardShowBet3: validatedData.standardShowBet3,
-          standardShowBet4: validatedData.standardShowBet4,
-          standardShowBet5: validatedData.standardShowBet5,
-          wtaBet1: validatedData.wtaBet1,
-          wtaBet2: validatedData.wtaBet2,
-          wtaBet3: validatedData.wtaBet3,
-          wtaBet4: validatedData.wtaBet4,
-          wtaBet5: validatedData.wtaBet5,
+          arrivalDate: validatedData.arrivalDate ? new Date(validatedData.arrivalDate) : null,
+          departureDate: validatedData.departureDate ? new Date(validatedData.departureDate) : null,
+          isBackup: validatedData.isBackup ? 1 : 0,
+          belgianShowBet1: validatedData.belgianShowBet1 ?? null,
+          belgianShowBet2: validatedData.belgianShowBet2 ?? null,
+          belgianShowBet3: validatedData.belgianShowBet3 ?? null,
+          belgianShowBet4: validatedData.belgianShowBet4 ?? null,
+          belgianShowBet5: validatedData.belgianShowBet5 ?? null,
+          belgianShowBet6: validatedData.belgianShowBet6 ?? null,
+          belgianShowBet7: validatedData.belgianShowBet7 ?? null,
+          standardShowBet1: validatedData.standardShowBet1 ?? null,
+          standardShowBet2: validatedData.standardShowBet2 ?? null,
+          standardShowBet3: validatedData.standardShowBet3 ?? null,
+          standardShowBet4: validatedData.standardShowBet4 ?? null,
+          standardShowBet5: validatedData.standardShowBet5 ?? null,
+          wtaBet1: validatedData.wtaBet1 ?? null,
+          wtaBet2: validatedData.wtaBet2 ?? null,
+          wtaBet3: validatedData.wtaBet3 ?? null,
+          wtaBet4: validatedData.wtaBet4 ?? null,
+          wtaBet5: validatedData.wtaBet5 ?? null,
         },
       });
 

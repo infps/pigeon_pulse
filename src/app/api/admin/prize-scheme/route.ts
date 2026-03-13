@@ -14,9 +14,8 @@ export async function GET() {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const whereClause = session.user.role === "ADMIN" 
-      ? { createdById: session.user.id }
-      : {};
+    // TODO: createdById is now Int (OrganizerData), session.user.id is String. Skip ownership filter until auth bridge.
+    const whereClause = {};
 
     const prizeSchemes = await prisma.prizeScheme.findMany({
       where: whereClause,
@@ -25,13 +24,7 @@ export async function GET() {
       },
       include: {
         prizeSchemeItems: {
-          include: {
-            raceType: true,
-          },
           orderBy: [
-            {
-              raceTypeId: "asc",
-            },
             {
               fromPosition: "asc",
             },
@@ -74,23 +67,18 @@ export async function POST(request: Request) {
     const newPrizeScheme = await prisma.prizeScheme.create({
       data: {
         name: validatedData.name,
-        description: validatedData.description,
-        createdById: session.user.id,
+        // TODO: createdById is now Int (OrganizerData), session.user.id is String. Need auth bridge.
+        // createdById: ???,
         prizeSchemeItems: {
           create: validatedData.prizeSchemeItems.map((item) => ({
-            raceTypeId: item.raceTypeId,
             fromPosition: item.fromPosition,
             toPosition: item.toPosition,
-            prizeAmount: item.prizeAmount,
+            prizeValue: item.prizeValue,
           })),
         },
       },
       include: {
-        prizeSchemeItems: {
-          include: {
-            raceType: true,
-          },
-        },
+        prizeSchemeItems: true,
       },
     });
 
@@ -135,34 +123,29 @@ export async function PUT(request: Request) {
       );
     }
 
+    const parsedId = parseInt(id);
     const validatedData = createPrizeSchemeSchema.parse(updateData);
 
     // Delete existing prize scheme items first
     await prisma.prizeSchemeItem.deleteMany({
-      where: { prizeSchemeId: id },
+      where: { prizeSchemeId: parsedId },
     });
 
     // Update the prize scheme with new data
     const updatedPrizeScheme = await prisma.prizeScheme.update({
-      where: { prizeSchemeId: id },
+      where: { id: parsedId },
       data: {
         name: validatedData.name,
-        description: validatedData.description,
         prizeSchemeItems: {
           create: validatedData.prizeSchemeItems.map((item) => ({
-            raceTypeId: item.raceTypeId,
             fromPosition: item.fromPosition,
             toPosition: item.toPosition,
-            prizeAmount: item.prizeAmount,
+            prizeValue: item.prizeValue,
           })),
         },
       },
       include: {
-        prizeSchemeItems: {
-          include: {
-            raceType: true,
-          },
-        },
+        prizeSchemeItems: true,
       },
     });
 
@@ -208,7 +191,7 @@ export async function DELETE(request: Request) {
     }
 
     await prisma.prizeScheme.delete({
-      where: { prizeSchemeId: id },
+      where: { id: parseInt(id) },
     });
 
     return NextResponse.json(

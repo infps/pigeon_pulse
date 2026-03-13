@@ -4,7 +4,6 @@ import { use, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useListEvents } from "@/lib/api/events";
-import { useListEventTypes } from "@/lib/api/event-types";
 import { useListFeeSchemes } from "@/lib/api/fee-schemes";
 import { useListPrizeSchemes } from "@/lib/api/prize-schemes";
 import { useListBettingSchemes } from "@/lib/api/betting-schemes";
@@ -16,7 +15,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { ArrowLeft } from "lucide-react";
-import type { BettingScheme, Event, EventType, FeeScheme, PrizeScheme } from "@/lib/types";
+import type { BettingScheme, Event, FeeScheme, PrizeScheme } from "@/lib/types";
 import { EditEventTab } from "./edit-event-tab";
 import { BreedersTab } from "./breeders-tab";
 import { BirdsTab } from "./birds-tab";
@@ -28,13 +27,11 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
   const router = useRouter();
 
   const { data: eventData, isPending, isError } = useListEvents({ params: { eventId } });
-  const { data: eventTypesData } = useListEventTypes({});
   const { data: feeSchemesData } = useListFeeSchemes({});
   const { data: prizeSchemesData } = useListPrizeSchemes({});
   const { data: bettingSchemesData } = useListBettingSchemes({});
 
   const event: Event | undefined = eventData?.event;
-  const eventTypes: EventType[] = eventTypesData?.eventTypes || [];
   const feeSchemes: FeeScheme[] = feeSchemesData?.feeSchemes || [];
   const prizeSchemes: PrizeScheme[] = prizeSchemesData?.prizeSchemes || [];
   const bettingSchemes: BettingScheme[] = bettingSchemesData?.bettingSchemes || [];
@@ -93,7 +90,6 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
           <EditEventTab
             event={event}
             eventId={eventId}
-            eventTypes={eventTypes}
             feeSchemes={feeSchemes}
             prizeSchemes={prizeSchemes}
             bettingSchemes={bettingSchemes}

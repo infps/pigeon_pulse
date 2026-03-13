@@ -24,7 +24,7 @@ interface EditBirdDialogProps {
   onOpenChange: (open: boolean) => void;
   eventInventoryItem: EventInventoryItem | null;
   event: Event;
-  eventId: string;
+  eventId: number;
   onSuccess?: () => void;
 }
 
@@ -46,11 +46,11 @@ export function EditBirdDialog({
       const errorMessage = JSON.parse(error.message).message || "Failed to update bird";
       toast.error(errorMessage);
     },
-    eventInventoryItemId: eventInventoryItem?.eventInventoryItemId || "",
+    eventInventoryItemId: eventInventoryItem?.id ? String(eventInventoryItem.id) : "",
   });
 
   const { data: racesData } = useListRaces({
-    params: { eventId },
+    params: { eventId: String(eventId) },
   });
   const races:Race[] = racesData?.races || [];
 
@@ -99,24 +99,25 @@ export function EditBirdDialog({
 
   useEffect(() => {
     if (eventInventoryItem) {
+      const bird = eventInventoryItem.bird;
       // Set bird fields
-      setBand1(eventInventoryItem?.bird.band1);
-      setBand2(eventInventoryItem?.bird.band2);
-      setBand3(eventInventoryItem?.bird.band3);
-      setBand4(eventInventoryItem?.bird.band4);
-      setBirdName(eventInventoryItem?.bird.birdName);
-      setColor(eventInventoryItem?.bird.color);
-      setSex(eventInventoryItem?.bird.sex);
-      setRfid(eventInventoryItem?.bird.rfid || "");
-      setIsActive(eventInventoryItem?.bird.isActive);
-      setIsLost(eventInventoryItem?.bird.isLost);
+      setBand1(bird?.band1 ?? "");
+      setBand2(bird?.band2 ?? "");
+      setBand3(bird?.band3 ?? "");
+      setBand4(bird?.band4 ?? "");
+      setBirdName(bird?.birdName ?? "");
+      setColor(bird?.color ?? "");
+      setSex(bird?.sex === 1 ? "HEN" : bird?.sex === 2 ? "UNKNOWN" : "COCK");
+      setRfid(bird?.rfid ?? "");
+      setIsActive(!!bird?.isActive);
+      setIsLost(!!bird?.isLost);
       setLostDate(
-        eventInventoryItem.bird.lostDate
-          ? new Date(eventInventoryItem.bird.lostDate).toISOString().slice(0, 16)
+        bird?.lostDate
+          ? new Date(bird.lostDate).toISOString().slice(0, 16)
           : ""
       );
-      setLostRaceId(eventInventoryItem.bird.lostRaceId || "");
-      setNote(eventInventoryItem.bird.note || "");
+      setLostRaceId(bird?.lostRaceId ? String(bird.lostRaceId) : "");
+      setNote(bird?.note ?? "");
 
       // Set event inventory item fields
       setArrivalTime(
@@ -129,26 +130,26 @@ export function EditBirdDialog({
           ? new Date(eventInventoryItem.departureTime).toISOString().slice(0, 10)
           : ""
       );
-      setIsBackup(eventInventoryItem.isBackup);
+      setIsBackup(!!eventInventoryItem.isBackup);
 
       // Set betting classes
-      setBelgianShowBet1(eventInventoryItem.belgianShowBet1);
-      setBelgianShowBet2(eventInventoryItem.belgianShowBet2);
-      setBelgianShowBet3(eventInventoryItem.belgianShowBet3);
-      setBelgianShowBet4(eventInventoryItem.belgianShowBet4);
-      setBelgianShowBet5(eventInventoryItem.belgianShowBet5);
-      setBelgianShowBet6(eventInventoryItem.belgianShowBet6);
-      setBelgianShowBet7(eventInventoryItem.belgianShowBet7);
-      setStandardShowBet1(eventInventoryItem.standardShowBet1);
-      setStandardShowBet2(eventInventoryItem.standardShowBet2);
-      setStandardShowBet3(eventInventoryItem.standardShowBet3);
-      setStandardShowBet4(eventInventoryItem.standardShowBet4);
-      setStandardShowBet5(eventInventoryItem.standardShowBet5);
-      setWtaBet1(eventInventoryItem.wtaBet1);
-      setWtaBet2(eventInventoryItem.wtaBet2);
-      setWtaBet3(eventInventoryItem.wtaBet3);
-      setWtaBet4(eventInventoryItem.wtaBet4);
-      setWtaBet5(eventInventoryItem.wtaBet5);
+      setBelgianShowBet1(!!eventInventoryItem.belgianShowBet1);
+      setBelgianShowBet2(!!eventInventoryItem.belgianShowBet2);
+      setBelgianShowBet3(!!eventInventoryItem.belgianShowBet3);
+      setBelgianShowBet4(!!eventInventoryItem.belgianShowBet4);
+      setBelgianShowBet5(!!eventInventoryItem.belgianShowBet5);
+      setBelgianShowBet6(!!eventInventoryItem.belgianShowBet6);
+      setBelgianShowBet7(!!eventInventoryItem.belgianShowBet7);
+      setStandardShowBet1(!!eventInventoryItem.standardShowBet1);
+      setStandardShowBet2(!!eventInventoryItem.standardShowBet2);
+      setStandardShowBet3(!!eventInventoryItem.standardShowBet3);
+      setStandardShowBet4(!!eventInventoryItem.standardShowBet4);
+      setStandardShowBet5(!!eventInventoryItem.standardShowBet5);
+      setWtaBet1(!!eventInventoryItem.wtaBet1);
+      setWtaBet2(!!eventInventoryItem.wtaBet2);
+      setWtaBet3(!!eventInventoryItem.wtaBet3);
+      setWtaBet4(!!eventInventoryItem.wtaBet4);
+      setWtaBet5(!!eventInventoryItem.wtaBet5);
     }
   }, [eventInventoryItem]);
 
@@ -425,8 +426,8 @@ export function EditBirdDialog({
                       </SelectTrigger>
                       <SelectContent>
                         {races.map((race) => (
-                          <SelectItem key={race.raceId} value={race.raceId}>
-                            {race.name}
+                          <SelectItem key={race.id} value={String(race.id)}>
+                            {race.description ?? `Race ${race.raceNumber}`}
                           </SelectItem>
                         ))}
                       </SelectContent>

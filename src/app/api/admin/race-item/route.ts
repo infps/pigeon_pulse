@@ -21,21 +21,22 @@ export async function GET(req: NextRequest) {
 
     const raceItems = await prisma.raceItem.findMany({
       where: {
-        raceId,
+        raceId: parseInt(raceId),
       },
       include: {
-        bird: {
+        inventoryItem: {
           include: {
-            breeder: {
-              select: {
-                name: true,
-                email: true,
+            bird: {
+              include: {
+                breeder: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                  },
+                },
               },
             },
-          },
-        },
-        eventInventoryItem: {
-          include: {
             eventInventory: {
               select: {
                 loft: true,
@@ -43,20 +44,47 @@ export async function GET(req: NextRequest) {
             },
           },
         },
-        loftBasket: true,
+        distBasket: true,
         raceBasket: true,
+        result: true,
       },
       orderBy: [
         {
-          birdPosition: "asc",
+          result: {
+            birdPosition: "asc",
+          },
         },
         {
-          arrivalTime: "asc",
+          result: {
+            arrivalTime: "asc",
+          },
         },
       ],
     });
 
-    return Response.json({ raceItems });
+    // Flatten nested relations to match UI column accessors
+    const flattenedRaceItems = raceItems.map((item) => ({
+      ...item,
+      bird: item.inventoryItem?.bird ?? undefined,
+      eventInventoryItem: item.inventoryItem
+        ? { eventInventory: item.inventoryItem.eventInventory }
+        : undefined,
+      status: item.raceBasketId
+        ? "RACE_BASKETED"
+        : item.isLost
+          ? "FOREIGN_BIRD"
+          : item.distBasketId
+            ? "LOFT_BASKETED"
+            : "REGISTERED",
+      birdPosition: item.result?.birdPosition ?? null,
+      arrivalTime: item.result?.arrivalTime ?? null,
+      speed: null,
+      isLoftBasketed: !!item.distBasketId,
+      isRaceBasketed: !!item.raceBasketId,
+      loftBasket: item.distBasket,
+    }));
+
+    return Response.json({ raceItems: flattenedRaceItems });
   } catch (error) {
     console.error("Error fetching race items:", error);
     return Response.json(

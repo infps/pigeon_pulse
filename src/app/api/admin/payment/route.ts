@@ -1,34 +1,28 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getPaymentStatus } from "@/lib/utils";
-import { PaymentStatus } from "@/generated/prisma/enums";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const createPaymentSchema = z.object({
-  eventInventoryId: z.string(),
-  breederId: z.string(),
-  amountPaid: z.number(),
-  amountToPay: z.number(),
-  currency: z.string().default("USD"),
-  method: z.enum(["CREDIT_CARD", "PAYPAL", "BANK_TRANSFER", "CASH"]),
-  paymentType: z.enum(["PERCH_FEE", "BIRD_FEE", "RACES_FEE", "PAYOUTS", "OTHER"]),
-  status: z.enum(["PENDING", "PARTIAL", "PAID", "FAILED", "REFUNDED"]).optional(),
-  description: z.string().optional(),
-  referenceNumber: z.string().optional(),
+  eventInventoryId: z.union([z.string(), z.number()]).transform(v => parseInt(String(v))),
+  breederId: z.union([z.string(), z.number()]).transform(v => parseInt(String(v))),
+  paymentValue: z.number().optional(),
+  paymentMethod: z.number().optional(),
+  paymentType: z.number().optional(),
+  status: z.number().optional(),
+  paymentDesc: z.string().optional(),
+  transactionId: z.string().optional(),
 });
 
 const updatePaymentSchema = z.object({
-  paymentId: z.string(),
-  amountPaid: z.number(),
-  amountToPay: z.number(),
-  currency: z.string().default("USD"),
-  method: z.enum(["CREDIT_CARD", "PAYPAL", "BANK_TRANSFER", "CASH"]),
-  paymentType: z.enum(["PERCH_FEE", "BIRD_FEE", "RACES_FEE", "PAYOUTS", "OTHER"]),
-  status: z.enum(["PENDING", "PARTIAL", "PAID", "FAILED", "REFUNDED"]).optional(),
-  description: z.string().optional(),
-  referenceNumber: z.string().optional(),
+  paymentId: z.union([z.string(), z.number()]).transform(v => parseInt(String(v))),
+  paymentValue: z.number().optional(),
+  paymentMethod: z.number().optional(),
+  paymentType: z.number().optional(),
+  status: z.number().optional(),
+  paymentDesc: z.string().optional(),
+  transactionId: z.string().optional(),
 });
 
 export async function POST(request: Request) {
@@ -44,14 +38,17 @@ export async function POST(request: Request) {
     const body = await request.json();
     const validatedData = createPaymentSchema.parse(body);
 
-    const status = getPaymentStatus(
-      validatedData.amountPaid,
-      validatedData.amountToPay,
-      validatedData.status as PaymentStatus | undefined
-    );
-
-    const payment = await prisma.payments.create({
-      data: { ...validatedData, status },
+    const payment = await prisma.payment.create({
+      data: {
+        eventInventoryId: validatedData.eventInventoryId,
+        breederId: validatedData.breederId,
+        paymentValue: validatedData.paymentValue,
+        paymentMethod: validatedData.paymentMethod,
+        paymentType: validatedData.paymentType,
+        status: validatedData.status,
+        paymentDesc: validatedData.paymentDesc,
+        transactionId: validatedData.transactionId,
+      },
     });
 
     return NextResponse.json(
@@ -92,15 +89,9 @@ export async function PUT(request: Request) {
 
     const { paymentId, ...updateData } = validatedData;
 
-    const status = getPaymentStatus(
-      updateData.amountPaid,
-      updateData.amountToPay,
-      updateData.status as PaymentStatus | undefined
-    );
-
-    const payment = await prisma.payments.update({
-      where: { paymentId },
-      data: { ...updateData, status },
+    const payment = await prisma.payment.update({
+      where: { id: paymentId },
+      data: updateData,
     });
 
     return NextResponse.json(
@@ -146,8 +137,16 @@ export async function DELETE(request: Request)  {
       );
     }
 
-    await prisma.payments.delete({
-      where: { paymentId: paymentId },
+    const id = parseInt(paymentId);
+    if (isNaN(id)) {
+      return NextResponse.json(
+        { message: "Invalid payment ID" },
+        { status: 400 }
+      );
+    }
+
+    await prisma.payment.delete({
+      where: { id },
     });
 
     return NextResponse.json(

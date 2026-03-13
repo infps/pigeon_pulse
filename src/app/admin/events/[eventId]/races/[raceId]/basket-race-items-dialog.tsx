@@ -50,7 +50,7 @@ export function BasketRaceItemsDialog({
 
   const baskets = (basketsData?.baskets || []) as Basket[];
   const filteredBaskets = baskets.filter(
-    (basket) => basket.isRaceBasket === (basketType === "race")
+    (basket) => basket.isRaceBasket === (basketType === "race" ? 1 : 0)
   );
 
   console.log({ baskets, filteredBaskets });
@@ -146,7 +146,7 @@ export function BasketRaceItemsDialog({
                   </div>
                 ) : (
                   filteredBaskets.map((basket) => (
-                    <SelectItem key={basket.basketId} value={basket.basketId}>
+                    <SelectItem key={basket.basketId ?? basket.id} value={String(basket.basketId ?? basket.id)}>
                       <div className="flex items-center gap-2">
                         <span>Basket #{basket.basketNo}</span>
                         <Badge variant="outline" className="text-xs">

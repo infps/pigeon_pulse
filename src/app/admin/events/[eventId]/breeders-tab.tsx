@@ -14,12 +14,12 @@ interface BreedersTabProps {
 }
 
 export function BreedersTab({ event, eventId }: BreedersTabProps) {
-  const [selectedEventInventoryId, setSelectedEventInventoryId] = useState<string | null>(null);
+  const [selectedEventInventoryId, setSelectedEventInventoryId] = useState<number | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
 
   const { data, isPending, error } = useListEventInventory(eventId);
 
-  const handleBreederClick = (eventInventoryId: string) => {
+  const handleBreederClick = (eventInventoryId: number) => {
     setSelectedEventInventoryId(eventInventoryId);
     setIsDetailsDialogOpen(true);
   };

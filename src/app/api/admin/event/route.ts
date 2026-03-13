@@ -16,37 +16,28 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const eventId = searchParams.get("eventId");
+    const eventIdParam = searchParams.get("eventId");
 
-    if (eventId) {
-      const whereClause: any = {
-        eventId: eventId,
-      };
-      
-      // If ADMIN, can only access their own events
-      // Breeders can view any event
-      if (session.user.role === "ADMIN") {
-        whereClause.createdById = session.user.id;
+    if (eventIdParam) {
+      const eventId = parseInt(eventIdParam);
+      if (isNaN(eventId)) {
+        return NextResponse.json({ message: "Invalid event ID" }, { status: 400 });
       }
 
       const event = await prisma.event.findUnique({
-        where: whereClause,
+        where: { id: eventId },
         include: {
-          type: true,
+          eventType: true,
           feeScheme: {
-            include:{
-              birdFeeItems: true
-            }
-          },
-          prizeScheme: true,
-          bettingScheme: true,
-          createdBy: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
+            include: {
+              birdFeeItems: { orderBy: { birdNo: "asc" } },
+              raceTypeFees: { include: { raceType: true } },
             },
           },
+          finalPrize: true,
+          bettingScheme: true,
+          createdBy: true,
+          races: { include: { raceType: true }, orderBy: { startTime: "asc" } },
         },
       });
       if (!event) {
@@ -61,28 +52,16 @@ export async function GET(request: Request) {
       );
     }
 
-    // Breeders can view all events, ADMIN can only view their own
-    const whereClause = session.user.role === "ADMIN" 
-      ? { createdById: session.user.id }
-      : {};
-
     const events = await prisma.event.findMany({
-      where: whereClause,
       include: {
-        type: true,
+        eventType: true,
         feeScheme: true,
-        prizeScheme: true,
+        finalPrize: true,
         bettingScheme: true,
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
+        createdBy: true,
       },
       orderBy: {
-        createdAt: "desc",
+        id: "desc",
       },
     });
 
@@ -113,11 +92,11 @@ export async function POST(request: Request) {
     }
 
     const formData = await request.formData();
-    
+
     // Extract files
     const logoImageFile = formData.get("logoImage") as File | null;
     const bannerImageFile = formData.get("bannerImage") as File | null;
-    
+
     // Extract other fields
     const bodyData: any = {};
     formData.forEach((value, key) => {
@@ -148,45 +127,33 @@ export async function POST(request: Request) {
       bannerImageKey = result.key;
     }
 
+    // Find organizer by session user email for createdById
+    const organizer = await prisma.organizerData.findFirst({
+      where: { email: session.user.email },
+    });
+
     const newEvent = await prisma.event.create({
       data: {
         name: validatedData.name,
         shortName: validatedData.shortName,
-        description: validatedData.description,
-        startDate: new Date(validatedData.startDate),
-        endDate: validatedData.endDate ? new Date(validatedData.endDate) : null,
-        isOpen: validatedData.isOpen ?? true,
-        typeId: validatedData.typeId,
-        feeSchemeId: validatedData.feeSchemeId,
-        prizeSchemeId: validatedData.prizeSchemeId,
-        bettingSchemeId: validatedData.bettingSchemeId,
-        createdById: session.user.id,
-        contactName: validatedData.contactName,
-        contactEmail: validatedData.contactEmail,
-        contactPhone: validatedData.contactPhone,
-        contactWebsite: validatedData.contactWebsite,
-        contactAddress: validatedData.contactAddress,
-        socialYt: validatedData.socialYt,
-        socialFb: validatedData.socialFb,
-        socialTwitter: validatedData.socialTwitter,
-        socialInsta: validatedData.socialInsta,
+        eventDate: new Date(validatedData.eventDate),
+        isOpen: validatedData.isOpen ?? 1,
+        eventTypeId: validatedData.eventTypeId ?? null,
+        feeSchemeId: validatedData.feeSchemeId ?? null,
+        finalPrizeSchemeId: validatedData.finalPrizeSchemeId ?? null,
+        bettingSchemeId: validatedData.bettingSchemeId ?? null,
+        createdById: organizer?.id ?? null,
         logoImage: logoImageUrl,
         logoImageKey: logoImageKey,
         bannerImage: bannerImageUrl,
         bannerImageKey: bannerImageKey,
       },
       include: {
-        type: true,
+        eventType: true,
         feeScheme: true,
-        prizeScheme: true,
+        finalPrize: true,
         bettingScheme: true,
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
+        createdBy: true,
       },
     });
 
@@ -223,19 +190,26 @@ export async function PUT(request: Request) {
     }
 
     const formData = await request.formData();
-    const eventId = formData.get("eventId") as string;
+    const eventIdParam = formData.get("eventId") as string;
 
-    if (!eventId) {
+    if (!eventIdParam) {
       return NextResponse.json(
         { message: "Event ID is required" },
         { status: 400 }
       );
     }
 
-    // Get existing event to check for old images
+    const eventId = parseInt(eventIdParam);
+    if (isNaN(eventId)) {
+      return NextResponse.json(
+        { message: "Invalid event ID" },
+        { status: 400 }
+      );
+    }
+
+    // Get existing event
     const existingEvent = await prisma.event.findUnique({
-      where: { eventId },
-      select: { logoImageKey: true, bannerImageKey: true },
+      where: { id: eventId },
     });
 
     if (!existingEvent) {
@@ -248,7 +222,7 @@ export async function PUT(request: Request) {
     // Extract files
     const logoImageFile = formData.get("logoImage") as File | null;
     const bannerImageFile = formData.get("bannerImage") as File | null;
-    
+
     // Extract other fields
     const bodyData: any = {};
     formData.forEach((value, key) => {
@@ -259,40 +233,22 @@ export async function PUT(request: Request) {
 
     const validatedData = updateEventSchema.parse(bodyData);
 
-    // Handle logo image update
-    let logoImageUrl = undefined;
-    let logoImageKey = undefined;
+    // Handle image uploads
+    let logoImageUrl = existingEvent.logoImage;
+    let logoImageKey = existingEvent.logoImageKey;
+    let bannerImageUrl = existingEvent.bannerImage;
+    let bannerImageKey = existingEvent.bannerImageKey;
+
     if (logoImageFile && logoImageFile.size > 0) {
-      // Delete old logo if exists
-      if (existingEvent.logoImageKey) {
-        try {
-          await deleteFromR2(existingEvent.logoImageKey);
-        } catch (error) {
-          console.error("Error deleting old logo:", error);
-        }
-      }
-      
-      // Upload new logo
+      if (logoImageKey) await deleteFromR2(logoImageKey);
       const key = generateImageKey("events/logos", logoImageFile.name);
       const result = await uploadToR2(logoImageFile, key);
       logoImageUrl = result.url;
       logoImageKey = result.key;
     }
 
-    // Handle banner image update
-    let bannerImageUrl = undefined;
-    let bannerImageKey = undefined;
     if (bannerImageFile && bannerImageFile.size > 0) {
-      // Delete old banner if exists
-      if (existingEvent.bannerImageKey) {
-        try {
-          await deleteFromR2(existingEvent.bannerImageKey);
-        } catch (error) {
-          console.error("Error deleting old banner:", error);
-        }
-      }
-      
-      // Upload new banner
+      if (bannerImageKey) await deleteFromR2(bannerImageKey);
       const key = generateImageKey("events/banners", bannerImageFile.name);
       const result = await uploadToR2(bannerImageFile, key);
       bannerImageUrl = result.url;
@@ -300,80 +256,39 @@ export async function PUT(request: Request) {
     }
 
     const updatedEvent = await prisma.event.update({
-      where: { eventId },
+      where: { id: eventId },
       data: {
         ...(validatedData.name && { name: validatedData.name }),
         ...(validatedData.shortName !== undefined && {
           shortName: validatedData.shortName,
         }),
-        ...(validatedData.description !== undefined && {
-          description: validatedData.description,
-        }),
-        ...(validatedData.startDate && {
-          startDate: new Date(validatedData.startDate),
-        }),
-        ...(validatedData.endDate !== undefined && {
-          endDate: validatedData.endDate
-            ? new Date(validatedData.endDate)
-            : null,
+        ...(validatedData.eventDate && {
+          eventDate: new Date(validatedData.eventDate),
         }),
         ...(validatedData.isOpen !== undefined && {
           isOpen: validatedData.isOpen,
         }),
-        ...(validatedData.typeId && { typeId: validatedData.typeId }),
-        ...(validatedData.feeSchemeId && {
+        ...(validatedData.eventTypeId !== undefined && { eventTypeId: validatedData.eventTypeId }),
+        ...(validatedData.feeSchemeId !== undefined && {
           feeSchemeId: validatedData.feeSchemeId,
         }),
-        ...(validatedData.prizeSchemeId && {
-          prizeSchemeId: validatedData.prizeSchemeId,
+        ...(validatedData.finalPrizeSchemeId !== undefined && {
+          finalPrizeSchemeId: validatedData.finalPrizeSchemeId,
         }),
-        ...(validatedData.bettingSchemeId && {
+        ...(validatedData.bettingSchemeId !== undefined && {
           bettingSchemeId: validatedData.bettingSchemeId,
         }),
-        ...(validatedData.contactName !== undefined && {
-          contactName: validatedData.contactName,
-        }),
-        ...(validatedData.contactEmail !== undefined && {
-          contactEmail: validatedData.contactEmail,
-        }),
-        ...(validatedData.contactPhone !== undefined && {
-          contactPhone: validatedData.contactPhone,
-        }),
-        ...(validatedData.contactWebsite !== undefined && {
-          contactWebsite: validatedData.contactWebsite,
-        }),
-        ...(validatedData.contactAddress !== undefined && {
-          contactAddress: validatedData.contactAddress,
-        }),
-        ...(validatedData.socialYt !== undefined && {
-          socialYt: validatedData.socialYt,
-        }),
-        ...(validatedData.socialFb !== undefined && {
-          socialFb: validatedData.socialFb,
-        }),
-        ...(validatedData.socialTwitter !== undefined && {
-          socialTwitter: validatedData.socialTwitter,
-        }),
-        ...(validatedData.socialInsta !== undefined && {
-          socialInsta: validatedData.socialInsta,
-        }),
-        ...(logoImageUrl !== undefined && { logoImage: logoImageUrl }),
-        ...(logoImageKey !== undefined && { logoImageKey: logoImageKey }),
-        ...(bannerImageUrl !== undefined && { bannerImage: bannerImageUrl }),
-        ...(bannerImageKey !== undefined && { bannerImageKey: bannerImageKey }),
+        logoImage: logoImageUrl,
+        logoImageKey: logoImageKey,
+        bannerImage: bannerImageUrl,
+        bannerImageKey: bannerImageKey,
       },
       include: {
-        type: true,
+        eventType: true,
         feeScheme: true,
-        prizeScheme: true,
+        finalPrize: true,
         bettingScheme: true,
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
+        createdBy: true,
       },
     });
 
@@ -419,8 +334,16 @@ export async function DELETE(request: Request) {
       );
     }
 
+    const id = parseInt(eventId);
+    if (isNaN(id)) {
+      return NextResponse.json(
+        { message: "Invalid event ID" },
+        { status: 400 }
+      );
+    }
+
     await prisma.event.delete({
-      where: { eventId },
+      where: { id },
     });
 
     return NextResponse.json(

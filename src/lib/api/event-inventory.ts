@@ -2,9 +2,9 @@ import { useApiQuery } from "@/hooks/useApi";
 import { apiEndpoints } from "@/lib/endpoints";
 
 
-export const useListEventInventory = (eventId: string) => {
+export const useListEventInventory = (eventId: number | string) => {
   return useApiQuery({
-    queryKey: ["event-inventory", "list", eventId],
+    queryKey: ["event-inventory", "list", String(eventId)],
     endpoint: apiEndpoints.eventInventory.byEvent(eventId),
     enabled: !!eventId,
   });

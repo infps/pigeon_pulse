@@ -162,6 +162,55 @@ export const createColumns = (
     },
   },
   {
+    accessorKey: "city",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="City" />
+    ),
+    cell: ({ row }) => <span>{(row.getValue("city") as string) || "-"}</span>,
+  },
+  {
+    accessorKey: "address",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Address" />
+    ),
+    cell: ({ row }) => <span>{(row.getValue("address") as string) || "-"}</span>,
+  },
+  {
+    accessorKey: "postalCode",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Postal Code" />
+    ),
+    cell: ({ row }) => <span>{(row.getValue("postalCode") as string) || "-"}</span>,
+  },
+  {
+    accessorKey: "webAddress",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Website" />
+    ),
+    cell: ({ row }) => <span>{(row.getValue("webAddress") as string) || "-"}</span>,
+  },
+  {
+    accessorKey: "ssn",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="SSN" />
+    ),
+    cell: ({ row }) => <span>{(row.getValue("ssn") as string) || "-"}</span>,
+  },
+  {
+    accessorKey: "taxNumber",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Tax Number" />
+    ),
+    cell: ({ row }) => <span>{(row.getValue("taxNumber") as string) || "-"}</span>,
+  },
+  {
+    accessorKey: "note",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Note" />
+    ),
+    cell: ({ row }) => <span>{(row.getValue("note") as string) || "-"}</span>,
+  },
+  {
     accessorKey: "createdAt",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Created At" />

@@ -5,7 +5,7 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import type { EventInventory } from "@/lib/types";
 
 export const createBreedersColumns = (
-  onBreederClick: (eventInventoryId: string) => void
+  onBreederClick: (eventInventoryId: number) => void
 ): ColumnDef<EventInventory>[] => [
   {
     id: "loft",
@@ -16,7 +16,7 @@ export const createBreedersColumns = (
   },
   {
     id: "breederName",
-    accessorKey: "breeder.name",
+    accessorKey: "breeder.firstName",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Breeder Name" />
     ),
@@ -25,12 +25,22 @@ export const createBreedersColumns = (
       return (
         <span
           className="cursor-pointer hover:underline text-blue-600"
-          onClick={() => onBreederClick(row.original.eventInventoryId)}
+          onClick={() => onBreederClick(row.original.id)}
         >
-          {breeder.name} {breeder.lastName || ""}
+          {breeder?.firstName} {breeder?.lastName || ""}
         </span>
       );
     },
+  },
+  {
+    id: "breederEmail",
+    header: "Email",
+    cell: ({ row }) => <span>{row.original.breeder?.email || "-"}</span>,
+  },
+  {
+    id: "breederPhone",
+    header: "Phone",
+    cell: ({ row }) => <span>{row.original.breeder?.phone || "-"}</span>,
   },
   {
     accessorKey: "reservedBirds",
@@ -39,41 +49,69 @@ export const createBreedersColumns = (
     ),
   },
   {
-    accessorKey: "registrationDate",
+    accessorKey: "signInDate",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Registration Date" />
+      <DataTableColumnHeader column={column} title="Sign In Date" />
     ),
     cell: ({ row }) => {
-      const date = new Date(row.original.registrationDate);
+      const signInDate = row.original.signInDate;
+      if (!signInDate) return <span>-</span>;
+      const date = new Date(signInDate);
       return <span>{date.toLocaleDateString()}</span>;
-    }
+    },
+  },
+  {
+    header: "Purge Fee",
+    cell: ({ row }) => {
+      const value = (row.original.items ?? []).reduce(
+        (sum, item) => sum + (item.entryFeeValue ?? 0),
+        0
+      );
+      return <span>${value.toFixed(2)}</span>;
+    },
   },
   {
     header: "Bird Fees Value",
-    cell: ({row})=>{
-        const birdFeesValue = row.original.payments.filter(p => p.paymentType === 'BIRD_FEE').reduce((sum, p) => sum + p.amountToPay, 0);
-        return <span>${birdFeesValue.toFixed(2)}</span>;
-    }
+    cell: ({ row }) => {
+      const value = (row.original.items ?? []).reduce(
+        (sum, item) => sum + (item.perchFeeValue ?? 0),
+        0
+      );
+      return <span>${value.toFixed(2)}</span>;
+    },
   },
   {
     header: "Bird Fees Paid",
-    cell: ({row})=>{
-        const birdFeesPaid = row.original.payments.filter(p => p.paymentType === 'BIRD_FEE').reduce((sum, p) => sum + p.amountPaid, 0);
-        return <span>${birdFeesPaid.toFixed(2)}</span>;
-    }
+    cell: ({ row }) => {
+      const paid = (row.original.payments ?? [])
+        .filter((p) => (p.paymentType as unknown) === "PERCH_FEE")
+        .reduce((sum, p) => sum + (p.paymentValue ?? 0), 0);
+      return <span>${paid.toFixed(2)}</span>;
+    },
   },
   {
-    header: "Perch Fees Value",
-    cell: ({row})=>{
-        const perchFeesValue = row.original.payments.filter(p => p.paymentType === 'PERCH_FEE').reduce((sum, p) => sum + p.amountToPay, 0);
-        return <span>${perchFeesValue.toFixed(2)}</span>;
-    }
+    header: "Race Fees Value",
+    cell: ({ row }) => {
+      const value = (row.original.items ?? []).reduce(
+        (sum, item) => sum + (item.raceFeeValue ?? 0),
+        0
+      );
+      return <span>${value.toFixed(2)}</span>;
+    },
   },
   {
-    header: "Perch Fees Paid",
-    cell: ({row})=>{
-        const perchFeesPaid = row.original.payments.filter(p => p.paymentType === 'PERCH_FEE').reduce((sum, p) => sum + p.amountPaid, 0);
-        return <span>${perchFeesPaid.toFixed(2)}</span>;
-    }
-  }
+    header: "Hotspot Fees Value",
+    cell: ({ row }) => {
+      const value = (row.original.items ?? []).reduce(
+        (sum, item) => sum + (item.hotSpotFeeValue ?? 0),
+        0
+      );
+      return <span>${value.toFixed(2)}</span>;
+    },
+  },
+  {
+    id: "note",
+    header: "Note",
+    cell: ({ row }) => <span>{row.original.note || "-"}</span>,
+  },
 ];

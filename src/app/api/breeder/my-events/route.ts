@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -12,17 +13,19 @@ export async function GET() {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
+    const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
+
     const inventories = await prisma.eventInventory.findMany({
-      where: { breederId: session.user.id },
+      where: { breederId: breeder.id },
       include: {
         event: true,
-        eventInventoryItems: {
+        items: {
           include: {
             bird: true,
           },
         },
       },
-      orderBy: { registrationDate: "desc" },
+      orderBy: { signInDate: "desc" },
     });
 
     return NextResponse.json(

@@ -61,14 +61,14 @@ export default function PublicRacePage() {
                 {race.event?.logoImage ? (
                   <Image
                     src={race.event.logoImage}
-                    alt={race.event.name}
+                    alt={race.event.name ?? "Event"}
                     width={128}
                     height={128}
                     className="object-cover w-full h-full"
                   />
                 ) : (
                   <span className="text-2xl md:text-3xl font-bold text-gray-600">
-                    {race.name.substring(0, 3).toUpperCase()}
+                    {(race.description ?? "").substring(0, 3).toUpperCase()}
                   </span>
                 )}
               </div>
@@ -80,20 +80,20 @@ export default function PublicRacePage() {
                 <div>
                   <div className="flex items-center gap-3 flex-wrap">
                     <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-                      {race.name}
+                      {race.description}
                     </h1>
                     <Badge
-                      variant={race.isClosed ? "secondary" : "default"}
+                      variant={race.isClosed === 1 ? "secondary" : "default"}
                       className="text-sm"
                     >
-                      {race.isClosed ? "Closed" : "Open"}
+                      {race.isClosed === 1 ? "Closed" : "Open"}
                     </Badge>
-                    {race.isLive && (
+                    {race.startTime && race.isClosed !== 1 && (
                       <Badge
                         variant="destructive"
                         className="text-sm animate-pulse"
                       >
-                        🔴 LIVE
+                        LIVE
                       </Badge>
                     )}
                   </div>
@@ -101,13 +101,13 @@ export default function PublicRacePage() {
                     <span className="text-sm md:text-base text-gray-600 font-medium">
                       {race.event?.name}
                     </span>
-                    <Badge variant={race.isClosed ? "secondary" : "default"}>
+                    <Badge variant={race.isClosed === 1 ? "secondary" : "default"} className="text-xs">
                       {race.raceType?.name || "Race"}
                     </Badge>
                   </div>
                   <p className="text-sm md:text-base text-blue-600 mt-1">
-                    Release Station:{" "}
-                    <span className="font-medium">{race.releaseStation}</span>
+                    Location:{" "}
+                    <span className="font-medium">{race.location}</span>
                   </p>
                 </div>
 
@@ -115,16 +115,18 @@ export default function PublicRacePage() {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4">
                   <div className="border rounded-lg p-2 md:p-3 bg-transparent text-center">
                     <div className="text-lg md:text-xl font-bold text-gray-900">
-                      {new Date(race.releaseDate).toLocaleDateString()}
+                      {race.startTime ? new Date(race.startTime).toLocaleDateString() : "TBD"}
                     </div>
                     <div className="text-xs md:text-sm text-gray-600">
-                      {new Date(race.releaseDate).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {race.startTime
+                        ? new Date(race.startTime).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "-"}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
-                      Release Date & Time
+                      Start Time
                     </div>
                   </div>
                   <div className="border rounded-lg p-2 md:p-3 bg-transparent text-center">

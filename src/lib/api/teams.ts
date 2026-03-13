@@ -2,12 +2,13 @@ import  { useApiQuery } from "@/hooks/useApi";
 import { apiEndpoints } from "../endpoints";
 import { useApiMutation } from "@/hooks/useApiMutation";
 
-export function useListTeams({ params, endpoint }: { params?: Record<string, string>; endpoint?: string } = {}) {
+export function useListTeams({ params, endpoint, enabled = true }: { params?: Record<string, string>; endpoint?: string; enabled?: boolean } = {}) {
   const paramKeys = params ? Object.keys(params).sort().map((key) => `${key}-${params[key]}`).join("_") : "all";
   const res = useApiQuery({
     endpoint: endpoint || apiEndpoints.teams.base,
     queryKey: ["teams", "list", paramKeys],
     params,
+    enabled,
   });
   return res;
 }

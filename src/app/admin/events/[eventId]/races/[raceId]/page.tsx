@@ -188,14 +188,14 @@ export default function RaceDetailsPage() {
                 {event.logoImage ? (
                   <Image
                     src={event.logoImage}
-                    alt={event.name}
+                    alt={event.name ?? "Event"}
                     width={128}
                     height={128}
                     className="object-cover w-full h-full"
                   />
                 ) : (
                   <span className="text-2xl md:text-3xl font-bold text-gray-600">
-                    {race.name.substring(0, 3).toUpperCase()}
+                    {(race.description ?? "").substring(0, 3).toUpperCase()}
                   </span>
                 )}
               </div>
@@ -206,11 +206,11 @@ export default function RaceDetailsPage() {
               <div className="space-y-3">
                 <div>
                   <div className="flex items-center gap-3 flex-wrap">
-                    <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{race.name}</h1>
-                    <Badge variant={race.isClosed ? "secondary" : "default"} className="text-sm">
-                      {race.isClosed ? "Closed" : "Open"}
+                    <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{race.description}</h1>
+                    <Badge variant={race.isClosed === 1 ? "secondary" : "default"} className="text-sm">
+                      {race.isClosed === 1 ? "Closed" : "Open"}
                     </Badge>
-                    {race.isLive && (
+                    {race.startTime && race.isClosed !== 1 && (
                       <Badge variant="destructive" className="text-sm animate-pulse">
                         🔴 LIVE
                       </Badge>
@@ -218,10 +218,10 @@ export default function RaceDetailsPage() {
                   </div>
                   <div className="flex flex-wrap items-center gap-2 mt-2">
                     <span className="text-sm md:text-base text-gray-600 font-medium">{event.name}</span>
-                    <Badge variant={race.isClosed ? "secondary" : "default"}>
+                    <Badge variant={race.isClosed === 1 ? "secondary" : "default"}>
                       {race.raceType?.name || "Race"}
                     </Badge>
-                    {!race.isLive && !race.isClosed && (
+                    {!race.startTime && race.isClosed !== 1 && (
                       <Button
                         onClick={() => startRace({})}
                         disabled={isStartingRace}
@@ -232,7 +232,7 @@ export default function RaceDetailsPage() {
                         {isStartingRace ? "Starting..." : "Start Race"}
                       </Button>
                     )}
-                    {!race.isClosed && (
+                    {race.isClosed !== 1 && (
                       isScanning ? (
                         <Button
                           onClick={stopScanner}
@@ -249,13 +249,13 @@ export default function RaceDetailsPage() {
                           className="gap-2"
                         >
                           <Radio className="h-4 w-4" />
-                          {race.isLive ? "Start Scanner" : "Loft Scanner"}
+                          {(race.startTime && race.isClosed !== 1) ? "Start Scanner" : "Loft Scanner"}
                         </Button>
                       )
                     )}
                   </div>
                   <p className="text-sm md:text-base text-blue-600 mt-1">
-                    Release Station: <span className="font-medium">{race.releaseStation}</span>
+                    Location: <span className="font-medium">{race.location}</span>
                   </p>
                 </div>
 
@@ -272,28 +272,28 @@ export default function RaceDetailsPage() {
                         <path d="M14 6h4"/>
                       </svg>
                     </div>
-                    {race.releaseWeather && (
+                    {race.weather && (
                       <div className="flex items-center gap-1.5">
-                        {getWeatherIcon(race.releaseWeather)}
-                        <span className="text-gray-700">{race.releaseWeather}</span>
+                        {getWeatherIcon(race.weather)}
+                        <span className="text-gray-700">{race.weather}</span>
                       </div>
                     )}
-                    {race.releaseTemperature && (
+                    {race.temperature && (
                       <div className="flex items-center gap-1">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-orange-500">
                           <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>
                         </svg>
-                        <span className="font-medium text-gray-900">{race.releaseTemperature}°F</span>
+                        <span className="font-medium text-gray-900">{race.temperature}°F</span>
                       </div>
                     )}
-                    {race.releaseWind && (
+                    {race.wind && (
                       <div className="flex items-center gap-1">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-blue-500">
                           <path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/>
                           <path d="M9.6 4.6A2 2 0 1 1 11 8H2"/>
                           <path d="M12.6 19.4A2 2 0 1 0 14 16H2"/>
                         </svg>
-                        <span className="text-gray-700">{race.releaseWind}</span>
+                        <span className="text-gray-700">{race.wind}</span>
                       </div>
                     )}
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-blue-600">
@@ -352,12 +352,12 @@ export default function RaceDetailsPage() {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4">
                   <div className="border rounded-lg p-2 md:p-3 bg-transparent text-center">
                     <div className="text-lg md:text-xl font-bold text-gray-900">
-                      {new Date(race.releaseDate).toLocaleDateString()}
+                      {race.startTime ? new Date(race.startTime).toLocaleDateString() : "-"}
                     </div>
                     <div className="text-xs md:text-sm text-gray-600">
-                      {new Date(race.releaseDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {race.startTime ? new Date(race.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-"}
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">Release Date & Time</div>
+                    <div className="text-xs text-gray-500 mt-1">Start Time</div>
                   </div>
                   <div className="border rounded-lg p-2 md:p-3 bg-transparent text-center">
                     <div className="text-lg md:text-xl font-bold text-gray-900">{race.distance}</div>
@@ -366,10 +366,10 @@ export default function RaceDetailsPage() {
                   </div>
                   <div className="border rounded-lg p-2 md:p-3 bg-transparent text-center">
                     <div className="text-lg md:text-xl font-bold text-gray-900">
-                      {new Date(race.sunriseTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {race.sunrise ? new Date(race.sunrise).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-"}
                     </div>
                     <div className="text-xs md:text-sm text-gray-600">
-                      {new Date(race.sunsetTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {race.sunset ? new Date(race.sunset).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-"}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">Sunrise / Sunset</div>
                   </div>

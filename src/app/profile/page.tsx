@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +21,7 @@ import {
 import { Monitor, Loader2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { Session, set } from "better-auth";
-import { COUNTRIES, STATES, getCountryFlag, getStateFlag, getCountryName, getStateName } from "@/lib/flag-constants";
+import { COUNTRIES, getCountryFlag, getCountryName, getStatesForCountry } from "@/lib/flag-constants";
 import Image from "next/image";
 
 interface UserProfile {
@@ -112,7 +112,16 @@ export default function ProfilePage() {
     fetchProfile();
   }, [session?.user]);
 
+  const availableStates = useMemo(
+    () => getStatesForCountry(formData.country),
+    [formData.country]
+  );
+
   const handleInputChange = (field: string, value: string) => {
+    if (field === "country") {
+      setFormData((prev) => ({ ...prev, country: value, state: "" }));
+      return;
+    }
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -362,38 +371,15 @@ export default function ProfilePage() {
                         <Select
                           value={formData.state}
                           onValueChange={(value) => handleInputChange("state", value)}
+                          disabled={!formData.country || availableStates.length === 0}
                         >
                           <SelectTrigger id="state">
-                            <SelectValue placeholder="Select state">
-                              {formData.state && (
-                                <div className="flex items-center gap-2">
-                                  {getStateFlag(formData.state) && (
-                                    <Image
-                                      src={getStateFlag(formData.state)!}
-                                      alt={getStateName(formData.state)}
-                                      width={20}
-                                      height={15}
-                                      className="rounded"
-                                    />
-                                  )}
-                                  <span>{getStateName(formData.state)}</span>
-                                </div>
-                              )}
-                            </SelectValue>
+                            <SelectValue placeholder={formData.country ? "Select state" : "Select country first"} />
                           </SelectTrigger>
                           <SelectContent>
-                            {Object.entries(STATES).map(([code, name]) => (
-                              <SelectItem key={code} value={code}>
-                                <div className="flex items-center gap-2">
-                                  <Image
-                                    src={`/stateflags/${code}.gif`}
-                                    alt={name}
-                                    width={20}
-                                    height={15}
-                                    className="rounded"
-                                  />
-                                  <span>{name}</span>
-                                </div>
+                            {availableStates.map((s) => (
+                              <SelectItem key={s.code} value={s.code}>
+                                {s.name}
                               </SelectItem>
                             ))}
                           </SelectContent>

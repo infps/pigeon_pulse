@@ -32,7 +32,7 @@ function BreederDialog({ open, onOpenChange, inventory, allBirds }: BreederDialo
 
   const breeder = inventory.breeder;
   const breederBirds = allBirds.filter(
-    item => item.eventInventory?.breederId === breeder.id
+    item => item.eventInventory?.breederId === breeder?.id
   );
 
   const getInitials = (name: string) => {
@@ -50,13 +50,13 @@ function BreederDialog({ open, onOpenChange, inventory, allBirds }: BreederDialo
         <DialogHeader>
           <DialogTitle className="flex items-center gap-4">
             <Avatar className="h-16 w-16">
-              <AvatarImage src={breeder.image || undefined} alt={breeder.name} />
+              <AvatarImage src={breeder?.image ?? undefined} alt={breeder?.firstName ?? ""} />
               <AvatarFallback className="text-lg">
-                {getInitials(breeder.name)}
+                {getInitials(breeder?.firstName ?? "")}
               </AvatarFallback>
             </Avatar>
             <div className="text-left">
-              <div className="text-xl font-bold">{breeder.name}</div>
+              <div className="text-xl font-bold">{breeder?.firstName}</div>
               <div className="text-sm text-muted-foreground font-normal">
                 Loft: {inventory.loft}
               </div>
@@ -77,11 +77,11 @@ function BreederDialog({ open, onOpenChange, inventory, allBirds }: BreederDialo
             </TableHeader>
             <TableBody>
               {breederBirds.map((item) => (
-                <TableRow key={item.eventInventoryItemId}>
+                <TableRow key={item.id}>
                   <TableCell className="font-mono">{item.bird?.band || "-"}</TableCell>
                   <TableCell>{item.bird?.birdName || "-"}</TableCell>
                   <TableCell>{item.bird?.color || "-"}</TableCell>
-                  <TableCell className="capitalize">{item.bird?.sex?.toLowerCase() || "-"}</TableCell>
+                  <TableCell className="capitalize">{item.bird?.sex != null ? String(item.bird.sex) : "-"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -157,7 +157,7 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
   },
   {
     id: "breeder",
-    accessorKey: "eventInventory.breeder.name",
+    accessorFn: (row) => row.eventInventory?.breeder?.firstName,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Breeder" />
     ),
@@ -193,7 +193,7 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
       return (
         <div className={isMyBird ? "bg-transparent -mx-6 px-6 -my-3 py-3" : ""}>
           <button
-            onClick={() => handleLoftClick(inventory)}
+            onClick={() => inventory && handleLoftClick(inventory)}
             className={`text-blue-600 hover:underline cursor-pointer ${
               isMyBird ? "font-bold" : "font-medium"
             }`}

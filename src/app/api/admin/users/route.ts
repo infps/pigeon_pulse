@@ -5,6 +5,59 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import z from "zod";
 
+const userSelect = {
+  id: true,
+  name: true,
+  lastName: true,
+  email: true,
+  emailVerified: true,
+  createdAt: true,
+  updatedAt: true,
+  username: true,
+  displayUsername: true,
+  country: true,
+  state: true,
+  city: true,
+  address: true,
+  postalCode: true,
+  phoneNumber: true,
+  webAddress: true,
+  ssn: true,
+  status: true,
+  statusDate: true,
+  note: true,
+  role: true,
+  taxNumber: true,
+} as const;
+
+function mapBreederToUser(breeder: any) {
+  return {
+    id: `legacy-${breeder.id}`,
+    name: breeder.firstName || "",
+    lastName: breeder.lastName,
+    email: breeder.email || "",
+    emailVerified: false,
+    createdAt: breeder.statusDate || new Date().toISOString(),
+    updatedAt: breeder.statusDate || new Date().toISOString(),
+    username: breeder.loginName,
+    displayUsername: null,
+    country: breeder.country,
+    state: breeder.state1,
+    city: breeder.city1,
+    address: breeder.address1,
+    postalCode: breeder.zip1,
+    phoneNumber: breeder.phone || breeder.cell,
+    webAddress: breeder.webAddress,
+    ssn: breeder.ssn,
+    status: breeder.status === 1 ? "ACTIVE" : breeder.status === 0 ? "INACTIVE" : "ACTIVE",
+    statusDate: breeder.statusDate || new Date().toISOString(),
+    note: breeder.note,
+    role: "BREEDER",
+    taxNumber: breeder.taxNumber,
+    isLegacy: true,
+  };
+}
+
 export async function GET(request: Request) {
   try {
     const session = await auth.api.getSession({
@@ -20,113 +73,66 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
-    // Get eventId from query params
     const { searchParams } = new URL(request.url);
     const eventId = searchParams.get("eventId");
     const role = searchParams.get("role");
 
     let users;
-    if (session.user.role === "SUPERADMIN") {
-      const whereClause = eventId 
-        ? {
-            eventInventories: {
-              some: {
-                eventId: eventId,
-              },
-            },
-          }
-        : {};
+    let legacyBreeders: any[] = [];
 
-      if (role) {
-        Object.assign(whereClause, { role: role });
+    if (eventId) {
+      const eventIdInt = parseInt(eventId);
+      const inventories = await prisma.eventInventory.findMany({
+        where: { eventId: eventIdInt },
+        include: { breeder: true },
+      });
+
+      const breederEmails = inventories
+        .map(inv => inv.breeder?.email)
+        .filter((e): e is string => !!e);
+
+      const whereClause: any = { email: { in: breederEmails } };
+      if (role) whereClause.role = role;
+
+      users = await prisma.user.findMany({
+        where: whereClause,
+        orderBy: { createdAt: "desc" },
+        select: userSelect,
+      });
+
+      // Include legacy breeders from this event that have no matching User
+      if (!role || role === "BREEDER") {
+        const userEmails = new Set(users.map(u => u.email.toLowerCase()));
+        legacyBreeders = inventories
+          .map(inv => inv.breeder)
+          .filter((b): b is NonNullable<typeof b> => !!b)
+          .filter(b => !b.email || !userEmails.has(b.email.toLowerCase()))
+          .map(mapBreederToUser);
       }
-
-      users = await prisma.user.findMany({
-        where: whereClause,
-        orderBy: {
-          createdAt: "desc",
-        },
-        select: {
-          id: true,
-          name: true,
-          lastName: true,
-          email: true,
-          emailVerified: true,
-          createdAt: true,
-          updatedAt: true,
-          username: true,
-          displayUsername: true,
-          country: true,
-          state: true,
-          city: true,
-          address: true,
-          postalCode: true,
-          phoneNumber: true,
-          webAddress: true,
-          ssn: true,
-          status: true,
-          statusDate: true,
-          note: true,
-          role: true,
-          taxNumber: true,
-        },
-      });
     } else {
-      const whereClause = eventId
-        ? {
-            eventInventories: {
-              some: {
-                eventId: eventId,
-                event: {
-                  createdById: session.user.id,
-                },
-              },
-            },
-          }
-        : {
-            eventInventories: {
-              some: {
-                event: {
-                  createdById: session.user.id,
-                },
-              },
-            },
-          };
+      const whereClause: any = {};
+      if (role) whereClause.role = role;
 
       users = await prisma.user.findMany({
         where: whereClause,
-        orderBy: {
-          createdAt: "desc",
-        },
-        select: {
-          id: true,
-          name: true,
-          lastName: true,
-          email: true,
-          emailVerified: true,
-          createdAt: true,
-          updatedAt: true,
-          username: true,
-          displayUsername: true,
-          country: true,
-          state: true,
-          city: true,
-          address: true,
-          postalCode: true,
-          phoneNumber: true,
-          webAddress: true,
-          ssn: true,
-          status: true,
-          statusDate: true,
-          note: true,
-          role: true,
-          taxNumber: true,
-        },
+        orderBy: { createdAt: "desc" },
+        select: userSelect,
       });
+
+      // Include legacy breeders that have no matching User
+      if (!role || role === "BREEDER") {
+        const userEmails = new Set(users.map(u => u.email.toLowerCase()));
+        const allBreeders = await prisma.breeder.findMany();
+        legacyBreeders = allBreeders
+          .filter(b => !b.email || !userEmails.has(b.email.toLowerCase()))
+          .map(mapBreederToUser);
+      }
     }
 
+    const merged = [...users, ...legacyBreeders];
+
     return NextResponse.json(
-      { users, message: "Users fetched successfully" },
+      { users: merged, message: "Users fetched successfully" },
       { status: 200 }
     );
   } catch (error) {

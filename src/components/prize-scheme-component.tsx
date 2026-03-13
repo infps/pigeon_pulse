@@ -79,21 +79,26 @@ export default function PrizeSchemeComponent() {
   };
 
   const handleEdit = (prizeScheme: PrizeScheme) => {
-    setEditingId(prizeScheme.prizeSchemeId);
+    setEditingId(String(prizeScheme.id));
     setFormData({
-      name: prizeScheme.name,
-      description: prizeScheme.description || "",
-      prizeSchemeItems: prizeScheme.prizeSchemeItems || [],
+      name: prizeScheme.name || "",
+      description: "",
+      prizeSchemeItems: (prizeScheme.prizeSchemeItems || []).map((item) => ({
+        raceTypeId: String(item.prizeSchemeId ?? ""),
+        fromPosition: item.fromPosition ?? 1,
+        toPosition: item.toPosition ?? 1,
+        prizeAmount: item.prizeValue ?? 0,
+      })),
     });
     setIsOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     if (!confirm("Are you sure you want to delete this prize scheme?")) return;
 
     try {
       if (!deleteMutation.mutateAsync) return;
-      await deleteMutation.mutateAsync({ id });
+      await deleteMutation.mutateAsync({ id: String(id) });
       toast.success("Prize scheme deleted successfully");
     } catch (error) {
       toast.error("Failed to delete prize scheme");
@@ -116,7 +121,7 @@ export default function PrizeSchemeComponent() {
       prizeSchemeItems: [
         ...formData.prizeSchemeItems,
         {
-          raceTypeId: raceTypes[0]?.id || "",
+          raceTypeId: String(raceTypes[0]?.id ?? ""),
           fromPosition: 1,
           toPosition: 1,
           prizeAmount: 0,
@@ -158,7 +163,7 @@ export default function PrizeSchemeComponent() {
       <div className="space-y-2">
         {prizeSchemes.map((scheme) => (
           <div
-            key={scheme.prizeSchemeId}
+            key={scheme.id}
             className="flex items-center justify-between p-4 border rounded-lg bg-transparent shadow-sm hover:shadow-md transition-shadow"
           >
             <span className="font-medium">{scheme.name}</span>
@@ -173,7 +178,7 @@ export default function PrizeSchemeComponent() {
               <Button
                 size="sm"
                 variant="destructive"
-                onClick={() => handleDelete(scheme.prizeSchemeId)}
+                onClick={() => handleDelete(scheme.id)}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -235,7 +240,7 @@ export default function PrizeSchemeComponent() {
                       </SelectTrigger>
                       <SelectContent>
                         {raceTypes.map((rt) => (
-                          <SelectItem key={rt.id} value={rt.id}>
+                          <SelectItem key={rt.id} value={String(rt.id)}>
                             {rt.name}
                           </SelectItem>
                         ))}

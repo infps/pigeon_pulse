@@ -17,58 +17,167 @@ export const createBirdsColumns = (
   onEdit: (item: EventInventoryItem) => void
 ): ColumnDef<EventInventoryItem>[] => [
   {
-    id: "registrationDate",
-    accessorKey: "eventInventory.registrationDate",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Registration Date" />
-    ),
-    cell: ({ row }) => {
-      const date = new Date(row.original.eventInventory.registrationDate);
-      return <span>{date.toLocaleDateString()}</span>;
+    id: "breeder",
+    accessorFn: (row) => {
+      const b = row.eventInventory?.breeder;
+      if (!b) return "";
+      return [b.firstName, b.lastName].filter(Boolean).join(" ");
     },
-  },
-  {
-    id: "loft",
-    accessorKey: "eventInventory.loft",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Loft" />
-    ),
-    cell: ({ row }) => {
-      return <span>{row.original.eventInventory.loft}</span>;
-    },
-  },
-  {
-    id: "band",
-    accessorKey: "bird.band",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Bird Band" />
-    ),
-  },
-  {
-    id: "color",
-    accessorKey: "bird.color",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Color" />
+      <DataTableColumnHeader column={column} title="Breeder" />
     ),
   },
   {
     id: "birdName",
-    accessorKey: "bird.birdName",
+    accessorFn: (row) => row.bird?.birdName ?? "N/A",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Name" />
+      <DataTableColumnHeader column={column} title="Bird Name" />
     ),
   },
   {
-    accessorKey: "arrivalTime",
+    id: "birdNo",
+    accessorFn: (row) => row.birdNo,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Arrival Time" />
+      <DataTableColumnHeader column={column} title="Bird No" />
     ),
-    cell: ({ row }) => {
-      const arrivalTime = row.original.arrivalTime;
-      if (!arrivalTime) return <span className="text-gray-400">-</span>;
-      const date = new Date(arrivalTime);
-      return <span>{date.toLocaleString()}</span>;
+    cell: ({ getValue }) => getValue() ?? "N/A",
+  },
+  {
+    id: "band1",
+    accessorFn: (row) => row.bird?.band1,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Assc" />
+    ),
+    cell: ({ getValue }) => getValue() ?? "N/A",
+  },
+  {
+    id: "band2",
+    accessorFn: (row) => row.bird?.band2,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Year" />
+    ),
+    cell: ({ getValue }) => getValue() ?? "N/A",
+  },
+  {
+    id: "band3",
+    accessorFn: (row) => row.bird?.band3,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Letter" />
+    ),
+    cell: ({ getValue }) => getValue() ?? "N/A",
+  },
+  {
+    id: "band4",
+    accessorFn: (row) => row.bird?.band4,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Number" />
+    ),
+    cell: ({ getValue }) => getValue() ?? "N/A",
+  },
+  {
+    id: "band",
+    accessorFn: (row) => row.bird?.band,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Full Band" />
+    ),
+    cell: ({ getValue }) => getValue() ?? "N/A",
+  },
+  {
+    id: "color",
+    accessorFn: (row) => row.bird?.color,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Color" />
+    ),
+    cell: ({ getValue }) => getValue() ?? "N/A",
+  },
+  {
+    id: "sex",
+    accessorFn: (row) => row.bird?.sex,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Sex" />
+    ),
+    cell: ({ getValue }) => {
+      const val = getValue() as number | null;
+      if (val === 0) return "Cock";
+      if (val === 1) return "Hen";
+      return "Unknown";
     },
+  },
+  {
+    id: "isActive",
+    accessorFn: (row) => row.bird?.isActive,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Active" />
+    ),
+    cell: ({ getValue }) => (getValue() ? "Yes" : "No"),
+  },
+  {
+    id: "isLost",
+    accessorFn: (row) => row.bird?.isLost,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Lost" />
+    ),
+    cell: ({ getValue }) => (getValue() ? "Yes" : "No"),
+  },
+  {
+    id: "lostDate",
+    accessorFn: (row) => row.bird?.lostDate,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Lost Date" />
+    ),
+    cell: ({ getValue }) => {
+      const val = getValue() as string | null;
+      if (!val) return "N/A";
+      return new Date(val).toLocaleDateString();
+    },
+  },
+  {
+    id: "rfid",
+    accessorFn: (row) => row.bird?.rfid,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="RFID" />
+    ),
+    cell: ({ getValue }) => getValue() ?? "N/A",
+  },
+  {
+    id: "arrivalDate",
+    accessorFn: (row) => row.arrivalDate,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Arrival Date" />
+    ),
+    cell: ({ getValue }) => {
+      const val = getValue() as string | null;
+      if (!val) return "N/A";
+      return new Date(val).toLocaleString();
+    },
+  },
+  {
+    id: "departureDate",
+    accessorFn: (row) => row.departureDate,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Departure Date" />
+    ),
+    cell: ({ getValue }) => {
+      const val = getValue() as string | null;
+      if (!val) return "N/A";
+      return new Date(val).toLocaleString();
+    },
+  },
+  {
+    id: "isBackup",
+    accessorFn: (row) => row.isBackup,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Backup" />
+    ),
+    cell: ({ getValue }) => (getValue() ? "Yes" : "No"),
+  },
+  {
+    id: "entryFeePaid",
+    accessorFn: (row) => row.entryFeePaid,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Entry Fee Paid" />
+    ),
+    cell: ({ getValue }) => (getValue() ? "Yes" : "No"),
   },
   {
     id: "actions",

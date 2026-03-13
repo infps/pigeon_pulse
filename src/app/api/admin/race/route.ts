@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     // If raceId is provided, return single race
     if (raceId) {
       const race = await prisma.race.findUnique({
-        where: { raceId },
+        where: { id: parseInt(raceId) },
         include: {
           raceType: true,
           event: true,
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const whereClause = eventId ? { eventId } : {};
+    const whereClause = eventId ? { eventId: parseInt(eventId) } : {};
 
     const races = await prisma.race.findMany({
       where: whereClause,
@@ -48,14 +48,14 @@ export async function GET(request: Request) {
         raceType: true,
         event: {
           select: {
-            eventId: true,
+            id: true,
             name: true,
             shortName: true,
           },
         },
       },
       orderBy: {
-        releaseDate: "desc",
+        startTime: "desc",
       },
     });
 
@@ -86,24 +86,24 @@ export async function POST(request: Request) {
     const {
       raceTypeId,
       eventId,
-      name,
+      raceNumber,
       description,
       distance,
-      releaseStation,
-      releaseDate,
-      sunriseTime,
-      sunsetTime,
+      location,
+      startTime,
+      sunrise,
+      sunset,
       arrivalTemperature,
       arrivalWind,
       arrivalWeather,
-      releaseTemperature,
-      releaseWind,
-      releaseWeather,
+      temperature,
+      wind,
+      weather,
       isClosed,
     } = body;
 
     const event = await prisma.event.findUnique({
-      where: { eventId },
+      where: { id: parseInt(eventId) },
     });
 
     if (!event) {
@@ -114,33 +114,33 @@ export async function POST(request: Request) {
     }
     const eventInventoryItems = await prisma.eventInventoryItem.findMany({
       where: { eventInventory:{
-        eventId
+        eventId: parseInt(eventId)
       } },
     })
     const race = await prisma.race.create({
       data: {
-        raceTypeId,
-        eventId,
-        name,
+        raceTypeId: raceTypeId ? parseInt(raceTypeId) : null,
+        eventId: parseInt(eventId),
+        raceNumber: raceNumber ? parseInt(raceNumber) : null,
         description,
-        distance: parseFloat(distance),
-        releaseStation,
-        releaseDate: new Date(releaseDate),
-        sunriseTime: new Date(sunriseTime),
-        sunsetTime: new Date(sunsetTime),
-        arrivalTemperature: arrivalTemperature ? parseFloat(arrivalTemperature) : null,
+        distance: distance ? parseInt(distance) : null,
+        location,
+        startTime: startTime ? new Date(startTime) : null,
+        sunrise: sunrise ? new Date(sunrise) : null,
+        sunset: sunset ? new Date(sunset) : null,
+        arrivalTemperature: arrivalTemperature ?? null,
         arrivalWind,
         arrivalWeather,
-        releaseTemperature: releaseTemperature ? parseFloat(releaseTemperature) : null,
-        releaseWind,
-        releaseWeather,
-        isClosed: isClosed ?? false,
+        temperature: temperature ?? null,
+        wind,
+        weather,
+        isClosed: isClosed ? 1 : 0,
       },
       include: {
         raceType: true,
         event: {
           select: {
-            eventId: true,
+            id: true,
             name: true,
             shortName: true,
           },
@@ -148,16 +148,10 @@ export async function POST(request: Request) {
       },
     });
     console.log(race)
-    const raceItemsData = eventInventoryItems.map(item => ({
-      raceId: race.raceId,
-      birdId:item.birdId,
-      eventInventoryItemId:item.eventInventoryItemId,
-    }))
     await prisma.raceItem.createMany({
       data: eventInventoryItems.map(item => ({
-        raceId: race.raceId,
-        birdId:item.birdId,
-        eventInventoryItemId:item.eventInventoryItemId,
+        raceId: race.id,
+        inventoryItemId: item.id,
       })),
     })
 
@@ -195,34 +189,34 @@ export async function PUT(request: Request) {
     }
 
     const updateData: any = {};
-    
-    if (data.raceTypeId) updateData.raceTypeId = data.raceTypeId;
-    if (data.eventId) updateData.eventId = data.eventId;
-    if (data.name !== undefined) updateData.name = data.name;
+
+    if (data.raceTypeId) updateData.raceTypeId = parseInt(data.raceTypeId);
+    if (data.eventId) updateData.eventId = parseInt(data.eventId);
+    if (data.raceNumber !== undefined) updateData.raceNumber = data.raceNumber ? parseInt(data.raceNumber) : null;
     if (data.description !== undefined) updateData.description = data.description;
-    if (data.distance) updateData.distance = parseFloat(data.distance);
-    if (data.releaseStation) updateData.releaseStation = data.releaseStation;
-    if (data.releaseDate) updateData.releaseDate = new Date(data.releaseDate);
-    if (data.sunriseTime) updateData.sunriseTime = new Date(data.sunriseTime);
-    if (data.sunsetTime) updateData.sunsetTime = new Date(data.sunsetTime);
-    if (data.arrivalTemperature !== undefined) 
-      updateData.arrivalTemperature = data.arrivalTemperature ? parseFloat(data.arrivalTemperature) : null;
+    if (data.distance) updateData.distance = parseInt(data.distance);
+    if (data.location) updateData.location = data.location;
+    if (data.startTime) updateData.startTime = new Date(data.startTime);
+    if (data.sunrise) updateData.sunrise = new Date(data.sunrise);
+    if (data.sunset) updateData.sunset = new Date(data.sunset);
+    if (data.arrivalTemperature !== undefined)
+      updateData.arrivalTemperature = data.arrivalTemperature ?? null;
     if (data.arrivalWind !== undefined) updateData.arrivalWind = data.arrivalWind;
     if (data.arrivalWeather !== undefined) updateData.arrivalWeather = data.arrivalWeather;
-    if (data.releaseTemperature !== undefined) 
-      updateData.releaseTemperature = data.releaseTemperature ? parseFloat(data.releaseTemperature) : null;
-    if (data.releaseWind !== undefined) updateData.releaseWind = data.releaseWind;
-    if (data.releaseWeather !== undefined) updateData.releaseWeather = data.releaseWeather;
-    if (data.isClosed !== undefined) updateData.isClosed = data.isClosed;
+    if (data.temperature !== undefined)
+      updateData.temperature = data.temperature ?? null;
+    if (data.wind !== undefined) updateData.wind = data.wind;
+    if (data.weather !== undefined) updateData.weather = data.weather;
+    if (data.isClosed !== undefined) updateData.isClosed = data.isClosed ? 1 : 0;
 
     const race = await prisma.race.update({
-      where: { raceId },
+      where: { id: parseInt(raceId) },
       data: updateData,
       include: {
         raceType: true,
         event: {
           select: {
-            eventId: true,
+            id: true,
             name: true,
             shortName: true,
           },
@@ -264,7 +258,7 @@ export async function DELETE(request: Request) {
     }
 
     await prisma.race.delete({
-      where: { raceId },
+      where: { id: parseInt(raceId) },
     });
 
     return NextResponse.json(

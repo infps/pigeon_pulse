@@ -55,7 +55,7 @@ export const raceItemsColumns: ColumnDef<RaceItem>[] = [
         RACE_BASKETED: { label: "Arrived", variant: "default" },
         FOREIGN_BIRD: { label: "Foreign", variant: "destructive" },
       };
-      const config = statusConfig[status] || { label: status, variant: "outline" as const };
+      const config = (status && statusConfig[status]) || { label: status ?? "Unknown", variant: "outline" as const };
       return <Badge variant={config.variant}>{config.label}</Badge>;
     },
   },
@@ -83,12 +83,12 @@ export const raceItemsColumns: ColumnDef<RaceItem>[] = [
   },
   {
     id: "breeder",
-    accessorKey: "bird.breeder.name",
+    accessorKey: "bird.breeder.firstName",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Breeder" />
     ),
     cell: ({ row }) => {
-      const breederName = row.original.bird?.breeder?.name;
+      const breederName = row.original.bird?.breeder?.firstName;
       return <span>{breederName || "-"}</span>;
     },
   },

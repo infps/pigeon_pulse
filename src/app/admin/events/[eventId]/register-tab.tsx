@@ -1,7 +1,8 @@
 "use client";
 
-import type { Event, User } from "@/lib/types";
-import { useState, useEffect } from "react";
+import type { Event } from "@/lib/types";
+import { calculateFees } from "@/lib/fee-calculator";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,8 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus } from "lucide-react";
-import { useListUsers } from "@/lib/api/users";
+import { Plus, X } from "lucide-react";
+import { useListBreeders, useListBreederBirds } from "@/lib/api/breeders";
 import { useListTeams, useCreateTeam } from "@/lib/api/teams";
 import { toast } from "sonner";
 import { AddEditBreederDialog } from "@/components/add-edit-breeder-dialog";
@@ -30,7 +31,17 @@ interface RegisterTabProps {
   eventId: string;
 }
 
-interface BirdData {
+interface ExistingBirdSlot {
+  type: "existing";
+  birdId: number;
+  name: string;
+  color: string;
+  sex: string;
+  band: string;
+}
+
+interface NewBirdSlot {
+  type: "new";
   name: string;
   color: string;
   sex: "COCK" | "HEN" | "UNKNOWN";
@@ -40,6 +51,8 @@ interface BirdData {
   band4: string;
 }
 
+type BirdSlot = ExistingBirdSlot | NewBirdSlot;
+
 interface PaymentData {
   amountPaid: number;
   amountToPay: number;
@@ -47,64 +60,72 @@ interface PaymentData {
   paymentType: "ENTRY_FEE" | "PERCH_FEE";
 }
 
+const emptyNewBird = (): NewBirdSlot => ({
+  type: "new",
+  name: "",
+  color: "",
+  sex: "COCK",
+  band1: "",
+  band2: "",
+  band3: "",
+  band4: "",
+});
+
 export function RegisterTab({ event, eventId }: RegisterTabProps) {
   const queryClient = useQueryClient();
   const [selectedBreederId, setSelectedBreederId] = useState("");
   const [selectedLoft, setSelectedLoft] = useState("");
   const [reservedBirds, setReservedBirds] = useState<number>(0);
-  const [birds, setBirds] = useState<BirdData[]>([]);
+  const [birdSlots, setBirdSlots] = useState<BirdSlot[]>([]);
   const [payments, setPayments] = useState<PaymentData[]>([]);
   const [isAddBreederOpen, setIsAddBreederOpen] = useState(false);
   const [isAddTeamOpen, setIsAddTeamOpen] = useState(false);
   const [teamName, setTeamName] = useState("");
 
-  const { data: usersData } = useListUsers({ params: { role: "BREEDER" } });
-  const breeders: User[] = usersData?.users || [];
+  const { data: breedersData } = useListBreeders({});
+  const breeders: any[] = breedersData?.breeders || [];
 
   const { data: teamsData } = useListTeams({
     params: selectedBreederId ? { breederId: selectedBreederId } : undefined,
+    enabled: !!selectedBreederId,
   });
   const teams = teamsData?.teams || [];
+
+  const { data: breederBirdsData } = useListBreederBirds(selectedBreederId || null);
+  const existingBirds: any[] = breederBirdsData?.birds || [];
 
   const createTeamMutation = useCreateTeam({});
 
   const maxBirds = event.feeScheme?.maxBirds || 0;
-  const perchFee = event.feeScheme?.perchFee || 0;
-  const birdFeeItems = event.feeScheme?.birdFeeItems || [];
 
-  const calculateBirdFee = () => {
-    let totalBirdFee = 0;
-    console.log(birdFeeItems)
-    for (let i = 0; i < reservedBirds; i++) {
-      const birdFeeItem = birdFeeItems.find(
-        (item) => item.birdNo === i + 1
-      );
-      if (birdFeeItem) {
-        totalBirdFee += birdFeeItem.fee;
-      }
-    }
-    return totalBirdFee;
-  };
+  const fees = useMemo(() => {
+    if (!event.feeScheme || reservedBirds <= 0) return null;
+    return calculateFees({
+      numBirds: reservedBirds,
+      feeScheme: {
+        entryFee: event.feeScheme.entryFee,
+        raceFeeMode: event.feeScheme.raceFeeMode ?? "PER_BIRD_PER_RACE",
+        hotSpot1Fee: event.feeScheme.hotSpot1Fee,
+        hotSpot2Fee: event.feeScheme.hotSpot2Fee,
+        hotSpot3Fee: event.feeScheme.hotSpot3Fee,
+        hotSpotFinalFee: event.feeScheme.hotSpotFinalFee,
+        birdFeeItems: (event.feeScheme.birdFeeItems || []).map((b) => ({
+          birdNo: b.birdNo,
+          birdFee: b.birdFee,
+        })),
+        raceTypeFees: (event.feeScheme.raceTypeFees || []).map((rt) => ({
+          raceTypeId: rt.raceTypeId,
+          fee: rt.fee,
+        })),
+      },
+      races: (event.races || []).map((r) => ({ raceTypeId: r.raceTypeId })),
+    });
+  }, [event.feeScheme, event.races, reservedBirds]);
 
-  // Initialize birds array when reservedBirds changes
+  // Update payment total when fees change
   useEffect(() => {
-    if (reservedBirds > 0 && reservedBirds <= maxBirds) {
-      const newBirds: BirdData[] = Array.from({ length: reservedBirds }, (_, i) => ({
-        name: birds[i]?.name || "",
-        color: birds[i]?.color || "",
-        sex: birds[i]?.sex || "COCK",
-        band1: birds[i]?.band1 || "",
-        band2: birds[i]?.band2 || "",
-        band3: birds[i]?.band3 || "",
-        band4: birds[i]?.band4 || "",
-      }));
-      setBirds(newBirds);
-
-      // Initialize single payment with combined total
-      const perchFeeTotal = perchFee * reservedBirds;
-      const birdFeeTotal = calculateBirdFee();
-      const totalAmount = perchFeeTotal + birdFeeTotal;
-
+    if (reservedBirds > 0 && fees) {
+      const totalAmount = fees.total;
       setPayments([
         {
           amountPaid: totalAmount,
@@ -113,115 +134,128 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
           paymentType: "PERCH_FEE",
         },
       ]);
-    } else {
-      setBirds([]);
+    } else if (reservedBirds === 0) {
       setPayments([]);
     }
-  }, [reservedBirds]);
+  }, [fees, reservedBirds]);
 
-  const handleBreederCreated = (result: any) => {
-    // Set the newly created breeder as selected
-    if (result?.data?.user?.id) {
-      setSelectedBreederId(result.data.user.id);
-    }
+  const handleBreederChange = (breederId: string) => {
+    setSelectedBreederId(breederId);
+    setSelectedLoft("");
+    setBirdSlots([]);
+  };
+
+  const handleBreederCreated = () => {
+    queryClient.invalidateQueries({ queryKey: ["breeders"] });
   };
 
   const handleAddTeam = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!teamName.trim()) {
-      toast.error("Team name is required");
-      return;
-    }
-
-    if (!selectedBreederId) {
-      toast.error("No breeder selected");
-      return;
-    }
-
+    if (!teamName.trim()) { toast.error("Team name is required"); return; }
+    if (!selectedBreederId) { toast.error("No breeder selected"); return; }
     try {
       if (!createTeamMutation.mutateAsync) return;
-      await createTeamMutation.mutateAsync({
-        name: teamName,
-        breederId: selectedBreederId,
-      });
+      await createTeamMutation.mutateAsync({ name: teamName, breederId: selectedBreederId });
       toast.success("Team created successfully");
       setIsAddTeamOpen(false);
       setTeamName("");
       setSelectedLoft(teamName);
-    } catch (error) {
+    } catch {
       toast.error("Failed to create team");
     }
   };
 
-  const handleBirdChange = (index: number, field: keyof BirdData, value: string) => {
-    const newBirds = [...birds];
-    newBirds[index] = { ...newBirds[index], [field]: value };
-    setBirds(newBirds);
+  // Add an existing bird slot
+  const addExistingBird = (bird: any) => {
+    if (birdSlots.length >= reservedBirds) {
+      toast.error(`Maximum ${reservedBirds} birds for this registration`);
+      return;
+    }
+    if (birdSlots.some((s) => s.type === "existing" && s.birdId === bird.id)) {
+      toast.error("Bird already added");
+      return;
+    }
+    setBirdSlots((prev) => [
+      ...prev,
+      {
+        type: "existing",
+        birdId: bird.id,
+        name: bird.birdName || "",
+        color: bird.color || "",
+        sex: bird.sex === 1 ? "COCK" : bird.sex === 2 ? "HEN" : "UNKNOWN",
+        band: bird.band || `${bird.band1}-${bird.band2}-${bird.band3}-${bird.band4}`,
+      },
+    ]);
   };
 
-  const handlePaymentChange = (index: number, field: keyof PaymentData, value: any) => {
-    const newPayments = [...payments];
-    newPayments[index] = { ...newPayments[index], [field]: value };
-    setPayments(newPayments);
+  // Add a blank new-bird slot
+  const addNewBirdSlot = () => {
+    if (birdSlots.length >= reservedBirds) {
+      toast.error(`Maximum ${reservedBirds} birds for this registration`);
+      return;
+    }
+    setBirdSlots((prev) => [...prev, emptyNewBird()]);
+  };
+
+  const removeSlot = (index: number) => {
+    setBirdSlots((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updateNewBirdField = (index: number, field: keyof NewBirdSlot, value: string) => {
+    setBirdSlots((prev) =>
+      prev.map((slot, i) =>
+        i === index && slot.type === "new" ? { ...slot, [field]: value } : slot
+      )
+    );
+  };
+
+  const handlePaymentChange = (field: keyof PaymentData, value: any) => {
+    setPayments((prev) => [{ ...prev[0], [field]: value }]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedBreederId) {
-      toast.error("Please select a breeder");
-      return;
-    }
+    if (!selectedBreederId) { toast.error("Please select a breeder"); return; }
+    if (!selectedLoft) { toast.error("Please select a loft/team"); return; }
+    if (reservedBirds === 0) { toast.error("Please enter number of reserved birds"); return; }
 
-    if (!selectedLoft) {
-      toast.error("Please select a loft/team");
-      return;
-    }
-
-    if (reservedBirds === 0) {
-      toast.error("Please enter number of reserved birds");
-      return;
-    }
-
-    // Validate all birds have required fields
-    for (let i = 0; i < birds.length; i++) {
-      const bird = birds[i];
-      if (!bird.name || !bird.color || !bird.band1 || !bird.band2 || !bird.band3 || !bird.band4) {
-        toast.error(`Please fill all fields for bird ${i + 1}`);
-        return;
+    // Validate new bird slots have all required fields
+    for (let i = 0; i < birdSlots.length; i++) {
+      const slot = birdSlots[i];
+      if (slot.type === "new") {
+        if (!slot.name || !slot.color || !slot.band1 || !slot.band2 || !slot.band3 || !slot.band4) {
+          toast.error(`Please fill all fields for new bird ${i + 1}`);
+          return;
+        }
       }
     }
+
+    const birds = birdSlots.map((slot) =>
+      slot.type === "existing"
+        ? { birdId: slot.birdId }
+        : { name: slot.name, color: slot.color, sex: slot.sex, band1: slot.band1, band2: slot.band2, band3: slot.band3, band4: slot.band4 }
+    );
 
     const registrationData = {
       breederId: selectedBreederId,
       loftName: selectedLoft,
       reservedBirds,
-      birds: birds.map((bird) => ({
-        name: bird.name,
-        color: bird.color,
-        sex: bird.sex,
-        band1: bird.band1,
-        band2: bird.band2,
-        band3: bird.band3,
-        band4: bird.band4,
-      })),
-      payments: payments.map((payment) => ({
-        amountPaid: payment.amountPaid,
-        amountToPay: payment.amountToPay,
+      birds,
+      payments: payments.map((p) => ({
+        amountPaid: p.amountPaid,
+        amountToPay: p.amountToPay,
         currency: "USD",
-        method: payment.method,
-        paymentType: payment.paymentType,
-        description: `${payment.paymentType === "ENTRY_FEE" ? "Perch" : "Per Bird"} fee for ${reservedBirds} birds`,
+        method: p.method,
+        paymentType: p.paymentType,
+        description: `${p.paymentType === "ENTRY_FEE" ? "Perch" : "Per Bird"} fee for ${reservedBirds} birds`,
       })),
     };
 
     try {
       const response = await fetch(`/api/admin/event/${eventId}/register`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(registrationData),
       });
 
@@ -231,22 +265,24 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
       }
 
       toast.success("Registration successful!");
-      
-      // Invalidate queries to refresh breeders and birds tabs
       queryClient.invalidateQueries({ queryKey: ["event-inventory", "list", eventId] });
       queryClient.invalidateQueries({ queryKey: ["event-inventory-items", "list", eventId] });
-      
+
       // Reset form
       setSelectedBreederId("");
       setSelectedLoft("");
       setReservedBirds(0);
-      setBirds([]);
+      setBirdSlots([]);
       setPayments([]);
     } catch (error: any) {
       toast.error(error.message || "Failed to register");
       console.error("Registration error:", error);
     }
   };
+
+  const selectedBirdIds = new Set(
+    birdSlots.filter((s) => s.type === "existing").map((s) => (s as ExistingBirdSlot).birdId)
+  );
 
   return (
     <div className="space-y-6">
@@ -257,32 +293,21 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
           <div className="flex gap-2">
             <div className="flex-1 space-y-2">
               <Label htmlFor="breeder">Select Breeder *</Label>
-              <Select
-                value={selectedBreederId}
-                onValueChange={(value) => {
-                  setSelectedBreederId(value);
-                  setSelectedLoft("");
-                }}
-              >
+              <Select value={selectedBreederId} onValueChange={handleBreederChange}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select breeder" />
                 </SelectTrigger>
                 <SelectContent>
                   {breeders.map((breeder: any) => (
-                    <SelectItem key={breeder.id} value={breeder.id}>
-                      {breeder.name} {breeder.lastName || ""} ({breeder.email})
+                    <SelectItem key={breeder.id} value={String(breeder.id)}>
+                      {breeder.firstName} {breeder.lastName || ""} ({breeder.email})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="pt-8">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => setIsAddBreederOpen(true)}
-              >
+              <Button type="button" variant="outline" size="icon" onClick={() => setIsAddBreederOpen(true)}>
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
@@ -296,7 +321,7 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
             <div className="flex gap-2">
               <Select value={selectedLoft} onValueChange={setSelectedLoft}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select loft/team" />
+                  <SelectValue placeholder={teams.length === 0 ? "No teams — create one first" : "Select loft/team"} />
                 </SelectTrigger>
                 <SelectContent>
                   {teams.map((team: any) => (
@@ -306,12 +331,7 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
                   ))}
                 </SelectContent>
               </Select>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => setIsAddTeamOpen(true)}
-              >
+              <Button type="button" variant="outline" size="icon" onClick={() => setIsAddTeamOpen(true)}>
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
@@ -322,21 +342,25 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
         {selectedLoft && (
           <div className="space-y-2">
             <Label htmlFor="reservedBirds">
-              Reserved Birds * (Max: {maxBirds})
+              Reserved Birds * {maxBirds > 0 && `(Max: ${maxBirds})`}
             </Label>
             <Input
               id="reservedBirds"
               type="number"
               min={1}
-              max={maxBirds}
+              max={maxBirds || undefined}
               value={reservedBirds || ""}
               onChange={(e) => {
-                const value = parseInt(e.target.value);
-                if (value > maxBirds) {
+                const value = parseInt(e.target.value) || 0;
+                if (maxBirds > 0 && value > maxBirds) {
                   toast.error(`Maximum birds allowed: ${maxBirds}`);
                   setReservedBirds(maxBirds);
                 } else {
                   setReservedBirds(value);
+                  // Trim slots if count decreased
+                  if (value < birdSlots.length) {
+                    setBirdSlots((prev) => prev.slice(0, value));
+                  }
                 }
               }}
               required
@@ -344,106 +368,144 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
           </div>
         )}
 
-        {/* Birds Input */}
-        {reservedBirds > 0 && birds.length > 0 && (
+        {/* Birds Section */}
+        {reservedBirds > 0 && (
           <div className="space-y-4">
-            <h3 className="font-semibold">Birds Information</h3>
-            {birds.map((bird, index) => (
-              <div
-                key={index}
-                className="border rounded-lg p-4 space-y-4"
-              >
-                <h4 className="font-medium">Bird {index + 1}</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor={`bird-${index}-name`}>Name *</Label>
-                    <Input
-                      id={`bird-${index}-name`}
-                      value={bird.name}
-                      onChange={(e) =>
-                        handleBirdChange(index, "name", e.target.value)
-                      }
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor={`bird-${index}-color`}>Color *</Label>
-                    <Input
-                      id={`bird-${index}-color`}
-                      value={bird.color}
-                      onChange={(e) =>
-                        handleBirdChange(index, "color", e.target.value)
-                      }
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor={`bird-${index}-sex`}>Sex *</Label>
-                    <Select
-                      value={bird.sex}
-                      onValueChange={(value: "COCK" | "HEN" | "UNKNOWN") =>
-                        handleBirdChange(index, "sex", value)
-                      }
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="COCK">Cock</SelectItem>
-                        <SelectItem value="HEN">Hen</SelectItem>
-                        <SelectItem value="UNKNOWN">Unknown</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">
+                Birds <span className="text-muted-foreground font-normal text-sm">({birdSlots.length}/{reservedBirds} selected — optional)</span>
+              </h3>
+              <div className="flex gap-2">
+                {existingBirds.length > 0 && (
+                  <Select
+                    value=""
+                    onValueChange={(birdId) => {
+                      const bird = existingBirds.find((b) => String(b.id) === birdId);
+                      if (bird) addExistingBird(bird);
+                    }}
+                  >
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Add existing bird" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {existingBirds
+                        .filter((b) => !selectedBirdIds.has(b.id))
+                        .map((bird: any) => (
+                          <SelectItem key={bird.id} value={String(bird.id)}>
+                            {bird.birdName || bird.band} · {bird.color}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {birdSlots.length < reservedBirds && (
+                  <Button type="button" variant="outline" size="sm" onClick={addNewBirdSlot}>
+                    <Plus className="h-4 w-4 mr-1" /> New Bird
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {birdSlots.map((slot, index) => (
+              <div key={index} className="border rounded-lg p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium text-sm">
+                    Bird {index + 1} —{" "}
+                    <span className="text-muted-foreground">
+                      {slot.type === "existing" ? "existing" : "new"}
+                    </span>
+                  </h4>
+                  <Button type="button" variant="ghost" size="icon" onClick={() => removeSlot(index)}>
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor={`bird-${index}-band1`}>Band 1 *</Label>
-                    <Input
-                      id={`bird-${index}-band1`}
-                      value={bird.band1}
-                      onChange={(e) =>
-                        handleBirdChange(index, "band1", e.target.value)
-                      }
-                      required
-                    />
+
+                {slot.type === "existing" ? (
+                  // Read-only display for existing birds
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Name</p>
+                      <p className="font-medium">{slot.name || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Color</p>
+                      <p className="font-medium">{slot.color || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Sex</p>
+                      <p className="font-medium">{slot.sex}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Band</p>
+                      <p className="font-medium">{slot.band}</p>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor={`bird-${index}-band2`}>Band 2 *</Label>
-                    <Input
-                      id={`bird-${index}-band2`}
-                      value={bird.band2}
-                      onChange={(e) =>
-                        handleBirdChange(index, "band2", e.target.value)
-                      }
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor={`bird-${index}-band3`}>Band 3 *</Label>
-                    <Input
-                      id={`bird-${index}-band3`}
-                      value={bird.band3}
-                      onChange={(e) =>
-                        handleBirdChange(index, "band3", e.target.value)
-                      }
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor={`bird-${index}-band4`}>Band 4 *</Label>
-                    <Input
-                      id={`bird-${index}-band4`}
-                      value={bird.band4}
-                      onChange={(e) =>
-                        handleBirdChange(index, "band4", e.target.value)
-                      }
-                      required
-                    />
-                  </div>
-                </div>
+                ) : (
+                  // Editable fields for new birds
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label htmlFor={`bird-${index}-name`}>Name *</Label>
+                        <Input
+                          id={`bird-${index}-name`}
+                          value={slot.name}
+                          onChange={(e) => updateNewBirdField(index, "name", e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`bird-${index}-color`}>Color *</Label>
+                        <Input
+                          id={`bird-${index}-color`}
+                          value={slot.color}
+                          onChange={(e) => updateNewBirdField(index, "color", e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`bird-${index}-sex`}>Sex *</Label>
+                        <Select
+                          value={slot.sex}
+                          onValueChange={(v: "COCK" | "HEN" | "UNKNOWN") =>
+                            updateNewBirdField(index, "sex", v)
+                          }
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="COCK">Cock</SelectItem>
+                            <SelectItem value="HEN">Hen</SelectItem>
+                            <SelectItem value="UNKNOWN">Unknown</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {(["band1", "band2", "band3", "band4"] as const).map((band) => (
+                        <div key={band} className="space-y-1">
+                          <Label htmlFor={`bird-${index}-${band}`}>
+                            Band {band.slice(-1)} *
+                          </Label>
+                          <Input
+                            id={`bird-${index}-${band}`}
+                            value={slot[band]}
+                            onChange={(e) => updateNewBirdField(index, band, e.target.value)}
+                            required
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             ))}
+
+            {birdSlots.length === 0 && (
+              <p className="text-sm text-muted-foreground border rounded-lg p-4 text-center">
+                No birds added yet. Use the buttons above to add existing or new birds. You can also register without birds.
+              </p>
+            )}
           </div>
         )}
 
@@ -454,9 +516,8 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
             <div className="border rounded-lg p-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="payment-amountToPay">Total Amount To Pay</Label>
+                  <Label>Total Amount To Pay</Label>
                   <Input
-                    id="payment-amountToPay"
                     type="number"
                     step="0.01"
                     value={payments[0].amountToPay}
@@ -472,17 +533,17 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
                     step="0.01"
                     value={payments[0].amountPaid}
                     onChange={(e) =>
-                      handlePaymentChange(0, "amountPaid", parseFloat(e.target.value) || 0)
+                      handlePaymentChange("amountPaid", parseFloat(e.target.value) || 0)
                     }
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="payment-method">Payment Method</Label>
+                  <Label>Payment Method</Label>
                   <Select
                     value={payments[0].method}
-                    onValueChange={(value: "CREDIT_CARD" | "PAYPAL" | "BANK_TRANSFER" | "CASH") =>
-                      handlePaymentChange(0, "method", value)
+                    onValueChange={(v: "CREDIT_CARD" | "PAYPAL" | "BANK_TRANSFER" | "CASH") =>
+                      handlePaymentChange("method", v)
                     }
                   >
                     <SelectTrigger className="w-full">
@@ -497,27 +558,36 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
                   </Select>
                 </div>
               </div>
-              
-              {/* Fee Breakdown */}
-              <div className="mt-4 pt-4 border-t space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Perch Fee ({reservedBirds} birds × ${perchFee}):</span>
-                  <span className="font-medium">${(perchFee * reservedBirds).toFixed(2)}</span>
+
+              {fees && (
+                <div className="mt-4 pt-4 border-t space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Purge Fee:</span>
+                    <span className="font-medium">${fees.purgeFee.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Per Bird Fees ({reservedBirds} birds):</span>
+                    <span className="font-medium">${fees.perchFees.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Race Fees:</span>
+                    <span className="font-medium">${fees.raceFees.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Hotspot Fees:</span>
+                    <span className="font-medium">${fees.hotspotFees.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-lg font-bold pt-2 border-t">
+                    <span>Total:</span>
+                    <span>${fees.total.toFixed(2)}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Per Bird Fee:</span>
-                  <span className="font-medium">${calculateBirdFee().toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-lg font-bold pt-2 border-t">
-                  <span>Total:</span>
-                  <span>${payments[0].amountToPay.toFixed(2)}</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         )}
 
-        {/* Submit Button */}
+        {/* Submit */}
         {reservedBirds > 0 && (
           <div className="flex justify-end">
             <Button type="submit">Register for Event</Button>
@@ -550,14 +620,7 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
               />
             </div>
             <div className="flex justify-end space-x-2 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setIsAddTeamOpen(false);
-                  setTeamName("");
-                }}
-              >
+              <Button type="button" variant="outline" onClick={() => { setIsAddTeamOpen(false); setTeamName(""); }}>
                 Cancel
               </Button>
               <Button type="submit" disabled={createTeamMutation.isPending}>

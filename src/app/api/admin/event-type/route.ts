@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     const newEventType = await prisma.eventType.create({
       data: {
         name: validatedData.name,
-        description: validatedData.description,
+        description: validatedData.description ?? null,
       },
     });
     return NextResponse.json(
@@ -69,9 +69,9 @@ export async function PUT(request: Request) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
     const body = await request.json();
-    const { eventTypeId, ...updateData } = body;
-    
-    if (!eventTypeId) {
+    const { id, ...updateData } = body;
+
+    if (!id) {
       return NextResponse.json(
         { message: "Event type ID is required" },
         { status: 400 }
@@ -79,15 +79,15 @@ export async function PUT(request: Request) {
     }
 
     const validatedData = createEventTypeSchema.parse(updateData);
-    
+
     const updatedEventType = await prisma.eventType.update({
-      where: { eventTypeId },
+      where: { id: parseInt(id) },
       data: {
         name: validatedData.name,
-        description: validatedData.description,
+        description: validatedData.description ?? null,
       },
     });
-    
+
     return NextResponse.json(
       { message: "Event type updated successfully", eventType: updatedEventType },
       { status: 200 }
@@ -115,11 +115,11 @@ export async function DELETE(request: Request) {
     if (!session || !session.user.role || session.user.role !== "SUPERADMIN") {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
-    
+
     const body = await request.json();
-    const { eventTypeId } = body;
-    
-    if (!eventTypeId) {
+    const { id } = body;
+
+    if (!id) {
       return NextResponse.json(
         { message: "Event type ID is required" },
         { status: 400 }
@@ -127,9 +127,9 @@ export async function DELETE(request: Request) {
     }
 
     await prisma.eventType.delete({
-      where: { eventTypeId },
+      where: { id: parseInt(id) },
     });
-    
+
     return NextResponse.json(
       { message: "Event type deleted successfully" },
       { status: 200 }

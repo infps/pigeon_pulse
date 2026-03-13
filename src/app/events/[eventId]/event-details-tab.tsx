@@ -14,13 +14,13 @@ export function EventDetailsTab({ event }: EventDetailsTabProps) {
   return (
     <div className="space-y-6">
       {/* Two Column Layout - Banner Left, Info Right */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className={`grid grid-cols-1 gap-6 ${event.bannerImage ? "lg:grid-cols-2" : ""}`}>
         {/* Left Column - Banner */}
         {event.bannerImage && (
           <div className="relative w-full h-96 rounded-lg overflow-hidden">
             <Image
               src={event.bannerImage}
-              alt={event.name}
+              alt={event.name ?? ""}
               fill
               className="object-cover"
             />
@@ -46,7 +46,7 @@ export function EventDetailsTab({ event }: EventDetailsTabProps) {
             )}
             <div>
               <p className="text-sm text-muted-foreground">Type</p>
-              <p className="text-lg font-semibold">{event.type?.name || "N/A"}</p>
+              <p className="text-lg font-semibold">{event.eventType?.name ?? "N/A"}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Status</p>
@@ -57,23 +57,12 @@ export function EventDetailsTab({ event }: EventDetailsTabProps) {
             <div>
               <p className="text-sm text-muted-foreground flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
-                Start Date
+                Event Date
               </p>
               <p className="text-lg font-semibold">
-                {new Date(event.startDate).toLocaleDateString()}
+                {event.eventDate ? new Date(event.eventDate).toLocaleDateString() : "TBD"}
               </p>
             </div>
-            {event.endDate && (
-              <div>
-                <p className="text-sm text-muted-foreground flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  End Date
-                </p>
-                <p className="text-lg font-semibold">
-                  {new Date(event.endDate).toLocaleDateString()}
-                </p>
-              </div>
-            )}
           </div>
           {event.description && (
             <div>

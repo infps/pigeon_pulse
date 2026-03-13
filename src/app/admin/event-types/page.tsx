@@ -12,20 +12,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function EventTypesPage() {
   const [isCreating, setIsCreating] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({ name: "", description: "" });
 
-  // Fetch event types
   const { data: eventTypesData, isPending, isError } = useListEventTypes({});
   const eventTypes: EventType[] = eventTypesData?.eventTypes || [];
 
-  // Create mutation
   const createMutation = useCreateEventType({});
-
-  // Update mutation
   const updateMutation = useUpdateEventType({});
-
-  // Delete mutation
   const deleteMutation = useDeleteEventType({});
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,41 +32,36 @@ export default function EventTypesPage() {
 
     try {
       if (editingId) {
-        // Update
-        if(!updateMutation.mutateAsync) return;
-        await updateMutation.mutateAsync({ eventTypeId: editingId, ...formData });
+        if (!updateMutation.mutateAsync) return;
+        await updateMutation.mutateAsync({ id: editingId, ...formData });
         toast.success("Event type updated successfully");
         setEditingId(null);
       } else {
-        // Create
-        if(!createMutation.mutateAsync) return;
+        if (!createMutation.mutateAsync) return;
         await createMutation.mutateAsync(formData);
         toast.success("Event type created successfully");
       }
       setFormData({ name: "", description: "" });
       setIsCreating(false);
-    } catch (error) {
+    } catch {
       toast.error(editingId ? "Failed to update event type" : "Failed to create event type");
     }
   };
 
   const handleEdit = (eventType: EventType) => {
-    setEditingId(eventType.eventTypeId);
-    setFormData({ 
-      name: eventType.name, 
-      description: eventType.description || "" 
-    });
+    setEditingId(eventType.id);
+    setFormData({ name: eventType.name, description: eventType.description || "" });
     setIsCreating(true);
   };
 
-  const handleDelete = async (eventTypeId: string) => {
+  const handleDelete = async (id: number) => {
     if (!confirm("Are you sure you want to delete this event type?")) return;
 
     try {
-      if(!deleteMutation.mutateAsync) return;
-      await deleteMutation.mutateAsync({ eventTypeId });
+      if (!deleteMutation.mutateAsync) return;
+      await deleteMutation.mutateAsync({ id });
       toast.success("Event type deleted successfully");
-    } catch (error) {
+    } catch {
       toast.error("Failed to delete event type");
     }
   };
@@ -120,7 +109,7 @@ export default function EventTypesPage() {
           </h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">Name *</Label>
               <Input
                 id="name"
                 type="text"
@@ -137,7 +126,7 @@ export default function EventTypesPage() {
                 type="text"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Enter event type description (optional)"
+                placeholder="Enter description"
               />
             </div>
             <div className="flex gap-2">
@@ -164,7 +153,6 @@ export default function EventTypesPage() {
         data={eventTypes}
         filterableColumns={[
           { id: "name", title: "Name" },
-          { id: "description", title: "Description" },
         ]}
       />
     </div>

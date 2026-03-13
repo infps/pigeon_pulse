@@ -46,17 +46,17 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
     name: "",
     description: "",
     distance: "",
-    releaseStation: "",
-    releaseDate: "",
-    sunriseTime: "",
-    sunsetTime: "",
+    location: "",
+    startTime: "",
+    sunrise: "",
+    sunset: "",
     arrivalTemperature: "",
     arrivalWind: "",
     arrivalWeather: "",
-    releaseTemperature: "",
-    releaseWind: "",
-    releaseWeather: "",
-    isClosed: false,
+    temperature: "",
+    wind: "",
+    weather: "",
+    isClosed: 0 as number,
   });
 
   if (isPending) {
@@ -84,12 +84,12 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
     e.preventDefault();
     if (!createRaceMutation.mutateAsync) return;
 
-    // Convert time-only inputs to full datetime based on release date
-    const releaseDateObj = new Date(formData.releaseDate);
-    const [sunriseHours, sunriseMinutes] = formData.sunriseTime.split(":");
-    const [sunsetHours, sunsetMinutes] = formData.sunsetTime.split(":");
+    // Convert time-only inputs to full datetime based on start time
+    const startTimeObj = new Date(formData.startTime);
+    const [sunriseHours, sunriseMinutes] = formData.sunrise.split(":");
+    const [sunsetHours, sunsetMinutes] = formData.sunset.split(":");
 
-    const sunriseDateTime = new Date(releaseDateObj);
+    const sunriseDateTime = new Date(startTimeObj);
     sunriseDateTime.setHours(
       parseInt(sunriseHours),
       parseInt(sunriseMinutes),
@@ -97,7 +97,7 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
       0
     );
 
-    const sunsetDateTime = new Date(releaseDateObj);
+    const sunsetDateTime = new Date(startTimeObj);
     sunsetDateTime.setHours(
       parseInt(sunsetHours),
       parseInt(sunsetMinutes),
@@ -111,21 +111,21 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
         eventId,
         name: formData.name,
         description: formData.description || undefined,
-        distance: parseFloat(formData.distance),
-        releaseStation: formData.releaseStation,
-        releaseDate: new Date(formData.releaseDate).toISOString(),
-        sunriseTime: sunriseDateTime.toISOString(),
-        sunsetTime: sunsetDateTime.toISOString(),
+        distance: parseInt(formData.distance),
+        location: formData.location,
+        startTime: new Date(formData.startTime).toISOString(),
+        sunrise: sunriseDateTime.toISOString(),
+        sunset: sunsetDateTime.toISOString(),
         arrivalTemperature: formData.arrivalTemperature
           ? parseFloat(formData.arrivalTemperature)
           : undefined,
         arrivalWind: formData.arrivalWind || undefined,
         arrivalWeather: formData.arrivalWeather || undefined,
-        releaseTemperature: formData.releaseTemperature
-          ? parseFloat(formData.releaseTemperature)
+        temperature: formData.temperature
+          ? parseFloat(formData.temperature)
           : undefined,
-        releaseWind: formData.releaseWind || undefined,
-        releaseWeather: formData.releaseWeather || undefined,
+        wind: formData.wind || undefined,
+        weather: formData.weather || undefined,
         isClosed: formData.isClosed,
       });
 
@@ -137,17 +137,17 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
         name: "",
         description: "",
         distance: "",
-        releaseStation: "",
-        releaseDate: "",
-        sunriseTime: "",
-        sunsetTime: "",
+        location: "",
+        startTime: "",
+        sunrise: "",
+        sunset: "",
         arrivalTemperature: "",
         arrivalWind: "",
         arrivalWeather: "",
-        releaseTemperature: "",
-        releaseWind: "",
-        releaseWeather: "",
-        isClosed: false,
+        temperature: "",
+        wind: "",
+        weather: "",
+        isClosed: 0,
       });
     } catch (error) {
       toast.error("Failed to create race");
@@ -161,26 +161,25 @@ function toDateTimeLocal(iso: string) {
 }
   const handleEdit = (race: Race) => {
     setEditingRace(race);
-    const releaseDate = new Date(race.releaseDate);
-    const sunriseTime = new Date(race.sunriseTime);
-    const sunsetTime = new Date(race.sunsetTime);
-    
+    const sunriseTime = race.sunrise ? new Date(race.sunrise) : null;
+    const sunsetTime = race.sunset ? new Date(race.sunset) : null;
+
     setFormData({
-      raceTypeId: race.raceTypeId,
-      name: race.name,
+      raceTypeId: String(race.raceTypeId ?? ""),
+      name: race.description ?? "",
       description: race.description || "",
-      distance: race.distance.toString(),
-      releaseStation: race.releaseStation,
-      releaseDate: toDateTimeLocal(race.releaseDate),
-      sunriseTime: sunriseTime.toTimeString().slice(0, 5),
-      sunsetTime: sunsetTime.toTimeString().slice(0, 5),
+      distance: race.distance?.toString() ?? "",
+      location: race.location || "",
+      startTime: race.startTime ? toDateTimeLocal(race.startTime) : "",
+      sunrise: sunriseTime ? sunriseTime.toTimeString().slice(0, 5) : "",
+      sunset: sunsetTime ? sunsetTime.toTimeString().slice(0, 5) : "",
       arrivalTemperature: race.arrivalTemperature?.toString() || "",
       arrivalWind: race.arrivalWind || "",
       arrivalWeather: race.arrivalWeather || "",
-      releaseTemperature: race.releaseTemperature?.toString() || "",
-      releaseWind: race.releaseWind || "",
-      releaseWeather: race.releaseWeather || "",
-      isClosed: race.isClosed,
+      temperature: race.temperature?.toString() || "",
+      wind: race.wind || "",
+      weather: race.weather || "",
+      isClosed: race.isClosed ?? 0,
     });
     setIsDialogOpen(true);
   };
@@ -189,12 +188,12 @@ function toDateTimeLocal(iso: string) {
     e.preventDefault();
     if (!updateRaceMutation.mutateAsync || !editingRace) return;
 
-    // Convert time-only inputs to full datetime based on release date
-    const releaseDateObj = new Date(formData.releaseDate);
-    const [sunriseHours, sunriseMinutes] = formData.sunriseTime.split(":");
-    const [sunsetHours, sunsetMinutes] = formData.sunsetTime.split(":");
+    // Convert time-only inputs to full datetime based on start time
+    const startTimeObj = new Date(formData.startTime);
+    const [sunriseHours, sunriseMinutes] = formData.sunrise.split(":");
+    const [sunsetHours, sunsetMinutes] = formData.sunset.split(":");
 
-    const sunriseDateTime = new Date(releaseDateObj);
+    const sunriseDateTime = new Date(startTimeObj);
     sunriseDateTime.setHours(
       parseInt(sunriseHours),
       parseInt(sunriseMinutes),
@@ -202,7 +201,7 @@ function toDateTimeLocal(iso: string) {
       0
     );
 
-    const sunsetDateTime = new Date(releaseDateObj);
+    const sunsetDateTime = new Date(startTimeObj);
     sunsetDateTime.setHours(
       parseInt(sunsetHours),
       parseInt(sunsetMinutes),
@@ -212,26 +211,26 @@ function toDateTimeLocal(iso: string) {
 
     try {
       await updateRaceMutation.mutateAsync({
-        raceId: editingRace.raceId,
+        id: editingRace.id,
         raceTypeId: formData.raceTypeId,
         eventId,
         name: formData.name,
         description: formData.description || undefined,
-        distance: parseFloat(formData.distance),
-        releaseStation: formData.releaseStation,
-        releaseDate: formData.releaseDate,
-        sunriseTime: sunriseDateTime.toISOString(),
-        sunsetTime: sunsetDateTime.toISOString(),
+        distance: parseInt(formData.distance),
+        location: formData.location,
+        startTime: formData.startTime,
+        sunrise: sunriseDateTime.toISOString(),
+        sunset: sunsetDateTime.toISOString(),
         arrivalTemperature: formData.arrivalTemperature
           ? parseFloat(formData.arrivalTemperature)
           : undefined,
         arrivalWind: formData.arrivalWind || undefined,
         arrivalWeather: formData.arrivalWeather || undefined,
-        releaseTemperature: formData.releaseTemperature
-          ? parseFloat(formData.releaseTemperature)
+        temperature: formData.temperature
+          ? parseFloat(formData.temperature)
           : undefined,
-        releaseWind: formData.releaseWind || undefined,
-        releaseWeather: formData.releaseWeather || undefined,
+        wind: formData.wind || undefined,
+        weather: formData.weather || undefined,
         isClosed: formData.isClosed,
       });
 
@@ -243,17 +242,17 @@ function toDateTimeLocal(iso: string) {
         name: "",
         description: "",
         distance: "",
-        releaseStation: "",
-        releaseDate: "",
-        sunriseTime: "",
-        sunsetTime: "",
+        location: "",
+        startTime: "",
+        sunrise: "",
+        sunset: "",
         arrivalTemperature: "",
         arrivalWind: "",
         arrivalWeather: "",
-        releaseTemperature: "",
-        releaseWind: "",
-        releaseWeather: "",
-        isClosed: false,
+        temperature: "",
+        wind: "",
+        weather: "",
+        isClosed: 0,
       });
     } catch (error) {
       toast.error("Failed to update race");
@@ -261,12 +260,12 @@ function toDateTimeLocal(iso: string) {
     }
   };
 
-  const handleDelete = async (raceId: string) => {
+  const handleDelete = async (raceId: number) => {
     if (!confirm("Are you sure you want to delete this race?")) return;
 
     try {
       if(!deleteRaceMutation.mutateAsync) return;
-      await deleteRaceMutation.mutateAsync({ raceId });
+      await deleteRaceMutation.mutateAsync({ id: raceId });
       toast.success("Race deleted successfully");
     } catch (error) {
       toast.error("Failed to delete race");
@@ -284,17 +283,17 @@ function toDateTimeLocal(iso: string) {
             name: "",
             description: "",
             distance: "",
-            releaseStation: "",
-            releaseDate: "",
-            sunriseTime: "",
-            sunsetTime: "",
+            location: "",
+            startTime: "",
+            sunrise: "",
+            sunset: "",
             arrivalTemperature: "",
             arrivalWind: "",
             arrivalWeather: "",
-            releaseTemperature: "",
-            releaseWind: "",
-            releaseWeather: "",
-            isClosed: false,
+            temperature: "",
+            wind: "",
+            weather: "",
+            isClosed: 0,
           });
           setIsDialogOpen(true);
         }}>
@@ -307,8 +306,8 @@ function toDateTimeLocal(iso: string) {
         columns={createRacesColumns(handleEdit, handleDelete, eventId)} 
         data={races}
         filterableColumns={[
-          { id: "name", title: "Race Name" },
-          { id: "releaseStation", title: "Release Station" },
+          { id: "description", title: "Race Name" },
+          { id: "location", title: "Location" },
         ]}
       />
 
@@ -336,7 +335,7 @@ function toDateTimeLocal(iso: string) {
                     </SelectTrigger>
                     <SelectContent>
                       {raceTypes.map((raceType: any) => (
-                        <SelectItem key={raceType.id} value={raceType.id}>
+                        <SelectItem key={raceType.id} value={String(raceType.id)}>
                           {raceType.name}
                         </SelectItem>
                       ))}
@@ -356,14 +355,14 @@ function toDateTimeLocal(iso: string) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="releaseStation">Release Station *</Label>
+                  <Label htmlFor="location">Location *</Label>
                   <Input
-                    id="releaseStation"
-                    value={formData.releaseStation}
+                    id="location"
+                    value={formData.location}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        releaseStation: e.target.value,
+                        location: e.target.value,
                       })
                     }
                     required
@@ -374,7 +373,7 @@ function toDateTimeLocal(iso: string) {
                   <Input
                     id="distance"
                     type="number"
-                    step="0.01"
+                    step="1"
                     value={formData.distance}
                     onChange={(e) =>
                       setFormData({ ...formData, distance: e.target.value })
@@ -400,37 +399,37 @@ function toDateTimeLocal(iso: string) {
               <h3 className="font-semibold">Date & Time Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="releaseDate">Release Date *</Label>
+                  <Label htmlFor="startTime">Start Time *</Label>
                   <Input
-                    id="releaseDate"
+                    id="startTime"
                     type="datetime-local"
-                    value={formData.releaseDate}
+                    value={formData.startTime}
                     onChange={(e) =>
-                      setFormData({ ...formData, releaseDate: e.target.value })
+                      setFormData({ ...formData, startTime: e.target.value })
                     }
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="sunriseTime">Sunrise Time *</Label>
+                  <Label htmlFor="sunrise">Sunrise Time *</Label>
                   <Input
-                    id="sunriseTime"
+                    id="sunrise"
                     type="time"
-                    value={formData.sunriseTime}
+                    value={formData.sunrise}
                     onChange={(e) =>
-                      setFormData({ ...formData, sunriseTime: e.target.value })
+                      setFormData({ ...formData, sunrise: e.target.value })
                     }
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="sunsetTime">Sunset Time *</Label>
+                  <Label htmlFor="sunset">Sunset Time *</Label>
                   <Input
-                    id="sunsetTime"
+                    id="sunset"
                     type="time"
-                    value={formData.sunsetTime}
+                    value={formData.sunset}
                     onChange={(e) =>
-                      setFormData({ ...formData, sunsetTime: e.target.value })
+                      setFormData({ ...formData, sunset: e.target.value })
                     }
                     required
                   />
@@ -500,38 +499,38 @@ function toDateTimeLocal(iso: string) {
               <h3 className="font-semibold">Release Conditions</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="releaseTemperature">
+                  <Label htmlFor="temperature">
                     Temperature (°C)
                   </Label>
                   <Input
-                    id="releaseTemperature"
+                    id="temperature"
                     type="number"
                     step="0.1"
-                    value={formData.releaseTemperature}
+                    value={formData.temperature}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        releaseTemperature: e.target.value,
+                        temperature: e.target.value,
                       })
                     }
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="releaseWind">Wind</Label>
+                  <Label htmlFor="wind">Wind</Label>
                   <Input
-                    id="releaseWind"
-                    value={formData.releaseWind}
+                    id="wind"
+                    value={formData.wind}
                     onChange={(e) =>
-                      setFormData({ ...formData, releaseWind: e.target.value })
+                      setFormData({ ...formData, wind: e.target.value })
                     }
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="releaseWeather">Weather</Label>
+                  <Label htmlFor="weather">Weather</Label>
                   <Select
-                    value={formData.releaseWeather}
+                    value={formData.weather}
                     onValueChange={(value) =>
-                      setFormData({ ...formData, releaseWeather: value })
+                      setFormData({ ...formData, weather: value })
                     }
                   >
                     <SelectTrigger className="w-full">
@@ -557,9 +556,9 @@ function toDateTimeLocal(iso: string) {
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="isClosed"
-                  checked={formData.isClosed}
+                  checked={formData.isClosed === 1}
                   onCheckedChange={(checked) =>
-                    setFormData({ ...formData, isClosed: !!checked })
+                    setFormData({ ...formData, isClosed: checked ? 1 : 0 })
                   }
                 />
                 <Label htmlFor="isClosed" className="cursor-pointer">
@@ -581,17 +580,17 @@ function toDateTimeLocal(iso: string) {
                     name: "",
                     description: "",
                     distance: "",
-                    releaseStation: "",
-                    releaseDate: "",
-                    sunriseTime: "",
-                    sunsetTime: "",
+                    location: "",
+                    startTime: "",
+                    sunrise: "",
+                    sunset: "",
                     arrivalTemperature: "",
                     arrivalWind: "",
                     arrivalWeather: "",
-                    releaseTemperature: "",
-                    releaseWind: "",
-                    releaseWeather: "",
-                    isClosed: false,
+                    temperature: "",
+                    wind: "",
+                    weather: "",
+                    isClosed: 0,
                   });
                 }}
               >

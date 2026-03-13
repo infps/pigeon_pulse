@@ -83,32 +83,32 @@ export default function BettingSchemeComponent() {
   };
 
   const handleEdit = (bettingScheme: BettingScheme) => {
-    setEditingId(bettingScheme.bettingSchemeId);
+    setEditingId(String(bettingScheme.bettingSchemeId ?? bettingScheme.id));
     setFormData({
-      name: bettingScheme.name,
-      description: bettingScheme.description || "",
-      bettingCutPercent: bettingScheme.bettingCutPercent,
-      belgianShow1: bettingScheme.belgianShow1,
-      belgianShow2: bettingScheme.belgianShow2,
-      belgianShow3: bettingScheme.belgianShow3,
-      belgianShow4: bettingScheme.belgianShow4,
-      belgianShow5: bettingScheme.belgianShow5,
-      belgianShow6: bettingScheme.belgianShow6,
-      belgianShow7: bettingScheme.belgianShow7,
-      standardShow1: bettingScheme.standardShow1,
-      standardShow2: bettingScheme.standardShow2,
-      standardShow3: bettingScheme.standardShow3,
-      standardShow4: bettingScheme.standardShow4,
-      standardShow5: bettingScheme.standardShow5,
+      name: bettingScheme.name ?? "",
+      description: "",
+      bettingCutPercent: bettingScheme.bettingCutPercent ?? 0,
+      belgianShow1: bettingScheme.belgianShow1 ?? 0,
+      belgianShow2: bettingScheme.belgianShow2 ?? 0,
+      belgianShow3: bettingScheme.belgianShow3 ?? 0,
+      belgianShow4: bettingScheme.belgianShow4 ?? 0,
+      belgianShow5: bettingScheme.belgianShow5 ?? 0,
+      belgianShow6: bettingScheme.belgianShow6 ?? 0,
+      belgianShow7: bettingScheme.belgianShow7 ?? 0,
+      standardShow1: bettingScheme.standardShow1 ?? 0,
+      standardShow2: bettingScheme.standardShow2 ?? 0,
+      standardShow3: bettingScheme.standardShow3 ?? 0,
+      standardShow4: bettingScheme.standardShow4 ?? 0,
+      standardShow5: bettingScheme.standardShow5 ?? 0,
       standardShow6: bettingScheme.standardShow6 ?? 0,
-      wta1: bettingScheme.wta1,
-      wta2: bettingScheme.wta2,
-      wta3: bettingScheme.wta3,
-      wta4: bettingScheme.wta4,
-      wta5: bettingScheme.wta5,
+      wta1: bettingScheme.wta1 ?? 0,
+      wta2: bettingScheme.wta2 ?? 0,
+      wta3: bettingScheme.wta3 ?? 0,
+      wta4: bettingScheme.wta4 ?? 0,
+      wta5: bettingScheme.wta5 ?? 0,
       standardShowPercentages: bettingScheme.standardShowPercentages?.map((p) => ({
-        place: p.place,
-        percValue: p.percValue,
+        place: p.place ?? 1,
+        percValue: p.percValue ?? 0,
       })) || [],
     });
     setIsOpen(true);
@@ -217,7 +217,7 @@ export default function BettingSchemeComponent() {
               <Button
                 size="sm"
                 variant="destructive"
-                onClick={() => handleDelete(scheme.bettingSchemeId)}
+                onClick={() => handleDelete(String(scheme.bettingSchemeId ?? scheme.id))}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
