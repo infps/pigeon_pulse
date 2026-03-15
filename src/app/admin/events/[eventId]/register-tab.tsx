@@ -443,34 +443,91 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
                 ) : (
                   // Editable fields for new birds
                   <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label htmlFor={`bird-${index}-name`}>Name *</Label>
+                    <div className="space-y-2">
+                      <Label htmlFor={`bird-${index}-name`}>Name *</Label>
+                      <Input
+                        id={`bird-${index}-name`}
+                        value={slot.name}
+                        onChange={(e) => updateNewBirdField(index, "name", e.target.value)}
+                        className="h-9"
+                        required
+                      />
+                    </div>
+                    <div className="flex items-end gap-3 ">
+                      <div className="flex-1 space-y-2">
+                        <Label>Federation *</Label>
+                        <Select
+                          value={slot.band1}
+                          onValueChange={(v) => updateNewBirdField(index, "band1", v)}
+                        >
+                          <SelectTrigger className="w-full h-9">
+                            <SelectValue placeholder="Fed" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {["AU", "IF", "NPA", "CU", "BB", "ARPU", "IPB"].map((f) => (
+                              <SelectItem key={f} value={f}>{f}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <span className="pb-2 text-muted-foreground mb-2">-</span>
+                      <div className="flex-1 space-y-2">
+                        <Label htmlFor={`bird-${index}-band2`}>Year *</Label>
                         <Input
-                          id={`bird-${index}-name`}
-                          value={slot.name}
-                          onChange={(e) => updateNewBirdField(index, "name", e.target.value)}
+                          id={`bird-${index}-band2`}
+                          value={slot.band2}
+                          onChange={(e) => updateNewBirdField(index, "band2", e.target.value.replace(/[^0-9]/g, ""))}
+                          className="h-9 mb-2"
                           required
                         />
                       </div>
-                      <div className="space-y-1">
-                        <Label htmlFor={`bird-${index}-color`}>Color *</Label>
+                      <span className="pb-2 text-muted-foreground mb-2">-</span>
+                      <div className="flex-1 space-y-2">
+                        <Label htmlFor={`bird-${index}-band3`}>Letters *</Label>
                         <Input
-                          id={`bird-${index}-color`}
+                          id={`bird-${index}-band3`}
+                          value={slot.band3}
+                          onChange={(e) => updateNewBirdField(index, "band3", e.target.value.toUpperCase())}
+                          className="h-9 mb-2"
+                          required
+                        />
+                      </div>
+                      <span className="pb-2 text-muted-foreground mb-2">-</span>
+                      <div className="flex-1 space-y-2">
+                        <Label htmlFor={`bird-${index}-band4`}>Band No. *</Label>
+                        <Input
+                          id={`bird-${index}-band4`}
+                          value={slot.band4}
+                          onChange={(e) => updateNewBirdField(index, "band4", e.target.value)}
+                          className="h-9 mb-2"
+                          required
+                        />
+                      </div>
+                      <span className="pb-2 text-muted-foreground mb-2">-</span>
+                      <div className="flex-1 space-y-2">
+                        <Label>Color *</Label>
+                        <Select
                           value={slot.color}
-                          onChange={(e) => updateNewBirdField(index, "color", e.target.value)}
-                          required
-                        />
+                          onValueChange={(v) => updateNewBirdField(index, "color", v)}
+                        >
+                          <SelectTrigger className="w-full h-9">
+                            <SelectValue placeholder="Color" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {["BB", "BC", "BBWF", "BBPD", "BCWF", "BCPD", "SPLA", "CHOC", "RC", "SIL", "RCSP", "RR", "BLK", "OPAL", "SLAT", "PENC", "WHIT", "GRIZ", "DC", "DCWF"].map((c) => (
+                              <SelectItem key={c} value={c}>{c}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <div className="space-y-1">
-                        <Label htmlFor={`bird-${index}-sex`}>Sex *</Label>
+                      <span className="pb-2 text-muted-foreground mb-2">-</span>
+                      <div className="flex-1 space-y-2">
+                        <Label>Sex *</Label>
                         <Select
                           value={slot.sex}
-                          onValueChange={(v: "COCK" | "HEN" | "UNKNOWN") =>
-                            updateNewBirdField(index, "sex", v)
-                          }
+                          onValueChange={(v: "COCK" | "HEN" | "UNKNOWN") => updateNewBirdField(index, "sex", v)}
                         >
-                          <SelectTrigger className="w-full">
+                          <SelectTrigger className="w-full h-9">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -480,21 +537,6 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
                           </SelectContent>
                         </Select>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {(["band1", "band2", "band3", "band4"] as const).map((band) => (
-                        <div key={band} className="space-y-1">
-                          <Label htmlFor={`bird-${index}-${band}`}>
-                            Band {band.slice(-1)} *
-                          </Label>
-                          <Input
-                            id={`bird-${index}-${band}`}
-                            value={slot[band]}
-                            onChange={(e) => updateNewBirdField(index, band, e.target.value)}
-                            required
-                          />
-                        </div>
-                      ))}
                     </div>
                   </>
                 )}

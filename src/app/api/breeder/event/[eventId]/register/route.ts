@@ -140,7 +140,10 @@ export async function POST(
               band4: birdData.band4,
               birdName: birdData.name,
               color: birdData.color,
+              sex: birdData.sex === "COCK" ? 1 : birdData.sex === "HEN" ? 2 : 0,
               breederId,
+              isActive: 1,
+              isLost: 0,
             },
           });
         } else {

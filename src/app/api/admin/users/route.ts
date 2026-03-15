@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
 import { createUserSchema, updateUserSchema } from "@/lib/zod";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -224,6 +225,13 @@ export async function POST(request: Request) {
         taxNumber: true,
       },
     });
+
+    // Create linked Breeder record so the user appears in breeder dropdowns
+    await getOrCreateBreeder(
+      authUser.user.id,
+      validatedData.email,
+      `${validatedData.name}${validatedData.lastName ? ` ${validatedData.lastName}` : ""}`
+    );
 
     return NextResponse.json(
       { message: "User created successfully", user: updatedUser },
