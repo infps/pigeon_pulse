@@ -11,7 +11,7 @@ import z from "zod";
 const birdSchema = z.object({
   name: z.string().min(1, "Bird name is required"),
   color: z.string().min(1, "Bird color is required"),
-  sex: z.enum(["COCK", "HEN", "UNKNOWN"]),
+  sex: z.number().int().min(0).max(2),
   band1: z.string().min(1, "Band 1 is required"),
   band2: z.string().min(1, "Band 2 is required"),
   band3: z.string().min(1, "Band 3 is required"),
@@ -140,7 +140,7 @@ export async function POST(
               band4: birdData.band4,
               birdName: birdData.name,
               color: birdData.color,
-              sex: birdData.sex === "COCK" ? 1 : birdData.sex === "HEN" ? 2 : 0,
+              sex: birdData.sex,
               breederId,
               isActive: 1,
               isLost: 0,

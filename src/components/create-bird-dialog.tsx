@@ -136,7 +136,7 @@ export function CreateBirdDialog({
       band4,
       birdName,
       color,
-      sex,
+      sex: sex === "COCK" ? 1 : sex === "HEN" ? 2 : 0,
       rfid: rfid || null,
       isActive,
       isLost,

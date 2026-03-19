@@ -3,8 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-const SEX_MAP: Record<string, number> = { COCK: 1, HEN: 2, UNKNOWN: 0 };
-
 export async function POST(request: Request) {
   try {
     const session = await auth.api.getSession({
@@ -100,7 +98,7 @@ export async function POST(request: Request) {
           band: `${band1}-${band2}-${band3}-${band4}`,
           birdName,
           color,
-          sex: SEX_MAP[sex] ?? 0,
+          sex: typeof sex === 'number' ? sex : 0,
           rfid,
           isActive: isActive != null ? (isActive ? 1 : 0) : 1,
           isLost: isLost != null ? (isLost ? 1 : 0) : 0,

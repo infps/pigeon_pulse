@@ -40,7 +40,7 @@ export default function Home() {
   const { data: liveRacesData, isPending: liveRacesLoading } = useListLiveRaces();
 
   const events = (eventsData?.events || []) as EventWithRaces[];
-  const liveRaces = (liveRacesData?.races || []) as RaceWithEvent[];
+  const liveRaces = ((liveRacesData?.races || []) as RaceWithEvent[]).filter((r) => r.event);
 
   if (eventsLoading || liveRacesLoading) {
     return (

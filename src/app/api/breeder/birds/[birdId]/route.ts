@@ -5,12 +5,10 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import z from "zod";
 
-const SEX_MAP: Record<string, number> = { COCK: 1, HEN: 2, UNKNOWN: 0 };
-
 const updateBirdSchema = z.object({
   name: z.string().min(1).optional(),
   color: z.string().min(1).optional(),
-  sex: z.enum(["COCK", "HEN", "UNKNOWN"]).optional(),
+  sex: z.number().int().min(0).max(2).optional(),
   band1: z.string().min(1).optional(),
   band2: z.string().min(1).optional(),
   band3: z.string().min(1).optional(),
@@ -67,7 +65,7 @@ export async function PATCH(
       data: {
         ...(validatedData.name && { birdName: validatedData.name }),
         ...(validatedData.color && { color: validatedData.color }),
-        ...(validatedData.sex && { sex: SEX_MAP[validatedData.sex] ?? 0 }),
+        ...(validatedData.sex !== undefined && { sex: validatedData.sex }),
         ...(validatedData.band1 && { band1: validatedData.band1 }),
         ...(validatedData.band2 && { band2: validatedData.band2 }),
         ...(validatedData.band3 && { band3: validatedData.band3 }),

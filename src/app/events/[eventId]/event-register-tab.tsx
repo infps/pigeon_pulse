@@ -195,7 +195,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
       birds: birds.map((bird) => ({
         name: bird.name,
         color: bird.color,
-        sex: bird.sex,
+        sex: bird.sex === "COCK" ? 1 : bird.sex === "HEN" ? 2 : 0,
         band1: bird.band1,
         band2: bird.band2,
         band3: bird.band3,

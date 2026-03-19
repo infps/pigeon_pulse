@@ -157,7 +157,7 @@ export default function EventsPage() {
 
     try {
       if (!deleteMutation.mutateAsync) return;
-      await deleteMutation.mutateAsync({ id });
+      await deleteMutation.mutateAsync({ eventId: id });
       toast.success("Event deleted successfully");
     } catch (error) {
       toast.error("Failed to delete event");

@@ -234,7 +234,7 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
     const birds = birdSlots.map((slot) =>
       slot.type === "existing"
         ? { birdId: slot.birdId }
-        : { name: slot.name, color: slot.color, sex: slot.sex, band1: slot.band1, band2: slot.band2, band3: slot.band3, band4: slot.band4 }
+        : { name: slot.name, color: slot.color, sex: slot.sex === "COCK" ? 1 : slot.sex === "HEN" ? 2 : 0, band1: slot.band1, band2: slot.band2, band3: slot.band3, band4: slot.band4 }
     );
 
     const registrationData = {

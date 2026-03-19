@@ -107,7 +107,7 @@ export function EditBirdDialog({
       setBand4(bird?.band4 ?? "");
       setBirdName(bird?.birdName ?? "");
       setColor(bird?.color ?? "");
-      setSex(bird?.sex === 1 ? "HEN" : bird?.sex === 2 ? "UNKNOWN" : "COCK");
+      setSex(bird?.sex === 1 ? "COCK" : bird?.sex === 2 ? "HEN" : "UNKNOWN");
       setRfid(bird?.rfid ?? "");
       setIsActive(!!bird?.isActive);
       setIsLost(!!bird?.isLost);
@@ -222,7 +222,7 @@ export function EditBirdDialog({
       band4,
       birdName,
       color,
-      sex,
+      sex: sex === "COCK" ? 1 : sex === "HEN" ? 2 : 0,
       rfid: rfid || null,
       isActive,
       isLost,

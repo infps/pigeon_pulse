@@ -5,13 +5,10 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import z from "zod";
 
-// Sex mapping: COCK=1, HEN=2, UNKNOWN=0
-const SEX_MAP: Record<string, number> = { COCK: 1, HEN: 2, UNKNOWN: 0 };
-
 const createBirdSchema = z.object({
   name: z.string().min(1, "Bird name is required"),
   color: z.string().min(1, "Color is required"),
-  sex: z.enum(["COCK", "HEN", "UNKNOWN"]),
+  sex: z.number().int().min(0).max(2),
   band1: z.string().min(1, "Band1 is required"),
   band2: z.string().min(1, "Band2 is required"),
   band3: z.string().min(1, "Band3 is required"),
@@ -72,7 +69,7 @@ export async function POST(request: Request) {
         band4: validatedData.band4,
         birdName: validatedData.name,
         color: validatedData.color,
-        sex: SEX_MAP[validatedData.sex] ?? 0,
+        sex: validatedData.sex,
         breederId: breeder.id,
         isActive: 1,
         isLost: 0,
