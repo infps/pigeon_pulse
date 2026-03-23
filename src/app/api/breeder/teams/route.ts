@@ -7,7 +7,7 @@ import z from "zod";
 
 const createTeamSchema = z.object({
   name: z.string().min(1, "Team name is required"),
-  breederId: z.union([z.string(), z.number()]).transform(v => parseInt(String(v))),
+  breederId: z.union([z.string(), z.number()]).transform(v => parseInt(String(v))).optional(),
 });
 
 const updateTeamSchema = z.object({
@@ -26,21 +26,18 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const breederId = searchParams.get("breederId");
 
-    if(!breederId){
-        return NextResponse.json(
-          { message: "Breeder ID is required" },
-          { status: 400 }
-        );
-    }
-
-    const breederIdInt = parseInt(breederId);
-
-    // Admins can view any breeder's teams; breeders can only view their own
-    if (!["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
-      if (!breeder || breeder.id !== breederIdInt) {
-        return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    let breederIdInt: number;
+    if (breederId) {
+      breederIdInt = parseInt(breederId);
+      if (!["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
+        const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
+        if (!breeder || breeder.id !== breederIdInt) {
+          return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+        }
       }
+    } else {
+      const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
+      breederIdInt = breeder.id;
     }
 
     const teams = await prisma.team.findMany({
@@ -68,25 +65,31 @@ export async function POST(request: Request) {
       headers: await headers(),
     });
 
-    const body = await request.json();
-    const validatedData = createTeamSchema.parse(body);
-
     if (!session || !session.user) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    // Admins can create teams for any breeder; breeders can only create for themselves
-    if (!["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
-      if (!breeder || breeder.id !== validatedData.breederId) {
-        return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    const body = await request.json();
+    const validatedData = createTeamSchema.parse(body);
+
+    let breederIdInt: number;
+    if (validatedData.breederId) {
+      breederIdInt = validatedData.breederId;
+      if (!["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
+        const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
+        if (!breeder || breeder.id !== breederIdInt) {
+          return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+        }
       }
+    } else {
+      const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
+      breederIdInt = breeder.id;
     }
 
     const newTeam = await prisma.team.create({
       data: {
         name: validatedData.name,
-        breederId: validatedData.breederId,
+        breederId: breederIdInt,
       },
     });
 

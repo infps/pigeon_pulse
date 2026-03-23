@@ -42,11 +42,24 @@ export function Header() {
   return (
     <header className="sticky top-0 left-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
       <div className="container mx-auto flex h-16 items-center justify-between">
-        {/* Left side - Brand/Logo */}
+        {/* Left side - Brand/Logo + Nav */}
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center space-x-2">
             <span className="text-xl font-bold">agn</span>
           </Link>
+          {session?.user && (
+            <nav className="hidden md:flex items-center gap-1">
+              <Link href="/birds">
+                <Button variant="ghost" size="sm">Birds</Button>
+              </Link>
+              <Link href="/payments">
+                <Button variant="ghost" size="sm">Payments</Button>
+              </Link>
+              <Link href="/teams">
+                <Button variant="ghost" size="sm">Teams</Button>
+              </Link>
+            </nav>
+          )}
         </div>
 
         {/* Right side - Auth & Updates */}

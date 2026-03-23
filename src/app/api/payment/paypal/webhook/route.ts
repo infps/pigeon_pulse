@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       );
 
       if (verifyResponse.result.verification_status !== "SUCCESS") {
-        console.error("Webhook signature verification failed");
+        console.error("Webhook signatu~re verification failed");
         return NextResponse.json({ message: "Invalid signature" }, { status: 401 });
       }
     }

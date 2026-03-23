@@ -164,9 +164,9 @@ export async function POST(
         inventoryItems.push({ birdId: item.birdId!, id: item.id });
       }
 
-      // Add birds to any existing races for this event
+      // Add birds to races still accepting registrations
       const existingRaces = await tx.race.findMany({
-        where: { eventId },
+        where: { eventId, status: "REGISTERING" },
         select: { id: true },
       });
       if (existingRaces.length > 0) {

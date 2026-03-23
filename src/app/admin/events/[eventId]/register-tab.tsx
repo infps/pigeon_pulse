@@ -293,23 +293,23 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
           <div className="flex gap-2">
             <div className="flex-1 space-y-2">
               <Label htmlFor="breeder">Select Breeder *</Label>
-              <Select value={selectedBreederId} onValueChange={handleBreederChange}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select breeder" />
-                </SelectTrigger>
-                <SelectContent>
-                  {breeders.map((breeder: any) => (
-                    <SelectItem key={breeder.id} value={String(breeder.id)}>
-                      {breeder.firstName} {breeder.lastName || ""} ({breeder.email})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="pt-8">
-              <Button type="button" variant="outline" size="icon" onClick={() => setIsAddBreederOpen(true)}>
-                <Plus className="h-4 w-4" />
-              </Button>
+              <div className="flex gap-2">
+                <Select value={selectedBreederId} onValueChange={handleBreederChange}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select breeder" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {breeders.map((breeder: any) => (
+                      <SelectItem key={breeder.id} value={String(breeder.id)}>
+                        {breeder.firstName} {breeder.lastName || ""} ({breeder.email})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button type="button" variant="outline" size="icon" onClick={() => setIsAddBreederOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
         </div>

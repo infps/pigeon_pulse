@@ -304,8 +304,8 @@ export function EditBirdDialog({
                   </SelectContent>
                 </Select>
               </div>
-              <span className="pb-2 text-muted-foreground">-</span>
-              <div className="flex-1 space-y-2">
+              <span className="pb-2 text-muted-foreground mb-2">-</span>
+              <div className="flex-1 space-y-2 mb-2">
                 <Label htmlFor="band2">Year</Label>
                 <Input
                   id="band2"
@@ -315,8 +315,8 @@ export function EditBirdDialog({
                   required
                 />
               </div>
-              <span className="pb-2 text-muted-foreground">-</span>
-              <div className="flex-1 space-y-2">
+              <span className="pb-2 text-muted-foreground mb-2">-</span>
+              <div className="flex-1 space-y-2 mb-2">
                 <Label htmlFor="band3">Letters</Label>
                 <Input
                   id="band3"
@@ -326,8 +326,8 @@ export function EditBirdDialog({
                   required
                 />
               </div>
-              <span className="pb-2 text-muted-foreground">-</span>
-              <div className="flex-1 space-y-2">
+              <span className="pb-2 text-muted-foreground mb-2">-</span>
+              <div className="flex-1 space-y-2 mb-2">
                 <Label htmlFor="band4">Band No.</Label>
                 <Input
                   id="band4"
@@ -337,7 +337,7 @@ export function EditBirdDialog({
                   required
                 />
               </div>
-              <span className="pb-2 text-muted-foreground">-</span>
+              <span className="pb-2 text-muted-foreground mb-2">-</span>
               <div className="flex-1 space-y-2">
                 <Label htmlFor="color">Color</Label>
                 <Select value={color} onValueChange={setColor}>
@@ -351,7 +351,7 @@ export function EditBirdDialog({
                   </SelectContent>
                 </Select>
               </div>
-              <span className="pb-2 text-muted-foreground">-</span>
+              <span className="pb-2 text-muted-foreground mb-2">-</span>
               <div className="flex-1 space-y-2">
                 <Label htmlFor="sex">Sex</Label>
                 <Select value={sex} onValueChange={(value: "COCK" | "HEN" | "UNKNOWN") => setSex(value)}>

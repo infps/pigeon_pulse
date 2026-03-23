@@ -21,9 +21,13 @@ export default function PublicRacePage() {
     params: { raceId },
   });
 
+  const race = raceData?.race as Race;
+  const isLive = race?.status === "STARTED";
+
   const { data: raceItemsData, isPending: raceItemsLoading } = useApiQuery({
     endpoint: apiEndpoints.breeder.raceItems(raceId),
     queryKey: ["breeder", "raceItems", raceId],
+    refetchInterval: isLive ? 15000 : false,
   });
 
   if (raceLoading || raceItemsLoading) {
@@ -36,7 +40,6 @@ export default function PublicRacePage() {
     );
   }
 
-  const race = raceData?.race as Race;
   const raceItems = (raceItemsData?.raceItems || []) as RaceItem[];
 
   if (!race) {
@@ -86,7 +89,13 @@ export default function PublicRacePage() {
                       <Badge variant="default" className="text-sm bg-blue-600">Registering</Badge>
                     )}
                     {race.status === "STARTED" && (
-                      <Badge variant="default" className="text-sm bg-green-600 animate-pulse">LIVE</Badge>
+                      <>
+                        <Badge variant="default" className="text-sm bg-red-600 animate-pulse gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-white animate-ping" />
+                          LIVE
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">Auto-refreshing every 15s</span>
+                      </>
                     )}
                     {race.status === "ENDED" && (
                       <Badge variant="secondary" className="text-sm">Ended</Badge>

@@ -5,25 +5,28 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+const METHOD_MAP: Record<string, number> = { CASH: 0, CREDIT_CARD: 1, PAYPAL: 2, BANK_TRANSFER: 3 };
+const TYPE_MAP: Record<string, number> = { PERCH_FEE: 0, BIRD_FEE: 1, RACES_FEE: 2, PAYOUTS: 3, OTHER: 4 };
+
 const createPaymentSchema = z.object({
   eventInventoryId: z.union([z.string(), z.number()]).transform(v => parseInt(String(v))),
   breederId: z.union([z.string(), z.number()]).transform(v => parseInt(String(v))),
-  paymentValue: z.number().optional(),
-  paymentMethod: z.number().optional(),
-  paymentType: z.number().optional(),
+  amountPaid: z.number(),
+  method: z.string().optional(),
+  paymentType: z.string().optional(),
+  description: z.string().optional(),
+  referenceNumber: z.string().optional(),
   status: z.nativeEnum(PaymentStatus).optional(),
-  paymentDesc: z.string().optional(),
-  transactionId: z.string().optional(),
 });
 
 const updatePaymentSchema = z.object({
   paymentId: z.union([z.string(), z.number()]).transform(v => parseInt(String(v))),
-  paymentValue: z.number().optional(),
-  paymentMethod: z.number().optional(),
-  paymentType: z.number().optional(),
+  amountPaid: z.number().optional(),
+  method: z.string().optional(),
+  paymentType: z.string().optional(),
+  description: z.string().optional(),
+  referenceNumber: z.string().optional(),
   status: z.nativeEnum(PaymentStatus).optional(),
-  paymentDesc: z.string().optional(),
-  transactionId: z.string().optional(),
 });
 
 export async function POST(request: Request) {
@@ -43,12 +46,14 @@ export async function POST(request: Request) {
       data: {
         eventInventoryId: validatedData.eventInventoryId,
         breederId: validatedData.breederId,
-        paymentValue: validatedData.paymentValue,
-        paymentMethod: validatedData.paymentMethod,
-        paymentType: validatedData.paymentType,
-        status: validatedData.status,
-        paymentDesc: validatedData.paymentDesc,
-        transactionId: validatedData.transactionId,
+        paymentValue: validatedData.amountPaid,
+        paymentMethod: validatedData.method ? METHOD_MAP[validatedData.method] ?? null : null,
+        paymentType: validatedData.paymentType ? TYPE_MAP[validatedData.paymentType] ?? null : null,
+        paymentDesc: validatedData.description,
+        transactionId: validatedData.referenceNumber,
+        paymentDate: new Date(),
+        paymentTimestamp: new Date(),
+        status: validatedData.status ?? PaymentStatus.PAID,
       },
     });
 
@@ -88,11 +93,18 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const validatedData = updatePaymentSchema.parse(body);
 
-    const { paymentId, ...updateData } = validatedData;
+    const { paymentId, amountPaid, method, paymentType, description, referenceNumber, status } = validatedData;
 
     const payment = await prisma.payment.update({
       where: { id: paymentId },
-      data: updateData,
+      data: {
+        ...(amountPaid !== undefined && { paymentValue: amountPaid }),
+        ...(method !== undefined && { paymentMethod: METHOD_MAP[method] ?? null }),
+        ...(paymentType !== undefined && { paymentType: TYPE_MAP[paymentType] ?? null }),
+        ...(description !== undefined && { paymentDesc: description }),
+        ...(referenceNumber !== undefined && { transactionId: referenceNumber }),
+        ...(status !== undefined && { status }),
+      },
     });
 
     return NextResponse.json(

@@ -14,6 +14,9 @@ import type { Event, EventInventory, EventInventoryItem } from "@/lib/types";
 import { EditBirdDialog } from "./edit-bird-dialog";
 import { CreateBirdDialog } from "./create-bird-dialog";
 
+const METHOD_LABELS: Record<number, string> = { 0: "Cash", 1: "Credit Card", 2: "PayPal", 3: "Bank Transfer" };
+const TYPE_LABELS: Record<number, string> = { 0: "Perch Fee", 1: "Per Bird Fee", 2: "Races Fee", 3: "Payouts", 4: "Other" };
+
 interface BreederDetailsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -118,13 +121,16 @@ export function BreederDetailsDialog({
     }
   };
 
+  const REVERSE_METHOD: Record<number, typeof paymentMethod> = { 0: "CASH", 1: "CREDIT_CARD", 2: "PAYPAL", 3: "BANK_TRANSFER" };
+  const REVERSE_TYPE: Record<number, typeof paymentType> = { 0: "PERCH_FEE", 1: "BIRD_FEE", 2: "RACES_FEE", 3: "PAYOUTS", 4: "OTHER" };
+
   const handleEditPayment = (payment: any) => {
     setEditingPayment(payment);
-    setPaymentAmount(payment.amountPaid.toString());
-    setPaymentMethod(payment.method);
-    setPaymentType(payment.paymentType);
-    setPaymentDescription(payment.description || "");
-    setReferenceNumber(payment.referenceNumber || "");
+    setPaymentAmount((payment.paymentValue ?? 0).toString());
+    setPaymentMethod(REVERSE_METHOD[payment.paymentMethod] ?? "CASH");
+    setPaymentType(REVERSE_TYPE[payment.paymentType] ?? "OTHER");
+    setPaymentDescription(payment.paymentDesc || "");
+    setReferenceNumber(payment.transactionId || "");
     setIsAddPaymentOpen(true);
   };
 
@@ -369,10 +375,10 @@ export function BreederDetailsDialog({
                               {payment.paymentDate ? new Date(payment.paymentDate).toLocaleDateString() : "-"}
                             </td>
                             <td className="px-4 py-2 text-sm">
-                              {payment.paymentType ?? "-"}
+                              {payment.paymentType != null ? TYPE_LABELS[payment.paymentType] ?? payment.paymentType : "-"}
                             </td>
                             <td className="px-4 py-2 text-sm">
-                              {payment.paymentMethod ?? "-"}
+                              {payment.paymentMethod != null ? METHOD_LABELS[payment.paymentMethod] ?? payment.paymentMethod : "-"}
                             </td>
                             <td className="px-4 py-2 text-sm text-right">
                               ${(payment.paymentValue ?? 0).toFixed(2)}

@@ -14,6 +14,7 @@ interface QueryConfig {
   options?: Record<string, any>;
   enabled?: boolean;
   baseUrl?: string;
+  refetchInterval?: number | false;
 }
 
 export function useApiQuery({
@@ -25,6 +26,7 @@ export function useApiQuery({
   options,
   enabled = true,
   baseUrl,
+  refetchInterval,
 }: QueryConfig) {
   const BASE_URL = baseUrl ?? API_URL;
 
@@ -65,6 +67,7 @@ export function useApiQuery({
     retry: false,
     refetchOnReconnect: false,
     staleTime: Infinity,
+    ...(refetchInterval && { refetchInterval }),
   });
 
   return {
