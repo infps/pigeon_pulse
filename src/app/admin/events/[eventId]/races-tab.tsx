@@ -166,7 +166,7 @@ function toDateTimeLocal(iso: string) {
 
     setFormData({
       raceTypeId: String(race.raceTypeId ?? ""),
-      name: race.description ?? "",
+      name: race.name ?? "",
       description: race.description || "",
       distance: race.distance?.toString() ?? "",
       location: race.location || "",
@@ -211,7 +211,7 @@ function toDateTimeLocal(iso: string) {
 
     try {
       await updateRaceMutation.mutateAsync({
-        id: editingRace.id,
+        raceId: editingRace.id,
         raceTypeId: formData.raceTypeId,
         eventId,
         name: formData.name,
@@ -265,7 +265,7 @@ function toDateTimeLocal(iso: string) {
 
     try {
       if(!deleteRaceMutation.mutateAsync) return;
-      await deleteRaceMutation.mutateAsync({ id: raceId });
+      await deleteRaceMutation.mutateAsync({ raceId });
       toast.success("Race deleted successfully");
     } catch (error) {
       toast.error("Failed to delete race");
@@ -306,7 +306,7 @@ function toDateTimeLocal(iso: string) {
         columns={createRacesColumns(handleEdit, handleDelete, eventId)} 
         data={races}
         filterableColumns={[
-          { id: "description", title: "Race Name" },
+          { id: "name", title: "Race Name" },
           { id: "location", title: "Location" },
         ]}
       />

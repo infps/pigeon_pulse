@@ -44,16 +44,11 @@ const eventInventory = {
 const races = {
   base: "/api/admin/race",
   start: (raceId: number | string) => `/api/admin/race/${raceId}/start`,
-};
-
-const baskets = {
-  base: "/api/admin/basket",
-  byId: "/api/admin/basket/:basketId",
+  end: (raceId: number | string) => `/api/admin/race/${raceId}/end`,
 };
 
 const raceItems = {
   base: "/api/admin/race-item",
-  basket: "/api/admin/race-item/basket",
 };
 
 const breeder = {
@@ -72,6 +67,15 @@ const breeder = {
   raceItems: (raceId: number | string) => `/api/breeder/races/${raceId}/items`,
 };
 
+const eventBaskets = {
+  checkinStatus: (eventId: number | string) => `/api/admin/event/${eventId}/checkin-status`,
+  checkin: (eventId: number | string) => `/api/admin/event/${eventId}/checkin`,
+  list: (eventId: number | string) => `/api/admin/event/${eventId}/baskets`,
+  generateLoft: (eventId: number | string) => `/api/admin/event/${eventId}/baskets/generate-loft`,
+  generateRace: (eventId: number | string) => `/api/admin/event/${eventId}/baskets/generate-race`,
+  scanLoft: (eventId: number | string) => `/api/admin/event/${eventId}/baskets/scan-loft`,
+};
+
 export const apiEndpoints = {
   raceTypes,
   eventTypes,
@@ -84,7 +88,7 @@ export const apiEndpoints = {
   teams,
   eventInventory,
   races,
-  baskets,
   raceItems,
   breeder,
+  eventBaskets,
 };

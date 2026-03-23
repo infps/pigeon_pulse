@@ -87,6 +87,7 @@ export async function POST(request: Request) {
       raceTypeId,
       eventId,
       raceNumber,
+      name,
       description,
       distance,
       location,
@@ -113,47 +114,51 @@ export async function POST(request: Request) {
       );
     }
     const eventInventoryItems = await prisma.eventInventoryItem.findMany({
-      where: { eventInventory:{
-        eventId: parseInt(eventId)
-      } },
-    })
-    const race = await prisma.race.create({
-      data: {
-        raceTypeId: raceTypeId ? parseInt(raceTypeId) : null,
-        eventId: parseInt(eventId),
-        raceNumber: raceNumber ? parseInt(raceNumber) : null,
-        description,
-        distance: distance ? parseInt(distance) : null,
-        location,
-        startTime: startTime ? new Date(startTime) : null,
-        sunrise: sunrise ? new Date(sunrise) : null,
-        sunset: sunset ? new Date(sunset) : null,
-        arrivalTemperature: arrivalTemperature ?? null,
-        arrivalWind,
-        arrivalWeather,
-        temperature: temperature ?? null,
-        wind,
-        weather,
-        isClosed: isClosed ? 1 : 0,
-      },
-      include: {
-        raceType: true,
-        event: {
-          select: {
-            id: true,
-            name: true,
-            shortName: true,
+      where: { eventInventory: { eventId: parseInt(eventId) } },
+    });
+
+    const race = await prisma.$transaction(async (tx) => {
+      const created = await tx.race.create({
+        data: {
+          raceTypeId: raceTypeId ? parseInt(raceTypeId) : null,
+          eventId: parseInt(eventId),
+          raceNumber: raceNumber ? parseInt(raceNumber) : null,
+          name: name || "",
+          description,
+          distance: distance ? parseInt(distance) : null,
+          location,
+          startTime: startTime ? new Date(startTime) : null,
+          sunrise: sunrise ? new Date(sunrise) : null,
+          sunset: sunset ? new Date(sunset) : null,
+          arrivalTemperature: arrivalTemperature ?? null,
+          arrivalWind,
+          arrivalWeather,
+          temperature: temperature ?? null,
+          wind,
+          weather,
+          isClosed: isClosed ? 1 : 0,
+        },
+        include: {
+          raceType: true,
+          event: {
+            select: {
+              id: true,
+              name: true,
+              shortName: true,
+            },
           },
         },
-      },
+      });
+
+      await tx.raceItem.createMany({
+        data: eventInventoryItems.map((item) => ({
+          raceId: created.id,
+          inventoryItemId: item.id,
+        })),
+      });
+
+      return created;
     });
-    console.log(race)
-    await prisma.raceItem.createMany({
-      data: eventInventoryItems.map(item => ({
-        raceId: race.id,
-        inventoryItemId: item.id,
-      })),
-    })
 
     return NextResponse.json(
       { race, message: "Race created successfully" },
@@ -193,6 +198,7 @@ export async function PUT(request: Request) {
     if (data.raceTypeId) updateData.raceTypeId = parseInt(data.raceTypeId);
     if (data.eventId) updateData.eventId = parseInt(data.eventId);
     if (data.raceNumber !== undefined) updateData.raceNumber = data.raceNumber ? parseInt(data.raceNumber) : null;
+    if (data.name !== undefined) updateData.name = data.name;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.distance) updateData.distance = parseInt(data.distance);
     if (data.location) updateData.location = data.location;

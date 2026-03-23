@@ -50,9 +50,10 @@ export const raceItemsColumns: ColumnDef<RaceItem>[] = [
       const status = row.original.status;
       const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
         REGISTERED: { label: "Registered", variant: "outline" },
+        CHECKED_IN: { label: "Checked In", variant: "secondary" },
         LOFT_BASKETED: { label: "Loft", variant: "secondary" },
         RELEASED: { label: "Released", variant: "default" },
-        RACE_BASKETED: { label: "Arrived", variant: "default" },
+        ARRIVED: { label: "Arrived", variant: "default" },
         FOREIGN_BIRD: { label: "Foreign", variant: "destructive" },
       };
       const config = (status && statusConfig[status]) || { label: status ?? "Unknown", variant: "outline" as const };
@@ -128,32 +129,28 @@ export const raceItemsColumns: ColumnDef<RaceItem>[] = [
     },
   },
   {
-    accessorKey: "loftBasket",
+    accessorKey: "loftBasketLabel",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Loft Basket" />
     ),
     cell: ({ row }) => {
-      const item = row.original;
-      return item.isLoftBasketed ? (
-        <Badge variant="outline">
-          #{item.loftBasket?.basketNo || "-"}
-        </Badge>
+      const label = row.original.loftBasketLabel;
+      return label ? (
+        <Badge variant="outline">{label}</Badge>
       ) : (
         <span className="text-muted-foreground">-</span>
       );
     },
   },
   {
-    accessorKey: "raceBasket",
+    accessorKey: "raceBasketLabel",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Race Basket" />
     ),
     cell: ({ row }) => {
-      const item = row.original;
-      return item.isRaceBasketed ? (
-        <Badge variant="outline">
-          #{item.raceBasket?.basketNo || "-"}
-        </Badge>
+      const label = row.original.raceBasketLabel;
+      return label ? (
+        <Badge variant="outline">{label}</Badge>
       ) : (
         <span className="text-muted-foreground">-</span>
       );

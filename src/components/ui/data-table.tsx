@@ -47,6 +47,7 @@ interface DataTableProps<TData, TValue> {
   }[]
   rowSelection?: RowSelectionState
   onRowSelectionChange?: (updater: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => void
+  onRowClick?: (row: TData) => void
 }
 
 export function DataTable<TData, TValue>({
@@ -57,6 +58,7 @@ export function DataTable<TData, TValue>({
   filterableColumns = [],
   rowSelection: externalRowSelection,
   onRowSelectionChange: externalOnRowSelectionChange,
+  onRowClick,
 }: DataTableProps<TData, TValue>) {
   const [internalRowSelection, setInternalRowSelection] = React.useState<RowSelectionState>({})
   const [columnVisibility, setColumnVisibility] =
@@ -178,6 +180,8 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
+                  className={onRowClick ? "cursor-pointer" : undefined}
+                  onClick={() => onRowClick?.(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>

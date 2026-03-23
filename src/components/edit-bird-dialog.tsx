@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useUpdateEventInventoryItem } from "@/lib/api/event-inventory-item";
+import { useScanLoftBasket } from "@/lib/api/event-baskets";
 import { useListRaces } from "@/lib/api/races";
 import type { EventInventoryItem, Race, Event } from "@/lib/types";
 import { Wifi, WifiOff } from "lucide-react";
@@ -48,6 +49,8 @@ export function EditBirdDialog({
     },
     eventInventoryItemId: eventInventoryItem?.id ? String(eventInventoryItem.id) : "",
   });
+
+  const scanLoftMutation = useScanLoftBasket(eventId);
 
   const { data: racesData } = useListRaces({
     params: { eventId: String(eventId) },
@@ -93,9 +96,13 @@ export function EditBirdDialog({
   const [wtaBet4, setWtaBet4] = useState(false);
   const [wtaBet5, setWtaBet5] = useState(false);
 
+  // Loft basketing
+  const [capacity, setCapacity] = useState("10");
+
   // Polling state
   const [isPolling, setIsPolling] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastScannedRfidRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (eventInventoryItem) {
@@ -153,10 +160,11 @@ export function EditBirdDialog({
     }
   }, [eventInventoryItem]);
 
-  // Polling management
+  // Polling management — scans RFID + assigns loft basket in one step
   const pollScanner = async () => {
+    if (!eventInventoryItem) return;
     try {
-      const response = await fetch('/api/scanner/poll', {
+      const response = await fetch('/api/scanner/mock-poll', {
         method: 'POST',
       });
 
@@ -164,10 +172,25 @@ export function EditBirdDialog({
         const data = await response.json();
         if (data && data.length > 0 && data[0].el) {
           const newRfid = data[0].el;
-          // Only update if different from current value to avoid unnecessary re-renders
-          if (newRfid !== rfid) {
+          if (newRfid === lastScannedRfidRef.current) return;
+          lastScannedRfidRef.current = newRfid;
+
+          try {
+            const result = await scanLoftMutation.mutateAsync({
+              eventInventoryItemId: eventInventoryItem.id,
+              rfid: newRfid,
+              capacity: parseInt(capacity) || 10,
+            }) as any;
+
             setRfid(newRfid);
-            toast.success(`RFID scanned: ${newRfid}`);
+            if (result?.alreadyAssigned) {
+              toast.info(`Already basketed: ${result.basket?.label || ""}`);
+            } else {
+              toast.success(`Scanned & basketed → ${result?.basket?.label || ""}`);
+            }
+            stopPolling();
+          } catch (error: any) {
+            toast.error(error?.message || "Scan failed");
           }
         }
       }
@@ -182,6 +205,7 @@ export function EditBirdDialog({
     }
 
     setIsPolling(true);
+    lastScannedRfidRef.current = null;
     toast.success('Scanner connected - polling started');
     
     // Poll immediately
@@ -347,7 +371,7 @@ export function EditBirdDialog({
           {/* Bird Details */}
           <div className="space-y-4">
             <h3 className="font-semibold text-lg">Bird Details</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="birdName">Name</Label>
                 <Input
@@ -371,7 +395,7 @@ export function EditBirdDialog({
                     variant={isPolling ? "default" : "outline"}
                     size="icon"
                     onClick={isPolling ? stopPolling : startPolling}
-                    title={isPolling ? "Disconnect scanner" : "Connect to scanner"}
+                    title={isPolling ? "Disconnect scanner (scan + basket)" : "Scan RFID + assign loft basket"}
                   >
                     {isPolling ? (
                       <Wifi className="h-4 w-4" />
@@ -381,8 +405,18 @@ export function EditBirdDialog({
                   </Button>
                 </div>
                 {isPolling && (
-                  <p className="text-xs text-green-600">Scanner connected - polling for RFID...</p>
+                  <p className="text-xs text-green-600 animate-pulse">Scanning — will assign to loft basket...</p>
                 )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="basket-capacity">Basket Cap.</Label>
+                <Input
+                  id="basket-capacity"
+                  type="number"
+                  min="1"
+                  value={capacity}
+                  onChange={(e) => setCapacity(e.target.value)}
+                />
               </div>
             </div>
           </div>

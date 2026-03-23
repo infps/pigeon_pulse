@@ -22,7 +22,7 @@ export const createRacesColumns = (
   eventId: string
 ): ColumnDef<Race>[] => [
   {
-    accessorKey: "description",
+    accessorKey: "name",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Race Name" />
     ),
@@ -33,7 +33,7 @@ export const createRacesColumns = (
           href={`/admin/events/${eventId}/races/${race.id}`}
           className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
         >
-          {race.description}
+          {race.name}
         </Link>
       );
     },
@@ -77,17 +77,15 @@ export const createRacesColumns = (
     },
   },
   {
-    accessorKey: "isClosed",
+    accessorKey: "status",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
     cell: ({ row }) => {
-      const isClosed = row.original.isClosed;
-      return (
-        <Badge variant={isClosed === 1 ? "secondary" : "default"}>
-          {isClosed === 1 ? "Closed" : "Open"}
-        </Badge>
-      );
+      const status = row.original.status;
+      if (status === "STARTED") return <Badge className="bg-green-600">Live</Badge>;
+      if (status === "ENDED") return <Badge variant="secondary">Ended</Badge>;
+      return <Badge className="bg-blue-600">Registering</Badge>;
     },
   },
   {

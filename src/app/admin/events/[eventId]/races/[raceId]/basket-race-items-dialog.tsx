@@ -18,17 +18,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { useBasketRaceItems } from "@/lib/api/race-item-basket";
-import { useListBaskets } from "@/lib/api/baskets";
+import { useEventBaskets } from "@/lib/api/event-baskets";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import type { RaceItem, Basket } from "@/lib/types";
+import type { RaceItem, EventBasketItem } from "@/lib/types";
 
 interface BasketRaceItemsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedItems: RaceItem[];
-  raceId: string;
+  eventId: string;
   onSuccess?: () => void;
 }
 
@@ -36,24 +35,15 @@ export function BasketRaceItemsDialog({
   open,
   onOpenChange,
   selectedItems,
-  raceId,
+  eventId,
   onSuccess,
 }: BasketRaceItemsDialogProps) {
-  const [basketType, setBasketType] = useState<"loft" | "race">("loft");
+  const [basketPhase, setBasketPhase] = useState<"LOFT" | "RACE">("LOFT");
   const [selectedBasketId, setSelectedBasketId] = useState<string>("");
 
-  const { data: basketsData } = useListBaskets({
-    params: { raceId },
-  });
+  const { data: basketsData } = useEventBaskets(eventId, basketPhase);
 
-  const basketMutation = useBasketRaceItems();
-
-  const baskets = (basketsData?.baskets || []) as Basket[];
-  const filteredBaskets = baskets.filter(
-    (basket) => basket.isRaceBasket === (basketType === "race" ? 1 : 0)
-  );
-
-  console.log({ baskets, filteredBaskets });
+  const baskets: EventBasketItem[] = basketsData?.baskets || [];
 
   const handleBasket = async () => {
     if (!selectedBasketId) {
@@ -61,24 +51,10 @@ export function BasketRaceItemsDialog({
       return;
     }
 
-    try {
-      await basketMutation.mutateAsync({
-        raceItemIds: selectedItems.map((item) => item.raceItemId),
-        basketId: selectedBasketId,
-        basketType,
-      });
-
-      toast.success(
-        `${selectedItems.length} bird(s) basketed successfully to ${basketType} basket`
-      );
-      onSuccess?.();
-      onOpenChange(false);
-      // Reset selections
-      setSelectedBasketId("");
-      setBasketType("loft");
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to basket race items");
-    }
+    // TODO: implement basket assignment via API when needed
+    toast.info("Manual basket assignment not yet implemented — use Check-in tab for loft baskets");
+    onOpenChange(false);
+    setSelectedBasketId("");
   };
 
   return (
@@ -98,7 +74,7 @@ export function BasketRaceItemsDialog({
             <div className="max-h-32 overflow-y-auto border rounded-md p-2 space-y-1">
               {selectedItems.map((item) => (
                 <div
-                  key={item.raceItemId}
+                  key={item.id}
                   className="text-sm flex items-center justify-between gap-2"
                 >
                   <span className="font-mono">{item.bird?.band}</span>
@@ -110,22 +86,22 @@ export function BasketRaceItemsDialog({
             </div>
           </div>
 
-          {/* Basket Type Selection */}
+          {/* Basket Phase Selection */}
           <div className="space-y-2">
-            <Label htmlFor="basket-type">Basket Type</Label>
+            <Label htmlFor="basket-phase">Basket Type</Label>
             <Select
-              value={basketType}
-              onValueChange={(value: "loft" | "race") => {
-                setBasketType(value);
-                setSelectedBasketId(""); // Reset basket selection
+              value={basketPhase}
+              onValueChange={(value: "LOFT" | "RACE") => {
+                setBasketPhase(value);
+                setSelectedBasketId("");
               }}
             >
-              <SelectTrigger id="basket-type">
+              <SelectTrigger id="basket-phase">
                 <SelectValue placeholder="Select basket type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="loft">Loft Basket</SelectItem>
-                <SelectItem value="race">Race Basket</SelectItem>
+                <SelectItem value="LOFT">Loft Basket</SelectItem>
+                <SelectItem value="RACE">Race Basket</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -133,24 +109,24 @@ export function BasketRaceItemsDialog({
           {/* Basket Selection */}
           <div className="space-y-2">
             <Label htmlFor="basket">
-              Select {basketType === "loft" ? "Loft" : "Race"} Basket
+              Select {basketPhase === "LOFT" ? "Loft" : "Race"} Basket
             </Label>
             <Select value={selectedBasketId} onValueChange={setSelectedBasketId}>
               <SelectTrigger id="basket">
                 <SelectValue placeholder="Select a basket" />
               </SelectTrigger>
               <SelectContent>
-                {filteredBaskets.length === 0 ? (
+                {baskets.length === 0 ? (
                   <div className="p-2 text-sm text-muted-foreground text-center">
-                    No {basketType} baskets available
+                    No {basketPhase.toLowerCase()} baskets available
                   </div>
                 ) : (
-                  filteredBaskets.map((basket) => (
-                    <SelectItem key={basket.basketId ?? basket.id} value={String(basket.basketId ?? basket.id)}>
+                  baskets.map((basket) => (
+                    <SelectItem key={basket.id} value={String(basket.id)}>
                       <div className="flex items-center gap-2">
-                        <span>Basket #{basket.basketNo}</span>
+                        <span>{basket.label || `Basket #${basket.basketNo}`}</span>
                         <Badge variant="outline" className="text-xs">
-                          {basket.isRaceBasket ? "Race" : "Loft"}
+                          {basket._count?.assignments ?? 0}/{basket.capacity}
                         </Badge>
                       </div>
                     </SelectItem>
@@ -172,9 +148,9 @@ export function BasketRaceItemsDialog({
           <Button
             type="button"
             onClick={handleBasket}
-            disabled={!selectedBasketId || basketMutation.isPending}
+            disabled={!selectedBasketId}
           >
-            {basketMutation.isPending ? "Basketing..." : "Basket Birds"}
+            Basket Birds
           </Button>
         </DialogFooter>
       </DialogContent>

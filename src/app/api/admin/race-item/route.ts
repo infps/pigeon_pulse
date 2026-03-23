@@ -40,49 +40,52 @@ export async function GET(req: NextRequest) {
             eventInventory: {
               select: {
                 loft: true,
+                payments: { select: { status: true } },
+              },
+            },
+            basketAssignments: {
+              include: {
+                eventBasket: { select: { label: true, phase: true } },
               },
             },
           },
         },
-        distBasket: true,
-        raceBasket: true,
         result: true,
       },
       orderBy: [
-        {
-          result: {
-            birdPosition: "asc",
-          },
-        },
-        {
-          result: {
-            arrivalTime: "asc",
-          },
-        },
+        { result: { birdPosition: "asc" } },
+        { result: { arrivalTime: "asc" } },
       ],
     });
 
-    // Flatten nested relations to match UI column accessors
-    const flattenedRaceItems = raceItems.map((item) => ({
-      ...item,
-      bird: item.inventoryItem?.bird ?? undefined,
-      eventInventoryItem: item.inventoryItem
-        ? { eventInventory: item.inventoryItem.eventInventory }
-        : undefined,
-      status: item.raceBasketId
-        ? "RACE_BASKETED"
-        : item.isLost
-          ? "FOREIGN_BIRD"
-          : item.distBasketId
-            ? "LOFT_BASKETED"
-            : "REGISTERED",
-      birdPosition: item.result?.birdPosition ?? null,
-      arrivalTime: item.result?.arrivalTime ?? null,
-      speed: null,
-      isLoftBasketed: !!item.distBasketId,
-      isRaceBasketed: !!item.raceBasketId,
-      loftBasket: item.distBasket,
-    }));
+    // Flatten nested relations for UI column accessors
+    const flattenedRaceItems = raceItems.map((item) => {
+      // Compute CHECKED_IN overlay for REGISTERED birds
+      let computedStatus: string = item.status;
+      if (computedStatus === "REGISTERED") {
+        const hasRfid = item.inventoryItem?.bird?.rfid != null && item.inventoryItem.bird.rfid !== "";
+        const hasPaid = item.inventoryItem?.eventInventory?.payments?.some((p) => p.status === "PAID") ?? false;
+        if (hasRfid && hasPaid) computedStatus = "CHECKED_IN";
+      }
+
+      const assignments = item.inventoryItem?.basketAssignments ?? [];
+      const loftLabel = assignments.find((a) => a.eventBasket?.phase === "LOFT")?.eventBasket?.label ?? null;
+      const raceLabel = assignments.find((a) => a.eventBasket?.phase === "RACE")?.eventBasket?.label ?? null;
+
+      return {
+        ...item,
+        bird: item.inventoryItem?.bird ?? undefined,
+        eventInventoryItem: item.inventoryItem
+          ? { eventInventory: item.inventoryItem.eventInventory }
+          : undefined,
+        status: computedStatus,
+        birdPosition: item.result?.birdPosition ?? null,
+        arrivalTime: item.result?.arrivalTime ?? null,
+        speed: null,
+        loftBasketLabel: loftLabel,
+        raceBasketLabel: raceLabel,
+      };
+    });
 
     return Response.json({ raceItems: flattenedRaceItems });
   } catch (error) {

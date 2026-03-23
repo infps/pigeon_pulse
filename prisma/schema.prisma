@@ -203,10 +203,22 @@ enum PaymentStatus {
 
 enum RaceItemStatus {
   REGISTERED
+  CHECKED_IN
   LOFT_BASKETED
   RELEASED
-  RACE_BASKETED
+  ARRIVED
   FOREIGN_BIRD
+}
+
+enum BasketPhase {
+  LOFT
+  RACE
+}
+
+enum RaceStatus {
+  REGISTERING
+  STARTED
+  ENDED
 }
 
 model FeeScheme {
@@ -372,11 +384,11 @@ model Race {
   isClosed           Int?      @map("IS_CLOSED")
   name               String    @default("")
   isLive             Boolean   @default(false)
+  status             RaceStatus @default(REGISTERING) @map("STATUS")
 
   event     Event?    @relation(fields: [eventId], references: [id])
   raceType  RaceType? @relation(fields: [raceTypeId], references: [id])
   raceItems RaceItem[]
-  baskets   Basket[]
   lostBirds Bird[]
   lostHistory    LostHistory[]
   rfidScans      RfidScan[]
@@ -389,9 +401,6 @@ model RaceItem {
   id               Int       @id @default(autoincrement()) @map("ID_RACE_ITEM")
   raceId           Int?      @map("ID_RACE")
   inventoryItemId  Int?      @map("ID_INVENTORY_ITEM")
-  distBasketId     Int?      @map("ID_DIST_BASKET")
-  raceBasketId     Int?      @map("ID_RACE_BASKET")
-  isDistBasketed   Int?      @map("IS_DIST_BASKETED")
   isLost           Int?      @map("IS_LOST")
   lostRaceId       Int?      @map("LOST_ID_RACE")
   raceBasketTime   DateTime? @map("RACE_BASKET_TIME")
@@ -399,8 +408,6 @@ model RaceItem {
 
   race             Race?               @relation(fields: [raceId], references: [id])
   inventoryItem    EventInventoryItem? @relation(fields: [inventoryItemId], references: [id])
-  distBasket       Basket?             @relation("DistBasketRaceItem", fields: [distBasketId], references: [id])
-  raceBasket       Basket?             @relation("RaceBasketRaceItem", fields: [raceBasketId], references: [id])
   result           RaceItemResult?
   scans            RaceItemScan[]
 }
@@ -496,6 +503,7 @@ model Event {
 
   races            Race[]
   eventInventories EventInventory[]
+  eventBaskets     EventBasket[]
   eventRaceNumbers EventRaceNumber[]
   avgWinnerPrizes  AvgWinnerPrizes[]
   prizeValues      PrizeValue[]
@@ -566,9 +574,10 @@ model EventInventoryItem {
   replacedItem   EventInventoryItem? @relation("ReplacedItem", fields: [replacedItemId], references: [id])
   replacedBy     EventInventoryItem[] @relation("ReplacedItem")
 
-  raceItems    RaceItem[]
-  ignoreBirds  RaceIgnoreBird[]
-  avgWinners   AvgWinnerPrizes[]
+  raceItems         RaceItem[]
+  basketAssignments BasketAssignment[]
+  ignoreBirds       RaceIgnoreBird[]
+  avgWinners        AvgWinnerPrizes[]
 }
 
 model Partner {
@@ -700,16 +709,34 @@ model RfidScan {
 // OTHER
 // ============================================================
 
-model Basket {
-  id           Int  @id @default(autoincrement()) @map("ID_BASKET")
-  basketNo     Int? @map("BASKET_NO")
-  capacity     Int? @map("CAPACITY")
-  raceId       Int? @map("ID_RACE")
-  isRaceBasket Int? @map("IS_RACE_BASKET")
+model EventBasket {
+  id        Int         @id @default(autoincrement()) @map("ID_EVENT_BASKET")
+  eventId   Int         @map("ID_EVENT")
+  basketNo  Int         @map("BASKET_NO")
+  capacity  Int         @map("CAPACITY")
+  phase     BasketPhase @map("PHASE")
+  label     String?     @map("LABEL")
 
-  race      Race?      @relation(fields: [raceId], references: [id])
-  distItems RaceItem[] @relation("DistBasketRaceItem")
-  raceItems RaceItem[] @relation("RaceBasketRaceItem")
+  event       Event              @relation(fields: [eventId], references: [id])
+  assignments BasketAssignment[]
+
+  @@unique([eventId, basketNo, phase])
+  @@index([eventId, phase])
+  @@map("EventBaskets")
+}
+
+model BasketAssignment {
+  id                   Int      @id @default(autoincrement()) @map("ID_BASKET_ASSIGNMENT")
+  eventBasketId        Int      @map("ID_EVENT_BASKET")
+  eventInventoryItemId Int      @map("ID_EVENT_INVENTORY_ITEM")
+  assignedAt           DateTime @default(now()) @map("ASSIGNED_AT")
+
+  eventBasket   EventBasket        @relation(fields: [eventBasketId], references: [id], onDelete: Cascade)
+  inventoryItem EventInventoryItem @relation(fields: [eventInventoryItemId], references: [id], onDelete: Cascade)
+
+  @@unique([eventInventoryItemId, eventBasketId])
+  @@index([eventBasketId])
+  @@map("BasketAssignments")
 }
 
 model Team {

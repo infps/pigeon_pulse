@@ -3,35 +3,18 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Plus, Trash2 } from "lucide-react";
-import { useListBaskets, useCreateBasket, useDeleteBasket } from "@/lib/api/baskets";
-import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
-import type { Basket } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { useEventBaskets } from "@/lib/api/event-baskets";
+import type { EventBasketItem } from "@/lib/types";
 
 interface BasketTabsProps {
-  raceId: string;
+  eventId: string;
 }
 
-export function BasketTabs({ raceId }: BasketTabsProps) {
-  const { data, isPending } = useListBaskets({ params: { raceId } });
-  const createBasketMutation = useCreateBasket();
-  const deleteBasketMutation = useDeleteBasket();
-
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [basketType, setBasketType] = useState<"loft" | "race">("loft");
-  const [basketNo, setBasketNo] = useState("");
+export function BasketTabs({ eventId }: BasketTabsProps) {
+  const { data, isPending } = useEventBaskets(eventId);
 
   if (isPending) {
     return (
@@ -46,191 +29,108 @@ export function BasketTabs({ raceId }: BasketTabsProps) {
     );
   }
 
-  const baskets = (data?.baskets || []) as Basket[];
-  const loftBaskets = baskets.filter((b) => b.isRaceBasket !== 1);
-  const raceBaskets = baskets.filter((b) => b.isRaceBasket === 1);
-
-  const handleCreateBasket = async () => {
-    if (!basketNo || !basketNo.trim()) {
-      toast.error("Please enter a basket number");
-      return;
-    }
-
-    try {
-      if (!createBasketMutation.mutateAsync) return;
-      await createBasketMutation.mutateAsync({
-        raceId,
-        basketNo: parseInt(basketNo),
-        isRaceBasket: basketType === "race",
-      });
-      toast.success("Basket created successfully");
-      setIsDialogOpen(false);
-      setBasketNo("");
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to create basket");
-      console.error("Error creating basket:", error);
-    }
-  };
-
-  const handleDeleteBasket = async (basketId: string, hasItems: boolean) => {
-    if (hasItems) {
-      toast.error("Cannot delete basket with items");
-      return;
-    }
-
-    if (!confirm("Are you sure you want to delete this basket?")) return;
-
-    try {
-      if (!deleteBasketMutation.mutateAsync) return;
-      await deleteBasketMutation.mutateAsync({ basketId });
-      toast.success("Basket deleted successfully");
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to delete basket");
-      console.error("Error deleting basket:", error);
-    }
-  };
-
-  const renderBasketList = (basketList: Basket[]) => {
-    if (basketList.length === 0) {
-      return (
-        <div className="text-center py-8 text-muted-foreground">
-          No baskets found
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-2">
-        {basketList.map((basket) => {
-          const itemCount =
-            (basket as any)._count?.raceItems || 0 +
-            (basket as any)._count?.loftItems || 0;
-          const hasItems = itemCount > 0;
-
-          return (
-            <div
-              key={basket.basketId}
-              className="flex items-center justify-between p-3 border rounded-lg hover:bg-transparent"
-            >
-              <div className="flex items-center gap-3">
-                <div>
-                  <div className="font-medium">Basket #{basket.basketNo}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {itemCount} item{itemCount !== 1 ? "s" : ""}
-                  </div>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleDeleteBasket(String(basket.basketId ?? basket.id), hasItems)}
-                disabled={deleteBasketMutation.isPending}
-                className="text-red-500 hover:text-red-700"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
+  const allBaskets: EventBasketItem[] = data?.baskets || [];
+  const loftBaskets = allBaskets.filter((b) => b.phase === "LOFT");
+  const raceBaskets = allBaskets.filter((b) => b.phase === "RACE");
 
   return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle>Baskets</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="loft" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="loft">
-                Loft Basket
-                <Badge variant="secondary" className="ml-2">
-                  {loftBaskets.length}
-                </Badge>
-              </TabsTrigger>
-              <TabsTrigger value="race">
-                Race Basket
-                <Badge variant="secondary" className="ml-2">
-                  {raceBaskets.length}
-                </Badge>
-              </TabsTrigger>
-            </TabsList>
+    <Card>
+      <CardHeader>
+        <CardTitle>Baskets</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Tabs defaultValue="loft" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="loft">
+              Loft
+              <Badge variant="secondary" className="ml-2">
+                {loftBaskets.length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="race">
+              Race
+              <Badge variant="secondary" className="ml-2">
+                {raceBaskets.length}
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
 
-            <TabsContent value="loft" className="space-y-4">
-              <Button
-                onClick={() => {
-                  setBasketType("loft");
-                  setIsDialogOpen(true);
-                }}
-                size="sm"
-                className="w-full"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Loft Basket
-              </Button>
-              {renderBasketList(loftBaskets)}
-            </TabsContent>
+          <TabsContent value="loft" className="space-y-2">
+            <BasketList baskets={loftBaskets} emptyMessage="No loft baskets" />
+          </TabsContent>
 
-            <TabsContent value="race" className="space-y-4">
-              <Button
-                onClick={() => {
-                  setBasketType("race");
-                  setIsDialogOpen(true);
-                }}
-                size="sm"
-                className="w-full"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Race Basket
-              </Button>
-              {renderBasketList(raceBaskets)}
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+          <TabsContent value="race" className="space-y-2">
+            <BasketList baskets={raceBaskets} emptyMessage="No race baskets" />
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
+  );
+}
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Add {basketType === "loft" ? "Loft" : "Race"} Basket
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="basketNo">Basket Number</Label>
-              <Input
-                id="basketNo"
-                type="number"
-                placeholder="Enter basket number"
-                value={basketNo}
-                onChange={(e) => setBasketNo(e.target.value)}
-                min="1"
-              />
+function BasketList({
+  baskets,
+  emptyMessage,
+}: {
+  baskets: EventBasketItem[];
+  emptyMessage: string;
+}) {
+  if (baskets.length === 0) {
+    return (
+      <div className="text-center py-6 text-muted-foreground text-sm">
+        {emptyMessage}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      {baskets.map((basket) => (
+        <BasketCard key={basket.id} basket={basket} />
+      ))}
+    </div>
+  );
+}
+
+function BasketCard({ basket }: { basket: EventBasketItem }) {
+  const [expanded, setExpanded] = useState(false);
+  const count = basket._count?.assignments ?? basket.assignments?.length ?? 0;
+
+  return (
+    <div className="border rounded-lg">
+      <button
+        className="w-full flex items-center justify-between p-2.5 hover:bg-muted/50 transition-colors text-sm"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-2">
+          {expanded ? (
+            <ChevronDown className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5" />
+          )}
+          <span className="font-medium">Basket #{basket.basketNo}</span>
+        </div>
+        <Badge variant="secondary" className="text-xs">
+          {count}/{basket.capacity}
+        </Badge>
+      </button>
+      {expanded && basket.assignments && (
+        <div className="border-t px-2.5 py-1.5 space-y-0.5">
+          {basket.assignments.map((a) => (
+            <div key={a.id} className="flex items-center gap-2 text-xs py-0.5">
+              <span className="font-mono text-muted-foreground truncate w-24">
+                {a.inventoryItem?.bird?.band || "N/A"}
+              </span>
+              <span className="flex-1 truncate">
+                {a.inventoryItem?.bird?.birdName || "N/A"}
+              </span>
+              <span className="text-muted-foreground">
+                {a.inventoryItem?.eventInventory?.breeder?.lastName || ""}
+              </span>
             </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsDialogOpen(false);
-                setBasketNo("");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateBasket}
-              disabled={createBasketMutation.isPending}
-            >
-              {createBasketMutation.isPending ? "Creating..." : "Create Basket"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

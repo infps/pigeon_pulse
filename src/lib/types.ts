@@ -334,6 +334,7 @@ export interface Race {
   raceTypeId: number | null;
   eventId: number | null;
   raceNumber: number | null;
+  name: string | null;
   description: string | null;
   distance: number | null;
   location: string | null;
@@ -348,38 +349,29 @@ export interface Race {
   arrivalWeather: string | null;
   arrivalWind: string | null;
   isClosed: number | null;
+  status: "REGISTERING" | "STARTED" | "ENDED";
   event?: Event;
   raceType?: RaceType;
   raceItems?: RaceItem[];
-  baskets?: Basket[];
 }
 
 export interface RaceItem {
   id: number;
   raceId: number | null;
   inventoryItemId: number | null;
-  distBasketId: number | null;
-  raceBasketId: number | null;
-  isDistBasketed: number | null;
-  isLost: number | null;
-  lostRaceId: number | null;
   raceBasketTime: string | null;
+  status?: string | null;
   race?: Race;
   inventoryItem?: EventInventoryItem;
   result?: RaceItemResult;
-  // UI compat aliases
+  // Flattened by GET route
   bird?: Bird;
-  status?: string | null;
   speed?: number | null;
   eventInventoryItem?: EventInventoryItem;
   birdPosition?: number | null;
   arrivalTime?: string | null;
-  isLoftBasketed?: boolean | number | null;
-  isRaceBasketed?: boolean | number | null;
-  loftBasket?: Basket;
-  raceBasket?: Basket;
-  raceItemId?: number;
-  distBasket?: Basket;
+  loftBasketLabel?: string | null;
+  raceBasketLabel?: string | null;
 }
 
 export interface RaceItemResult {
@@ -421,24 +413,65 @@ export interface Bird {
 // OTHER
 // ============================================================
 
-export interface Basket {
-  id: number;
-  basketNo: number | null;
-  capacity: number | null;
-  raceId: number | null;
-  isRaceBasket: number | null;
-  race?: Race;
-  distItems?: RaceItem[];
-  raceItems?: RaceItem[];
-  // UI compat aliases
-  basketId?: number;
-}
-
 export interface Team {
   id: number;
   name: string | null;
   breederId: number | null;
   breeder?: Breeder;
+}
+
+// ============================================================
+// EVENT BASKETS (Two-Phase Basketting)
+// ============================================================
+
+export interface CheckinStatusItem {
+  id: number;
+  birdId: number | null;
+  bird: Pick<Bird, "id" | "band" | "birdName" | "rfid" | "color" | "sex"> | null;
+  breeder: Pick<Breeder, "id" | "firstName" | "lastName"> | null;
+  isCheckedIn: boolean;
+  hasRfid: boolean;
+  hasPaid: boolean;
+  loftBasketLabel?: string | null;
+  isLoftBasketed?: boolean;
+}
+
+export interface CheckinSummary {
+  total: number;
+  checkedIn: number;
+  notCheckedIn: number;
+}
+
+export interface EventBasketItem {
+  id: number;
+  eventId: number;
+  basketNo: number;
+  capacity: number;
+  phase: "LOFT" | "RACE";
+  label?: string | null;
+  assignments: BasketAssignmentDetail[];
+  _count?: { assignments: number };
+}
+
+export interface BasketAssignmentDetail {
+  id: number;
+  eventBasketId: number;
+  eventInventoryItemId: number;
+  assignedAt: string;
+  inventoryItem?: {
+    bird?: Pick<Bird, "id" | "band" | "birdName" | "rfid"> | null;
+    eventInventory?: {
+      breeder?: Pick<Breeder, "id" | "firstName" | "lastName"> | null;
+    } | null;
+  } | null;
+}
+
+export interface PreviewBasket {
+  basketNo: number;
+  capacity: number;
+  birdCount: number;
+  breeders: string[];
+  birds: { id: number; band: string | null; name: string | null; breeder: string }[];
 }
 
 export interface RfidScan {

@@ -64,3 +64,12 @@ export function useDeleteRace({
   });
   return res;
 }
+
+export function useEndRace(raceId: string | number) {
+  return useApiMutation({
+    exact: false,
+    method: "POST",
+    endpoint: apiEndpoints.races.end(raceId),
+    queryKey: ["races"],
+  });
+}

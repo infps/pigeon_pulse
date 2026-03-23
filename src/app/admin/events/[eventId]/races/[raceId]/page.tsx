@@ -18,7 +18,7 @@ import { getWeatherIcon } from "@/lib/weather-constants";
 import type { Race, Event, RaceItem } from "@/lib/types";
 import type { RowSelectionState } from "@tanstack/react-table";
 import Image from "next/image";
-import { Package, Play, Radio, Square } from "lucide-react";
+import { Package, Play, Radio, Square, StopCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -63,6 +63,19 @@ export default function RaceDetailsPage() {
     },
     onError: (error) => {
       toast.error(error?.message || "Failed to start race");
+    },
+  });
+
+  // End race mutation
+  const { mutate: endRace, isPending: isEndingRace } = useApiMutation({
+    method: "POST",
+    endpoint: apiEndpoints.races.end(raceId),
+    queryKey: ["races", "detail", raceId],
+    onSuccess: () => {
+      toast.success("Race ended successfully!");
+    },
+    onError: (error) => {
+      toast.error(error?.message || "Failed to end race");
     },
   });
 
@@ -122,7 +135,7 @@ export default function RaceDetailsPage() {
 
     scannerIntervalRef.current = setInterval(async () => {
       try {
-        const res = await fetch('/api/scanner/poll', { method: 'POST' });
+        const res = await fetch('/api/scanner/mock-poll', { method: 'POST' });
         const data = await res.json();
 
         if (data && data.length > 0 && data[0].el) {
@@ -207,21 +220,22 @@ export default function RaceDetailsPage() {
                 <div>
                   <div className="flex items-center gap-3 flex-wrap">
                     <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{race.description}</h1>
-                    <Badge variant={race.isClosed === 1 ? "secondary" : "default"} className="text-sm">
-                      {race.isClosed === 1 ? "Closed" : "Open"}
-                    </Badge>
-                    {race.startTime && race.isClosed !== 1 && (
-                      <Badge variant="destructive" className="text-sm animate-pulse">
-                        🔴 LIVE
-                      </Badge>
+                    {race.status === "REGISTERING" && (
+                      <Badge variant="default" className="text-sm bg-blue-600">Registering</Badge>
+                    )}
+                    {race.status === "STARTED" && (
+                      <Badge variant="default" className="text-sm bg-green-600 animate-pulse">LIVE</Badge>
+                    )}
+                    {race.status === "ENDED" && (
+                      <Badge variant="secondary" className="text-sm">Ended</Badge>
                     )}
                   </div>
                   <div className="flex flex-wrap items-center gap-2 mt-2">
                     <span className="text-sm md:text-base text-gray-600 font-medium">{event.name}</span>
-                    <Badge variant={race.isClosed === 1 ? "secondary" : "default"}>
+                    <Badge variant={race.status === "ENDED" ? "secondary" : "default"}>
                       {race.raceType?.name || "Race"}
                     </Badge>
-                    {!race.startTime && race.isClosed !== 1 && (
+                    {race.status === "REGISTERING" && (
                       <Button
                         onClick={() => startRace({})}
                         disabled={isStartingRace}
@@ -232,26 +246,36 @@ export default function RaceDetailsPage() {
                         {isStartingRace ? "Starting..." : "Start Race"}
                       </Button>
                     )}
-                    {race.isClosed !== 1 && (
-                      isScanning ? (
-                        <Button
-                          onClick={stopScanner}
-                          size="sm"
-                          className="gap-2 bg-red-600 hover:bg-red-700"
-                        >
-                          <Square className="h-4 w-4" />
-                          Stop Scanner
-                        </Button>
-                      ) : (
-                        <Button
-                          onClick={startScanner}
-                          size="sm"
-                          className="gap-2"
-                        >
-                          <Radio className="h-4 w-4" />
-                          {(race.startTime && race.isClosed !== 1) ? "Start Scanner" : "Loft Scanner"}
-                        </Button>
-                      )
+                    {race.status === "STARTED" && (
+                      <Button
+                        onClick={() => endRace({})}
+                        disabled={isEndingRace}
+                        size="sm"
+                        variant="destructive"
+                        className="gap-2"
+                      >
+                        <StopCircle className="h-4 w-4" />
+                        {isEndingRace ? "Ending..." : "End Race"}
+                      </Button>
+                    )}
+                    {isScanning ? (
+                      <Button
+                        onClick={stopScanner}
+                        size="sm"
+                        className="gap-2 bg-red-600 hover:bg-red-700"
+                      >
+                        <Square className="h-4 w-4" />
+                        Stop Scanner
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={startScanner}
+                        size="sm"
+                        className="gap-2"
+                      >
+                        <Radio className="h-4 w-4" />
+                        {race.status === "REGISTERING" ? "Loft Scanner" : "Start Scanner"}
+                      </Button>
                     )}
                   </div>
                   <p className="text-sm md:text-base text-blue-600 mt-1">
@@ -418,7 +442,7 @@ export default function RaceDetailsPage() {
 
         {/* Right Side - 30% */}
         <div className="min-w-0">
-          <BasketTabs raceId={raceId} />
+          <BasketTabs eventId={eventId} />
         </div>
       </div>
 
@@ -427,7 +451,7 @@ export default function RaceDetailsPage() {
         open={basketDialogOpen}
         onOpenChange={setBasketDialogOpen}
         selectedItems={selectedRaceItems}
-        raceId={raceId}
+        eventId={eventId}
         onSuccess={handleBasketSuccess}
       />
     </div>

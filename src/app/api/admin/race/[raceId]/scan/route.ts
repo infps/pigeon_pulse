@@ -19,7 +19,7 @@ export async function POST(
       headers: await headers(),
     });
 
-    if (!session?.user) {
+    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
@@ -58,7 +58,7 @@ export async function POST(
       );
     }
 
-    // Find the race item for this bird in this race (through inventoryItem)
+    // Find the race item for this bird in this race
     const raceItem = await prisma.raceItem.findFirst({
       where: {
         raceId: raceIdInt,
@@ -75,16 +75,16 @@ export async function POST(
       );
     }
 
-    // Determine if race is live: startTime is set and not closed
-    const isLive = race.startTime !== null && race.isClosed !== 1;
+    // Determine if race is live (STARTED or ENDED — late arrivals allowed)
+    const isLive = race.status === "STARTED" || race.status === "ENDED";
 
-    // Pre-race scan (dist basketing)
+    // Pre-race scan (loft basketing)
     if (!isLive) {
-      if (raceItem.isDistBasketed === 1) {
+      if (raceItem.status === "LOFT_BASKETED") {
         return NextResponse.json(
           {
             raceItem,
-            message: "Bird already in dist basket",
+            message: "Bird already loft-basketted",
             isNewScan: false,
             scanType: "loft",
           },
@@ -94,20 +94,14 @@ export async function POST(
 
       const updatedRaceItem = await prisma.raceItem.update({
         where: { id: raceItem.id },
-        data: {
-          isDistBasketed: 1,
-        },
+        data: { status: "LOFT_BASKETED" },
         include: {
           inventoryItem: {
             include: {
               bird: {
                 include: {
                   breeder: {
-                    select: {
-                      firstName: true,
-                      lastName: true,
-                      email: true,
-                    },
+                    select: { firstName: true, lastName: true, email: true },
                   },
                 },
               },
@@ -119,7 +113,7 @@ export async function POST(
       return NextResponse.json(
         {
           raceItem: updatedRaceItem,
-          message: "Bird added to dist basket",
+          message: "Bird added to loft",
           isNewScan: true,
           scanType: "loft",
         },
@@ -128,7 +122,19 @@ export async function POST(
     }
 
     // Post-race scan (arrival)
-    // Parse the timestamp from scanner format (YYYYMMDDHHMMSS)
+    if (raceItem.status === "ARRIVED") {
+      return NextResponse.json(
+        {
+          raceItem,
+          message: "Bird already arrived",
+          isNewScan: false,
+          scanType: "arrival",
+        },
+        { status: 200 }
+      );
+    }
+
+    // Parse timestamp from scanner format (YYYYMMDDHHMMSS)
     const arrivalTime = new Date(
       parseInt(timestamp.substring(0, 4)),
       parseInt(timestamp.substring(4, 6)) - 1,
@@ -138,24 +144,11 @@ export async function POST(
       parseInt(timestamp.substring(12, 14))
     );
 
-    // Already scanned post-race
-    if (raceItem.raceBasketId !== null) {
-      return NextResponse.json(
-        {
-          raceItem,
-          message: "Bird already scanned",
-          isNewScan: false,
-          scanType: "arrival",
-        },
-        { status: 200 }
-      );
-    }
-
     // Calculate position
     const arrivedCount = await prisma.raceItem.count({
       where: {
         raceId: raceIdInt,
-        raceBasketId: { not: null },
+        status: "ARRIVED",
       },
     });
     const birdPosition = arrivedCount + 1;
@@ -163,6 +156,7 @@ export async function POST(
     const updatedRaceItem = await prisma.raceItem.update({
       where: { id: raceItem.id },
       data: {
+        status: "ARRIVED",
         raceBasketTime: arrivalTime,
       },
       include: {
@@ -171,11 +165,7 @@ export async function POST(
             bird: {
               include: {
                 breeder: {
-                  select: {
-                    firstName: true,
-                    lastName: true,
-                    email: true,
-                  },
+                  select: { firstName: true, lastName: true, email: true },
                 },
               },
             },
@@ -204,6 +194,7 @@ export async function POST(
         message: "Arrival recorded successfully",
         isNewScan: true,
         scanType: "arrival",
+        birdPosition,
       },
       { status: 200 }
     );

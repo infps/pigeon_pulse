@@ -19,6 +19,8 @@ import type { BettingScheme, Event, FeeScheme, PrizeScheme } from "@/lib/types";
 import { EditEventTab } from "./edit-event-tab";
 import { BreedersTab } from "./breeders-tab";
 import { BirdsTab } from "./birds-tab";
+
+import { BasketsTab } from "./baskets-tab";
 import { RacesTab } from "./races-tab";
 import { RegisterTab } from "./register-tab";
 
@@ -78,10 +80,11 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
       </div>
 
       <Tabs defaultValue="edit" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="edit">Edit</TabsTrigger>
           <TabsTrigger value="breeders">Breeders</TabsTrigger>
           <TabsTrigger value="birds">Birds</TabsTrigger>
+          <TabsTrigger value="baskets">Baskets</TabsTrigger>
           <TabsTrigger value="races">Races</TabsTrigger>
           <TabsTrigger value="register">Register</TabsTrigger>
         </TabsList>
@@ -102,6 +105,10 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
 
         <TabsContent value="birds" className="mt-6">
           <BirdsTab event={event} eventId={eventId} />
+        </TabsContent>
+
+        <TabsContent value="baskets" className="mt-6">
+          <BasketsTab eventId={eventId} />
         </TabsContent>
 
         <TabsContent value="races" className="mt-6">

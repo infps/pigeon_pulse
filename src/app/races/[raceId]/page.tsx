@@ -82,26 +82,21 @@ export default function PublicRacePage() {
                     <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
                       {race.description}
                     </h1>
-                    <Badge
-                      variant={race.isClosed === 1 ? "secondary" : "default"}
-                      className="text-sm"
-                    >
-                      {race.isClosed === 1 ? "Closed" : "Open"}
-                    </Badge>
-                    {race.startTime && race.isClosed !== 1 && (
-                      <Badge
-                        variant="destructive"
-                        className="text-sm animate-pulse"
-                      >
-                        LIVE
-                      </Badge>
+                    {race.status === "REGISTERING" && (
+                      <Badge variant="default" className="text-sm bg-blue-600">Registering</Badge>
+                    )}
+                    {race.status === "STARTED" && (
+                      <Badge variant="default" className="text-sm bg-green-600 animate-pulse">LIVE</Badge>
+                    )}
+                    {race.status === "ENDED" && (
+                      <Badge variant="secondary" className="text-sm">Ended</Badge>
                     )}
                   </div>
                   <div className="flex flex-wrap items-center gap-2 mt-2">
                     <span className="text-sm md:text-base text-gray-600 font-medium">
                       {race.event?.name}
                     </span>
-                    <Badge variant={race.isClosed === 1 ? "secondary" : "default"} className="text-xs">
+                    <Badge variant={race.status === "ENDED" ? "secondary" : "default"} className="text-xs">
                       {race.raceType?.name || "Race"}
                     </Badge>
                   </div>

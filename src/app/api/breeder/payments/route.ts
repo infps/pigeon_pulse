@@ -27,7 +27,21 @@ export async function GET() {
       orderBy: { paymentDate: "desc" },
     });
 
-    return NextResponse.json({ payments }, { status: 200 });
+    // Map status enum to numbers for mobile compatibility
+    const statusMap: Record<string, number> = {
+      PENDING: 0,
+      PAID: 1,
+      PARTIAL: 2,
+      FAILED: 3,
+      REFUNDED: 4,
+    };
+
+    const paymentsWithNumericStatus = payments.map((p) => ({
+      ...p,
+      status: statusMap[p.status] ?? 0,
+    }));
+
+    return NextResponse.json({ payments: paymentsWithNumericStatus }, { status: 200 });
   } catch (error) {
     console.error("Error fetching payments:", error);
     return NextResponse.json(

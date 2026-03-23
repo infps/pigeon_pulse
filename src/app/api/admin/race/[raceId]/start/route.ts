@@ -19,7 +19,6 @@ export async function POST(
     const { raceId } = await params;
     const raceIdInt = parseInt(raceId);
 
-    // Check if race exists
     const race = await prisma.race.findUnique({
       where: { id: raceIdInt },
     });
@@ -31,25 +30,29 @@ export async function POST(
       );
     }
 
-    // Update race: set startTime to now (marks as live) and release all dist-basketed birds
+    if (race.status !== "REGISTERING") {
+      return NextResponse.json(
+        { message: "Race already started" },
+        { status: 400 }
+      );
+    }
+
+    // Start race + release all basketted/checked-in birds
     const [updatedRace] = await prisma.$transaction([
       prisma.race.update({
         where: { id: raceIdInt },
-        data: { startTime: new Date() },
+        data: { startTime: new Date(), status: "STARTED" },
         include: {
           raceType: true,
           event: true,
         },
       }),
-      // Release all dist-basketed birds (clear distBasketId but keep isDistBasketed for history)
       prisma.raceItem.updateMany({
         where: {
           raceId: raceIdInt,
-          isDistBasketed: 1,
+          status: { in: ["LOFT_BASKETED", "CHECKED_IN", "REGISTERED"] },
         },
-        data: {
-          distBasketId: null,
-        },
+        data: { status: "RELEASED" },
       }),
     ]);
 
