@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       };
 
       const client = paypalClient();
-      const verifyResponse = await client.execute(
+      const verifyResponse : any = await client.execute(
         new paypal.notifications.WebhookVerifySignatureRequest(verifyRequest)
       );
 

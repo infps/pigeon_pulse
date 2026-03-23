@@ -164,7 +164,7 @@ export function EditBirdDialog({
   const pollScanner = async () => {
     if (!eventInventoryItem) return;
     try {
-      const response = await fetch('/api/scanner/mock-poll', {
+      const response = await fetch('/api/scanner/poll', {
         method: 'POST',
       });
 

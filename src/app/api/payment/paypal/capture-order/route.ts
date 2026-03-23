@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
     const client = paypalClient();
     const captureResponse = await client.execute(requestCapture);
-    const captureData = captureResponse.result;
+    const captureData: any = captureResponse.result;
 
     if (captureData.status !== "COMPLETED") {
       return NextResponse.json(

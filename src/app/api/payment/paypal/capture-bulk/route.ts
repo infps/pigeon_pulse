@@ -62,7 +62,7 @@ export async function POST(request: Request) {
 
     const client = paypalClient();
     const captureResponse = await client.execute(requestCapture);
-    const captureData = captureResponse.result;
+    const captureData : any = captureResponse.result;
     console.log("[PayPal Capture Bulk] PayPal response status:", captureData.status);
 
     if (captureData.status !== "COMPLETED") {

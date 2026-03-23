@@ -177,7 +177,7 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
 
     scannerIntervalRef.current = setInterval(async () => {
       try {
-        const res = await fetch("/api/scanner/mock-poll", { method: "POST" });
+        const res = await fetch("/api/scanner/poll", { method: "POST" });
         const data = await res.json();
         if (data && data.length > 0 && data[0].el) {
           const rfid = data[0].el;

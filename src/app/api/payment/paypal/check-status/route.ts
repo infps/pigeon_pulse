@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     // Get order details from PayPal
     const requestGet = new paypal.orders.OrdersGetRequest(orderID);
     const client = paypalClient();
-    const orderResponse = await client.execute(requestGet);
+    const orderResponse: any = await client.execute(requestGet);
     const orderData = orderResponse.result;
 
     console.log("[PayPal Check Status] Order status:", orderData.status);

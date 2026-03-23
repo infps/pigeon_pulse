@@ -78,7 +78,7 @@ export async function POST(
     });
 
     const client = paypalClient();
-    const orderResponse = await client.execute(requestBody);
+    const orderResponse : any = await client.execute(requestBody);
 
     return NextResponse.json({
       orderID: orderResponse.result.id,
