@@ -350,29 +350,37 @@ export async function DELETE(request: Request) {
     }
 
     const body = await request.json();
-    const { id } = body;
+    const { id, ids } = body;
 
-    if (!id) {
+    // Support bulk delete via ids array or single delete via id
+    const deleteIds: string[] = ids || (id ? [id] : []);
+
+    if (deleteIds.length === 0) {
       return NextResponse.json(
-        { message: "User ID is required" },
+        { message: "User ID(s) required" },
         { status: 400 }
       );
     }
 
     // Prevent deleting own account
-    if (session.user.id === id) {
+    if (deleteIds.includes(session.user.id)) {
       return NextResponse.json(
         { message: "Cannot delete your own account" },
         { status: 400 }
       );
     }
 
-    await prisma.user.delete({
-      where: { id },
-    });
+    // Filter out legacy IDs — they can't be deleted from user table
+    const realIds = deleteIds.filter((i: string) => !i.startsWith("legacy-"));
+
+    if (realIds.length > 0) {
+      await prisma.user.deleteMany({
+        where: { id: { in: realIds } },
+      });
+    }
 
     return NextResponse.json(
-      { message: "User deleted successfully" },
+      { message: `${realIds.length} user(s) deleted successfully` },
       { status: 200 }
     );
   } catch (error) {

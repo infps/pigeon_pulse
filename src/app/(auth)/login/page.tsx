@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { useState } from "react"
-import { Loader2 } from "lucide-react"
+import { Eye, EyeOff, Loader2 } from "lucide-react"
 import { authClient } from "@/lib/auth-client"
 import { useRouter } from "next/navigation"
 import {
@@ -32,6 +32,7 @@ const loginSchema = z.object({
 
 export default function LoginPage() {
   const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false);
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -95,15 +96,25 @@ export default function LoginPage() {
             render={({ field, fieldState }) => (
               <Field data-invalid={fieldState.invalid}>
                 <FieldLabel htmlFor={field.name}>Password</FieldLabel>
-                <Input
-                  {...field}
-                  disabled={form.formState.isSubmitting}
-                  id={field.name}
-                  type="password"
-                  aria-invalid={fieldState.invalid}
-                  placeholder="Enter your password"
-                  autoComplete="current-password"
-                />
+                <div className="relative">
+                  <Input
+                    {...field}
+                    disabled={form.formState.isSubmitting}
+                    id={field.name}
+                    type={showPassword ? "text" : "password"}
+                    aria-invalid={fieldState.invalid}
+                    placeholder="Enter your password"
+                    autoComplete="current-password"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowPassword(!showPassword)}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
                 {fieldState.invalid && (
                   <FieldError errors={[fieldState.error]} />
                 )}

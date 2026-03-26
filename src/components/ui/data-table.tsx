@@ -154,9 +154,9 @@ export function DataTable<TData, TValue>({
         </div>
         <DataTableViewOptions table={table} />
       </div>
-      <div className="overflow-hidden rounded-md border">
+      <div className="overflow-auto relative rounded-md border max-h-[65vh]">
         <Table>
-          <TableHeader className="bg-primary">
+          <TableHeader className="bg-primary sticky top-0 z-10">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {

@@ -1,3 +1,5 @@
-export default function page(){
-    return <div>Admin Home Page</div>
+import { redirect } from "next/navigation";
+
+export default function AdminHomePage() {
+  redirect("/admin/users");
 }

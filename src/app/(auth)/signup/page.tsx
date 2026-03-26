@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import {
   Field,
   FieldContent,
@@ -43,10 +43,16 @@ const signupSchema = z.object({
     .max(100, "Password must be at most 100 characters.")
     .regex(/[a-z]/, "Password must contain at least one lowercase letter.")
     .regex(/[0-9]/, "Password must contain at least one number."),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords do not match.",
+  path: ["confirmPassword"],
 });
 
 export default function SignupPage() {
   const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const form = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
     defaultValues: {
@@ -55,6 +61,7 @@ export default function SignupPage() {
       email: "",
       username: "",
       password: "",
+      confirmPassword: "",
     },
   });
 
@@ -202,19 +209,60 @@ export default function SignupPage() {
             render={({ field, fieldState }) => (
               <Field data-invalid={fieldState.invalid}>
                 <FieldLabel htmlFor={field.name}>Password</FieldLabel>
-                <Input
-                  {...field}
-                  id={field.name}
-                  disabled={form.formState.isSubmitting}
-                  type="password"
-                  aria-invalid={fieldState.invalid}
-                  placeholder="Create a strong password"
-                  autoComplete="new-password"
-                />
+                <div className="relative">
+                  <Input
+                    {...field}
+                    id={field.name}
+                    disabled={form.formState.isSubmitting}
+                    type={showPassword ? "text" : "password"}
+                    aria-invalid={fieldState.invalid}
+                    placeholder="Create a strong password"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowPassword(!showPassword)}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
                 <FieldDescription>
-                  Must be at least 8 characters with uppercase, lowercase, and
-                  numbers.
+                  Must be at least 8 characters with lowercase and numbers.
                 </FieldDescription>
+                {fieldState.invalid && (
+                  <FieldError errors={[fieldState.error]} />
+                )}
+              </Field>
+            )}
+          />
+
+          <Controller
+            name="confirmPassword"
+            control={form.control}
+            render={({ field, fieldState }) => (
+              <Field data-invalid={fieldState.invalid}>
+                <FieldLabel htmlFor={field.name}>Confirm Password</FieldLabel>
+                <div className="relative">
+                  <Input
+                    {...field}
+                    id={field.name}
+                    disabled={form.formState.isSubmitting}
+                    type={showConfirmPassword ? "text" : "password"}
+                    aria-invalid={fieldState.invalid}
+                    placeholder="Re-enter your password"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    tabIndex={-1}
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
                 {fieldState.invalid && (
                   <FieldError errors={[fieldState.error]} />
                 )}

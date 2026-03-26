@@ -35,7 +35,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
+import type { RowSelectionState } from "@tanstack/react-table";
 import type { Event, User, UserRole, UserStatus } from "@/lib/types";
 
 export default function UsersPage() {
@@ -50,6 +51,7 @@ export default function UsersPage() {
   });
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [isAddTeamDialogOpen, setIsAddTeamDialogOpen] = useState(false);
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const { data: eventsData } = useListEvents({});
   const events: Event[] = eventsData?.events || [];
@@ -99,6 +101,27 @@ export default function UsersPage() {
       toast.success("User deleted successfully");
     } catch (error) {
       toast.error("Failed to delete user");
+    }
+  };
+
+  const selectedUsers = Object.keys(rowSelection)
+    .map((idx) => filteredUsers[parseInt(idx)])
+    .filter(Boolean);
+
+  const handleBulkDelete = async () => {
+    const deletable = selectedUsers.filter((u) => !u.id.startsWith("legacy-"));
+    if (deletable.length === 0) {
+      toast.error("No deletable users selected (legacy breeders skipped)");
+      return;
+    }
+    if (!confirm(`Delete ${deletable.length} user(s)?`)) return;
+
+    try {
+      await deleteMutation.mutateAsync({ ids: deletable.map((u) => u.id) });
+      toast.success(`${deletable.length} user(s) deleted`);
+      setRowSelection({});
+    } catch {
+      toast.error("Failed to delete users");
     }
   };
 
@@ -263,13 +286,25 @@ export default function UsersPage() {
           </Select>
         </div>
 
-        <Button onClick={() => {
-          setEditingUser(null);
-          setIsOpen(true);
-        }}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Breeder
-        </Button>
+        <div className="flex items-center gap-2">
+          {selectedUsers.length > 0 && (
+            <Button
+              variant="destructive"
+              onClick={handleBulkDelete}
+              disabled={deleteMutation.isPending}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete ({selectedUsers.length})
+            </Button>
+          )}
+          <Button onClick={() => {
+            setEditingUser(null);
+            setIsOpen(true);
+          }}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Breeder
+          </Button>
+        </div>
       </div>
 
       <DataTable
@@ -281,7 +316,9 @@ export default function UsersPage() {
           { id: "username", title: "Username" },
           { id: "phoneNumber", title: "Phone" },
         ]}
-        />
+        rowSelection={rowSelection}
+        onRowSelectionChange={setRowSelection}
+      />
 
       <AddEditBreederDialog
         open={isOpen}
