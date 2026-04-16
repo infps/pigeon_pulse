@@ -659,10 +659,19 @@ model Bird {
   note               String?   @map("NOTE")
   pictureId          Int?      @map("ID_PICTURE")
   breederId          Int?      @map("breederId")
+  fatherId           Int?      @map("ID_FATHER")
+  motherId           Int?      @map("ID_MOTHER")
+  isPublic           Int?      @default(1) @map("IS_PUBLIC")
+  image              String?   @map("IMAGE")
+  imageKey           String?   @map("IMAGE_KEY")
 
-  picture   Picture?  @relation(fields: [pictureId], references: [id])
-  breeder   Breeder?  @relation(fields: [breederId], references: [id])
-  lostRace  Race?     @relation(fields: [lostRaceId], references: [id])
+  picture          Picture?  @relation(fields: [pictureId], references: [id])
+  breeder          Breeder?  @relation(fields: [breederId], references: [id])
+  lostRace         Race?     @relation(fields: [lostRaceId], references: [id])
+  father           Bird?     @relation("FatherChildren", fields: [fatherId], references: [id])
+  mother           Bird?     @relation("MotherChildren", fields: [motherId], references: [id])
+  childrenAsFather Bird[]    @relation("FatherChildren")
+  childrenAsMother Bird[]    @relation("MotherChildren")
 
   inventoryItems EventInventoryItem[]
   lostHistory    LostHistory[]

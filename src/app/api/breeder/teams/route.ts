@@ -86,6 +86,16 @@ export async function POST(request: Request) {
       breederIdInt = breeder.id;
     }
 
+    const existing = await prisma.team.findFirst({
+      where: { name: validatedData.name, breederId: breederIdInt },
+    });
+    if (existing) {
+      return NextResponse.json(
+        { message: "A team with this name already exists" },
+        { status: 409 }
+      );
+    }
+
     const newTeam = await prisma.team.create({
       data: {
         name: validatedData.name,

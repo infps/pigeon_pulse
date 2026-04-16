@@ -31,6 +31,7 @@ export interface User {
   note: string | null;
   role: UserRole;
   taxNumber: string | null;
+  breederId?: number;
 }
 
 // ============================================================
@@ -405,7 +406,17 @@ export interface Bird {
   note: string | null;
   pictureId: number | null;
   breederId: number | null;
+  fatherId: number | null;
+  motherId: number | null;
+  isPublic: number | null;
+  image: string | null;
+  imageKey: string | null;
   breeder?: Breeder;
+  father?: Bird | null;
+  mother?: Bird | null;
+  childrenAsFather?: Bird[];
+  childrenAsMother?: Bird[];
+  siblings?: Bird[];
   inventoryItems?: EventInventoryItem[];
 }
 

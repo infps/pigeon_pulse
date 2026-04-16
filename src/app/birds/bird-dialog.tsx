@@ -18,10 +18,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { toast } from "sonner";
+import { Trash2 } from "lucide-react";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { apiEndpoints } from "@/lib/endpoints";
-import { FEDERATIONS, COLORS } from "@/lib/bird-constants";
+import { FEDERATIONS, COLORS, SEX_LABELS } from "@/lib/bird-constants";
 
 interface Bird {
   id: number;
@@ -33,6 +42,18 @@ interface Bird {
   birdName: string;
   color: string;
   sex: number;
+}
+
+interface StagedBird {
+  tempId: string;
+  name: string;
+  band1: string;
+  band2: string;
+  band3: string;
+  band4: string;
+  color: string;
+  sex: number;
+  rfid: string;
 }
 
 interface BirdDialogProps {
@@ -50,6 +71,8 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
   const [bandNumber, setBandNumber] = useState("");
   const [color, setColor] = useState("BB");
   const [sex, setSex] = useState("1");
+  const [rfid, setRfid] = useState("");
+  const [stagedBirds, setStagedBirds] = useState<StagedBird[]>([]);
 
   const isEdit = !!bird;
 
@@ -84,6 +107,12 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
     onError: () => toast.error("Failed to update bird"),
   });
 
+  const bulkMutation = useApiMutation({
+    endpoint: apiEndpoints.breeder.birdsBulk,
+    method: "POST",
+    queryKey: ["breeder", "birds"],
+  });
+
   useEffect(() => {
     if (bird) {
       setName(bird.birdName || "");
@@ -93,6 +122,7 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
       setBandNumber(bird.band4 || "");
       setColor(bird.color || "BB");
       setSex(String(bird.sex ?? 1));
+      setRfid("");
     } else {
       setName("");
       setFederation("AU");
@@ -101,25 +131,37 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
       setBandNumber("");
       setColor("BB");
       setSex("1");
+      setRfid("");
+    }
+    if (!open) {
+      setStagedBirds([]);
     }
   }, [bird, open]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const validateForm = () => {
     if (!name.trim() || !letters.trim() || !bandNumber.trim()) {
       toast.error("Fill in all required fields");
-      return;
+      return false;
     }
+    return true;
+  };
 
-    const payload = {
-      name: name.trim(),
-      band1: federation,
-      band2: year,
-      band3: letters.toUpperCase(),
-      band4: bandNumber,
-      color,
-      sex: parseInt(sex),
-    };
+  const buildPayload = () => ({
+    name: name.trim(),
+    band1: federation,
+    band2: year,
+    band3: letters.toUpperCase(),
+    band4: bandNumber,
+    color,
+    sex: parseInt(sex),
+    ...(rfid.trim() ? { rfid: rfid.trim() } : {}),
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    const payload = buildPayload();
 
     if (isEdit) {
       await updateMutation.mutateAsync(payload);
@@ -128,13 +170,87 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
     }
   };
 
+  const handleSaveAndNew = () => {
+    if (!validateForm()) return;
+
+    const bandKey = `${federation}-${year}-${letters.toUpperCase()}-${bandNumber}`;
+    if (stagedBirds.some(b => `${b.band1}-${b.band2}-${b.band3}-${b.band4}` === bandKey)) {
+      toast.error("Band already staged");
+      return;
+    }
+
+    setStagedBirds(prev => [...prev, {
+      tempId: crypto.randomUUID(),
+      name: name.trim(),
+      band1: federation,
+      band2: year,
+      band3: letters.toUpperCase(),
+      band4: bandNumber,
+      color,
+      sex: parseInt(sex),
+      rfid: rfid.trim(),
+    }]);
+
+    // Reset: clear name, letters, color, sex, rfid. Keep federation + year. Increment band number.
+    setName("");
+    setLetters("");
+    setColor("BB");
+    setSex("1");
+    setRfid("");
+    const parsed = parseInt(bandNumber);
+    setBandNumber(isNaN(parsed) ? "" : String(parsed + 1));
+  };
+
+  const handleCreateAll = async () => {
+    try {
+      const result = await bulkMutation.mutateAsync({
+        birds: stagedBirds.map(b => ({
+          name: b.name,
+          band1: b.band1,
+          band2: b.band2,
+          band3: b.band3,
+          band4: b.band4,
+          color: b.color,
+          sex: b.sex,
+          ...(b.rfid ? { rfid: b.rfid } : {}),
+        })),
+      });
+
+      const data = (result as any)?.data;
+      if (data.errors?.length > 0) {
+        const failedBands = new Set(data.errors.map((e: any) => e.band));
+        setStagedBirds(prev => prev.filter(b =>
+          failedBands.has(`${b.band1}-${b.band2}-${b.band3}-${b.band4}`)
+        ));
+        toast.error(`${data.errors.length} bird(s) failed`);
+      }
+      if (data.created > 0) {
+        toast.success(`${data.created} bird(s) created`);
+        onSuccess();
+      }
+      if (!data.errors?.length) {
+        setStagedBirds([]);
+        onOpenChange(false);
+      }
+    } catch {
+      toast.error("Failed to create birds");
+    }
+  };
+
+  const removeStagedBird = (tempId: string) => {
+    setStagedBirds(prev => prev.filter(b => b.tempId !== tempId));
+  };
+
   const isPending = createMutation.isPending || updateMutation.isPending;
+  const hasStaged = stagedBirds.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-6xl">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit Bird" : "Add Bird"}</DialogTitle>
+          <DialogTitle>
+            {isEdit ? "Edit Bird" : hasStaged ? `Add Birds (${stagedBirds.length} staged)` : "Add Bird"}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
@@ -149,12 +265,12 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
               />
             </div>
 
-            {/* Band fields: 2x2 grid */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* Band fields: 6x1 grid */}
+            <div className="grid grid-cols-6 gap-3">
               <div className="space-y-2">
                 <Label>Federation *</Label>
                 <Select value={federation} onValueChange={setFederation}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {FEDERATIONS.map((f) => (
                       <SelectItem key={f} value={f}>{f}</SelectItem>
@@ -176,9 +292,9 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
                 <Input
                   id="letters"
                   value={letters}
-                  onChange={(e) => setLetters(e.target.value.toUpperCase().slice(0, 3))}
-                  placeholder="ABC"
-                  maxLength={3}
+                  onChange={(e) => setLetters(e.target.value.toUpperCase().slice(0, 4))}
+                  placeholder="ABCD"
+                  maxLength={4}
                 />
               </div>
               <div className="space-y-2">
@@ -190,14 +306,10 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
                   placeholder="12345"
                 />
               </div>
-            </div>
-
-            {/* Color + Sex */}
-            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Color *</Label>
                 <Select value={color} onValueChange={setColor}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {COLORS.map((c) => (
                       <SelectItem key={c} value={c}>{c}</SelectItem>
@@ -208,7 +320,7 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
               <div className="space-y-2">
                 <Label>Sex *</Label>
                 <Select value={sex} onValueChange={setSex}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="0">Unknown</SelectItem>
                     <SelectItem value="1">Cock</SelectItem>
@@ -217,17 +329,86 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
                 </Select>
               </div>
             </div>
+
+            {/* RFID */}
+            <div className="space-y-2">
+              <Label htmlFor="rfid">RFID</Label>
+              <Input
+                id="rfid"
+                value={rfid}
+                onChange={(e) => setRfid(e.target.value)}
+                placeholder="RFID tag (optional)"
+              />
+            </div>
           </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
+            {!isEdit && (
+              <Button type="button" variant="secondary" onClick={handleSaveAndNew}>
+                Save & New
+              </Button>
+            )}
             <Button type="submit" disabled={isPending}>
               {isPending ? "Saving..." : isEdit ? "Update" : "Add Bird"}
             </Button>
           </DialogFooter>
         </form>
+
+        {/* Staged birds table */}
+        {hasStaged && !isEdit && (
+          <div className="border-t pt-4 mt-2">
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="text-sm font-semibold">Staged ({stagedBirds.length})</h4>
+              <Button
+                size="sm"
+                onClick={handleCreateAll}
+                disabled={bulkMutation.isPending}
+              >
+                {bulkMutation.isPending ? "Creating..." : "Create All"}
+              </Button>
+            </div>
+            <div className="max-h-48 overflow-y-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Band</TableHead>
+                    <TableHead>Color</TableHead>
+                    <TableHead>Sex</TableHead>
+                    <TableHead>RFID</TableHead>
+                    <TableHead className="w-10"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {stagedBirds.map(b => (
+                    <TableRow key={b.tempId}>
+                      <TableCell className="py-1">{b.name}</TableCell>
+                      <TableCell className="py-1 text-xs">
+                        {b.band1}-{b.band2}-{b.band3}-{b.band4}
+                      </TableCell>
+                      <TableCell className="py-1">{b.color}</TableCell>
+                      <TableCell className="py-1">{SEX_LABELS[b.sex] || "Unknown"}</TableCell>
+                      <TableCell className="py-1 text-xs">{b.rfid || "-"}</TableCell>
+                      <TableCell className="py-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => removeStagedBird(b.tempId)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

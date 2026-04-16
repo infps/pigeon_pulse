@@ -47,7 +47,7 @@ export const createBirdColumns = (
     id: "actions",
     header: "Actions",
     cell: ({ row }) => (
-      <Button variant="ghost" size="icon" onClick={() => onEdit(row.original)}>
+      <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); onEdit(row.original); }}>
         <Pencil className="h-4 w-4" />
       </Button>
     ),

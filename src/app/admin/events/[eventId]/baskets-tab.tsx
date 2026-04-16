@@ -18,12 +18,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ChevronDown, ChevronRight, Eye, Sparkles } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { AlertTriangle, ChevronDown, ChevronRight, Eye, Plus, Sparkles, Trash2, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   useEventBaskets,
-  useGenerateLoftBaskets,
+  useCreateLoftBasket,
+  useDeleteLoftBasket,
   useGenerateRaceBaskets,
+  useAssignBaskets,
 } from "@/lib/api/event-baskets";
 import type { EventBasketItem, PreviewBasket } from "@/lib/types";
 
@@ -52,145 +61,202 @@ export function BasketsTab({ eventId }: BasketsTabProps) {
 // LOFT BASKET PANEL
 // ============================================================
 
+interface AssignPreviewItem {
+  breederId: number;
+  lastName: string;
+  basketNo: number;
+  basketLabel: string | null;
+  birdCount: number;
+}
+
+interface UnassignedItem {
+  breederId: number;
+  lastName: string;
+  birdCount: number;
+}
+
+interface AssignSummary {
+  totalBreeders: number;
+  assignedBreeders: number;
+  unassignedBreeders: number;
+  totalBirds: number;
+  assignedBirds: number;
+}
+
 function LoftBasketPanel({ eventId }: { eventId: string }) {
   const { data, isPending, refetch } = useEventBaskets(eventId, "LOFT");
-  const generateMutation = useGenerateLoftBaskets(eventId);
+  const createMutation = useCreateLoftBasket(eventId);
+  const deleteMutation = useDeleteLoftBasket(eventId);
+  const assignMutation = useAssignBaskets(eventId);
 
-  const [showBulk, setShowBulk] = useState(false);
-  const [capacity, setCapacity] = useState("20");
-  const [preview, setPreview] = useState<PreviewBasket[] | null>(null);
-  const [previewSummary, setPreviewSummary] = useState<{ total: number; basketCount: number } | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [capacity, setCapacity] = useState("");
+  const [assignPreview, setAssignPreview] = useState<AssignPreviewItem[] | null>(null);
+  const [assignUnassigned, setAssignUnassigned] = useState<UnassignedItem[]>([]);
+  const [assignSummary, setAssignSummary] = useState<AssignSummary | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const baskets: EventBasketItem[] = data?.baskets || [];
-  const hasExisting = baskets.length > 0;
 
-  const handlePreview = async () => {
+  const nextBasketNo = baskets.length > 0
+    ? Math.max(...baskets.map((b) => b.basketNo)) + 1
+    : 1;
+  const [basketNo, setBasketNo] = useState(nextBasketNo);
+
+  const openDialog = () => {
+    const next = baskets.length > 0
+      ? Math.max(...baskets.map((b) => b.basketNo)) + 1
+      : 1;
+    setBasketNo(next);
+    setCapacity("");
+    setDialogOpen(true);
+  };
+
+  const handleSave = async (keepOpen: boolean) => {
     const cap = parseInt(capacity);
     if (isNaN(cap) || cap < 1) {
       toast.error("Capacity must be a positive number");
       return;
     }
     try {
-      const res = await generateMutation.mutateAsync({ capacity: cap, preview: true });
-      const result = (res as any)?.data || res;
-      if (result?.baskets?.length === 0) {
-        toast.info(result.message || "No checked-in birds found");
-        return;
+      await createMutation.mutateAsync({ capacity: cap });
+      toast.success(`Basket #${basketNo} created`);
+      refetch();
+      if (keepOpen) {
+        setBasketNo(basketNo + 1);
+        setCapacity("");
+      } else {
+        setDialogOpen(false);
       }
-      setPreview(result.baskets);
-      setPreviewSummary(result.summary);
     } catch (error: any) {
-      toast.error(error?.message || "Failed to preview");
+      toast.error(error?.message || "Failed to create basket");
     }
   };
 
-  const handleGenerate = async () => {
-    if (hasExisting) {
-      setConfirmOpen(true);
-      return;
-    }
-    await doGenerate();
-  };
-
-  const doGenerate = async () => {
-    const cap = parseInt(capacity);
-    if (isNaN(cap) || cap < 1) {
-      toast.error("Capacity must be a positive number");
-      return;
-    }
+  const handleDelete = async (basket: EventBasketItem) => {
     try {
-      await generateMutation.mutateAsync({ capacity: cap, preview: false });
-      toast.success("Loft baskets generated");
-      setPreview(null);
-      setPreviewSummary(null);
-      setShowBulk(false);
+      await deleteMutation.mutateAsync({ basketId: basket.id });
+      toast.success(`Basket #${basket.basketNo} deleted`);
       refetch();
     } catch (error: any) {
-      toast.error(error?.message || "Failed to generate");
+      toast.error(error?.message || "Failed to delete basket");
     }
   };
+
+  const handlePreviewAssign = async () => {
+    try {
+      const res = await assignMutation.mutateAsync({ preview: true });
+      const result = (res as any)?.data || res;
+      if (!result?.assigned?.length && !result?.unassigned?.length) {
+        toast.info(result?.message || "No registered birds found");
+        return;
+      }
+      setAssignPreview(result.assigned);
+      setAssignUnassigned(result.unassigned ?? []);
+      setAssignSummary(result.summary);
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to preview assignment");
+    }
+  };
+
+  const handleConfirmAssign = async () => {
+    try {
+      await assignMutation.mutateAsync({ preview: false });
+      toast.success("Birds assigned to baskets");
+      setAssignPreview(null);
+      setAssignUnassigned([]);
+      setAssignSummary(null);
+      setConfirmOpen(false);
+      refetch();
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to assign baskets");
+    }
+  };
+
+  const hasExistingAssignments = baskets.some(
+    (b) => (b._count?.assignments ?? b.assignments?.length ?? 0) > 0
+  );
 
   return (
     <>
-      {/* Info card */}
       <Card>
-        <CardContent className="pt-4">
+        <CardContent className="pt-4 flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Loft baskets are created automatically when scanning birds on the Check-in tab.
-            Use bulk generate below as a fallback.
+            Create baskets below, then use <strong>Set Baskets</strong> to auto-assign birds via BFD.
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-2 gap-1.5"
-            onClick={() => setShowBulk(!showBulk)}
-          >
-            <Sparkles className="h-4 w-4" />
-            {showBulk ? "Hide Bulk Generate" : "Bulk Generate"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={hasExistingAssignments ? () => setConfirmOpen(true) : handlePreviewAssign}
+              disabled={assignMutation.isPending || baskets.length === 0}
+            >
+              <Wand2 className="h-4 w-4" />
+              {assignMutation.isPending ? "Running..." : "Set Baskets"}
+            </Button>
+            <Button size="sm" className="gap-1.5" onClick={openDialog}>
+              <Plus className="h-4 w-4" />
+              Add New Basket
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Bulk generate (collapsed by default) */}
-      {showBulk && (
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-end gap-3">
-              <div className="flex-1 max-w-[200px]">
-                <Label htmlFor="loft-capacity">Basket Capacity</Label>
-                <Input
-                  id="loft-capacity"
-                  type="number"
-                  min="1"
-                  value={capacity}
-                  onChange={(e) => setCapacity(e.target.value)}
-                />
-              </div>
-              <Button
-                variant="outline"
-                onClick={handlePreview}
-                disabled={generateMutation.isPending}
-                className="gap-1.5"
-              >
-                <Eye className="h-4 w-4" />
-                Preview
-              </Button>
-              <Button
-                onClick={handleGenerate}
-                disabled={generateMutation.isPending}
-                className="gap-1.5"
-              >
-                <Sparkles className="h-4 w-4" />
-                {generateMutation.isPending ? "Generating..." : hasExisting ? "Regenerate" : "Generate"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Preview */}
-      {preview && (
+      {/* BFD Assignment Preview */}
+      {assignPreview && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              Preview
-              <Badge variant="secondary">
-                {previewSummary?.total} birds in {previewSummary?.basketCount} baskets
-              </Badge>
+              Assignment Preview
+              {assignSummary && (
+                <Badge variant="secondary">
+                  {assignSummary.assignedBreeders}/{assignSummary.totalBreeders} breeders · {assignSummary.assignedBirds} birds
+                </Badge>
+              )}
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {preview.map((basket) => (
-                <BasketPreviewCard key={basket.basketNo} basket={basket} />
+          <CardContent className="space-y-3">
+            <div className="space-y-1">
+              {assignPreview.map((item) => (
+                <div
+                  key={item.breederId}
+                  className="flex items-center justify-between px-3 py-2 rounded-md border text-sm"
+                >
+                  <span className="font-medium">{item.lastName}</span>
+                  <div className="flex items-center gap-3 text-muted-foreground">
+                    <span>{item.birdCount} birds</span>
+                    <span>→</span>
+                    <span className="font-mono text-xs">
+                      {item.basketLabel ?? `Basket #${item.basketNo}`}
+                    </span>
+                  </div>
+                </div>
               ))}
             </div>
-            <div className="mt-4 flex gap-2">
-              <Button onClick={doGenerate} disabled={generateMutation.isPending}>
-                Confirm & Save
+
+            {assignUnassigned.length > 0 && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 space-y-1">
+                <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  {assignUnassigned.length} breeder(s) could not be assigned — no basket has enough space
+                </div>
+                {assignUnassigned.map((u) => (
+                  <div key={u.breederId} className="text-sm text-muted-foreground pl-6">
+                    {u.lastName} — {u.birdCount} birds
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <Button onClick={handleConfirmAssign} disabled={assignMutation.isPending}>
+                {assignMutation.isPending ? "Saving..." : "Confirm & Save"}
               </Button>
-              <Button variant="outline" onClick={() => setPreview(null)}>
+              <Button
+                variant="outline"
+                onClick={() => { setAssignPreview(null); setAssignUnassigned([]); setAssignSummary(null); }}
+              >
                 Discard
               </Button>
             </div>
@@ -198,18 +264,73 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
         </Card>
       )}
 
-      {/* Persisted Baskets (read-only view) */}
-      {!preview && (
-        <PersistedBasketsView baskets={baskets} isPending={isPending} phase="Loft" />
-      )}
+      <PersistedBasketsView
+        baskets={baskets}
+        isPending={isPending}
+        phase="Loft"
+        onDelete={handleDelete}
+      />
 
-      {/* Confirm Regenerate */}
+      {/* Add New Basket Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Basket</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="basket-no">No.</Label>
+              <Input
+                id="basket-no"
+                type="number"
+                value={basketNo}
+                readOnly
+                className="bg-muted"
+              />
+            </div>
+            <div>
+              <Label htmlFor="basket-capacity">Capacity</Label>
+              <Input
+                id="basket-capacity"
+                type="number"
+                min="1"
+                placeholder="Enter capacity"
+                value={capacity}
+                onChange={(e) => setCapacity(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSave(false)}
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => handleSave(true)}
+              disabled={createMutation.isPending || !capacity}
+            >
+              {createMutation.isPending ? "Saving..." : "Save and New"}
+            </Button>
+            <Button
+              onClick={() => handleSave(false)}
+              disabled={createMutation.isPending || !capacity}
+            >
+              {createMutation.isPending ? "Saving..." : "Save and Close"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Re-assign confirmation (existing assignments present) */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Replace Existing Loft Baskets?</AlertDialogTitle>
+            <AlertDialogTitle>Re-assign All Baskets?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will delete all existing loft baskets and create new ones. This action cannot be undone.
+              Birds are already assigned to loft baskets. Running Set Baskets will clear all
+              existing assignments and re-assign using BFD. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -217,10 +338,10 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
             <AlertDialogAction
               onClick={() => {
                 setConfirmOpen(false);
-                doGenerate();
+                handlePreviewAssign();
               }}
             >
-              Replace
+              Preview & Re-assign
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -307,7 +428,7 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
       <Card>
         <CardContent className="pt-4">
           <div className="flex items-end gap-3">
-            <div className="flex-1 max-w-[200px]">
+            <div className="flex-1 max-w-50">
               <Label htmlFor="race-birds-per-basket">Birds Per Basket</Label>
               <Input
                 id="race-birds-per-basket"
@@ -442,10 +563,12 @@ function PersistedBasketsView({
   baskets,
   isPending,
   phase,
+  onDelete,
 }: {
   baskets: EventBasketItem[];
   isPending: boolean;
   phase: string;
+  onDelete?: (basket: EventBasketItem) => void;
 }) {
   if (isPending) {
     return <Skeleton className="h-32 w-full" />;
@@ -455,7 +578,7 @@ function PersistedBasketsView({
     return (
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
-          No {phase.toLowerCase()} baskets generated yet.
+          No {phase.toLowerCase()} baskets yet.
         </CardContent>
       </Card>
     );
@@ -474,7 +597,7 @@ function PersistedBasketsView({
       <CardContent>
         <div className="space-y-2">
           {baskets.map((basket) => (
-            <PersistedBasketCard key={basket.id} basket={basket} />
+            <PersistedBasketCard key={basket.id} basket={basket} onDelete={onDelete} />
           ))}
         </div>
       </CardContent>
@@ -482,9 +605,16 @@ function PersistedBasketsView({
   );
 }
 
-function PersistedBasketCard({ basket }: { basket: EventBasketItem }) {
+function PersistedBasketCard({
+  basket,
+  onDelete,
+}: {
+  basket: EventBasketItem;
+  onDelete?: (basket: EventBasketItem) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const birdCount = basket._count?.assignments ?? basket.assignments?.length ?? 0;
+  const isEmpty = birdCount === 0;
   const breeders = [
     ...new Set(
       (basket.assignments || [])
@@ -495,25 +625,36 @@ function PersistedBasketCard({ basket }: { basket: EventBasketItem }) {
 
   return (
     <div className="border rounded-lg">
-      <button
-        className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <div className="flex items-center gap-2">
-          {expanded ? (
-            <ChevronDown className="h-4 w-4" />
-          ) : (
-            <ChevronRight className="h-4 w-4" />
-          )}
-          <span className="font-medium">{basket.label || `Basket #${basket.basketNo}`}</span>
-          <Badge variant="secondary">
-            {birdCount}/{basket.capacity}
-          </Badge>
-        </div>
-        <span className="text-sm text-muted-foreground">
-          {breeders.join(", ")}
-        </span>
-      </button>
+      <div className="flex items-center">
+        <button
+          className="flex-1 flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
+          onClick={() => setExpanded(!expanded)}
+        >
+          <div className="flex items-center gap-2">
+            {expanded ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+            <span className="font-medium">{basket.label || `Basket #${basket.basketNo}`}</span>
+            <Badge variant="secondary">
+              {birdCount}/{basket.capacity}
+            </Badge>
+          </div>
+          <span className="text-sm text-muted-foreground">
+            {breeders.join(", ")}
+          </span>
+        </button>
+        {onDelete && isEmpty && (
+          <button
+            className="p-2 mr-2 text-muted-foreground hover:text-destructive transition-colors"
+            onClick={() => onDelete(basket)}
+            title="Delete empty basket"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+      </div>
       {expanded && basket.assignments && (
         <div className="border-t px-3 py-2 space-y-1">
           {basket.assignments.map((a) => (

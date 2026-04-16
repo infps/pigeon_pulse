@@ -89,14 +89,20 @@ export default function FeeSchemeComponent() {
       return;
     }
 
+    const payload = {
+      ...formData,
+      isRefundable: formData.isRefundable ? 1 : 0,
+      isFloatingBackup: formData.isFloatingBackup ? 1 : 0,
+    };
+
     try {
       if (editingId) {
         if (!updateMutation.mutateAsync) return;
-        await updateMutation.mutateAsync({ id: editingId, ...formData });
+        await updateMutation.mutateAsync({ id: editingId, ...payload });
         toast.success("Fee scheme updated successfully");
       } else {
         if (!createMutation.mutateAsync) return;
-        await createMutation.mutateAsync(formData);
+        await createMutation.mutateAsync(payload);
         toast.success("Fee scheme created successfully");
       }
       handleClose();

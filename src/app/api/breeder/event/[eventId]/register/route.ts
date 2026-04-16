@@ -7,30 +7,27 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import z from "zod";
 
-// Define the bird schema for registration
-const birdSchema = z.object({
-  name: z.string().min(1, "Bird name is required"),
-  color: z.string().min(1, "Bird color is required"),
-  sex: z.number().int().min(0).max(2),
-  band1: z.string().min(1, "Band 1 is required"),
-  band2: z.string().min(1, "Band 2 is required"),
-  band3: z.string().min(1, "Band 3 is required"),
-  band4: z.string().min(1, "Band 4 is required"),
-});
+// Define the bird schema — either existing bird by ID or new bird details
+const birdSchema = z.union([
+  z.object({ birdId: z.number().int().positive() }),
+  z.object({
+    name: z.string().min(1, "Bird name is required"),
+    color: z.string().min(1, "Bird color is required"),
+    sex: z.number().int().min(0).max(2),
+    band1: z.string().min(1, "Band 1 is required"),
+    band2: z.string().min(1, "Band 2 is required"),
+    band3: z.string().min(1, "Band 3 is required"),
+    band4: z.string().min(1, "Band 4 is required"),
+  }),
+]);
 
 // Define the registration schema (breederId comes from session, not request)
 const registrationSchema = z.object({
   loftName: z.string().min(1, "Loft name is required"),
   reservedBirds: z.number().int().positive("Reserved birds must be a positive integer"),
-  birds: z.array(birdSchema),
+  birds: z.array(birdSchema).optional().default([]),
   note: z.string().optional(),
-}).refine(
-  (data) => data.birds.length === data.reservedBirds,
-  {
-    message: "Number of birds must equal reserved birds count",
-    path: ["birds"],
-  }
-);
+});
 
 export async function POST(
   request: Request,
@@ -121,34 +118,36 @@ export async function POST(
       // Create or find birds and add them to EventInventoryItems
       const inventoryItems: { birdId: number; id: number }[] = [];
       for (const birdData of validatedData.birds) {
-        // Create unique band identifier
-        const band = `${birdData.band1}-${birdData.band2}-${birdData.band3}-${birdData.band4}`;
+        let bird;
 
-        // Check if bird already exists
-        let bird = await tx.bird.findFirst({
-          where: { band },
-        });
-
-        // If bird doesn't exist, create it
-        if (!bird) {
-          bird = await tx.bird.create({
-            data: {
-              band,
-              band1: birdData.band1,
-              band2: birdData.band2,
-              band3: birdData.band3,
-              band4: birdData.band4,
-              birdName: birdData.name,
-              color: birdData.color,
-              sex: birdData.sex,
-              breederId,
-              isActive: 1,
-              isLost: 0,
-            },
-          });
+        if ("birdId" in birdData) {
+          // Existing bird — verify ownership
+          bird = await tx.bird.findUnique({ where: { id: birdData.birdId } });
+          if (!bird || bird.breederId !== breederId) {
+            throw new Error(`Bird ${birdData.birdId} not found or does not belong to you`);
+          }
         } else {
-          // If bird exists but belongs to a different breeder, return error
-          if (bird.breederId !== breederId) {
+          // New bird — find by band or create
+          const band = `${birdData.band1}-${birdData.band2}-${birdData.band3}-${birdData.band4}`;
+          bird = await tx.bird.findFirst({ where: { band } });
+
+          if (!bird) {
+            bird = await tx.bird.create({
+              data: {
+                band,
+                band1: birdData.band1,
+                band2: birdData.band2,
+                band3: birdData.band3,
+                band4: birdData.band4,
+                birdName: birdData.name,
+                color: birdData.color,
+                sex: birdData.sex,
+                breederId,
+                isActive: 1,
+                isLost: 0,
+              },
+            });
+          } else if (bird.breederId !== breederId) {
             throw new Error(`Bird with band ${band} is already registered to another breeder`);
           }
         }

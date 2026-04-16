@@ -96,7 +96,7 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
 
   const createTeamMutation = useCreateTeam({});
 
-  const maxBirds = event.feeScheme?.maxBirds || 0;
+  const maxBirds = event.feeScheme?.maxBirdCount || 0;
 
   const fees = useMemo(() => {
     if (!event.feeScheme || reservedBirds <= 0) return null;
@@ -324,11 +324,17 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
                   <SelectValue placeholder={teams.length === 0 ? "No teams — create one first" : "Select loft/team"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {teams.map((team: any) => (
-                    <SelectItem key={team.id} value={team.name}>
-                      {team.name}
-                    </SelectItem>
-                  ))}
+                  {teams.length === 0 ? (
+                    <div className="px-2 py-4 text-sm text-center text-muted-foreground">
+                      No teams created
+                    </div>
+                  ) : (
+                    teams.map((team: any) => (
+                      <SelectItem key={team.id} value={team.name}>
+                        {team.name}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
               <Button type="button" variant="outline" size="icon" onClick={() => setIsAddTeamOpen(true)}>

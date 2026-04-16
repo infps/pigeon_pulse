@@ -34,6 +34,7 @@ const userSelect = {
 function mapBreederToUser(breeder: any) {
   return {
     id: `legacy-${breeder.id}`,
+    breederId: breeder.id,
     name: breeder.firstName || "",
     lastName: breeder.lastName,
     email: breeder.email || "",
@@ -130,7 +131,32 @@ export async function GET(request: Request) {
       }
     }
 
-    const merged = [...users, ...legacyBreeders];
+    // Attach breederId to regular users (by userId, fallback to email)
+    const userIds = users.map((u: any) => u.id);
+    const emails = users.map((u: any) => u.email?.toLowerCase()).filter(Boolean);
+    const allLinkedBreeders = userIds.length > 0
+      ? await prisma.breeder.findMany({
+          where: {
+            OR: [
+              { userId: { in: userIds } },
+              { email: { in: emails } },
+            ],
+          },
+          select: { id: true, userId: true, email: true },
+        })
+      : [];
+    const breederByUserId = new Map(
+      allLinkedBreeders.filter(b => b.userId).map(b => [b.userId, b.id])
+    );
+    const breederByEmail = new Map(
+      allLinkedBreeders.filter(b => b.email).map(b => [b.email!.toLowerCase(), b.id])
+    );
+    const usersWithBreeder = users.map((u: any) => ({
+      ...u,
+      breederId: breederByUserId.get(u.id) ?? breederByEmail.get(u.email?.toLowerCase()) ?? null,
+    }));
+
+    const merged = [...usersWithBreeder, ...legacyBreeders];
 
     return NextResponse.json(
       { users: merged, message: "Users fetched successfully" },

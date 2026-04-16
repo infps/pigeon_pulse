@@ -60,14 +60,24 @@ export default function PrizeSchemeComponent() {
       return;
     }
 
+    const payload = {
+      ...formData,
+      prizeSchemeItems: formData.prizeSchemeItems.map((item) => ({
+        raceTypeId: parseInt(item.raceTypeId),
+        fromPosition: item.fromPosition,
+        toPosition: item.toPosition,
+        prizeValue: item.prizeAmount,
+      })),
+    };
+
     try {
       if (editingId) {
         if (!updateMutation.mutateAsync) return;
-        await updateMutation.mutateAsync({ id: editingId, ...formData });
+        await updateMutation.mutateAsync({ id: editingId, ...payload });
         toast.success("Prize scheme updated successfully");
       } else {
         if (!createMutation.mutateAsync) return;
-        await createMutation.mutateAsync(formData);
+        await createMutation.mutateAsync(payload);
         toast.success("Prize scheme created successfully");
       }
       handleClose();

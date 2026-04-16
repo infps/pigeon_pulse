@@ -42,8 +42,16 @@ export async function GET(
       ],
     });
 
+    // Flatten nested relations for UI column accessors (matches admin API shape)
+    const flattenedRaceItems = raceItems.map((item) => ({
+      ...item,
+      bird: item.inventoryItem?.bird ?? undefined,
+      birdPosition: item.result?.birdPosition ?? null,
+      arrivalTime: item.result?.arrivalTime ?? null,
+    }));
+
     return NextResponse.json(
-      { raceItems, message: "Race items fetched successfully" },
+      { raceItems: flattenedRaceItems, message: "Race items fetched successfully" },
       { status: 200 }
     );
   } catch (error) {

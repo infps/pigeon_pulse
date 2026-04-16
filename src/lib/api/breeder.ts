@@ -24,6 +24,18 @@ export function useGetBreederEvent({
   });
 }
 
+export function useGetBreederBird({
+  birdId,
+}: {
+  birdId: number | string;
+}) {
+  return useApiQuery({
+    endpoint: apiEndpoints.breeder.birdById(birdId),
+    queryKey: ["breeder", "birds", "detail", String(birdId)],
+    enabled: !!birdId,
+  });
+}
+
 export function useListLiveRaces() {
   return useApiQuery({
     endpoint: apiEndpoints.breeder.liveRaces,

@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { useListTeams, useCreateTeam } from "@/lib/api/teams";
 import { toast } from "sonner";
 import {
@@ -26,20 +26,20 @@ import { useQueryClient } from "@tanstack/react-query";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { apiEndpoints } from "@/lib/endpoints";
+import { useApiQuery } from "@/hooks/useApi";
+import Link from "next/link";
 
 interface EventRegisterTabProps {
   event: Event;
   eventId: string;
 }
 
-interface BirdData {
-  name: string;
+interface SelectedBird {
+  id: number;
+  band: string;
+  birdName: string;
   color: string;
-  sex: "COCK" | "HEN" | "UNKNOWN";
-  band1: string;
-  band2: string;
-  band3: string;
-  band4: string;
+  sex: number;
 }
 
 interface PaymentData {
@@ -49,29 +49,38 @@ interface PaymentData {
   paymentType: "ENTRY_FEE" | "PERCH_FEE";
 }
 
+const SEX_LABELS: Record<number, string> = { 0: "Unknown", 1: "Cock", 2: "Hen" };
+
 export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
   const queryClient = useQueryClient();
   const router = useRouter();
   const { data: session, isPending: isSessionPending } = authClient.useSession();
-  
+
   const [selectedLoft, setSelectedLoft] = useState("");
   const [reservedBirds, setReservedBirds] = useState<number>(0);
-  const [birds, setBirds] = useState<BirdData[]>([]);
+  const [selectedBirds, setSelectedBirds] = useState<SelectedBird[]>([]);
   const [payments, setPayments] = useState<PaymentData[]>([]);
   const [isAddTeamOpen, setIsAddTeamOpen] = useState(false);
   const [teamName, setTeamName] = useState("");
 
-  const breederId = session?.user?.id;
-
   const { data: teamsData } = useListTeams({
-    params: breederId ? { breederId } : undefined,
     endpoint: apiEndpoints.breeder.teams,
+    enabled: !!session?.user,
   });
   const teams = teamsData?.teams || [];
 
+  const { data: birdsData } = useApiQuery({
+    endpoint: apiEndpoints.breeder.birds,
+    queryKey: ["breeder", "birds"],
+    enabled: !!session?.user,
+  });
+  const availableBirds: SelectedBird[] = (birdsData?.birds || []).filter(
+    (b: any) => b.isActive === 1 && b.isLost === 0
+  );
+
   const createTeamMutation = useCreateTeam({ endpoint: apiEndpoints.breeder.teams });
 
-  const maxBirds = event.feeScheme?.maxBirds || 0;
+  const maxBirds = event.feeScheme?.maxBirdCount || 0;
   const birdFee = event.feeScheme?.birdFee || 0;
   const birdFeeItems = event.feeScheme?.birdFeeItems || [];
 
@@ -88,21 +97,9 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
     return totalBirdFee;
   };
 
-  // Initialize birds array when reservedBirds changes
+  // Update payments when reservedBirds changes
   useEffect(() => {
-    if (reservedBirds > 0 && reservedBirds <= maxBirds) {
-      const newBirds: BirdData[] = Array.from({ length: reservedBirds }, (_, i) => ({
-        name: birds[i]?.name || "",
-        color: birds[i]?.color || "",
-        sex: birds[i]?.sex || "COCK",
-        band1: birds[i]?.band1 || "",
-        band2: birds[i]?.band2 || "",
-        band3: birds[i]?.band3 || "",
-        band4: birds[i]?.band4 || "",
-      }));
-      setBirds(newBirds);
-
-      // Initialize single payment with combined total
+    if (reservedBirds > 0) {
       const perchFeeTotal = birdFee * reservedBirds;
       const birdFeeTotal = calculateBirdFee();
       const totalAmount = perchFeeTotal + birdFeeTotal;
@@ -116,30 +113,23 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
         },
       ]);
     } else {
-      setBirds([]);
       setPayments([]);
+    }
+  }, [reservedBirds]);
+
+  // Trim selected birds if reservedBirds decreases
+  useEffect(() => {
+    if (reservedBirds > 0 && selectedBirds.length > reservedBirds) {
+      setSelectedBirds((prev) => prev.slice(0, reservedBirds));
     }
   }, [reservedBirds]);
 
   const handleAddTeam = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!teamName.trim()) {
-      toast.error("Team name is required");
-      return;
-    }
-
-    if (!breederId) {
-      toast.error("No breeder logged in");
-      return;
-    }
-
+    if (!teamName.trim()) { toast.error("Team name is required"); return; }
     try {
       if (!createTeamMutation.mutateAsync) return;
-      await createTeamMutation.mutateAsync({
-        name: teamName,
-        breederId: breederId,
-      });
+      await createTeamMutation.mutateAsync({ name: teamName });
       toast.success("Team created successfully");
       setIsAddTeamOpen(false);
       setTeamName("");
@@ -149,74 +139,52 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
     }
   };
 
-  const handleBirdChange = (index: number, field: keyof BirdData, value: string) => {
-    const newBirds = [...birds];
-    newBirds[index] = { ...newBirds[index], [field]: value };
-    setBirds(newBirds);
+  const addBird = (birdId: string) => {
+    const bird = availableBirds.find((b) => String(b.id) === birdId);
+    if (!bird) return;
+    if (selectedBirds.length >= reservedBirds) {
+      toast.error(`Maximum ${reservedBirds} birds for this registration`);
+      return;
+    }
+    if (selectedBirds.some((b) => b.id === bird.id)) {
+      toast.error("Bird already added");
+      return;
+    }
+    setSelectedBirds((prev) => [...prev, bird]);
   };
 
-  const handlePaymentChange = (index: number, field: keyof PaymentData, value: any) => {
-    const newPayments = [...payments];
-    newPayments[index] = { ...newPayments[index], [field]: value };
-    setPayments(newPayments);
+  const removeBird = (birdId: number) => {
+    setSelectedBirds((prev) => prev.filter((b) => b.id !== birdId));
+  };
+
+  const handlePaymentChange = (field: keyof PaymentData, value: any) => {
+    setPayments((prev) => [{ ...prev[0], [field]: value }]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!breederId) {
-      toast.error("Please log in to register");
-      return;
-    }
-
-    if (!selectedLoft) {
-      toast.error("Please select a loft/team");
-      return;
-    }
-
-    if (reservedBirds === 0) {
-      toast.error("Please enter number of reserved birds");
-      return;
-    }
-
-    // Validate all birds have required fields
-    for (let i = 0; i < birds.length; i++) {
-      const bird = birds[i];
-      if (!bird.name || !bird.color || !bird.band1 || !bird.band2 || !bird.band3 || !bird.band4) {
-        toast.error(`Please fill all fields for bird ${i + 1}`);
-        return;
-      }
-    }
+    if (!selectedLoft) { toast.error("Please select a loft/team"); return; }
+    if (reservedBirds === 0) { toast.error("Please enter number of reserved birds"); return; }
 
     const registrationData = {
-      breederId: breederId,
       loftName: selectedLoft,
       reservedBirds,
-      birds: birds.map((bird) => ({
-        name: bird.name,
-        color: bird.color,
-        sex: bird.sex === "COCK" ? 1 : bird.sex === "HEN" ? 2 : 0,
-        band1: bird.band1,
-        band2: bird.band2,
-        band3: bird.band3,
-        band4: bird.band4,
-      })),
+      birds: selectedBirds.map((bird) => ({ birdId: bird.id })),
       payments: payments.map((payment) => ({
         amountPaid: payment.amountPaid,
         amountToPay: payment.amountToPay,
         currency: "USD",
         method: payment.method,
         paymentType: payment.paymentType,
-        description: `${payment.paymentType === "ENTRY_FEE" ? "Perch" : "Per Bird"} fee for ${reservedBirds} birds`,
+        description: `Fee for ${reservedBirds} birds`,
       })),
     };
 
     try {
       const response = await fetch(`/api/breeder/event/${eventId}/register`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(registrationData),
       });
 
@@ -226,11 +194,9 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
       }
 
       toast.success("Registration successful!");
-      
-      // Reset form
       setSelectedLoft("");
       setReservedBirds(0);
-      setBirds([]);
+      setSelectedBirds([]);
       setPayments([]);
     } catch (error: any) {
       toast.error(error.message || "Failed to register");
@@ -238,13 +204,10 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
     }
   };
 
-  // Show loading state while checking session
   if (isSessionPending) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Register for {event.name}</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle>Register for {event.name}</CardTitle></CardHeader>
         <CardContent>
           <div className="text-center py-12">
             <p className="text-lg text-muted-foreground">Loading...</p>
@@ -254,26 +217,24 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
     );
   }
 
-  // Show login button if not authenticated
   if (!session?.user) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Register for {event.name}</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle>Register for {event.name}</CardTitle></CardHeader>
         <CardContent>
           <div className="text-center py-12">
             <p className="text-lg text-muted-foreground mb-4">
               Please log in to register for this event
             </p>
-            <Button onClick={() => router.push("/login")}>
-              Login to Register
-            </Button>
+            <Button onClick={() => router.push("/login")}>Login to Register</Button>
           </div>
         </CardContent>
       </Card>
     );
   }
+
+  const selectedBirdIds = new Set(selectedBirds.map((b) => b.id));
+  const unselectedBirds = availableBirds.filter((b) => !selectedBirdIds.has(b.id));
 
   return (
     <Card>
@@ -283,7 +244,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
       <CardContent>
         <div className="space-y-6">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Breeder Information (Display only) */}
+            {/* Breeder Information */}
             <div className="space-y-4">
               <h3 className="font-semibold">Breeder Information</h3>
               <div className="p-4 bg-transparent rounded-lg">
@@ -303,19 +264,20 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                     <SelectValue placeholder="Select loft/team" />
                   </SelectTrigger>
                   <SelectContent>
-                    {teams.map((team: any) => (
-                      <SelectItem key={team.id} value={team.name}>
-                        {team.name}
-                      </SelectItem>
-                    ))}
+                    {teams.length === 0 ? (
+                      <div className="px-2 py-4 text-sm text-center text-muted-foreground">
+                        No teams created
+                      </div>
+                    ) : (
+                      teams.map((team: any) => (
+                        <SelectItem key={team.id} value={team.name}>
+                          {team.name}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setIsAddTeamOpen(true)}
-                >
+                <Button type="button" variant="outline" size="icon" onClick={() => setIsAddTeamOpen(true)}>
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
@@ -325,17 +287,17 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
             {selectedLoft && (
               <div className="space-y-2">
                 <Label htmlFor="reservedBirds">
-                  Reserved Birds * (Max: {maxBirds})
+                  Reserved Birds *{maxBirds > 0 ? ` (Max: ${maxBirds})` : ""}
                 </Label>
                 <Input
                   id="reservedBirds"
                   type="number"
                   min={1}
-                  max={maxBirds}
+                  max={maxBirds > 0 ? maxBirds : undefined}
                   value={reservedBirds || ""}
                   onChange={(e) => {
-                    const value = parseInt(e.target.value);
-                    if (value > maxBirds) {
+                    const value = parseInt(e.target.value) || 0;
+                    if (maxBirds > 0 && value > maxBirds) {
                       toast.error(`Maximum birds allowed: ${maxBirds}`);
                       setReservedBirds(maxBirds);
                     } else {
@@ -347,106 +309,74 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
               </div>
             )}
 
-            {/* Birds Input */}
-            {reservedBirds > 0 && birds.length > 0 && (
+            {/* Bird Selection */}
+            {reservedBirds > 0 && (
               <div className="space-y-4">
-                <h3 className="font-semibold">Birds Information</h3>
-                {birds.map((bird, index) => (
-                  <div
-                    key={index}
-                    className="border rounded-lg p-4 space-y-4"
-                  >
-                    <h4 className="font-medium">Bird {index + 1}</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor={`bird-${index}-name`}>Name *</Label>
-                        <Input
-                          id={`bird-${index}-name`}
-                          value={bird.name}
-                          onChange={(e) =>
-                            handleBirdChange(index, "name", e.target.value)
-                          }
-                          required
-                        />
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">
+                    Select Birds{" "}
+                    <span className="text-muted-foreground font-normal text-sm">
+                      ({selectedBirds.length}/{reservedBirds} selected)
+                    </span>
+                  </h3>
+                  {selectedBirds.length < reservedBirds && unselectedBirds.length > 0 && (
+                    <Select value="" onValueChange={addBird}>
+                      <SelectTrigger className="w-56">
+                        <SelectValue placeholder="Add bird" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {unselectedBirds.map((bird) => (
+                          <SelectItem key={bird.id} value={String(bird.id)}>
+                            {bird.band} · {bird.birdName || "Unnamed"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+
+                {/* Selected birds list */}
+                {selectedBirds.map((bird) => (
+                  <div key={bird.id} className="border rounded-lg p-4 flex items-center justify-between">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm flex-1">
+                      <div>
+                        <p className="text-muted-foreground">Band</p>
+                        <p className="font-medium">{bird.band}</p>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`bird-${index}-color`}>Color *</Label>
-                        <Input
-                          id={`bird-${index}-color`}
-                          value={bird.color}
-                          onChange={(e) =>
-                            handleBirdChange(index, "color", e.target.value)
-                          }
-                          required
-                        />
+                      <div>
+                        <p className="text-muted-foreground">Name</p>
+                        <p className="font-medium">{bird.birdName || "—"}</p>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`bird-${index}-sex`}>Sex *</Label>
-                        <Select
-                          value={bird.sex}
-                          onValueChange={(value: "COCK" | "HEN" | "UNKNOWN") =>
-                            handleBirdChange(index, "sex", value)
-                          }
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="COCK">Cock</SelectItem>
-                            <SelectItem value="HEN">Hen</SelectItem>
-                            <SelectItem value="UNKNOWN">Unknown</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      <div>
+                        <p className="text-muted-foreground">Color</p>
+                        <p className="font-medium">{bird.color || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Sex</p>
+                        <p className="font-medium">{SEX_LABELS[bird.sex] || "Unknown"}</p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor={`bird-${index}-band1`}>Band 1 *</Label>
-                        <Input
-                          id={`bird-${index}-band1`}
-                          value={bird.band1}
-                          onChange={(e) =>
-                            handleBirdChange(index, "band1", e.target.value)
-                          }
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`bird-${index}-band2`}>Band 2 *</Label>
-                        <Input
-                          id={`bird-${index}-band2`}
-                          value={bird.band2}
-                          onChange={(e) =>
-                            handleBirdChange(index, "band2", e.target.value)
-                          }
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`bird-${index}-band3`}>Band 3 *</Label>
-                        <Input
-                          id={`bird-${index}-band3`}
-                          value={bird.band3}
-                          onChange={(e) =>
-                            handleBirdChange(index, "band3", e.target.value)
-                          }
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`bird-${index}-band4`}>Band 4 *</Label>
-                        <Input
-                          id={`bird-${index}-band4`}
-                          value={bird.band4}
-                          onChange={(e) =>
-                            handleBirdChange(index, "band4", e.target.value)
-                          }
-                          required
-                        />
-                      </div>
-                    </div>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => removeBird(bird.id)}>
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
                 ))}
+
+                {/* Empty state */}
+                {selectedBirds.length === 0 && (
+                  <div className="border rounded-lg p-6 text-center text-sm text-muted-foreground">
+                    {availableBirds.length === 0 ? (
+                      <p>
+                        No birds yet.{" "}
+                        <Link href="/birds" className="text-primary underline">
+                          Add birds first
+                        </Link>
+                      </p>
+                    ) : (
+                      <p>Use the dropdown above to add birds to this registration.</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -475,7 +405,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                         step="0.01"
                         value={payments[0].amountPaid}
                         onChange={(e) =>
-                          handlePaymentChange(0, "amountPaid", parseFloat(e.target.value) || 0)
+                          handlePaymentChange("amountPaid", parseFloat(e.target.value) || 0)
                         }
                         required
                       />
@@ -485,7 +415,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                       <Select
                         value={payments[0].method}
                         onValueChange={(value: "CREDIT_CARD" | "PAYPAL" | "BANK_TRANSFER" | "CASH") =>
-                          handlePaymentChange(0, "method", value)
+                          handlePaymentChange("method", value)
                         }
                       >
                         <SelectTrigger className="w-full">
@@ -500,7 +430,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                       </Select>
                     </div>
                   </div>
-                  
+
                   {/* Fee Breakdown */}
                   <div className="mt-4 pt-4 border-t space-y-2">
                     <div className="flex justify-between text-sm">

@@ -65,3 +65,30 @@ export function useScanLoftBasket(eventId: string | number) {
     exact: false,
   });
 }
+
+export function useCreateLoftBasket(eventId: string | number) {
+  return useApiMutation({
+    method: "POST",
+    endpoint: apiEndpoints.eventBaskets.list(eventId),
+    queryKey: ["event-baskets"],
+    exact: false,
+  });
+}
+
+export function useDeleteLoftBasket(eventId: string | number) {
+  return useApiMutation({
+    method: "DELETE",
+    endpoint: apiEndpoints.eventBaskets.list(eventId),
+    queryKey: ["event-baskets"],
+    exact: false,
+  });
+}
+
+export function useAssignBaskets(eventId: string | number) {
+  return useApiMutation({
+    method: "POST",
+    endpoint: apiEndpoints.eventBaskets.assign(eventId),
+    queryKey: ["event-baskets"],
+    exact: false,
+  });
+}

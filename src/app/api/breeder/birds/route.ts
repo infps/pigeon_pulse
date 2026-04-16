@@ -13,6 +13,7 @@ const createBirdSchema = z.object({
   band2: z.string().min(1, "Band2 is required"),
   band3: z.string().min(1, "Band3 is required"),
   band4: z.string().min(1, "Band4 is required"),
+  rfid: z.string().optional(),
 });
 
 export async function GET() {
@@ -49,7 +50,8 @@ export async function POST(request: Request) {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
-    if (!session || !session.user || session.user.role !== "BREEDER") {
+    const allowedRoles = ["BREEDER", "ADMIN", "SUPERADMIN"];
+    if (!session || !session.user || !allowedRoles.includes(session.user.role)) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
@@ -70,6 +72,7 @@ export async function POST(request: Request) {
         birdName: validatedData.name,
         color: validatedData.color,
         sex: validatedData.sex,
+        rfid: validatedData.rfid || null,
         breederId: breeder.id,
         isActive: 1,
         isLost: 0,

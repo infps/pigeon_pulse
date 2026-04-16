@@ -28,6 +28,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AddEditBreederDialog } from "@/components/add-edit-breeder-dialog";
+import { UserDetailsDialog } from "@/components/user-details-dialog";
 import {
   Select,
   SelectContent,
@@ -52,6 +53,8 @@ export default function UsersPage() {
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [isAddTeamDialogOpen, setIsAddTeamDialogOpen] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const { data: eventsData } = useListEvents({});
   const events: Event[] = eventsData?.events || [];
@@ -195,6 +198,11 @@ export default function UsersPage() {
     setEditingTeamId(null);
   };
 
+  const handleRowClick = (user: User) => {
+    setSelectedUser(user);
+    setIsDetailsOpen(true);
+  };
+
   const handleAddTeamClick = () => {
     setEditingTeamId(null);
     setTeamFormData({ name: "" });
@@ -318,6 +326,7 @@ export default function UsersPage() {
         ]}
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
+        onRowClick={handleRowClick}
       />
 
       <AddEditBreederDialog
@@ -419,6 +428,12 @@ export default function UsersPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <UserDetailsDialog
+        open={isDetailsOpen}
+        onOpenChange={setIsDetailsOpen}
+        user={selectedUser}
+      />
     </div>
   );
 }

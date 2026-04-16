@@ -13,7 +13,76 @@ const updateBirdSchema = z.object({
   band2: z.string().min(1).optional(),
   band3: z.string().min(1).optional(),
   band4: z.string().min(1).optional(),
+  fatherId: z.number().int().nullable().optional(),
+  motherId: z.number().int().nullable().optional(),
+  isPublic: z.number().int().min(0).max(1).optional(),
+  note: z.string().nullable().optional(),
+  rfid: z.string().nullable().optional(),
 });
+
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ birdId: string }> }
+) {
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    const { birdId } = await params;
+    const birdIdInt = parseInt(birdId);
+
+    const bird = await prisma.bird.findUnique({
+      where: { id: birdIdInt },
+      include: {
+        breeder: { select: { id: true, firstName: true, lastName: true } },
+        father: true,
+        mother: true,
+        childrenAsFather: true,
+        childrenAsMother: true,
+      },
+    });
+
+    if (!bird) {
+      return NextResponse.json({ message: "Bird not found" }, { status: 404 });
+    }
+
+    // Check access: owner or public
+    let isOwner = false;
+    if (session?.user) {
+      const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
+      isOwner = bird.breederId === breeder.id;
+    }
+
+    if (!isOwner && bird.isPublic !== 1) {
+      return NextResponse.json({ message: "Bird is private" }, { status: 403 });
+    }
+
+    // Fetch siblings (same father OR mother, exclude self)
+    let siblings: any[] = [];
+    const parentConditions = [];
+    if (bird.fatherId) parentConditions.push({ fatherId: bird.fatherId });
+    if (bird.motherId) parentConditions.push({ motherId: bird.motherId });
+
+    if (parentConditions.length > 0) {
+      siblings = await prisma.bird.findMany({
+        where: {
+          OR: parentConditions,
+          NOT: { id: birdIdInt },
+        },
+      });
+    }
+
+    return NextResponse.json({
+      bird: { ...bird, siblings },
+      isOwner,
+      message: "Bird fetched successfully",
+    });
+  } catch (error) {
+    console.error("Error fetching bird:", error);
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+  }
+}
 
 export async function PATCH(
   request: Request,
@@ -71,6 +140,11 @@ export async function PATCH(
         ...(validatedData.band3 && { band3: validatedData.band3 }),
         ...(validatedData.band4 && { band4: validatedData.band4 }),
         ...(bandChanged && { band: `${band1}-${band2}-${band3}-${band4}` }),
+        ...(validatedData.fatherId !== undefined && { fatherId: validatedData.fatherId }),
+        ...(validatedData.motherId !== undefined && { motherId: validatedData.motherId }),
+        ...(validatedData.isPublic !== undefined && { isPublic: validatedData.isPublic }),
+        ...(validatedData.note !== undefined && { note: validatedData.note }),
+        ...(validatedData.rfid !== undefined && { rfid: validatedData.rfid }),
       },
     });
 

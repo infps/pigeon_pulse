@@ -20,7 +20,7 @@ export async function GET(
     }
 
     const birds = await prisma.bird.findMany({
-      where: { breederId: breederIdInt, isActive: 1 },
+      where: { breederId: breederIdInt },
       orderBy: { birdName: "asc" },
     });
 

@@ -14,9 +14,6 @@ export const raceResultsColumns: ColumnDef<RaceItem>[] = [
     cell: ({ row }) => {
       const position = row.original.birdPosition;
       if (!position) return <span>-</span>;
-      if (position === 1) return <Badge className="bg-yellow-500 text-white hover:bg-yellow-500">1st</Badge>;
-      if (position === 2) return <Badge className="bg-gray-400 text-white hover:bg-gray-400">2nd</Badge>;
-      if (position === 3) return <Badge className="bg-amber-700 text-white hover:bg-amber-700">3rd</Badge>;
       return <Badge variant="outline">{position}</Badge>;
     },
   },
@@ -49,7 +46,8 @@ export const raceResultsColumns: ColumnDef<RaceItem>[] = [
       <DataTableColumnHeader column={column} title="Breeder" />
     ),
     cell: ({ row }) => {
-      const breederName = row.original.bird?.breeder?.name;
+      const b = row.original.bird?.breeder;
+      const breederName = b ? `${b.firstName ?? ""} ${b.lastName ?? ""}`.trim() : undefined;
       return <span>{breederName || "-"}</span>;
     },
   },

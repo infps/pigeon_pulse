@@ -39,6 +39,7 @@ const eventInventory = {
   base: "/api/admin/event",
   byEvent: (eventId: number | string) => `/api/admin/event/${eventId}/event-inventory`,
   itemsByEvent: (eventId: number | string) => `/api/admin/event/${eventId}/event-inventory-items`,
+  addBirds: (eventId: number | string) => `/api/admin/event/${eventId}/add-birds`,
 };
 
 const races = {
@@ -63,7 +64,9 @@ const breeder = {
   races: "/api/breeder/races",
   teams: "/api/breeder/teams",
   birds: "/api/breeder/birds",
+  birdsBulk: "/api/breeder/birds/bulk",
   birdById: (birdId: number | string) => `/api/breeder/birds/${birdId}`,
+  birdImage: (birdId: number | string) => `/api/breeder/birds/${birdId}/image`,
   payments: "/api/breeder/payments",
   eventInventoryItems: (eventId: number | string) => `/api/breeder/event/${eventId}/inventory-items`,
   eventInventory: (eventId: number | string) => `/api/breeder/event/${eventId}/inventory`,
@@ -77,6 +80,7 @@ const eventBaskets = {
   generateLoft: (eventId: number | string) => `/api/admin/event/${eventId}/baskets/generate-loft`,
   generateRace: (eventId: number | string) => `/api/admin/event/${eventId}/baskets/generate-race`,
   scanLoft: (eventId: number | string) => `/api/admin/event/${eventId}/baskets/scan-loft`,
+  assign: (eventId: number | string) => `/api/admin/event/${eventId}/baskets/assign`,
 };
 
 export const apiEndpoints = {

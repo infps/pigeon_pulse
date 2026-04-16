@@ -49,16 +49,29 @@ const auth = betterAuth({
     },
     plugins:[bearer(),username(),
         customSession(async({user,session})=>{
-            const role = await prisma.user.findUnique({
-                where:{id:user.id},
-                select:{role:true}
-            });
-            return {
-                ...session,
-                user:{
-                    ...user,
-                    role:role?.role || "BREEDER"
-                }
+            // Avoid extra DB round-trip if role is already on the session user
+            const existingRole = (user as any).role as string | undefined;
+            if (existingRole) {
+                return { ...session, user: { ...user, role: existingRole } };
+            }
+
+            try {
+                const dbUser = await prisma.user.findUnique({
+                    where:{id:user.id},
+                    select:{role:true}
+                });
+                return {
+                    ...session,
+                    user:{
+                        ...user,
+                        role: dbUser?.role ?? "BREEDER"
+                    }
+                };
+            } catch (e) {
+                console.error("[customSession] failed to fetch role for user", user.id, e);
+                // Re-throw so better-auth surfaces a proper error rather than
+                // silently downgrading the role to BREEDER and causing a 401.
+                throw e;
             }
         })
     ]
