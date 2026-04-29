@@ -12,6 +12,8 @@ const userSelect = {
   lastName: true,
   email: true,
   emailVerified: true,
+  image: true,
+  imageKey: true,
   createdAt: true,
   updatedAt: true,
   username: true,
@@ -29,6 +31,11 @@ const userSelect = {
   note: true,
   role: true,
   taxNumber: true,
+  loftName: true,
+  timezone: true,
+  legalName: true,
+  ssnDocKey: true,
+  taxDocKey: true,
 } as const;
 
 function mapBreederToUser(breeder: any) {
@@ -56,6 +63,7 @@ function mapBreederToUser(breeder: any) {
     note: breeder.note,
     role: "BREEDER",
     taxNumber: breeder.taxNumber,
+    loftName: null,
     isLegacy: true,
   };
 }
@@ -224,7 +232,14 @@ export async function POST(request: Request) {
         status: validatedData.status,
         role: validatedData.role,
         taxNumber: validatedData.taxNumber,
+        loftName: validatedData.loftName,
         note: validatedData.note,
+        image: validatedData.image,
+        imageKey: validatedData.imageKey,
+        timezone: validatedData.timezone,
+        legalName: validatedData.legalName,
+        ssnDocKey: validatedData.ssnDocKey,
+        taxDocKey: validatedData.taxDocKey,
       },
       select: {
         id: true,
@@ -234,6 +249,8 @@ export async function POST(request: Request) {
         emailVerified: true,
         createdAt: true,
         updatedAt: true,
+        image: true,
+        imageKey: true,
         username: true,
         displayUsername: true,
         country: true,
@@ -249,6 +266,11 @@ export async function POST(request: Request) {
         note: true,
         role: true,
         taxNumber: true,
+        loftName: true,
+        timezone: true,
+        legalName: true,
+        ssnDocKey: true,
+        taxDocKey: true,
       },
     });
 
@@ -323,6 +345,8 @@ export async function PUT(request: Request) {
         emailVerified: true,
         createdAt: true,
         updatedAt: true,
+        image: true,
+        imageKey: true,
         username: true,
         displayUsername: true,
         country: true,
@@ -338,6 +362,11 @@ export async function PUT(request: Request) {
         note: true,
         role: true,
         taxNumber: true,
+        loftName: true,
+        timezone: true,
+        legalName: true,
+        ssnDocKey: true,
+        taxDocKey: true,
       },
     });
 

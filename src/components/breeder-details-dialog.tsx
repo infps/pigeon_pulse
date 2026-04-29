@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useGetEventInventory, useCreatePayment, useUpdatePayment, useDeletePayment } from "@/lib/api/payments";
-import { Plus, Trash2, Edit } from "lucide-react";
+import { Download, Plus, Trash2, Edit } from "lucide-react";
 import type { Event, EventInventory, EventInventoryItem } from "@/lib/types";
 import { EditBirdDialog } from "./edit-bird-dialog";
 import { CreateBirdDialog } from "./create-bird-dialog";
@@ -199,7 +199,19 @@ export function BreederDetailsDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Breeder Details</DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle>Breeder Details</DialogTitle>
+              {eventInventoryId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(`/api/admin/event/${event.id}/event-inventory/${eventInventoryId}/receipt`)}
+                >
+                  <Download className="h-4 w-4 mr-1" />
+                  Receipt
+                </Button>
+              )}
+            </div>
           </DialogHeader>
 
           <div className="space-y-6">

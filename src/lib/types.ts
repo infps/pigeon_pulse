@@ -31,6 +31,11 @@ export interface User {
   note: string | null;
   role: UserRole;
   taxNumber: string | null;
+  loftName: string | null;
+  timezone: string | null;
+  legalName: string | null;
+  ssnDocKey: string | null;
+  taxDocKey: string | null;
   breederId?: number;
 }
 

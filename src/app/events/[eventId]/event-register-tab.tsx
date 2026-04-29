@@ -1,7 +1,7 @@
 "use client";
 
 import type { Event } from "@/lib/types";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,12 +22,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useQueryClient } from "@tanstack/react-query";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { apiEndpoints } from "@/lib/endpoints";
 import { useApiQuery } from "@/hooks/useApi";
 import Link from "next/link";
+import { BirdDialog } from "@/app/birds/bird-dialog";
+import { PayPalButton } from "@/components/paypal-button";
+import { calculateFees } from "@/lib/fee-calculator";
 
 interface EventRegisterTabProps {
   event: Event;
@@ -42,26 +44,18 @@ interface SelectedBird {
   sex: number;
 }
 
-interface PaymentData {
-  amountPaid: number;
-  amountToPay: number;
-  method: "CREDIT_CARD" | "PAYPAL" | "BANK_TRANSFER" | "CASH";
-  paymentType: "ENTRY_FEE" | "PERCH_FEE";
-}
-
 const SEX_LABELS: Record<number, string> = { 0: "Unknown", 1: "Cock", 2: "Hen" };
 
 export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
-  const queryClient = useQueryClient();
   const router = useRouter();
   const { data: session, isPending: isSessionPending } = authClient.useSession();
 
   const [selectedLoft, setSelectedLoft] = useState("");
   const [reservedBirds, setReservedBirds] = useState<number>(0);
   const [selectedBirds, setSelectedBirds] = useState<SelectedBird[]>([]);
-  const [payments, setPayments] = useState<PaymentData[]>([]);
   const [isAddTeamOpen, setIsAddTeamOpen] = useState(false);
   const [teamName, setTeamName] = useState("");
+  const [isAddBirdOpen, setIsAddBirdOpen] = useState(false);
 
   const { data: teamsData } = useListTeams({
     endpoint: apiEndpoints.breeder.teams,
@@ -69,7 +63,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
   });
   const teams = teamsData?.teams || [];
 
-  const { data: birdsData } = useApiQuery({
+  const { data: birdsData, refetch: refetchBirds } = useApiQuery({
     endpoint: apiEndpoints.breeder.birds,
     queryKey: ["breeder", "birds"],
     enabled: !!session?.user,
@@ -81,48 +75,39 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
   const createTeamMutation = useCreateTeam({ endpoint: apiEndpoints.breeder.teams });
 
   const maxBirds = event.feeScheme?.maxBirdCount || 0;
-  const birdFee = event.feeScheme?.birdFee || 0;
-  const birdFeeItems = event.feeScheme?.birdFeeItems || [];
 
-  const calculateBirdFee = () => {
-    let totalBirdFee = 0;
-    for (let i = 0; i < reservedBirds; i++) {
-      const birdFeeItem = birdFeeItems.find(
-        (item) => item.birdNo === i + 1
-      );
-      if (birdFeeItem) {
-        totalBirdFee += birdFeeItem.fee ?? 0;
-      }
-    }
-    return totalBirdFee;
-  };
-
-  // Update payments when reservedBirds changes
-  useEffect(() => {
-    if (reservedBirds > 0) {
-      const perchFeeTotal = birdFee * reservedBirds;
-      const birdFeeTotal = calculateBirdFee();
-      const totalAmount = perchFeeTotal + birdFeeTotal;
-
-      setPayments([
-        {
-          amountPaid: totalAmount,
-          amountToPay: totalAmount,
-          method: "CASH",
-          paymentType: "PERCH_FEE",
-        },
-      ]);
-    } else {
-      setPayments([]);
-    }
-  }, [reservedBirds]);
+  // Server-authoritative fee preview (same function used by register API)
+  const fees = useMemo(() => {
+    if (!event.feeScheme || reservedBirds <= 0) return null;
+    const feeScheme = event.feeScheme;
+    return calculateFees({
+      numBirds: reservedBirds,
+      feeScheme: {
+        entryFee: feeScheme.entryFee ?? null,
+        raceFeeMode: feeScheme.raceFeeMode,
+        hotSpot1Fee: feeScheme.hotSpot1Fee ?? null,
+        hotSpot2Fee: feeScheme.hotSpot2Fee ?? null,
+        hotSpot3Fee: feeScheme.hotSpot3Fee ?? null,
+        hotSpotFinalFee: feeScheme.hotSpotFinalFee ?? null,
+        birdFeeItems: (feeScheme.birdFeeItems ?? []).map((b) => ({
+          birdNo: b.birdNo,
+          birdFee: b.birdFee ?? b.fee ?? null,
+        })),
+        raceTypeFees: (feeScheme.raceTypeFees ?? []).map((r) => ({
+          raceTypeId: r.raceTypeId,
+          fee: r.fee,
+        })),
+      },
+      races: (event.races ?? []).map((r) => ({ raceTypeId: r.raceTypeId })),
+    });
+  }, [event.feeScheme, event.races, reservedBirds]);
 
   // Trim selected birds if reservedBirds decreases
   useEffect(() => {
     if (reservedBirds > 0 && selectedBirds.length > reservedBirds) {
       setSelectedBirds((prev) => prev.slice(0, reservedBirds));
     }
-  }, [reservedBirds]);
+  }, [reservedBirds, selectedBirds.length]);
 
   const handleAddTeam = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,52 +142,14 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
     setSelectedBirds((prev) => prev.filter((b) => b.id !== birdId));
   };
 
-  const handlePaymentChange = (field: keyof PaymentData, value: any) => {
-    setPayments((prev) => [{ ...prev[0], [field]: value }]);
+  const resetForm = () => {
+    setSelectedLoft("");
+    setReservedBirds(0);
+    setSelectedBirds([]);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!selectedLoft) { toast.error("Please select a loft/team"); return; }
-    if (reservedBirds === 0) { toast.error("Please enter number of reserved birds"); return; }
-
-    const registrationData = {
-      loftName: selectedLoft,
-      reservedBirds,
-      birds: selectedBirds.map((bird) => ({ birdId: bird.id })),
-      payments: payments.map((payment) => ({
-        amountPaid: payment.amountPaid,
-        amountToPay: payment.amountToPay,
-        currency: "USD",
-        method: payment.method,
-        paymentType: payment.paymentType,
-        description: `Fee for ${reservedBirds} birds`,
-      })),
-    };
-
-    try {
-      const response = await fetch(`/api/breeder/event/${eventId}/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(registrationData),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Registration failed");
-      }
-
-      toast.success("Registration successful!");
-      setSelectedLoft("");
-      setReservedBirds(0);
-      setSelectedBirds([]);
-      setPayments([]);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to register");
-      console.error("Registration error:", error);
-    }
-  };
+  const canSubmit =
+    !!selectedLoft && reservedBirds > 0 && selectedBirds.length === reservedBirds;
 
   if (isSessionPending) {
     return (
@@ -243,7 +190,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
       </CardHeader>
       <CardContent>
         <div className="space-y-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-6">
             {/* Breeder Information */}
             <div className="space-y-4">
               <h3 className="font-semibold">Breeder Information</h3>
@@ -319,19 +266,31 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                       ({selectedBirds.length}/{reservedBirds} selected)
                     </span>
                   </h3>
-                  {selectedBirds.length < reservedBirds && unselectedBirds.length > 0 && (
-                    <Select value="" onValueChange={addBird}>
-                      <SelectTrigger className="w-56">
-                        <SelectValue placeholder="Add bird" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {unselectedBirds.map((bird) => (
-                          <SelectItem key={bird.id} value={String(bird.id)}>
-                            {bird.band} · {bird.birdName || "Unnamed"}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  {selectedBirds.length < reservedBirds && (
+                    <div className="flex gap-2">
+                      {unselectedBirds.length > 0 && (
+                        <Select value="" onValueChange={addBird}>
+                          <SelectTrigger className="w-56">
+                            <SelectValue placeholder="Select existing bird" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {unselectedBirds.map((bird) => (
+                              <SelectItem key={bird.id} value={String(bird.id)}>
+                                {bird.band} · {bird.birdName || "Unnamed"}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsAddBirdOpen(true)}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add New Bird
+                      </Button>
+                    </div>
                   )}
                 </div>
 
@@ -380,83 +339,90 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
               </div>
             )}
 
-            {/* Payment Information */}
-            {reservedBirds > 0 && payments.length > 0 && (
+            {/* Fee Breakdown */}
+            {fees && (
               <div className="space-y-4">
-                <h3 className="font-semibold">Payment Information</h3>
-                <div className="border rounded-lg p-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="payment-amountToPay">Total Amount To Pay</Label>
-                      <Input
-                        id="payment-amountToPay"
-                        type="number"
-                        step="0.01"
-                        value={payments[0].amountToPay}
-                        disabled
-                        className="bg-gray-100"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="payment-amountPaid">Amount Paid</Label>
-                      <Input
-                        id="payment-amountPaid"
-                        type="number"
-                        step="0.01"
-                        value={payments[0].amountPaid}
-                        onChange={(e) =>
-                          handlePaymentChange("amountPaid", parseFloat(e.target.value) || 0)
-                        }
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="payment-method">Payment Method</Label>
-                      <Select
-                        value={payments[0].method}
-                        onValueChange={(value: "CREDIT_CARD" | "PAYPAL" | "BANK_TRANSFER" | "CASH") =>
-                          handlePaymentChange("method", value)
-                        }
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="CASH">Cash</SelectItem>
-                          <SelectItem value="CREDIT_CARD">Credit Card</SelectItem>
-                          <SelectItem value="PAYPAL">PayPal</SelectItem>
-                          <SelectItem value="BANK_TRANSFER">Bank Transfer</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  {/* Fee Breakdown */}
-                  <div className="mt-4 pt-4 border-t space-y-2">
+                <h3 className="font-semibold">Payment Summary</h3>
+                <div className="border rounded-lg p-4 space-y-2">
+                  {fees.purgeFee > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Per Bird Fee ({reservedBirds} birds × ${birdFee}):</span>
-                      <span className="font-medium">${(birdFee * reservedBirds).toFixed(2)}</span>
+                      <span className="text-muted-foreground">Purge Fee (one-time):</span>
+                      <span className="font-medium">${fees.purgeFee.toFixed(2)}</span>
                     </div>
+                  )}
+                  {fees.perchFees > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Per Bird Fee:</span>
-                      <span className="font-medium">${calculateBirdFee().toFixed(2)}</span>
+                      <span className="text-muted-foreground">
+                        Per Bird Fees ({reservedBirds} bird{reservedBirds === 1 ? "" : "s"}):
+                      </span>
+                      <span className="font-medium">${fees.perchFees.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-lg font-bold pt-2 border-t">
-                      <span>Total:</span>
-                      <span>${payments[0].amountToPay.toFixed(2)}</span>
+                  )}
+                  {fees.raceFees > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Race Fees:</span>
+                      <span className="font-medium">${fees.raceFees.toFixed(2)}</span>
                     </div>
+                  )}
+                  {fees.hotspotFees > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Hotspot Fees:</span>
+                      <span className="font-medium">${fees.hotspotFees.toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-lg font-bold pt-2 border-t">
+                    <span>Total:</span>
+                    <span>${fees.total.toFixed(2)}</span>
                   </div>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Final amount is verified server-side before payment.
+                </p>
               </div>
             )}
 
-            {/* Submit Button */}
+            {/* Submit */}
             {reservedBirds > 0 && (
               <div className="flex justify-end">
-                <Button type="submit">Register for Event</Button>
+                <PayPalButton
+                  eventId={eventId}
+                  loftName={selectedLoft}
+                  reservedBirds={reservedBirds}
+                  birdIds={selectedBirds.map((b) => b.id)}
+                  disabled={!canSubmit}
+                  onPaid={resetForm}
+                />
               </div>
             )}
-          </form>
+          </div>
+
+          {/* Add Bird Dialog */}
+          <BirdDialog
+            open={isAddBirdOpen}
+            onOpenChange={setIsAddBirdOpen}
+            bird={null}
+            onSuccess={(createdBird) => {
+              refetchBirds();
+              if (!createdBird) return;
+              setSelectedBirds((prev) => {
+                if (prev.some((b) => b.id === createdBird.id)) return prev;
+                if (prev.length >= reservedBirds) {
+                  toast.info(`${reservedBirds}-bird limit reached; bird created but not added`);
+                  return prev;
+                }
+                return [
+                  ...prev,
+                  {
+                    id: createdBird.id,
+                    band: createdBird.band ?? "",
+                    birdName: createdBird.birdName ?? "",
+                    color: createdBird.color ?? "",
+                    sex: createdBird.sex ?? 0,
+                  },
+                ];
+              });
+            }}
+          />
 
           {/* Add Team Dialog */}
           <Dialog open={isAddTeamOpen} onOpenChange={setIsAddTeamOpen}>

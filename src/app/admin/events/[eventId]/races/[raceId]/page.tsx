@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useApiQuery } from "@/hooks/useApi";
 import { useApiMutation } from "@/hooks/useApiMutation";
@@ -9,7 +9,10 @@ import { useListRaceItems } from "@/lib/api/race-items";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { BasketTabs } from "./basket-tabs";
 import { BasketRaceItemsDialog } from "./basket-race-items-dialog";
@@ -18,9 +21,17 @@ import { getWeatherIcon } from "@/lib/weather-constants";
 import type { Race, Event, RaceItem } from "@/lib/types";
 import type { RowSelectionState } from "@tanstack/react-table";
 import Image from "next/image";
-import { Package, Play, Radio, Square, StopCircle } from "lucide-react";
+import { Package, Play, Plus, Radio, Square, StopCircle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+
+interface ArrivalGroup {
+  id: number;
+  raceId: number;
+  name: string | null;
+  arrivalTimeStart: string | null;
+  arrivalTimeEnd: string | null;
+}
 
 export default function RaceDetailsPage() {
   const params = useParams();
@@ -30,9 +41,21 @@ export default function RaceDetailsPage() {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [basketDialogOpen, setBasketDialogOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [arrivalGroups, setArrivalGroups] = useState<ArrivalGroup[]>([]);
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [groupForm, setGroupForm] = useState({ name: "", arrivalTimeStart: "", arrivalTimeEnd: "" });
+  const [savingGroup, setSavingGroup] = useState(false);
   const lastScannedRfidRef = useRef<string | null>(null);
   const scannerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const queryClient = useQueryClient();
+
+  const fetchGroups = useCallback(async () => {
+    if (!raceId) return;
+    const res = await fetch(`/api/admin/race/${raceId}/arrival-groups`);
+    if (res.ok) setArrivalGroups((await res.json()).groups);
+  }, [raceId]);
+
+  useEffect(() => { fetchGroups(); }, [fetchGroups]);
 
   // Fetch race details
   const { data: raceData, isPending: raceLoading } = useApiQuery({
@@ -438,6 +461,54 @@ export default function RaceDetailsPage() {
               />
             </CardContent>
           </Card>
+          {/* Arrival Groups Card */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Arrival Groups ({arrivalGroups.length})</CardTitle>
+              <Button size="sm" onClick={() => setGroupDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-1" /> Add Group
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {arrivalGroups.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No groups defined.</p>
+              ) : (
+                <div className="space-y-2">
+                  {arrivalGroups.map((g) => {
+                    const birds = raceItems.filter((ri) => {
+                      if (!ri.arrivalTime) return false;
+                      const t = new Date(ri.arrivalTime).getTime();
+                      const start = g.arrivalTimeStart ? new Date(g.arrivalTimeStart).getTime() : -Infinity;
+                      const end = g.arrivalTimeEnd ? new Date(g.arrivalTimeEnd).getTime() : Infinity;
+                      return t >= start && t <= end;
+                    });
+                    return (
+                      <div key={g.id} className="flex items-center justify-between border rounded p-3">
+                        <div>
+                          <p className="font-medium">{g.name || "Unnamed Group"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {g.arrivalTimeStart ? new Date(g.arrivalTimeStart).toLocaleString() : "—"} →{" "}
+                            {g.arrivalTimeEnd ? new Date(g.arrivalTimeEnd).toLocaleString() : "—"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{birds.length} birds</p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={async () => {
+                            await fetch(`/api/admin/race/${raceId}/arrival-groups?id=${g.id}`, { method: "DELETE" });
+                            fetchGroups();
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Right Side - 30% */}
@@ -445,6 +516,53 @@ export default function RaceDetailsPage() {
           <BasketTabs eventId={eventId} />
         </div>
       </div>
+
+      {/* Add Arrival Group Dialog */}
+      <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Add Arrival Group</DialogTitle></DialogHeader>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setSavingGroup(true);
+              try {
+                const res = await fetch(`/api/admin/race/${raceId}/arrival-groups`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(groupForm),
+                });
+                if (!res.ok) throw new Error("Failed");
+                toast.success("Group added");
+                setGroupDialogOpen(false);
+                setGroupForm({ name: "", arrivalTimeStart: "", arrivalTimeEnd: "" });
+                fetchGroups();
+              } catch {
+                toast.error("Failed to add group");
+              } finally {
+                setSavingGroup(false);
+              }
+            }}
+            className="space-y-4"
+          >
+            <div>
+              <Label>Group Name</Label>
+              <Input value={groupForm.name} onChange={(e) => setGroupForm({ ...groupForm, name: e.target.value })} placeholder="e.g. Morning wave" />
+            </div>
+            <div>
+              <Label>Start Time</Label>
+              <Input type="datetime-local" value={groupForm.arrivalTimeStart} onChange={(e) => setGroupForm({ ...groupForm, arrivalTimeStart: e.target.value })} />
+            </div>
+            <div>
+              <Label>End Time</Label>
+              <Input type="datetime-local" value={groupForm.arrivalTimeEnd} onChange={(e) => setGroupForm({ ...groupForm, arrivalTimeEnd: e.target.value })} />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setGroupDialogOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={savingGroup}>{savingGroup ? "Saving..." : "Add Group"}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Basket Dialog */}
       <BasketRaceItemsDialog

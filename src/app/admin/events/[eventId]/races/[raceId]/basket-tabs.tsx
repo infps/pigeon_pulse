@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { useEventBaskets } from "@/lib/api/event-baskets";
+import { useEventBaskets, useCheckinStatus } from "@/lib/api/event-baskets";
 import type { EventBasketItem } from "@/lib/types";
 
 interface BasketTabsProps {
@@ -15,6 +15,7 @@ interface BasketTabsProps {
 
 export function BasketTabs({ eventId }: BasketTabsProps) {
   const { data, isPending } = useEventBaskets(eventId);
+  const { data: checkinData } = useCheckinStatus(eventId);
 
   if (isPending) {
     return (
@@ -32,6 +33,14 @@ export function BasketTabs({ eventId }: BasketTabsProps) {
   const allBaskets: EventBasketItem[] = data?.baskets || [];
   const loftBaskets = allBaskets.filter((b) => b.phase === "LOFT");
   const raceBaskets = allBaskets.filter((b) => b.phase === "RACE");
+
+  const loftCapacity = loftBaskets.reduce((s, b) => s + b.capacity, 0);
+  const raceCapacity = raceBaskets.reduce((s, b) => s + b.capacity, 0);
+  const loftActive = checkinData?.summary?.total ?? 0;
+  const raceActive = loftBaskets.reduce(
+    (s, b) => s + (b._count?.assignments ?? b.assignments?.length ?? 0),
+    0
+  );
 
   return (
     <Card>
@@ -56,15 +65,29 @@ export function BasketTabs({ eventId }: BasketTabsProps) {
           </TabsList>
 
           <TabsContent value="loft" className="space-y-2">
+            <CapacitySummary capacity={loftCapacity} active={loftActive} />
             <BasketList baskets={loftBaskets} emptyMessage="No loft baskets" />
           </TabsContent>
 
           <TabsContent value="race" className="space-y-2">
+            <CapacitySummary capacity={raceCapacity} active={raceActive} />
             <BasketList baskets={raceBaskets} emptyMessage="No race baskets" />
           </TabsContent>
         </Tabs>
       </CardContent>
     </Card>
+  );
+}
+
+function CapacitySummary({ capacity, active }: { capacity: number; active: number }) {
+  const insufficient = capacity < active;
+  return (
+    <div className="flex justify-between items-center text-xs border rounded px-2 py-1">
+      <span className="text-muted-foreground">Capacity: {capacity}</span>
+      <span className={insufficient ? "text-destructive font-medium" : "text-muted-foreground"}>
+        Active: {active}
+      </span>
+    </div>
   );
 }
 

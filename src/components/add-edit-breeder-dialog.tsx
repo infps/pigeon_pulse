@@ -4,6 +4,9 @@ import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ImageUploadWithCrop } from "@/components/image-upload-with-crop";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +30,7 @@ interface AddEditBreederDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   editingUser?: User | null;
+  copyUser?: User | null;
   onSuccess?: (user: any) => void;
 }
 
@@ -34,6 +38,7 @@ export function AddEditBreederDialog({
   open,
   onOpenChange,
   editingUser,
+  copyUser,
   onSuccess,
 }: AddEditBreederDialogProps) {
   const [formData, setFormData] = useState({
@@ -54,8 +59,15 @@ export function AddEditBreederDialog({
     status: "ACTIVE" as UserStatus,
     role: "BREEDER" as UserRole,
     taxNumber: "",
+    loftName: "",
     note: "",
+    timezone: "",
+    legalName: "",
   });
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [ssnDocFile, setSsnDocFile] = useState<File | null>(null);
+  const [taxDocFile, setTaxDocFile] = useState<File | null>(null);
 
   const createMutation = useCreateUser({});
   const updateMutation = useUpdateUser({});
@@ -65,7 +77,7 @@ export function AddEditBreederDialog({
     [formData.country]
   );
 
-  // Update form data when editing user changes
+  // Update form data when editing/copying user changes
   useEffect(() => {
     if (editingUser) {
       setFormData({
@@ -86,8 +98,39 @@ export function AddEditBreederDialog({
         status: editingUser.status,
         role: editingUser.role,
         taxNumber: editingUser.taxNumber || "",
+        loftName: editingUser.loftName || "",
         note: editingUser.note || "",
+        timezone: editingUser.timezone || "",
+        legalName: editingUser.legalName || "",
       });
+      setImagePreview(editingUser.image || null);
+      setImageFile(null);
+    } else if (copyUser) {
+      setFormData({
+        email: "",
+        password: "",
+        name: copyUser.name,
+        lastName: copyUser.lastName || "",
+        username: "",
+        displayUsername: copyUser.displayUsername || "",
+        country: copyUser.country || "",
+        state: copyUser.state || "",
+        city: copyUser.city || "",
+        address: copyUser.address || "",
+        postalCode: copyUser.postalCode || "",
+        phoneNumber: copyUser.phoneNumber || "",
+        webAddress: copyUser.webAddress || "",
+        ssn: "",
+        status: copyUser.status,
+        role: copyUser.role,
+        taxNumber: "",
+        loftName: copyUser.loftName || "",
+        note: copyUser.note || "",
+        timezone: copyUser.timezone || "",
+        legalName: "",
+      });
+      setImagePreview(null);
+      setImageFile(null);
     } else {
       setFormData({
         email: "",
@@ -107,10 +150,17 @@ export function AddEditBreederDialog({
         status: "ACTIVE" as UserStatus,
         role: "BREEDER" as UserRole,
         taxNumber: "",
+        loftName: "",
         note: "",
+        timezone: "",
+        legalName: "",
       });
+      setImagePreview(null);
+      setImageFile(null);
+      setSsnDocFile(null);
+      setTaxDocFile(null);
     }
-  }, [editingUser, open]);
+  }, [editingUser, copyUser, open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,15 +181,41 @@ export function AddEditBreederDialog({
     }
 
     try {
+      const uploadFile = async (file: File, oldKey?: string | null) => {
+        const fd = new FormData();
+        fd.append("file", file);
+        if (oldKey) fd.append("oldKey", oldKey);
+        const res = await fetch("/api/admin/users/upload-image", { method: "POST", body: fd });
+        if (!res.ok) throw new Error("Upload failed");
+        return res.json() as Promise<{ url: string; key: string }>;
+      };
+
+      const [uploadedImage, uploadedSsnDoc, uploadedTaxDoc] = await Promise.all([
+        imageFile ? uploadFile(imageFile, editingUser?.imageKey) : Promise.resolve(null),
+        ssnDocFile ? uploadFile(ssnDocFile, editingUser?.ssnDocKey) : Promise.resolve(null),
+        taxDocFile ? uploadFile(taxDocFile, editingUser?.taxDocKey) : Promise.resolve(null),
+      ]);
+
       let result;
       if (editingUser) {
         if (!updateMutation.mutateAsync) return;
         const { email, password, ...updateData } = formData;
-        result = await updateMutation.mutateAsync({ id: editingUser.id, ...updateData });
+        result = await updateMutation.mutateAsync({
+          id: editingUser.id,
+          ...updateData,
+          ...(uploadedImage ? { image: uploadedImage.url, imageKey: uploadedImage.key } : {}),
+          ...(uploadedSsnDoc ? { ssnDocKey: uploadedSsnDoc.key } : {}),
+          ...(uploadedTaxDoc ? { taxDocKey: uploadedTaxDoc.key } : {}),
+        });
         toast.success("Breeder updated successfully");
       } else {
         if (!createMutation.mutateAsync) return;
-        result = await createMutation.mutateAsync(formData);
+        result = await createMutation.mutateAsync({
+          ...formData,
+          ...(uploadedImage ? { image: uploadedImage.url, imageKey: uploadedImage.key } : {}),
+          ...(uploadedSsnDoc ? { ssnDocKey: uploadedSsnDoc.key } : {}),
+          ...(uploadedTaxDoc ? { taxDocKey: uploadedTaxDoc.key } : {}),
+        });
         toast.success("Breeder created successfully");
       }
       
@@ -173,8 +249,15 @@ export function AddEditBreederDialog({
       status: "ACTIVE" as UserStatus,
       role: "BREEDER" as UserRole,
       taxNumber: "",
+      loftName: "",
       note: "",
+      timezone: "",
+      legalName: "",
     });
+    setImagePreview(null);
+    setImageFile(null);
+    setSsnDocFile(null);
+    setTaxDocFile(null);
   };
 
   return (
@@ -182,10 +265,23 @@ export function AddEditBreederDialog({
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {editingUser ? "Edit Breeder" : "Add New Breeder"}
+            {editingUser ? "Edit Breeder" : copyUser ? "Copy Breeder" : "Add New Breeder"}
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <Label>Profile Picture</Label>
+            <ImageUploadWithCrop
+              aspect={1}
+              value={imagePreview}
+              onChange={(url, file) => {
+                setImagePreview(url);
+                setImageFile(file || null);
+              }}
+              placeholder="Click or drag to upload profile picture"
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="name">Name *</Label>
@@ -464,16 +560,104 @@ export function AddEditBreederDialog({
             </div>
           </div>
 
-          <div>
-            <Label htmlFor="note">Note</Label>
-            <Input
-              id="note"
-              value={formData.note}
-              onChange={(e) =>
-                setFormData({ ...formData, note: e.target.value })
-              }
-              placeholder="Additional notes..."
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="ssnDoc">SSN Document (PDF/Image)</Label>
+              <Input
+                id="ssnDoc"
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={(e) => setSsnDocFile(e.target.files?.[0] || null)}
+              />
+              {editingUser?.ssnDocKey && !ssnDocFile && (
+                <p className="text-xs text-muted-foreground mt-1">Document on file</p>
+              )}
+            </div>
+            <div>
+              <Label htmlFor="taxDoc">Tax Document (PDF/Image)</Label>
+              <Input
+                id="taxDoc"
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={(e) => setTaxDocFile(e.target.files?.[0] || null)}
+              />
+              {editingUser?.taxDocKey && !taxDocFile && (
+                <p className="text-xs text-muted-foreground mt-1">Document on file</p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="flex items-center gap-1 mb-1">
+                <Label htmlFor="loftName">Loft Name</Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="font-medium mb-1">Why add a loft name?</p>
+                    <ul className="list-disc list-inside space-y-1 text-xs">
+                      <li>Identifies the breeder&apos;s physical loft during basketting (e.g. LB-SMITH-1)</li>
+                      <li>Distinguishes breeders with the same last name</li>
+                      <li>Used on basket labels and race sheets</li>
+                      <li>Common designations: AGN, AS, OLR club tags, or custom names</li>
+                      <li>Helpful when one person manages multiple lofts</li>
+                    </ul>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <Input
+                id="loftName"
+                value={formData.loftName}
+                onChange={(e) =>
+                  setFormData({ ...formData, loftName: e.target.value })
+                }
+                placeholder="e.g. Smith Loft, AGN-42"
+              />
+            </div>
+            <div>
+              <Label htmlFor="note">Note</Label>
+              <Input
+                id="note"
+                value={formData.note}
+                onChange={(e) =>
+                  setFormData({ ...formData, note: e.target.value })
+                }
+                placeholder="Additional notes..."
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="timezone">Timezone</Label>
+              <Select
+                value={formData.timezone}
+                onValueChange={(value) => setFormData({ ...formData, timezone: value })}
+              >
+                <SelectTrigger id="timezone">
+                  <SelectValue placeholder="Select timezone" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(typeof Intl.supportedValuesOf === "function"
+                    ? Intl.supportedValuesOf("timeZone")
+                    : ["America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Phoenix","Pacific/Honolulu","America/Anchorage","Europe/London","Europe/Paris","Asia/Tokyo","Australia/Sydney"]
+                  ).map((tz) => (
+                    <SelectItem key={tz} value={tz}>{tz}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="legalName">Legal Name (for tax purposes)</Label>
+              <Input
+                id="legalName"
+                value={formData.legalName}
+                onChange={(e) => setFormData({ ...formData, legalName: e.target.value })}
+                placeholder="Full legal name"
+              />
+            </div>
           </div>
 
           <div className="flex gap-2 justify-end pt-4">

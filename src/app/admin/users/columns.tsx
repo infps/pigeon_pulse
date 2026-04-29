@@ -1,7 +1,7 @@
 "use client"
 
 import { ColumnDef } from "@tanstack/react-table"
-import { MoreHorizontal } from "lucide-react"
+import { Info, MoreHorizontal } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -17,12 +17,15 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import type { User, UserRole, UserStatus } from "@/lib/types"
 import { getCountryFlag, getStateFlag, getCountryName, getStateName } from "@/lib/flag-constants"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import Image from "next/image"
 
 export const createColumns = (
   onEdit: (user: User) => void,
   onDelete: (id: string) => void,
-  onViewTeams: (user: User) => void
+  onViewTeams: (user: User) => void,
+  splitName = false,
+  onCopy?: (user: User) => void,
 ): ColumnDef<User>[] => [
   {
     id: "select",
@@ -46,16 +49,68 @@ export const createColumns = (
     enableSorting: false,
     enableHiding: false,
   },
+  ...(splitName
+    ? [
+        {
+          accessorKey: "name",
+          header: ({ column }: { column: import("@tanstack/react-table").Column<User> }) => (
+            <DataTableColumnHeader column={column} title="First Name" />
+          ),
+          cell: ({ row }: { row: import("@tanstack/react-table").Row<User> }) => (
+            <span>{row.getValue("name") as string}</span>
+          ),
+        } as ColumnDef<User>,
+        {
+          accessorKey: "lastName",
+          header: ({ column }: { column: import("@tanstack/react-table").Column<User> }) => (
+            <DataTableColumnHeader column={column} title="Last Name" />
+          ),
+          cell: ({ row }: { row: import("@tanstack/react-table").Row<User> }) => (
+            <span>{(row.getValue("lastName") as string | null) || "-"}</span>
+          ),
+        } as ColumnDef<User>,
+      ]
+    : [
+        {
+          id: "name",
+          accessorKey: "name",
+          header: ({ column }: { column: import("@tanstack/react-table").Column<User> }) => (
+            <DataTableColumnHeader column={column} title="Name" />
+          ),
+          cell: ({ row }: { row: import("@tanstack/react-table").Row<User> }) => {
+            const name = row.getValue("name") as string
+            const lastName = row.original.lastName
+            return <span>{`${name}${lastName ? ` ${lastName}` : ""}`}</span>
+          },
+          sortingFn: (rowA: import("@tanstack/react-table").Row<User>, rowB: import("@tanstack/react-table").Row<User>) => {
+            const a = `${rowA.original.lastName || ""} ${rowA.original.name}`.trim().toLowerCase()
+            const b = `${rowB.original.lastName || ""} ${rowB.original.name}`.trim().toLowerCase()
+            return a.localeCompare(b)
+          },
+        } as ColumnDef<User>,
+      ]),
   {
-    accessorKey: "name",
+    accessorKey: "loftName",
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Name" />
+      <div className="flex items-center gap-1">
+        <DataTableColumnHeader column={column} title="Loft" />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help shrink-0" />
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">
+            <p className="font-medium mb-1">Loft Name</p>
+            <ul className="list-disc list-inside space-y-1 text-xs">
+              <li>Identifies the breeder&apos;s physical loft during basketting</li>
+              <li>Printed on basket labels (e.g. LB-SMITH-1)</li>
+              <li>Common designations: AGN, AS, OLR tags, or custom names</li>
+              <li>Useful when one person manages multiple lofts</li>
+            </ul>
+          </TooltipContent>
+        </Tooltip>
+      </div>
     ),
-    cell: ({ row }) => {
-      const name = row.getValue("name") as string
-      const lastName = row.original.lastName
-      return <span>{`${name}${lastName ? ` ${lastName}` : ""}`}</span>
-    },
+    cell: ({ row }) => <span>{(row.getValue("loftName") as string | null) || "-"}</span>,
   },
   {
     accessorKey: "email",
@@ -204,6 +259,20 @@ export const createColumns = (
     cell: ({ row }) => <span>{(row.getValue("taxNumber") as string) || "-"}</span>,
   },
   {
+    accessorKey: "legalName",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Legal Name" />
+    ),
+    cell: ({ row }) => <span>{(row.getValue("legalName") as string) || "-"}</span>,
+  },
+  {
+    accessorKey: "timezone",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Timezone" />
+    ),
+    cell: ({ row }) => <span>{(row.getValue("timezone") as string) || "-"}</span>,
+  },
+  {
     accessorKey: "note",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Note" />
@@ -250,6 +319,11 @@ export const createColumns = (
                   View Teams
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+            {onCopy && (
+              <DropdownMenuItem onClick={() => onCopy(user)}>
+                Copy Breeder
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => onEdit(user)}>
               Edit
             </DropdownMenuItem>

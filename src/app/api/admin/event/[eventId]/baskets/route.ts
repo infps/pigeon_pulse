@@ -76,14 +76,15 @@ export async function POST(
 
     const body = await request.json();
     const capacity = parseInt(body.capacity);
+    const phase: "LOFT" | "RACE" = body.phase === "RACE" ? "RACE" : "LOFT";
 
     if (isNaN(capacity) || capacity < 1) {
       return NextResponse.json({ message: "Capacity must be a positive integer" }, { status: 400 });
     }
 
-    // Auto-compute next basketNo for LOFT phase
+    // Auto-compute next basketNo scoped to phase
     const maxBasket = await prisma.eventBasket.findFirst({
-      where: { eventId, phase: "LOFT" },
+      where: { eventId, phase },
       orderBy: { basketNo: "desc" },
       select: { basketNo: true },
     });
@@ -94,7 +95,7 @@ export async function POST(
         eventId,
         basketNo,
         capacity,
-        phase: "LOFT",
+        phase,
         label: null,
       },
       include: { _count: { select: { assignments: true } } },
@@ -102,7 +103,7 @@ export async function POST(
 
     return NextResponse.json({ basket }, { status: 201 });
   } catch (error) {
-    console.error("Error creating loft basket:", error);
+    console.error("Error creating basket:", error);
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }
@@ -131,9 +132,9 @@ export async function DELETE(
       return NextResponse.json({ message: "Invalid basket ID" }, { status: 400 });
     }
 
-    // Verify basket belongs to this event and is LOFT phase
+    // Verify basket belongs to this event
     const basket = await prisma.eventBasket.findFirst({
-      where: { id: basketId, eventId, phase: "LOFT" },
+      where: { id: basketId, eventId },
       include: { _count: { select: { assignments: true } } },
     });
 
@@ -149,7 +150,7 @@ export async function DELETE(
 
     return NextResponse.json({ message: "Basket deleted" });
   } catch (error) {
-    console.error("Error deleting loft basket:", error);
+    console.error("Error deleting basket:", error);
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }

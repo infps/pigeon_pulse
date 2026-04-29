@@ -203,8 +203,8 @@ export default function AddBirdPage() {
         {hasStaged ? `Add Birds (${stagedBirds.length} staged)` : "Add Bird"}
       </h1>
 
-      {/* 3-column hero */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* 2-column hero */}
+      <div className="grid grid-cols-1 md:grid-cols-[3fr_6fr] gap-6">
         {/* Left: Image + band preview */}
         <div className="space-y-3">
           <ImageCapture
@@ -214,139 +214,146 @@ export default function AddBirdPage() {
               setImageFile(file ?? null);
             }}
           />
-          <div>
-            <p className="text-xs text-muted-foreground">Name of the Pigeon</p>
-            <h2 className="text-xl font-bold text-muted-foreground">
-              {bandPreview || "XX-XXXX-XXX-XXXXX"}
-            </h2>
-          </div>
-        </div>
-
-        {/* Center: Form fields */}
-        <Card>
-          <CardContent className="pt-6 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="birdName">Bird Name *</Label>
-              <Input
-                id="birdName"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Enter bird name"
-              />
+          <div className="flex flex-row">
+            <div className="w-full">
+              <p className="text-xs text-muted-foreground">Name of the Pigeon</p>
+              <h2 className="text-xl font-bold text-muted-foreground">
+                {bandPreview || "XX-XXXX-XXX-XXXXX"}
+              </h2>
             </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Sex *</Label>
-                <Select value={sex} onValueChange={setSex}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="0">Unknown</SelectItem>
-                    <SelectItem value="1">Cock</SelectItem>
-                    <SelectItem value="2">Hen</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Color *</Label>
-                <Select value={color} onValueChange={setColor}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {COLORS.map((c) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
             <div className="space-y-2">
               <Label>Status</Label>
               <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Active</Badge>
             </div>
+          </div>
+        </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="note">Description</Label>
-              <textarea
-                id="note"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                className="w-full text-sm border rounded-md p-2 min-h-[60px] resize-y"
-                placeholder="Description..."
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="rfid">RFID</Label>
-              <Input
-                id="rfid"
-                value={rfid}
-                onChange={(e) => setRfid(e.target.value)}
-                placeholder="RFID tag (optional)"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Right: Band info */}
-        <Card>
-          <CardContent className="pt-6 space-y-4">
-            <h3 className="font-semibold text-lg">Band Information</h3>
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label>Federation *</Label>
-                <Select value={federation} onValueChange={setFederation}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {FEDERATIONS.map((f) => (
-                      <SelectItem key={f} value={f}>{f}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+        {/* Right: stacked rows — details on top, band info + actions on bottom */}
+        <div className="space-y-6">
+          {/* Top row: Form fields */}
+          <Card>
+            <CardContent className="space-y-4">
+              <h3 className="font-semibold text-lg">Bird Information</h3>
+              <div className="grid grid-cols-[3fr_1fr_1fr] gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="birdName">Bird Name *</Label>
+                  <Input
+                    id="birdName"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Enter bird name"
+                  />
+                </div>
+                <div className="space-y-2 w-full">
+                  <Label>Sex *</Label>
+                  <Select value={sex} onValueChange={setSex}>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">Unknown</SelectItem>
+                      <SelectItem value="1">Cock</SelectItem>
+                      <SelectItem value="2">Hen</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 w-full">
+                  <Label>Color *</Label>
+                  <Select value={color} onValueChange={setColor}>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {COLORS.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+
+
               <div className="space-y-2">
-                <Label htmlFor="year">Year *</Label>
-                <Input
-                  id="year"
-                  value={year}
-                  onChange={(e) => setYear(e.target.value)}
-                  type="number"
+                <Label htmlFor="note">Description</Label>
+                <textarea
+                  id="note"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  className="w-full text-sm border rounded-md p-2 min-h-[60px] resize-y"
+                  placeholder="Description..."
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="letters">Letters *</Label>
-                <Input
-                  id="letters"
-                  value={letters}
-                  onChange={(e) => setLetters(e.target.value.toUpperCase().slice(0, 4))}
-                  placeholder="ABCD"
-                  maxLength={4}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="bandNumber">Band Number *</Label>
-                <Input
-                  id="bandNumber"
-                  value={bandNumber}
-                  onChange={(e) => setBandNumber(e.target.value)}
-                  placeholder="12345"
-                />
-              </div>
-            </div>
 
-            {/* Actions */}
-            <div className="flex flex-col gap-2 pt-4 border-t">
-              <Button onClick={handleSubmit} disabled={isPending}>
-                <Save className="h-4 w-4 mr-2" />
-                {isPending ? "Saving..." : "Add Bird"}
-              </Button>
-              <Button variant="secondary" onClick={handleSaveAndNew}>
-                <Plus className="h-4 w-4 mr-2" />
-                Save & New
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+              <div className="space-y-2">
+                <Label htmlFor="rfid">RFID</Label>
+                <Input
+                  id="rfid"
+                  value={rfid}
+                  onChange={(e) => setRfid(e.target.value)}
+                  placeholder="RFID tag (optional)"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Bottom row: Band info + actions */}
+          <Card>
+            <CardContent className="space-y-4">
+              <h3 className="font-semibold text-lg">Band Information</h3>
+              <div className="grid grid-cols-4 gap-3">
+                <div className="space-y-2">
+                  <Label>Federation *</Label>
+                  <Select value={federation} onValueChange={setFederation}>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {FEDERATIONS.map((f) => (
+                        <SelectItem key={f} value={f}>{f}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="year">Year *</Label>
+                  <Input
+                    id="year"
+                    value={year}
+                    onChange={(e) => setYear(e.target.value)}
+                    type="number"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="letters">Letters *</Label>
+                  <Input
+                    id="letters"
+                    value={letters}
+                    onChange={(e) => setLetters(e.target.value.toUpperCase().slice(0, 4))}
+                    placeholder="ABCD"
+                    maxLength={4}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bandNumber">Band Number *</Label>
+                  <Input
+                    id="bandNumber"
+                    value={bandNumber}
+                    onChange={(e) => setBandNumber(e.target.value)}
+                    placeholder="12345"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          {/* Actions */}
+          <div className="flex flex-col sm:flex-row gap-2 pt-4">
+            <Button onClick={handleSubmit} disabled={isPending} className="flex-1">
+              <Save className="h-4 w-4 mr-2" />
+              {isPending ? "Saving..." : "Add Bird"}
+            </Button>
+            <Button variant="secondary" onClick={handleSaveAndNew} className="flex-1">
+              <Plus className="h-4 w-4 mr-2" />
+              New Bird
+            </Button>
+            <Button variant="outline" onClick={() => router.push("/birds")} className="flex-1">
+              Cancel
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Staged birds table — below the hero, where charts would be */}

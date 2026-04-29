@@ -35,6 +35,99 @@ export interface BfdResult {
   unassigned: BreederGroup[]; // no basket large enough — admin must add capacity
 }
 
+// ============================================================
+// Random assign with breeder separation — for RACE baskets.
+//
+// Each bird is placed individually. Prefer baskets that do NOT
+// already contain another bird from the same breeder. Fall back
+// to any basket with remaining capacity only if no separated
+// basket is available.
+// ============================================================
+
+export interface RaceItem {
+  id: number; // EventInventoryItem ID
+  breederLastName: string;
+}
+
+export interface RaceBasketAssignment {
+  basketId: number;
+  basketNo: number;
+  basketLabel: string | null;
+  itemIds: number[];
+  breeders: string[];
+}
+
+export interface RandomAssignResult {
+  assigned: RaceBasketAssignment[];
+  unassigned: RaceItem[]; // capacity exhausted
+}
+
+function fisherYatesShuffle<T>(arr: T[]): T[] {
+  const shuffled = [...arr];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+export function randomAssign(items: RaceItem[], baskets: BasketSlot[]): RandomAssignResult {
+  const state = baskets.map((b) => ({
+    id: b.id,
+    basketNo: b.basketNo,
+    label: b.label,
+    capacity: b.capacity,
+    used: b.used,
+    itemIds: [] as number[],
+    breeders: new Set<string>(),
+  }));
+
+  // Group by breeder for shuffle-then-interleave
+  const byBreeder = new Map<string, RaceItem[]>();
+  for (const item of items) {
+    const key = item.breederLastName;
+    if (!byBreeder.has(key)) byBreeder.set(key, []);
+    byBreeder.get(key)!.push(item);
+  }
+  const groups = fisherYatesShuffle(
+    [...byBreeder.entries()].map(([breeder, birds]) => ({ breeder, birds: fisherYatesShuffle(birds) }))
+  );
+
+  const unassigned: RaceItem[] = [];
+
+  for (const group of groups) {
+    for (const bird of group.birds) {
+      // Prefer baskets with space and no collision with this breeder
+      const separated = state.filter(
+        (s) => s.used + s.itemIds.length < s.capacity && !s.breeders.has(bird.breederLastName)
+      );
+      let pool = separated;
+      if (pool.length === 0) {
+        pool = state.filter((s) => s.used + s.itemIds.length < s.capacity);
+      }
+      if (pool.length === 0) {
+        unassigned.push(bird);
+        continue;
+      }
+      const picked = pool[Math.floor(Math.random() * pool.length)];
+      picked.itemIds.push(bird.id);
+      picked.breeders.add(bird.breederLastName);
+    }
+  }
+
+  const assigned: RaceBasketAssignment[] = state
+    .filter((s) => s.itemIds.length > 0)
+    .map((s) => ({
+      basketId: s.id,
+      basketNo: s.basketNo,
+      basketLabel: s.label,
+      itemIds: s.itemIds,
+      breeders: [...s.breeders],
+    }));
+
+  return { assigned, unassigned };
+}
+
 export function bfdAssign(groups: BreederGroup[], baskets: BasketSlot[]): BfdResult {
   // Step 1 — Decreasing: largest groups first
   const sorted = [...groups].sort((a, b) => b.itemIds.length - a.itemIds.length);

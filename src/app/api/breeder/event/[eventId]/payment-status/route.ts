@@ -23,9 +23,19 @@ export async function GET(
       return NextResponse.json({ message: "Invalid event ID" }, { status: 400 });
     }
 
-    // Find eventInventory for this breeder + event
+    const url = new URL(request.url);
+    const inventoryIdParam = url.searchParams.get("inventoryId");
+    const inventoryId = inventoryIdParam ? parseInt(inventoryIdParam) : null;
+
+    // Target a specific inventory when provided; otherwise use the most recent
+    // registration for this breeder+event (avoids returning a stale older one).
     const eventInventory = await prisma.eventInventory.findFirst({
-      where: { eventId, breederId: breeder.id },
+      where: {
+        eventId,
+        breederId: breeder.id,
+        ...(inventoryId ? { id: inventoryId } : {}),
+      },
+      orderBy: { id: "desc" },
       include: {
         payments: { orderBy: { paymentDate: "desc" } },
       },

@@ -48,6 +48,11 @@ model User {
   note           String?
   role           UserRole   @default(BREEDER)
   taxNumber      String?
+  loftName       String?
+  timezone       String?
+  legalName      String?
+  ssnDocKey      String?
+  taxDocKey      String?
   sessions       Session[]
   accounts       Account[]
   breeder        Breeder?
@@ -395,6 +400,16 @@ model Race {
   raceItemScans  RaceItemScan[]
   phantomBirds   RacePhantomBird[]
   ignoreBirds    RaceIgnoreBird[]
+  arrivalGroups  ArrivalGroup[]
+}
+
+model ArrivalGroup {
+  id               Int       @id @default(autoincrement())
+  raceId           Int
+  name             String?
+  arrivalTimeStart DateTime?
+  arrivalTimeEnd   DateTime?
+  race             Race      @relation(fields: [raceId], references: [id])
 }
 
 model RaceItem {

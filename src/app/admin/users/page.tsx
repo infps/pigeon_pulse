@@ -36,13 +36,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Trash2 } from "lucide-react";
+import { Download, Plus, Trash2, Columns2, Columns3 } from "lucide-react";
 import type { RowSelectionState } from "@tanstack/react-table";
 import type { Event, User, UserRole, UserStatus } from "@/lib/types";
 
 export default function UsersPage() {
   const [isOpen, setIsOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [copyingUser, setCopyingUser] = useState<User | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [isTeamsDialogOpen, setIsTeamsDialogOpen] = useState(false);
@@ -55,9 +56,12 @@ export default function UsersPage() {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [splitName, setSplitName] = useState(false);
 
   const { data: eventsData } = useListEvents({});
-  const events: Event[] = eventsData?.events || [];
+  const events: Event[] = (eventsData?.events || []).slice().sort(
+    (a: Event, b: Event) => new Date(b.eventDate ?? 0).getTime() - new Date(a.eventDate ?? 0).getTime()
+  );
 
   const { data: usersData, isPending, isError } = useListUsers({
     params: eventFilter !== "all" ? { eventId: eventFilter } : {},
@@ -128,9 +132,16 @@ export default function UsersPage() {
     }
   };
 
+  const handleCopy = (user: User) => {
+    setEditingUser(null);
+    setCopyingUser(user);
+    setIsOpen(true);
+  };
+
   const handleClose = () => {
     setIsOpen(false);
     setEditingUser(null);
+    setCopyingUser(null);
   };
 
   const handleViewTeams = (user: User) => {
@@ -236,7 +247,7 @@ export default function UsersPage() {
     }
   };
 
-  const columns = createColumns(handleEdit, handleDelete, handleViewTeams);
+  const columns = createColumns(handleEdit, handleDelete, handleViewTeams, splitName, handleCopy);
 
   if (isPending) {
     return (
@@ -295,6 +306,43 @@ export default function UsersPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const params = new URLSearchParams();
+              params.set("format", "csv");
+              if (statusFilter !== "all") params.set("status", statusFilter);
+              if (eventFilter !== "all") params.set("eventId", eventFilter);
+              window.open(`/api/admin/users/export?${params}`);
+            }}
+          >
+            <Download className="h-4 w-4 mr-1" />
+            CSV
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const params = new URLSearchParams();
+              params.set("format", "xlsx");
+              if (statusFilter !== "all") params.set("status", statusFilter);
+              if (eventFilter !== "all") params.set("eventId", eventFilter);
+              window.open(`/api/admin/users/export?${params}`);
+            }}
+          >
+            <Download className="h-4 w-4 mr-1" />
+            Excel
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSplitName(!splitName)}
+            title={splitName ? "Combine name columns" : "Split name columns"}
+          >
+            {splitName ? <Columns2 className="h-4 w-4" /> : <Columns3 className="h-4 w-4" />}
+            <span className="ml-2">{splitName ? "Combine" : "Split"} Name</span>
+          </Button>
           {selectedUsers.length > 0 && (
             <Button
               variant="destructive"
@@ -319,7 +367,9 @@ export default function UsersPage() {
         columns={columns}
         data={filteredUsers}
         filterableColumns={[
-          { id: "name", title: "Name" },
+          ...(splitName
+            ? [{ id: "name", title: "First Name" }, { id: "lastName", title: "Last Name" }]
+            : [{ id: "name", title: "Name" }]),
           { id: "email", title: "Email" },
           { id: "username", title: "Username" },
           { id: "phoneNumber", title: "Phone" },
@@ -333,6 +383,7 @@ export default function UsersPage() {
         open={isOpen}
         onOpenChange={setIsOpen}
         editingUser={editingUser}
+        copyUser={copyingUser}
         onSuccess={handleClose}
       />
 

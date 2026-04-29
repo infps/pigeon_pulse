@@ -18,7 +18,14 @@ export const createUserSchema = z.object({
     status: z.enum(["ACTIVE", "INACTIVE", "PROSPECT"]).default("ACTIVE"),
     role: z.enum(["BREEDER", "ADMIN", "SUPERADMIN"]).default("BREEDER"),
     taxNumber: z.string().optional(),
+    loftName: z.string().optional(),
     note: z.string().optional(),
+    image: z.string().optional(),
+    imageKey: z.string().optional(),
+    timezone: z.string().optional(),
+    legalName: z.string().optional(),
+    ssnDocKey: z.string().optional(),
+    taxDocKey: z.string().optional(),
 });
 
 export const updateUserSchema = z.object({
@@ -37,7 +44,14 @@ export const updateUserSchema = z.object({
     status: z.enum(["ACTIVE", "INACTIVE", "PROSPECT"]).optional(),
     role: z.enum(["BREEDER", "ADMIN", "SUPERADMIN"]).optional(),
     taxNumber: z.string().optional(),
+    loftName: z.string().optional(),
     note: z.string().optional(),
+    image: z.string().optional(),
+    imageKey: z.string().optional(),
+    timezone: z.string().optional(),
+    legalName: z.string().optional(),
+    ssnDocKey: z.string().optional(),
+    taxDocKey: z.string().optional(),
 });
 
 export const createRaceTypeSchema = z.object({

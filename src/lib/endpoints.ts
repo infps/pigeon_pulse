@@ -78,9 +78,9 @@ const eventBaskets = {
   checkin: (eventId: number | string) => `/api/admin/event/${eventId}/checkin`,
   list: (eventId: number | string) => `/api/admin/event/${eventId}/baskets`,
   generateLoft: (eventId: number | string) => `/api/admin/event/${eventId}/baskets/generate-loft`,
-  generateRace: (eventId: number | string) => `/api/admin/event/${eventId}/baskets/generate-race`,
   scanLoft: (eventId: number | string) => `/api/admin/event/${eventId}/baskets/scan-loft`,
   assign: (eventId: number | string) => `/api/admin/event/${eventId}/baskets/assign`,
+  assignRace: (eventId: number | string) => `/api/admin/event/${eventId}/baskets/assign-race`,
 };
 
 export const apiEndpoints = {

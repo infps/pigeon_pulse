@@ -60,7 +60,7 @@ interface BirdDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   bird?: Bird | null;
-  onSuccess: () => void;
+  onSuccess: (createdBird?: Bird) => void;
 }
 
 export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogProps) {
@@ -80,11 +80,6 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
     endpoint: apiEndpoints.breeder.birds,
     method: "POST",
     queryKey: ["breeder", "birds"],
-    onSuccess: () => {
-      toast.success("Bird added");
-      onSuccess();
-      onOpenChange(false);
-    },
     onError: (error) => {
       const msg = error?.message || "";
       if (msg.includes("409") || msg.includes("unique") || msg.includes("P2002")) {
@@ -166,7 +161,11 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
     if (isEdit) {
       await updateMutation.mutateAsync(payload);
     } else {
-      await createMutation.mutateAsync(payload);
+      const result = await createMutation.mutateAsync(payload);
+      const createdBird = (result as any)?.data?.bird as Bird | undefined;
+      toast.success("Bird added");
+      onSuccess(createdBird);
+      onOpenChange(false);
     }
   };
 
@@ -226,7 +225,7 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
       }
       if (data.created > 0) {
         toast.success(`${data.created} bird(s) created`);
-        onSuccess();
+        (data.birds || []).forEach((b: Bird) => onSuccess(b));
       }
       if (!data.errors?.length) {
         setStagedBirds([]);
@@ -329,8 +328,7 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
                 </Select>
               </div>
             </div>
-
-            {/* RFID */}
+{/* 
             <div className="space-y-2">
               <Label htmlFor="rfid">RFID</Label>
               <Input
@@ -339,7 +337,7 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
                 onChange={(e) => setRfid(e.target.value)}
                 placeholder="RFID tag (optional)"
               />
-            </div>
+            </div> */}
           </div>
 
           <DialogFooter>

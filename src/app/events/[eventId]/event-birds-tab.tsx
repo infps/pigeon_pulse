@@ -27,6 +27,31 @@ interface BreederDialogProps {
   allBirds: EventInventoryItem[];
 }
 
+interface BirdDetailDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  item: EventInventoryItem | null;
+}
+
+function BirdDetailDialog({ open, onOpenChange, item }: BirdDetailDialogProps) {
+  const bird = item?.bird;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {bird?.birdName || "Bird Details"}
+            {bird?.band ? ` (${bird.band})` : ""}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="text-sm text-muted-foreground py-4">
+          Bird details coming soon.
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function BreederDialog({ open, onOpenChange, inventory, allBirds }: BreederDialogProps) {
   if (!inventory) return null;
 
@@ -95,6 +120,8 @@ function BreederDialog({ open, onOpenChange, inventory, allBirds }: BreederDialo
 export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedInventory, setSelectedInventory] = useState<EventInventory | null>(null);
+  const [birdDetailOpen, setBirdDetailOpen] = useState(false);
+  const [selectedBird, setSelectedBird] = useState<EventInventoryItem | null>(null);
   const { data: session } = authClient.useSession();
 
   const { data, isPending } = useListEventInventoryItems(
@@ -102,14 +129,16 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
     apiEndpoints.breeder.eventInventoryItems(eventId)
   );
   const allBirds = (data?.eventInventoryItems || []) as EventInventoryItem[];
-  
-  const loggedInBreederId = session?.user?.id;
-  
+
+  const loggedInUserId = session?.user?.id;
+  const isOwner = (item: EventInventoryItem) =>
+    !!loggedInUserId && item.eventInventory?.breeder?.userId === loggedInUserId;
+
   // Separate logged-in breeder's birds and others
-  const myBirds = allBirds.filter(bird => bird.eventInventory?.breederId === loggedInBreederId);
-  const otherBirds = allBirds.filter(bird => bird.eventInventory?.breederId !== loggedInBreederId);
+  const myBirds = allBirds.filter(isOwner);
+  const otherBirds = allBirds.filter((b) => !isOwner(b));
   const birds = [...myBirds, ...otherBirds];
-  
+
   // Get logged-in breeder's inventory for "My Loft" button
   const myInventory = myBirds.length > 0 ? myBirds[0].eventInventory : null;
 
@@ -118,25 +147,12 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
     setDialogOpen(true);
   };
 
+  const handleBirdClick = (item: EventInventoryItem) => {
+    setSelectedBird(item);
+    setBirdDetailOpen(true);
+  };
+
   const columns: ColumnDef<EventInventoryItem>[] = [
-  {
-    id: "band",
-    accessorKey: "bird.band",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Band" />
-    ),
-    cell: ({ row }) => {
-      const band = row.original.bird?.band;
-      const isMyBird = row.original.eventInventory?.breederId === loggedInBreederId;
-      return (
-        <div className={isMyBird ? "bg-transparent -mx-6 px-6 -my-3 py-3" : ""}>
-          <span className={`font-mono ${isMyBird ? "font-bold" : ""}`}>
-            {band || "-"}
-          </span>
-        </div>
-      );
-    },
-  },
   {
     id: "birdName",
     accessorKey: "bird.birdName",
@@ -144,13 +160,22 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
       <DataTableColumnHeader column={column} title="Bird Name" />
     ),
     cell: ({ row }) => {
-      const birdName = row.original.bird?.birdName;
-      const isMyBird = row.original.eventInventory?.breederId === loggedInBreederId;
+      const birdName = row.original.bird?.birdName || "-";
+      const band = row.original.bird?.band;
+      const isMyBird = isOwner(row.original);
       return (
         <div className={isMyBird ? "bg-transparent -mx-6 px-6 -my-3 py-3" : ""}>
-          <span className={isMyBird ? "font-bold" : ""}>
-            {birdName || "-"}
-          </span>
+          {isMyBird ? (
+            <button
+              onClick={() => handleBirdClick(row.original)}
+              className="text-blue-600 hover:underline cursor-pointer font-bold text-left"
+            >
+              {birdName}
+              {band ? ` (${band})` : ""}
+            </button>
+          ) : (
+            <span>{birdName}</span>
+          )}
         </div>
       );
     },
@@ -163,7 +188,7 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
     ),
     cell: ({ row }) => {
       const breederName = row.original.eventInventory?.breeder?.name;
-      const isMyBird = row.original.eventInventory?.breederId === loggedInBreederId;
+      const isMyBird = isOwner(row.original);
       return (
         <div className={isMyBird ? "bg-transparent -mx-6 px-6 -my-3 py-3" : ""}>
           <div className="flex items-center gap-2">
@@ -189,7 +214,7 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
     cell: ({ row }) => {
       const loft = row.original.eventInventory?.loft;
       const inventory = row.original.eventInventory;
-      const isMyBird = row.original.eventInventory?.breederId === loggedInBreederId;
+      const isMyBird = isOwner(row.original);
       return (
         <div className={isMyBird ? "bg-transparent -mx-6 px-6 -my-3 py-3" : ""}>
           <button
@@ -231,7 +256,6 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
             columns={columns}
             data={birds}
             filterableColumns={[
-              { id: "band", title: "Band" },
               { id: "birdName", title: "Bird Name" },
               { id: "breeder", title: "Breeder" },
             ]}
@@ -244,6 +268,12 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
         onOpenChange={setDialogOpen}
         inventory={selectedInventory}
         allBirds={allBirds}
+      />
+
+      <BirdDetailDialog
+        open={birdDetailOpen}
+        onOpenChange={setBirdDetailOpen}
+        item={selectedBird}
       />
     </>
   );

@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,6 +10,7 @@ import { authClient } from "@/lib/auth-client";
 import { useApiQuery } from "@/hooks/useApi";
 import { apiEndpoints } from "@/lib/endpoints";
 import { createBirdColumns } from "./columns";
+import { BirdDialog } from "./bird-dialog";
 
 interface Bird {
   id: number;
@@ -26,7 +26,8 @@ interface Bird {
 
 export default function BirdsPage() {
   const { data: session, isPending: sessionLoading } = authClient.useSession();
-  const router = useRouter();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingBird, setEditingBird] = useState<Bird | null>(null);
 
   const { data, isPending, refetch } = useApiQuery({
     endpoint: apiEndpoints.breeder.birds,
@@ -37,11 +38,13 @@ export default function BirdsPage() {
   const birds: Bird[] = data?.birds || [];
 
   const handleEdit = (bird: Bird) => {
-    router.push(`/birds/${bird.id}`);
+    setEditingBird(bird);
+    setDialogOpen(true);
   };
 
   const handleAdd = () => {
-    router.push("/birds/new");
+    setEditingBird(null);
+    setDialogOpen(true);
   };
 
   const columns = useMemo(() => createBirdColumns(handleEdit), []);
@@ -99,12 +102,18 @@ export default function BirdsPage() {
                 { id: "band", title: "Band" },
                 { id: "birdName", title: "Bird Name" },
               ]}
-              onRowClick={(bird) => router.push(`/birds/${bird.id}`)}
+              onRowClick={(bird) => handleEdit(bird)}
             />
           </CardContent>
         </Card>
       )}
 
+      <BirdDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        bird={editingBird}
+        onSuccess={() => refetch()}
+      />
     </div>
   );
 }

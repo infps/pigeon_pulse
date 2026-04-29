@@ -48,15 +48,6 @@ export function useGenerateLoftBaskets(eventId: string | number) {
   });
 }
 
-export function useGenerateRaceBaskets(eventId: string | number) {
-  return useApiMutation({
-    method: "POST",
-    endpoint: apiEndpoints.eventBaskets.generateRace(eventId),
-    queryKey: ["event-baskets"],
-    exact: false,
-  });
-}
-
 export function useScanLoftBasket(eventId: string | number) {
   return useApiMutation({
     method: "POST",
@@ -66,7 +57,7 @@ export function useScanLoftBasket(eventId: string | number) {
   });
 }
 
-export function useCreateLoftBasket(eventId: string | number) {
+export function useCreateBasket(eventId: string | number) {
   return useApiMutation({
     method: "POST",
     endpoint: apiEndpoints.eventBaskets.list(eventId),
@@ -75,7 +66,7 @@ export function useCreateLoftBasket(eventId: string | number) {
   });
 }
 
-export function useDeleteLoftBasket(eventId: string | number) {
+export function useDeleteBasket(eventId: string | number) {
   return useApiMutation({
     method: "DELETE",
     endpoint: apiEndpoints.eventBaskets.list(eventId),
@@ -88,6 +79,15 @@ export function useAssignBaskets(eventId: string | number) {
   return useApiMutation({
     method: "POST",
     endpoint: apiEndpoints.eventBaskets.assign(eventId),
+    queryKey: ["event-baskets"],
+    exact: false,
+  });
+}
+
+export function useAssignRaceBaskets(eventId: string | number) {
+  return useApiMutation({
+    method: "POST",
+    endpoint: apiEndpoints.eventBaskets.assignRace(eventId),
     queryKey: ["event-baskets"],
     exact: false,
   });
