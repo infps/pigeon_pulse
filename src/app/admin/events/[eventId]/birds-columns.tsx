@@ -2,6 +2,7 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { MoreHorizontal } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -14,7 +15,8 @@ import { DataTableColumnHeader } from "@/components/ui/data-table-column-header"
 import type { EventInventoryItem } from "@/lib/types";
 
 export const createBirdsColumns = (
-  onEdit: (item: EventInventoryItem) => void
+  onEdit: (item: EventInventoryItem) => void,
+  eventId?: string | number
 ): ColumnDef<EventInventoryItem>[] => [
   {
     id: "breeder",
@@ -33,6 +35,22 @@ export const createBirdsColumns = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Bird Name" />
     ),
+    cell: ({ row }) => {
+      const bird = row.original.bird;
+      const name = bird?.birdName ?? "N/A";
+      if (!bird?.id) return <span>{name}</span>;
+      const href = eventId
+        ? `/admin/birds/${bird.id}?eventId=${eventId}`
+        : `/admin/birds/${bird.id}`;
+      return (
+        <Link
+          href={href}
+          className="text-blue-600 hover:underline cursor-pointer"
+        >
+          {name}
+        </Link>
+      );
+    },
   },
   {
     id: "birdNo",

@@ -14,6 +14,7 @@ const birdSchema = z.object({
   band3: z.string().min(1, "Band3 is required"),
   band4: z.string().min(1, "Band4 is required"),
   rfid: z.string().optional(),
+  attention: z.boolean().optional(),
 });
 
 const bulkCreateSchema = z.object({
@@ -56,6 +57,7 @@ export async function POST(request: Request) {
             breederId: breeder.id,
             isActive: 1,
             isLost: 0,
+            attention: b.attention ?? false,
           },
         });
         created.push(bird);

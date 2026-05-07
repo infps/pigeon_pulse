@@ -1,7 +1,7 @@
 // Best-Fit Decreasing (BFD) bin-packing for loft basket assignment.
 //
 // Each breeder's birds are treated as a single indivisible group.
-// One basket holds exactly one breeder's birds (one loft per basket).
+// A basket may hold multiple breeders, but a breeder is never split.
 //
 // Strategy: sort groups descending by size, then for each group pick
 // the basket with the LEAST remaining space that can still fit the group.
@@ -19,6 +19,7 @@ export interface BasketSlot {
   used: number; // _count.assignments — no schema change needed
   label: string | null;
   basketNo: number;
+  existingBreeders?: string[];
 }
 
 export interface AssignmentResult {
@@ -79,7 +80,7 @@ export function randomAssign(items: RaceItem[], baskets: BasketSlot[]): RandomAs
     capacity: b.capacity,
     used: b.used,
     itemIds: [] as number[],
-    breeders: new Set<string>(),
+    breeders: new Set<string>(b.existingBreeders ?? []),
   }));
 
   // Group by breeder for shuffle-then-interleave
@@ -141,13 +142,10 @@ export function bfdAssign(groups: BreederGroup[], baskets: BasketSlot[]): BfdRes
   for (const group of sorted) {
     const count = group.itemIds.length;
 
-    // Already-assigned baskets are occupied (one breeder per basket)
-    const occupied = new Set(assigned.map((a) => a.basketId));
-
-    // Step 2 — Best-Fit: eligible = not occupied AND enough remaining space
-    // Sort ascending by remaining (tightest fit first)
+    // Step 2 — Best-Fit: eligible = enough remaining space.
+    // Sort ascending by remaining (tightest fit first).
     const eligible = baskets
-      .filter((b) => !occupied.has(b.id) && (remaining.get(b.id) ?? 0) >= count)
+      .filter((b) => (remaining.get(b.id) ?? 0) >= count)
       .sort((a, b) => (remaining.get(a.id) ?? 0) - (remaining.get(b.id) ?? 0));
 
     if (eligible.length === 0) {

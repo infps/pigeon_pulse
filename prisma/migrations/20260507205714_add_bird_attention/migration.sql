@@ -1,0 +1,2 @@
+-- AlterTable: Birds add ATTENTION boolean
+ALTER TABLE "Birds" ADD COLUMN "ATTENTION" BOOLEAN NOT NULL DEFAULT false;

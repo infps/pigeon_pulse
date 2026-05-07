@@ -27,6 +27,11 @@ const breeders = {
   birds: (breederId: number | string) => `/api/admin/breeders/${breederId}/birds`,
 };
 
+const adminBirds = {
+  base: "/api/admin/birds",
+  birdById: (birdId: number | string) => `/api/admin/bird/${birdId}`,
+};
+
 const events = {
   base: "/api/admin/event",
 };
@@ -73,6 +78,11 @@ const breeder = {
   raceItems: (raceId: number | string) => `/api/breeder/races/${raceId}/items`,
 };
 
+const birds = {
+  location: (birdId: number | string) => `/api/birds/${birdId}/location`,
+  history: (birdId: number | string) => `/api/birds/${birdId}/history`,
+};
+
 const eventBaskets = {
   checkinStatus: (eventId: number | string) => `/api/admin/event/${eventId}/checkin-status`,
   checkin: (eventId: number | string) => `/api/admin/event/${eventId}/checkin`,
@@ -98,4 +108,8 @@ export const apiEndpoints = {
   raceItems,
   breeder,
   eventBaskets,
+  birds,
+  admin: {
+    birds: adminBirds,
+  },
 };

@@ -378,6 +378,7 @@ export interface RaceItem {
   arrivalTime?: string | null;
   loftBasketLabel?: string | null;
   raceBasketLabel?: string | null;
+  groupId?: number | null;
 }
 
 export interface RaceItemResult {
@@ -387,6 +388,7 @@ export interface RaceItemResult {
   birdPosition: number | null;
   birdPositionHotSpot: number | null;
   prizeValue: number | null;
+  groupId?: number | null;
 }
 
 // ============================================================
@@ -416,6 +418,7 @@ export interface Bird {
   isPublic: number | null;
   image: string | null;
   imageKey: string | null;
+  attention?: boolean;
   breeder?: Breeder;
   father?: Bird | null;
   mother?: Bird | null;

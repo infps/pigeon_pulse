@@ -2,11 +2,34 @@ import { useApiQuery } from "@/hooks/useApi";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { apiEndpoints } from "@/lib/endpoints";
 
-export const useListEventInventoryItems = (eventId: number | string, endpoint?: string) => {
+export interface EventInventoryItemsFilters {
+  paymentStatus?: string;
+  arrivalFrom?: string;
+  arrivalTo?: string;
+}
+
+export const useListEventInventoryItems = (
+  eventId: number | string,
+  endpoint?: string,
+  filters?: EventInventoryItemsFilters
+) => {
+  const params: Record<string, string> = {};
+  if (filters?.paymentStatus && filters.paymentStatus !== "all") params.paymentStatus = filters.paymentStatus;
+  if (filters?.arrivalFrom) params.arrivalFrom = filters.arrivalFrom;
+  if (filters?.arrivalTo) params.arrivalTo = filters.arrivalTo;
+  const queryKey = [
+    "event-inventory-items",
+    "list",
+    String(eventId),
+    params.paymentStatus ?? "",
+    params.arrivalFrom ?? "",
+    params.arrivalTo ?? "",
+  ];
   return useApiQuery({
-    queryKey: ["event-inventory-items", "list", String(eventId)],
+    queryKey,
     endpoint: endpoint || apiEndpoints.eventInventory.itemsByEvent(eventId),
     enabled: !!eventId,
+    params: Object.keys(params).length > 0 ? params : undefined,
   });
 };
 

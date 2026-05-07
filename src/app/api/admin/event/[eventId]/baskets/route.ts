@@ -22,10 +22,15 @@ export async function GET(
 
     const { searchParams } = new URL(request.url);
     const phase = searchParams.get("phase"); // "LOFT" | "RACE" | null
+    const raceIdParam = searchParams.get("raceId");
 
-    const where: { eventId: number; phase?: "LOFT" | "RACE" } = { eventId };
+    const where: { eventId: number; phase?: "LOFT" | "RACE"; raceId?: number } = { eventId };
     if (phase === "LOFT" || phase === "RACE") {
       where.phase = phase;
+    }
+    if (phase === "RACE" && raceIdParam) {
+      const rId = parseInt(raceIdParam);
+      if (!isNaN(rId)) where.raceId = rId;
     }
 
     const baskets = await prisma.eventBasket.findMany({
@@ -77,12 +82,27 @@ export async function POST(
     const body = await request.json();
     const capacity = parseInt(body.capacity);
     const phase: "LOFT" | "RACE" = body.phase === "RACE" ? "RACE" : "LOFT";
+    const raceIdRaw = body.raceId;
+    const raceId =
+      raceIdRaw === undefined || raceIdRaw === null || raceIdRaw === ""
+        ? null
+        : parseInt(String(raceIdRaw));
 
     if (isNaN(capacity) || capacity < 1) {
       return NextResponse.json({ message: "Capacity must be a positive integer" }, { status: 400 });
     }
 
-    // Auto-compute next basketNo scoped to phase
+    if (phase === "RACE") {
+      if (raceId === null || isNaN(raceId)) {
+        return NextResponse.json(
+          { message: "raceId is required for RACE phase baskets" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // basketNo is unique per (eventId, phase) due to schema constraint —
+    // compute globally across all races within the phase.
     const maxBasket = await prisma.eventBasket.findFirst({
       where: { eventId, phase },
       orderBy: { basketNo: "desc" },
@@ -97,6 +117,7 @@ export async function POST(
         capacity,
         phase,
         label: null,
+        raceId: phase === "RACE" ? raceId : null,
       },
       include: { _count: { select: { assignments: true } } },
     });

@@ -48,7 +48,7 @@ function BirdCard({
   return (
     <div
       className="border rounded-lg p-3 cursor-pointer hover:bg-muted/50 transition-colors"
-      onClick={() => router.push(`/birds/${bird.id}`)}
+      onClick={() => router.push(`/admin/birds/${bird.id}`)}
     >
       <div className="flex items-center justify-between mb-1">
         <span className="text-xs text-muted-foreground">{label}</span>
@@ -81,7 +81,7 @@ function BirdListItem({ bird }: { bird: Bird }) {
   return (
     <div
       className="flex items-center justify-between py-2 px-3 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
-      onClick={() => router.push(`/birds/${bird.id}`)}
+      onClick={() => router.push(`/admin/birds/${bird.id}`)}
     >
       <div>
         <p className="font-mono text-sm">{bird.band || "No band"}</p>

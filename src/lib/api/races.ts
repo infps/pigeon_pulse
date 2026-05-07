@@ -73,3 +73,20 @@ export function useEndRace(raceId: string | number) {
     queryKey: ["races"],
   });
 }
+
+export function useArrivalGroups(raceId: string | number) {
+  return useApiQuery({
+    endpoint: `/api/admin/race/${raceId}/arrival-groups`,
+    queryKey: ["races", "arrival-groups", String(raceId)],
+    enabled: !!raceId,
+  });
+}
+
+export function useGroupArrivals(raceId: string | number) {
+  return useApiMutation({
+    exact: false,
+    method: "POST",
+    endpoint: `/api/admin/race/${raceId}/arrival-groups`,
+    queryKey: ["races", "arrival-groups", String(raceId)],
+  });
+}

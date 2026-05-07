@@ -14,7 +14,67 @@ import type { EventInventoryItem, EventInventory } from "@/lib/types";
 import { apiEndpoints } from "@/lib/endpoints";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
-import { User } from "lucide-react";
+import { Bird as BirdIcon, User } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Download } from "lucide-react";
+
+const EXPORT_FORMATS: { format: "xlsx" | "csv" | "pdf" | "html"; label: string }[] = [
+  { format: "xlsx", label: "Excel (.xlsx)" },
+  { format: "csv", label: "CSV (.csv)" },
+  { format: "pdf", label: "PDF (.pdf)" },
+  { format: "html", label: "Web Page (.html)" },
+];
+
+function EventExportMenu({ eventId }: { eventId: string }) {
+  const open = (kind: "results" | "baskets", format: string) => {
+    const qs = new URLSearchParams({ format, eventId });
+    window.open(`/api/breeder/export/${kind}?${qs.toString()}`, "_blank");
+  };
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2">
+          <Download className="h-4 w-4" />
+          Export
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuLabel>Export</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>Race Results</DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            {EXPORT_FORMATS.map((f) => (
+              <DropdownMenuItem key={f.format} onClick={() => open("results", f.format)}>
+                {f.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>Baskets</DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            {EXPORT_FORMATS.map((f) => (
+              <DropdownMenuItem key={f.format} onClick={() => open("baskets", f.format)}>
+                {f.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 interface EventBirdsTabProps {
   eventId: string;
@@ -35,18 +95,73 @@ interface BirdDetailDialogProps {
 
 function BirdDetailDialog({ open, onOpenChange, item }: BirdDetailDialogProps) {
   const bird = item?.bird;
+  const bandDisplay = bird
+    ? bird.band ||
+      [bird.band1, bird.band2, bird.band3, bird.band4].filter(Boolean).join("-")
+    : "";
+
+  const latestArrived = (() => {
+    const ris = (item?.raceItems ?? []) as Array<{
+      status?: string;
+      result?: { arrivalTime?: string | Date | null; birdPosition?: number | null } | null;
+      race?: { name?: string | null } | null;
+    }>;
+    const arrived = ris.filter(
+      (ri) => ri.status === "ARRIVED" && ri.result?.arrivalTime
+    );
+    if (arrived.length === 0) return null;
+    return arrived.reduce((latest, ri) => {
+      const t = new Date(ri.result!.arrivalTime!).getTime();
+      const lt = new Date(latest.result!.arrivalTime!).getTime();
+      return t > lt ? ri : latest;
+    });
+  })();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>
-            {bird?.birdName || "Bird Details"}
-            {bird?.band ? ` (${bird.band})` : ""}
-          </DialogTitle>
+          <DialogTitle>Bird Details</DialogTitle>
         </DialogHeader>
-        <div className="text-sm text-muted-foreground py-4">
-          Bird details coming soon.
-        </div>
+        {!bird ? (
+          <div className="py-4 text-sm text-muted-foreground">No bird selected.</div>
+        ) : (
+          <div className="space-y-4">
+            <div className="aspect-square w-full overflow-hidden rounded-lg bg-muted flex items-center justify-center">
+              {bird.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={bird.image}
+                  alt={bird.birdName ?? "Bird"}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <BirdIcon className="h-16 w-16 text-muted-foreground" />
+              )}
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold">{bird.birdName || "Unnamed Bird"}</h2>
+              <p className="font-mono text-sm text-muted-foreground">
+                {bandDisplay || "No band"}
+              </p>
+            </div>
+            <div className="border-t pt-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
+                Latest Race
+              </p>
+              {latestArrived ? (
+                <p className="text-sm">
+                  {latestArrived.result?.birdPosition
+                    ? `Position #${latestArrived.result.birdPosition}`
+                    : "Arrived"}
+                  {latestArrived.race?.name ? ` — ${latestArrived.race.name}` : ""}
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">No race results yet</p>
+              )}
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -161,21 +276,17 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
     ),
     cell: ({ row }) => {
       const birdName = row.original.bird?.birdName || "-";
-      const band = row.original.bird?.band;
       const isMyBird = isOwner(row.original);
       return (
         <div className={isMyBird ? "bg-transparent -mx-6 px-6 -my-3 py-3" : ""}>
-          {isMyBird ? (
-            <button
-              onClick={() => handleBirdClick(row.original)}
-              className="text-blue-600 hover:underline cursor-pointer font-bold text-left"
-            >
-              {birdName}
-              {band ? ` (${band})` : ""}
-            </button>
-          ) : (
-            <span>{birdName}</span>
-          )}
+          <button
+            onClick={() => handleBirdClick(row.original)}
+            className={`text-blue-600 hover:underline cursor-pointer text-left ${
+              isMyBird ? "font-bold" : ""
+            }`}
+          >
+            {birdName}
+          </button>
         </div>
       );
     },
@@ -213,18 +324,12 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
     ),
     cell: ({ row }) => {
       const loft = row.original.eventInventory?.loft;
-      const inventory = row.original.eventInventory;
       const isMyBird = isOwner(row.original);
       return (
         <div className={isMyBird ? "bg-transparent -mx-6 px-6 -my-3 py-3" : ""}>
-          <button
-            onClick={() => inventory && handleLoftClick(inventory)}
-            className={`text-blue-600 hover:underline cursor-pointer ${
-              isMyBird ? "font-bold" : "font-medium"
-            }`}
-          >
+          <span className={isMyBird ? "font-bold" : "font-medium"}>
             {loft || "-"}
-          </button>
+          </span>
         </div>
       );
     },
@@ -240,16 +345,19 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Registered Birds ({birds.length})</CardTitle>
-          {myInventory && (
-            <Button
-              onClick={() => handleLoftClick(myInventory)}
-              className="gap-2"
-              variant="outline"
-            >
-              <User className="h-4 w-4" />
-              My Loft
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            <EventExportMenu eventId={eventId} />
+            {myInventory && (
+              <Button
+                onClick={() => handleLoftClick(myInventory)}
+                className="gap-2"
+                variant="outline"
+              >
+                <User className="h-4 w-4" />
+                My Loft
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <DataTable

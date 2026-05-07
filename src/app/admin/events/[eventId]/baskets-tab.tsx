@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,15 @@ import {
   useAssignRaceBaskets,
   useCheckinStatus,
 } from "@/lib/api/event-baskets";
-import type { EventBasketItem } from "@/lib/types";
+import { useListRaces } from "@/lib/api/races";
+import type { EventBasketItem, Race } from "@/lib/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface BasketsTabProps {
   eventId: string;
@@ -410,7 +418,21 @@ interface RaceAssignSummary {
 }
 
 function RaceBasketPanel({ eventId }: { eventId: string }) {
-  const { data, isPending, refetch } = useEventBaskets(eventId, "RACE");
+  const { data: racesData } = useListRaces({ params: { eventId } });
+  const races: Race[] = (racesData as { races?: Race[] })?.races ?? [];
+  const [selectedRaceId, setSelectedRaceId] = useState<string>("");
+
+  useEffect(() => {
+    if (!selectedRaceId && races.length > 0) {
+      setSelectedRaceId(String(races[0].id));
+    }
+  }, [races, selectedRaceId]);
+
+  const { data, isPending, refetch } = useEventBaskets(
+    eventId,
+    "RACE",
+    selectedRaceId || undefined
+  );
   const { data: loftData } = useEventBaskets(eventId, "LOFT");
   const createMutation = useCreateBasket(eventId);
   const deleteMutation = useDeleteBasket(eventId);
@@ -421,6 +443,7 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
   const [preview, setPreview] = useState<RaceBasketPreview[] | null>(null);
   const [previewSummary, setPreviewSummary] = useState<RaceAssignSummary | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingMode, setPendingMode] = useState<"reset" | "incremental">("reset");
 
   const baskets: EventBasketItem[] = data?.baskets || [];
   const loftBaskets: EventBasketItem[] = loftData?.baskets || [];
@@ -452,8 +475,16 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
       toast.error("Capacity must be a positive number");
       return;
     }
+    if (!selectedRaceId) {
+      toast.error("Select a race first");
+      return;
+    }
     try {
-      await createMutation.mutateAsync({ capacity: cap, phase: "RACE" });
+      await createMutation.mutateAsync({
+        capacity: cap,
+        phase: "RACE",
+        raceId: parseInt(selectedRaceId),
+      });
       toast.success(`Race basket #${basketNo} created`);
       refetch();
       if (keepOpen) {
@@ -477,9 +508,18 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
     }
   };
 
-  const handlePreviewAssign = async () => {
+  const handlePreviewAssign = async (mode: "reset" | "incremental" = "reset") => {
+    if (!selectedRaceId) {
+      toast.error("Select a race first");
+      return;
+    }
+    setPendingMode(mode);
     try {
-      const res = await assignMutation.mutateAsync({ preview: true });
+      const res = await assignMutation.mutateAsync({
+        preview: true,
+        raceId: parseInt(selectedRaceId),
+        mode,
+      });
       const result = (res as { data?: unknown })?.data || res;
       const r = result as { baskets?: RaceBasketPreview[]; summary?: RaceAssignSummary; message?: string };
       if (!r?.baskets?.length) {
@@ -494,9 +534,18 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
   };
 
   const handleConfirmAssign = async () => {
+    if (!selectedRaceId) return;
     try {
-      await assignMutation.mutateAsync({ preview: false });
-      toast.success("Birds assigned to race baskets");
+      await assignMutation.mutateAsync({
+        preview: false,
+        raceId: parseInt(selectedRaceId),
+        mode: pendingMode,
+      });
+      toast.success(
+        pendingMode === "incremental"
+          ? "New birds added to race baskets"
+          : "Birds assigned to race baskets"
+      );
       setPreview(null);
       setPreviewSummary(null);
       setConfirmOpen(false);
@@ -514,19 +563,53 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
     <>
       <Card>
         <CardContent className="pt-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <Label className="text-sm">Race</Label>
+            <Select
+              value={selectedRaceId}
+              onValueChange={(v) => {
+                setSelectedRaceId(v);
+                setPreview(null);
+                setPreviewSummary(null);
+              }}
+            >
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder={races.length === 0 ? "No races yet" : "Select race"} />
+              </SelectTrigger>
+              <SelectContent>
+                {races.map((r) => (
+                  <SelectItem key={r.id} value={String(r.id)}>
+                    {r.name || `Race #${r.raceNumber ?? r.id}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              Create race baskets, then use <strong>Set Baskets</strong> to randomly distribute loft-basketed birds with breeder separation.
+              Create race baskets, then use <strong>Reset & Reassign</strong> to randomly redistribute, or <strong>Add New Birds Only</strong> to top-up without disturbing existing assignments.
             </p>
             <div className="flex items-center gap-2">
               <Button
                 size="sm"
                 variant="outline"
                 className="gap-1.5"
-                onClick={hasExistingAssignments ? () => setConfirmOpen(true) : handlePreviewAssign}
-                disabled={assignMutation.isPending || baskets.length === 0 || insufficient || activeBirds === 0}
+                onClick={
+                  hasExistingAssignments
+                    ? () => { setPendingMode("reset"); setConfirmOpen(true); }
+                    : () => handlePreviewAssign("reset")
+                }
+                disabled={
+                  assignMutation.isPending ||
+                  baskets.length === 0 ||
+                  insufficient ||
+                  activeBirds === 0 ||
+                  !selectedRaceId
+                }
                 title={
-                  activeBirds === 0
+                  !selectedRaceId
+                    ? "Select a race first"
+                    : activeBirds === 0
                     ? "Assign loft baskets first"
                     : insufficient
                     ? `Not enough capacity for ${activeBirds} active birds`
@@ -534,9 +617,30 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
                 }
               >
                 <Wand2 className="h-4 w-4" />
-                {assignMutation.isPending ? "Running..." : "Set Baskets"}
+                {assignMutation.isPending ? "Running..." : "Reset & Reassign"}
               </Button>
-              <Button size="sm" className="gap-1.5" onClick={openDialog}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => handlePreviewAssign("incremental")}
+                disabled={
+                  assignMutation.isPending ||
+                  baskets.length === 0 ||
+                  activeBirds === 0 ||
+                  !selectedRaceId
+                }
+                title={!selectedRaceId ? "Select a race first" : undefined}
+              >
+                <Plus className="h-4 w-4" />
+                Add New Birds Only
+              </Button>
+              <Button
+                size="sm"
+                className="gap-1.5"
+                onClick={openDialog}
+                disabled={!selectedRaceId}
+              >
                 <Plus className="h-4 w-4" />
                 Add New Basket
               </Button>
@@ -678,7 +782,7 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
             <AlertDialogAction
               onClick={() => {
                 setConfirmOpen(false);
-                handlePreviewAssign();
+                handlePreviewAssign("reset");
               }}
             >
               Preview & Re-assign

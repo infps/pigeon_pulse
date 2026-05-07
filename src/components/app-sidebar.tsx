@@ -64,6 +64,12 @@ const mainMenuItems = [
     icon: CalendarDays,
     roles: ["ADMIN", "SUPERADMIN"],
   },
+  {
+    title: "Birds",
+    url: "/admin/birds",
+    icon: Bird,
+    roles: ["ADMIN", "SUPERADMIN"],
+  },
 ]
 
 // Menu items only for super admin

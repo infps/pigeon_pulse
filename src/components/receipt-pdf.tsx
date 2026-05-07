@@ -1,157 +1,302 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 
+const COLOR_BELGIAN = "#cfe7ff";
+const COLOR_STANDARD = "#d3f2c8";
+const COLOR_WTA = "#dcd3ff";
+const COLOR_HEADER = "#2d3748";
+const COLOR_BORDER = "#94a3b8";
+const COLOR_GRID = "#cbd5e1";
+
 const styles = StyleSheet.create({
-  page: { padding: 32, fontSize: 10, fontFamily: "Helvetica", color: "#1a1a1a" },
-  header: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16, borderBottomWidth: 2, borderBottomColor: "#1a1a1a", paddingBottom: 8 },
-  title: { fontSize: 16, fontFamily: "Helvetica-Bold" },
-  subtitle: { fontSize: 11, color: "#444" },
-  section: { marginBottom: 12 },
-  sectionTitle: { fontSize: 10, fontFamily: "Helvetica-Bold", backgroundColor: "#f0f0f0", padding: 4, marginBottom: 4 },
-  row: { flexDirection: "row", marginBottom: 2 },
-  label: { width: 90, color: "#555" },
-  value: { flex: 1, fontFamily: "Helvetica-Bold" },
-  table: { marginTop: 4 },
-  tableHeader: { flexDirection: "row", backgroundColor: "#1a1a1a", color: "#fff", padding: "4 6" },
-  tableRow: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#e0e0e0", padding: "3 6" },
-  tableRowAlt: { flexDirection: "row", backgroundColor: "#f9f9f9", borderBottomWidth: 1, borderBottomColor: "#e0e0e0", padding: "3 6" },
-  col: { flex: 1 },
-  colN: { width: 24 },
-  colFee: { width: 60, textAlign: "right" },
-  colDate: { width: 72 },
-  totalsRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 8, gap: 16 },
-  totalItem: { alignItems: "flex-end" },
-  totalLabel: { fontSize: 9, color: "#555" },
-  totalValue: { fontSize: 11, fontFamily: "Helvetica-Bold" },
-  footer: { position: "absolute", bottom: 20, left: 32, right: 32, textAlign: "center", fontSize: 8, color: "#999" },
-  headerCell: { color: "#fff", fontFamily: "Helvetica-Bold", fontSize: 9 },
-  cell: { fontSize: 9 },
+  page: { padding: 24, fontSize: 8, fontFamily: "Helvetica", color: "#0f172a" },
+  header: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
+  hLabel: { fontFamily: "Helvetica-Bold" },
+  section: { marginBottom: 10 },
+  row: { flexDirection: "row" },
+  thRow: { flexDirection: "row", backgroundColor: COLOR_HEADER },
+  th: {
+    color: "#fff",
+    fontFamily: "Helvetica-Bold",
+    fontSize: 7,
+    padding: 3,
+    borderRightWidth: 0.5,
+    borderRightColor: "#fff",
+    textAlign: "center",
+  },
+  td: {
+    fontSize: 7,
+    padding: 2,
+    borderRightWidth: 0.5,
+    borderRightColor: COLOR_GRID,
+    borderBottomWidth: 0.5,
+    borderBottomColor: COLOR_GRID,
+    textAlign: "center",
+  },
+  tdLeft: { textAlign: "left" },
+  tdRight: { textAlign: "right" },
+  legendRow: { flexDirection: "row", marginTop: 4, gap: 6 },
+  legendBox: { padding: 4, fontSize: 7, fontFamily: "Helvetica-Bold" },
+  statusLegend: { marginTop: 4, fontSize: 7, color: "#475569" },
+  sectionTitle: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    backgroundColor: COLOR_HEADER,
+    color: "#fff",
+    padding: 4,
+    marginTop: 8,
+    marginBottom: 0,
+  },
+  balanceWrap: { marginTop: 10, alignSelf: "flex-end", width: 320 },
+  balanceTitle: {
+    fontSize: 9,
+    fontFamily: "Helvetica-Bold",
+    backgroundColor: COLOR_HEADER,
+    color: "#fff",
+    padding: 4,
+    textAlign: "center",
+  },
+  balSubTitle: {
+    fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+    backgroundColor: "#e2e8f0",
+    padding: 3,
+  },
+  balRow: {
+    flexDirection: "row",
+    borderBottomWidth: 0.5,
+    borderBottomColor: COLOR_GRID,
+  },
+  balCellLabel: { flex: 2, padding: 3, fontSize: 8 },
+  balCell: { flex: 1, padding: 3, fontSize: 8, textAlign: "right" },
+  balTotal: { fontFamily: "Helvetica-Bold", backgroundColor: "#f1f5f9" },
+  finalBal: {
+    flexDirection: "row",
+    backgroundColor: COLOR_HEADER,
+    color: "#fff",
+    padding: 4,
+    marginTop: 2,
+  },
+  finalBalLabel: { flex: 2, color: "#fff", fontFamily: "Helvetica-Bold", fontSize: 9 },
+  finalBalVal: { flex: 1, color: "#fff", fontFamily: "Helvetica-Bold", fontSize: 9, textAlign: "right" },
 });
 
+const CLASS_LETTERS = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R"] as const;
+const BELGIAN_IDX = new Set([0,1,2,3,4,5,6]);
+const STANDARD_IDX = new Set([7,8,9,10,11,12]);
+
 export interface ReceiptData {
-  eventName: string;
-  eventDate: string | null;
   breederName: string;
-  breederEmail: string;
-  breederPhone: string;
   loftName: string;
-  birds: {
-    birdNo: number | null;
+  items: {
     band: string | null;
-    birdName: string | null;
-    color: string | null;
-    sex: string | number | null;
+    entryFee: number;
     totalFee: number;
+    statusCode: "L" | "A" | "";
+    classes: { letter: string; marked: boolean; value: number }[];
   }[];
-  payments: {
-    date: string | null;
-    type: string;
-    method: string;
-    amount: number;
-  }[];
-  totalOwed: number;
-  totalPaid: number;
+  classFeeLabels: { letter: string; fee: number }[];
+  payments: { type: string; date: string | null; value: number; method: string; desc: string | null }[];
+  fees: {
+    perchDue: number; perchPaid: number;
+    entryDue: number; entryPaid: number;
+    hotSpotDue: number; hotSpotPaid: number;
+    shippingDue: number; shippingPaid: number;
+    classesDue: number; classesPaid: number;
+  };
+  refunds: {
+    entryDue: number; entryPaid: number;
+    hotSpotDue: number; hotSpotPaid: number;
+    classesDue: number; classesPaid: number;
+  };
+  winner: {
+    hotSpotEarned: number; hotSpotPaid: number;
+    avgSpeedEarned: number; avgSpeedPaid: number;
+    classesEarned: number; classesPaid: number;
+    capitalEarned: number; capitalPaid: number;
+    totalPayoutEarned: number; totalPayoutPaid: number;
+  };
+}
+
+function fmtMoney(v: number): string {
+  const abs = Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return v < 0 ? `($${abs})` : `$${abs}`;
+}
+
+function classCellBg(idx: number): string {
+  if (BELGIAN_IDX.has(idx)) return COLOR_BELGIAN;
+  if (STANDARD_IDX.has(idx)) return COLOR_STANDARD;
+  return COLOR_WTA;
 }
 
 export function ReceiptDocument({ data }: { data: ReceiptData }) {
-  const balance = data.totalOwed - data.totalPaid;
+  const STATUS_W = 14;
+  const BAND_W = 70;
+  const FEE_W = 44;
+  const TOTAL_W = 50;
+  const CLASS_W = 22;
+
+  const totalDue =
+    data.fees.perchDue + data.fees.entryDue + data.fees.hotSpotDue +
+    data.fees.shippingDue + data.fees.classesDue;
+  const totalPaid =
+    data.fees.perchPaid + data.fees.entryPaid + data.fees.hotSpotPaid +
+    data.fees.shippingPaid + data.fees.classesPaid;
+  const totalRefDue =
+    data.refunds.entryDue + data.refunds.hotSpotDue + data.refunds.classesDue;
+  const totalRefPaid =
+    data.refunds.entryPaid + data.refunds.hotSpotPaid + data.refunds.classesPaid;
+  const finalBalance = totalDue - totalPaid + totalRefDue - data.winner.totalPayoutEarned;
 
   return (
     <Document>
-      <Page size="LETTER" style={styles.page}>
-        {/* Header */}
+      <Page size="LETTER" orientation="portrait" style={styles.page}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>{data.eventName}</Text>
-            <Text style={styles.subtitle}>BIRD SUBMISSION RECEIPT</Text>
-          </View>
-          <View style={{ alignItems: "flex-end" }}>
-            {data.eventDate && <Text>{new Date(data.eventDate).toLocaleDateString()}</Text>}
-          </View>
-        </View>
-
-        {/* Breeder Info */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>BREEDER INFORMATION</Text>
-          <View style={{ flexDirection: "row", gap: 32 }}>
-            <View>
-              <View style={styles.row}><Text style={styles.label}>Name:</Text><Text style={styles.value}>{data.breederName}</Text></View>
-              <View style={styles.row}><Text style={styles.label}>Email:</Text><Text style={styles.value}>{data.breederEmail || "—"}</Text></View>
-            </View>
-            <View>
-              <View style={styles.row}><Text style={styles.label}>Phone:</Text><Text style={styles.value}>{data.breederPhone || "—"}</Text></View>
-              <View style={styles.row}><Text style={styles.label}>Loft:</Text><Text style={styles.value}>{data.loftName || "—"}</Text></View>
-            </View>
+            <Text>
+              <Text style={styles.hLabel}>Main breeder: </Text>
+              {data.breederName}
+            </Text>
+            <Text>
+              <Text style={styles.hLabel}>Loft: </Text>
+              {data.loftName || "-"}
+            </Text>
           </View>
         </View>
 
-        {/* Birds */}
+        {/* Bird/Classes table */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>BIRDS SUBMITTED ({data.birds.length})</Text>
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <Text style={[styles.colN, styles.headerCell]}>#</Text>
-              <Text style={[styles.col, styles.headerCell]}>Band</Text>
-              <Text style={[styles.col, styles.headerCell]}>Name</Text>
-              <Text style={[styles.col, styles.headerCell]}>Color</Text>
-              <Text style={[styles.col, styles.headerCell]}>Sex</Text>
-              <Text style={[styles.colFee, styles.headerCell]}>Total Fee</Text>
-            </View>
-            {data.birds.map((b, i) => (
-              <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowAlt}>
-                <Text style={[styles.colN, styles.cell]}>{b.birdNo ?? i + 1}</Text>
-                <Text style={[styles.col, styles.cell]}>{b.band || "—"}</Text>
-                <Text style={[styles.col, styles.cell]}>{b.birdName || "—"}</Text>
-                <Text style={[styles.col, styles.cell]}>{b.color || "—"}</Text>
-                <Text style={[styles.col, styles.cell]}>{b.sex != null ? String(b.sex) : "—"}</Text>
-                <Text style={[styles.colFee, styles.cell]}>${b.totalFee.toFixed(2)}</Text>
-              </View>
+          <View style={styles.thRow}>
+            <Text style={[styles.th, { width: STATUS_W }]}> </Text>
+            <Text style={[styles.th, { width: BAND_W, textAlign: "left" }]}>Band</Text>
+            <Text style={[styles.th, { width: FEE_W }]}>Entry fee</Text>
+            {data.classFeeLabels.map((c, i) => (
+              <Text key={i} style={[styles.th, { width: CLASS_W, backgroundColor: classCellBg(i), color: "#0f172a" }]}>
+                {c.letter}
+                {"\n"}
+                {c.fee > 0 ? `$${c.fee.toFixed(2)}` : ""}
+              </Text>
             ))}
+            <Text style={[styles.th, { width: TOTAL_W }]}>Total</Text>
           </View>
+          {data.items.map((item, i) => (
+            <View key={i} style={styles.row}>
+              <Text style={[styles.td, { width: STATUS_W, fontFamily: "Helvetica-Bold" }]}>{item.statusCode}</Text>
+              <Text style={[styles.td, styles.tdLeft, { width: BAND_W }]}>{item.band ?? "-"}</Text>
+              <Text style={[styles.td, styles.tdRight, { width: FEE_W }]}>{fmtMoney(item.entryFee)}</Text>
+              {item.classes.map((c, j) => (
+                <Text key={j} style={[styles.td, { width: CLASS_W, backgroundColor: classCellBg(j) }]}>
+                  {c.marked ? "X" : ""}
+                </Text>
+              ))}
+              <Text style={[styles.td, styles.tdRight, { width: TOTAL_W, fontFamily: "Helvetica-Bold" }]}>
+                {fmtMoney(item.totalFee)}
+              </Text>
+            </View>
+          ))}
+
+          <View style={styles.legendRow}>
+            <Text style={[styles.legendBox, { backgroundColor: COLOR_BELGIAN }]}>
+              Belgian show (10 to 1) - A,B,C,D,E,F,G
+            </Text>
+            <Text style={[styles.legendBox, { backgroundColor: COLOR_STANDARD }]}>
+              Standard show (50-30-20) - H,I,J,K,L,M
+            </Text>
+            <Text style={[styles.legendBox, { backgroundColor: COLOR_WTA }]}>
+              WTA - N,O,P,Q,R
+            </Text>
+          </View>
+          <Text style={styles.statusLegend}>L - lost bird, A - active bet, empty - inactive bet</Text>
         </View>
 
         {/* Payments */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>PAYMENTS</Text>
-          {data.payments.length === 0 ? (
-            <Text style={{ color: "#888", fontSize: 9 }}>No payments recorded.</Text>
-          ) : (
-            <View style={styles.table}>
-              <View style={styles.tableHeader}>
-                <Text style={[styles.colDate, styles.headerCell]}>Date</Text>
-                <Text style={[styles.col, styles.headerCell]}>Type</Text>
-                <Text style={[styles.col, styles.headerCell]}>Method</Text>
-                <Text style={[styles.colFee, styles.headerCell]}>Amount</Text>
-              </View>
-              {data.payments.map((p, i) => (
-                <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowAlt}>
-                  <Text style={[styles.colDate, styles.cell]}>{p.date ? new Date(p.date).toLocaleDateString() : "—"}</Text>
-                  <Text style={[styles.col, styles.cell]}>{p.type}</Text>
-                  <Text style={[styles.col, styles.cell]}>{p.method}</Text>
-                  <Text style={[styles.colFee, styles.cell]}>${p.amount.toFixed(2)}</Text>
-                </View>
-              ))}
+        <Text style={styles.sectionTitle}>Payments</Text>
+        <View style={styles.row}>
+          <View style={{ flex: 1, borderWidth: 0.5, borderColor: COLOR_BORDER }}>
+            <View style={styles.thRow}>
+              <Text style={[styles.th, { flex: 2, textAlign: "left" }]}>Type</Text>
+              <Text style={[styles.th, { flex: 1.2 }]}>Date</Text>
+              <Text style={[styles.th, { flex: 1, textAlign: "right" }]}>Value</Text>
+              <Text style={[styles.th, { flex: 1.2 }]}>Method</Text>
+              <Text style={[styles.th, { flex: 2.5, textAlign: "left" }]}>Description</Text>
             </View>
-          )}
+            {data.payments.length === 0 ? (
+              <Text style={{ padding: 6, fontSize: 8, color: "#64748b" }}>No payments recorded.</Text>
+            ) : (
+              data.payments.map((p, i) => (
+                <View key={i} style={styles.row}>
+                  <Text style={[styles.td, styles.tdLeft, { flex: 2 }]}>{p.type}</Text>
+                  <Text style={[styles.td, { flex: 1.2 }]}>
+                    {p.date ? new Date(p.date).toLocaleDateString() : "-"}
+                  </Text>
+                  <Text style={[styles.td, styles.tdRight, { flex: 1 }]}>{fmtMoney(p.value)}</Text>
+                  <Text style={[styles.td, { flex: 1.2 }]}>{p.method}</Text>
+                  <Text style={[styles.td, styles.tdLeft, { flex: 2.5 }]}>{p.desc ?? ""}</Text>
+                </View>
+              ))
+            )}
+          </View>
         </View>
 
-        {/* Totals */}
-        <View style={styles.totalsRow}>
-          <View style={styles.totalItem}>
-            <Text style={styles.totalLabel}>Total Fees</Text>
-            <Text style={styles.totalValue}>${data.totalOwed.toFixed(2)}</Text>
+        {/* Balance breakdown */}
+        <View style={styles.balanceWrap}>
+          <Text style={styles.balanceTitle}>BREEDER BALANCE TOTAL</Text>
+
+          <Text style={styles.balSubTitle}>FEES</Text>
+          <View style={styles.balRow}>
+            <Text style={styles.balCellLabel}> </Text>
+            <Text style={[styles.balCell, { fontFamily: "Helvetica-Bold" }]}>DUE</Text>
+            <Text style={[styles.balCell, { fontFamily: "Helvetica-Bold" }]}>PAID</Text>
           </View>
-          <View style={styles.totalItem}>
-            <Text style={styles.totalLabel}>Total Paid</Text>
-            <Text style={[styles.totalValue, { color: "#16a34a" }]}>${data.totalPaid.toFixed(2)}</Text>
+          <BalRow label="Perch Fee" due={data.fees.perchDue} paid={data.fees.perchPaid} />
+          <BalRow label="Entry Fee" due={data.fees.entryDue} paid={data.fees.entryPaid} />
+          <BalRow label="Hot Spot" due={data.fees.hotSpotDue} paid={data.fees.hotSpotPaid} />
+          <BalRow label="Shipping Fee" due={data.fees.shippingDue} paid={data.fees.shippingPaid} />
+          <BalRow label="Classes" due={data.fees.classesDue} paid={data.fees.classesPaid} />
+          <BalRow label="TOTAL FEES" due={totalDue} paid={totalPaid} bold />
+
+          <Text style={styles.balSubTitle}>REFUNDS</Text>
+          <View style={styles.balRow}>
+            <Text style={styles.balCellLabel}> </Text>
+            <Text style={[styles.balCell, { fontFamily: "Helvetica-Bold" }]}>DUE</Text>
+            <Text style={[styles.balCell, { fontFamily: "Helvetica-Bold" }]}>PAID</Text>
           </View>
-          <View style={styles.totalItem}>
-            <Text style={styles.totalLabel}>Balance Due</Text>
-            <Text style={[styles.totalValue, { color: balance > 0 ? "#dc2626" : "#16a34a" }]}>${balance.toFixed(2)}</Text>
+          <BalRow label="Entry Fee" due={data.refunds.entryDue} paid={data.refunds.entryPaid} />
+          <BalRow label="Hot Spot" due={data.refunds.hotSpotDue} paid={data.refunds.hotSpotPaid} />
+          <BalRow label="Classes" due={data.refunds.classesDue} paid={data.refunds.classesPaid} />
+          <BalRow label="TOTAL REFUNDS" due={totalRefDue} paid={totalRefPaid} bold />
+
+          <Text style={styles.balSubTitle}>WINNER PRIZE PAYOUT</Text>
+          <View style={styles.balRow}>
+            <Text style={styles.balCellLabel}> </Text>
+            <Text style={[styles.balCell, { fontFamily: "Helvetica-Bold" }]}>EARNED</Text>
+            <Text style={[styles.balCell, { fontFamily: "Helvetica-Bold" }]}>PAID</Text>
+          </View>
+          <BalRow label="Hot Spot" due={data.winner.hotSpotEarned} paid={data.winner.hotSpotPaid} />
+          <BalRow label="Average Speed" due={data.winner.avgSpeedEarned} paid={data.winner.avgSpeedPaid} />
+          <BalRow label="Classes" due={data.winner.classesEarned} paid={data.winner.classesPaid} />
+          <BalRow label="Capital Prize" due={data.winner.capitalEarned} paid={data.winner.capitalPaid} />
+          <BalRow label="Total Payout" due={data.winner.totalPayoutEarned} paid={data.winner.totalPayoutPaid} bold />
+
+          <View style={styles.finalBal}>
+            <Text style={styles.finalBalLabel}>BALANCE</Text>
+            <Text style={styles.finalBalVal}>{fmtMoney(finalBalance)}</Text>
           </View>
         </View>
-
-        <Text style={styles.footer}>Generated {new Date().toLocaleString()} · {data.eventName}</Text>
       </Page>
     </Document>
   );
 }
+
+function BalRow({ label, due, paid, bold }: { label: string; due: number; paid: number; bold?: boolean }) {
+  const rowStyle = bold ? [styles.balRow, styles.balTotal] : [styles.balRow];
+  const txt = bold ? { fontFamily: "Helvetica-Bold" as const } : {};
+  return (
+    <View style={rowStyle}>
+      <Text style={[styles.balCellLabel, txt]}>{label}</Text>
+      <Text style={[styles.balCell, txt]}>{fmtMoney(due)}</Text>
+      <Text style={[styles.balCell, txt]}>{fmtMoney(paid)}</Text>
+    </View>
+  );
+}
+
+export const CLASS_LETTER_LIST = CLASS_LETTERS;

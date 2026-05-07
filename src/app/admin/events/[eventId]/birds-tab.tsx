@@ -57,7 +57,10 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
     queryClient.invalidateQueries({ queryKey: ["event-inventory"] });
   };
 
-  const columns = createBirdsColumns(handleEdit);
+  const columns = createBirdsColumns(handleEdit, eventId);
+
+  const eventInventoryItems: EventInventoryItem[] =
+    data?.eventInventoryItems || [];
 
   if (isPending) {
     return (
@@ -76,9 +79,6 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
       </div>
     );
   }
-
-  const eventInventoryItems: EventInventoryItem[] =
-    data?.eventInventoryItems || [];
 
   return (
     <div className="space-y-4">

@@ -81,6 +81,7 @@ export async function GET(req: NextRequest) {
         status: computedStatus,
         birdPosition: item.result?.birdPosition ?? null,
         arrivalTime: item.result?.arrivalTime ?? null,
+        groupId: item.result?.groupId ?? null,
         speed: null,
         loftBasketLabel: loftLabel,
         raceBasketLabel: raceLabel,

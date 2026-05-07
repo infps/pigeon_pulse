@@ -76,10 +76,12 @@ export async function POST(
       );
     }
 
+    // Save phase wipes all loft assignments before re-inserting,
+    // so packer must treat baskets as empty for both preview and persist.
     const slots: BasketSlot[] = eventBaskets.map((b) => ({
       id: b.id,
       capacity: b.capacity,
-      used: b._count.assignments,
+      used: 0,
       label: b.label,
       basketNo: b.basketNo,
     }));

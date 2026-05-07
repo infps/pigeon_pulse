@@ -26,6 +26,12 @@ export async function GET(
             breeder: true,
           },
         },
+        raceItems: {
+          include: {
+            race: { select: { id: true, name: true } },
+            result: true,
+          },
+        },
       },
       orderBy: {
         eventInventory: {

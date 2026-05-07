@@ -401,6 +401,7 @@ model Race {
   phantomBirds   RacePhantomBird[]
   ignoreBirds    RaceIgnoreBird[]
   arrivalGroups  ArrivalGroup[]
+  eventBaskets   EventBasket[]
 }
 
 model ArrivalGroup {
@@ -410,6 +411,7 @@ model ArrivalGroup {
   arrivalTimeStart DateTime?
   arrivalTimeEnd   DateTime?
   race             Race      @relation(fields: [raceId], references: [id])
+  results          RaceItemResult[]
 }
 
 model RaceItem {
@@ -434,8 +436,10 @@ model RaceItemResult {
   birdPosition        Int?      @map("BIRD_POSITION")
   birdPositionHotSpot Int?      @map("BIRD_POSITION_HOT_SPOT")
   prizeValue          Float?    @map("PRIZE_VALUE")
+  groupId             Int?      @map("ID_ARRIVAL_GROUP")
 
-  raceItem RaceItem @relation(fields: [raceItemId], references: [id])
+  raceItem RaceItem      @relation(fields: [raceItemId], references: [id])
+  group    ArrivalGroup? @relation(fields: [groupId], references: [id])
 }
 
 model RaceItemScan {
@@ -679,6 +683,7 @@ model Bird {
   isPublic           Int?      @default(1) @map("IS_PUBLIC")
   image              String?   @map("IMAGE")
   imageKey           String?   @map("IMAGE_KEY")
+  attention          Boolean   @default(false) @map("ATTENTION")
 
   picture          Picture?  @relation(fields: [pictureId], references: [id])
   breeder          Breeder?  @relation(fields: [breederId], references: [id])
@@ -740,12 +745,14 @@ model EventBasket {
   capacity  Int         @map("CAPACITY")
   phase     BasketPhase @map("PHASE")
   label     String?     @map("LABEL")
+  raceId    Int?        @map("ID_RACE")
 
   event       Event              @relation(fields: [eventId], references: [id])
+  race        Race?              @relation(fields: [raceId], references: [id])
   assignments BasketAssignment[]
 
   @@unique([eventId, basketNo, phase])
-  @@index([eventId, phase])
+  @@index([eventId, phase, raceId])
   @@map("EventBaskets")
 }
 

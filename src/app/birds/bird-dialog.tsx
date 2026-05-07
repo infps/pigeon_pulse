@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -42,6 +43,7 @@ interface Bird {
   birdName: string;
   color: string;
   sex: number;
+  attention?: boolean;
 }
 
 interface StagedBird {
@@ -54,6 +56,7 @@ interface StagedBird {
   color: string;
   sex: number;
   rfid: string;
+  attention: boolean;
 }
 
 interface BirdDialogProps {
@@ -72,6 +75,7 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
   const [color, setColor] = useState("BB");
   const [sex, setSex] = useState("1");
   const [rfid, setRfid] = useState("");
+  const [attention, setAttention] = useState(false);
   const [stagedBirds, setStagedBirds] = useState<StagedBird[]>([]);
 
   const isEdit = !!bird;
@@ -118,6 +122,7 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
       setColor(bird.color || "BB");
       setSex(String(bird.sex ?? 1));
       setRfid("");
+      setAttention(!!bird.attention);
     } else {
       setName("");
       setFederation("AU");
@@ -127,6 +132,7 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
       setColor("BB");
       setSex("1");
       setRfid("");
+      setAttention(false);
     }
     if (!open) {
       setStagedBirds([]);
@@ -149,6 +155,7 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
     band4: bandNumber,
     color,
     sex: parseInt(sex),
+    attention,
     ...(rfid.trim() ? { rfid: rfid.trim() } : {}),
   });
 
@@ -188,6 +195,7 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
       color,
       sex: parseInt(sex),
       rfid: rfid.trim(),
+      attention,
     }]);
 
     // Reset: clear name, letters, color, sex, rfid. Keep federation + year. Increment band number.
@@ -196,6 +204,7 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
     setColor("BB");
     setSex("1");
     setRfid("");
+    setAttention(false);
     const parsed = parseInt(bandNumber);
     setBandNumber(isNaN(parsed) ? "" : String(parsed + 1));
   };
@@ -211,6 +220,7 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
           band4: b.band4,
           color: b.color,
           sex: b.sex,
+          attention: b.attention,
           ...(b.rfid ? { rfid: b.rfid } : {}),
         })),
       });
@@ -327,6 +337,17 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="attention"
+                checked={attention}
+                onCheckedChange={(v) => setAttention(v === true)}
+              />
+              <Label htmlFor="attention" className="cursor-pointer">
+                Pay attention during basketing
+              </Label>
             </div>
 {/* 
             <div className="space-y-2">

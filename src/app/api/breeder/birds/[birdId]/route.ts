@@ -18,6 +18,7 @@ const updateBirdSchema = z.object({
   isPublic: z.number().int().min(0).max(1).optional(),
   note: z.string().nullable().optional(),
   rfid: z.string().nullable().optional(),
+  attention: z.boolean().optional(),
 });
 
 export async function GET(
@@ -47,14 +48,17 @@ export async function GET(
       return NextResponse.json({ message: "Bird not found" }, { status: 404 });
     }
 
-    // Check access: owner or public
+    // Check access: admin/superadmin (any), owner, or public
     let isOwner = false;
-    if (session?.user) {
+    const isAdmin =
+      !!session?.user &&
+      ["ADMIN", "SUPERADMIN"].includes(session.user.role);
+    if (session?.user && !isAdmin) {
       const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
       isOwner = bird.breederId === breeder.id;
     }
 
-    if (!isOwner && bird.isPublic !== 1) {
+    if (!isAdmin && !isOwner && bird.isPublic !== 1) {
       return NextResponse.json({ message: "Bird is private" }, { status: 403 });
     }
 
@@ -145,6 +149,7 @@ export async function PATCH(
         ...(validatedData.isPublic !== undefined && { isPublic: validatedData.isPublic }),
         ...(validatedData.note !== undefined && { note: validatedData.note }),
         ...(validatedData.rfid !== undefined && { rfid: validatedData.rfid }),
+        ...(validatedData.attention !== undefined && { attention: validatedData.attention }),
       },
     });
 

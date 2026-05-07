@@ -28,12 +28,24 @@ export function useUncheckBird(eventId: string | number) {
   });
 }
 
-export function useEventBaskets(eventId: string | number, phase?: string) {
+export function useEventBaskets(
+  eventId: string | number,
+  phase?: string,
+  raceId?: string | number | null
+) {
   const params: Record<string, string> = {};
   if (phase) params.phase = phase;
+  if (raceId !== undefined && raceId !== null && raceId !== "") {
+    params.raceId = String(raceId);
+  }
   return useApiQuery({
     endpoint: apiEndpoints.eventBaskets.list(eventId),
-    queryKey: ["event-baskets", String(eventId), phase ?? "all"],
+    queryKey: [
+      "event-baskets",
+      String(eventId),
+      phase ?? "all",
+      raceId !== undefined && raceId !== null && raceId !== "" ? String(raceId) : "no-race",
+    ],
     params,
     enabled: !!eventId,
   });
