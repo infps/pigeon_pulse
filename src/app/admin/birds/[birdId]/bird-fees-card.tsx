@@ -83,7 +83,7 @@ function FeeRow({ item }: { item: InventoryItemView }) {
       </Button>
       {open && (
         <div className="px-3 pb-3 pt-1 border-t text-xs space-y-1">
-          <Line label="Purge Fee" value={item.entryFeeValue} />
+          <Line label="Entry Fee" value={item.entryFeeValue} />
           <Line label="Per Bird Fee" value={item.perchFeeValue} />
           <Line label="Race Fee" value={item.raceFeeValue} />
           <Line label="Hot Spot" value={item.hotSpotFeeValue} />

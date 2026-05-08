@@ -346,7 +346,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                 <div className="border rounded-lg p-4 space-y-2">
                   {fees.purgeFee > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Purge Fee (one-time):</span>
+                      <span className="text-muted-foreground">Entry Fee (one-time):</span>
                       <span className="font-medium">${fees.purgeFee.toFixed(2)}</span>
                     </div>
                   )}
