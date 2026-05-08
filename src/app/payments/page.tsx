@@ -1,14 +1,22 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DataTable } from "@/components/ui/data-table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { DollarSign, CreditCard, AlertCircle } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useApiQuery } from "@/hooks/useApi";
 import { apiEndpoints } from "@/lib/endpoints";
 import { paymentColumns } from "./columns";
+import { ExportButton } from "@/components/export-button";
 
 export default function PaymentsPage() {
   const { data: session, isPending: sessionLoading } = authClient.useSession();
@@ -19,7 +27,28 @@ export default function PaymentsPage() {
     enabled: !!session?.user,
   });
 
-  const payments = data?.payments || [];
+  const allPayments = data?.payments || [];
+
+  const [eventFilter, setEventFilter] = useState<string>("ALL");
+
+  const eventOptions = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const p of allPayments) {
+      const id = p.eventInventory?.event?.id ?? p.event?.id;
+      const name = p.eventInventory?.event?.name ?? p.event?.name;
+      if (id != null) map.set(id, name ?? `Event ${id}`);
+    }
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [allPayments]);
+
+  const payments = useMemo(() => {
+    if (eventFilter === "ALL") return allPayments;
+    const id = parseInt(eventFilter, 10);
+    return allPayments.filter(
+      (p: { eventInventory?: { event?: { id?: number } }; event?: { id?: number } }) =>
+        (p.eventInventory?.event?.id ?? p.event?.id) === id,
+    );
+  }, [allPayments, eventFilter]);
 
   const { total, paid, remaining } = useMemo(() => {
     let t = 0, p = 0;
@@ -60,7 +89,29 @@ export default function PaymentsPage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <h1 className="text-3xl font-bold">Payments</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-bold">Payments</h1>
+        <div className="flex items-center gap-2">
+          <Select value={eventFilter} onValueChange={setEventFilter}>
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder="Filter by event" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All events</SelectItem>
+              {eventOptions.map((e) => (
+                <SelectItem key={e.id} value={String(e.id)}>
+                  {e.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <ExportButton
+            kind="payments"
+            eventId={eventFilter === "ALL" ? undefined : eventFilter}
+            label="Export Payments"
+          />
+        </div>
+      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

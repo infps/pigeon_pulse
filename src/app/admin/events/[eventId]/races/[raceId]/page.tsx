@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useApiQuery } from "@/hooks/useApi";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { apiEndpoints } from "@/lib/endpoints";
 import { useListRaceItems } from "@/lib/api/race-items";
-import { colorForGroupId, GAP_SECONDS_DEFAULT } from "@/lib/arrivalGrouping";
+import { colorForGroupId } from "@/lib/arrivalGrouping";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -28,11 +28,9 @@ import { useQueryClient } from "@tanstack/react-query";
 
 interface ArrivalGroup {
   id: number;
-  raceId: number;
-  name: string | null;
-  arrivalTimeStart: string | null;
-  arrivalTimeEnd: string | null;
-  _count?: { results: number };
+  name: string;
+  start: string; // datetime-local value
+  end: string;
 }
 
 export default function RaceDetailsPage() {
@@ -46,18 +44,12 @@ export default function RaceDetailsPage() {
   const [arrivalFrom, setArrivalFrom] = useState<string>("");
   const [arrivalTo, setArrivalTo] = useState<string>("");
   const [arrivalGroups, setArrivalGroups] = useState<ArrivalGroup[]>([]);
-  const [groupingArrivals, setGroupingArrivals] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupStart, setNewGroupStart] = useState("");
+  const [newGroupEnd, setNewGroupEnd] = useState("");
   const lastScannedRfidRef = useRef<string | null>(null);
   const scannerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const queryClient = useQueryClient();
-
-  const fetchGroups = useCallback(async () => {
-    if (!raceId) return;
-    const res = await fetch(`/api/admin/race/${raceId}/arrival-groups`);
-    if (res.ok) setArrivalGroups((await res.json()).groups);
-  }, [raceId]);
-
-  useEffect(() => { fetchGroups(); }, [fetchGroups]);
 
   // Fetch race details
   const { data: raceData, isPending: raceLoading } = useApiQuery({
@@ -502,84 +494,96 @@ export default function RaceDetailsPage() {
               />
             </CardContent>
           </Card>
-          {/* Arrival Groups Card */}
+          {/* Arrival Groups Card — UI-only, time-window based */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader>
               <CardTitle>Arrival Groups ({arrivalGroups.length})</CardTitle>
-              <Button
-                size="sm"
-                disabled={groupingArrivals}
-                onClick={async () => {
-                  setGroupingArrivals(true);
-                  try {
-                    const res = await fetch(`/api/admin/race/${raceId}/arrival-groups`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ gapSeconds: GAP_SECONDS_DEFAULT }),
-                    });
-                    if (!res.ok) throw new Error("Failed");
-                    toast.success("Arrivals grouped");
-                    await fetchGroups();
-                    queryClient.invalidateQueries({ queryKey: ["raceItems", "list", `raceId-${raceId}`] });
-                  } catch {
-                    toast.error("Failed to group arrivals");
-                  } finally {
-                    setGroupingArrivals(false);
-                  }
-                }}
-              >
-                <Layers className="h-4 w-4 mr-1" />
-                {groupingArrivals ? "Grouping..." : "Group Arrivals"}
-              </Button>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              {/* Group creation form */}
+              <div className="flex flex-wrap items-end gap-3 border rounded p-3 bg-muted/20">
+                <div className="space-y-1">
+                  <Label className="text-xs">Name</Label>
+                  <Input
+                    className="h-9 w-40"
+                    placeholder="Group A"
+                    value={newGroupName}
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Start (Time A)</Label>
+                  <Input
+                    type="datetime-local"
+                    className="h-9 w-56"
+                    value={newGroupStart}
+                    onChange={(e) => setNewGroupStart(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">End (Time B)</Label>
+                  <Input
+                    type="datetime-local"
+                    className="h-9 w-56"
+                    value={newGroupEnd}
+                    onChange={(e) => setNewGroupEnd(e.target.value)}
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  className="gap-1"
+                  disabled={!newGroupStart || !newGroupEnd}
+                  onClick={() => {
+                    if (!newGroupStart || !newGroupEnd) return;
+                    if (new Date(newGroupStart).getTime() > new Date(newGroupEnd).getTime()) {
+                      toast.error("Start must be before end");
+                      return;
+                    }
+                    setArrivalGroups((prev) => [
+                      ...prev,
+                      {
+                        id: Date.now(),
+                        name: newGroupName.trim() || `Group ${prev.length + 1}`,
+                        start: newGroupStart,
+                        end: newGroupEnd,
+                      },
+                    ]);
+                    setNewGroupName("");
+                    setNewGroupStart("");
+                    setNewGroupEnd("");
+                  }}
+                >
+                  <Layers className="h-4 w-4" />
+                  Add Group
+                </Button>
+              </div>
+
+              {/* Render groups + matching birds */}
               {(() => {
                 const arrived = raceItems.filter((ri) => ri.arrivalTime);
-                if (arrived.length === 0) {
+                if (arrivalGroups.length === 0) {
                   return (
                     <p className="text-sm text-muted-foreground text-center py-4">
-                      No arrivals yet.
+                      No groups defined. Add a time window above.
                     </p>
                   );
                 }
-
-                const byGroup = new Map<number | "none", RaceItem[]>();
-                for (const ri of arrived) {
-                  const key: number | "none" = ri.groupId ?? "none";
-                  const arr = byGroup.get(key) ?? [];
-                  arr.push(ri);
-                  byGroup.set(key, arr);
-                }
-
-                const groupOrder: ArrivalGroup[] = arrivalGroups.filter((g) =>
-                  byGroup.has(g.id),
-                );
-                const ungrouped = byGroup.get("none") ?? [];
-
-                if (groupOrder.length === 0 && ungrouped.length === arrived.length) {
-                  return (
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground mb-2">
-                        {arrived.length} arrivals — click &quot;Group Arrivals&quot; to compute windows.
-                      </p>
-                      <div className="border rounded p-2 bg-muted/30 space-y-1">
-                        {ungrouped.map((ri) => (
-                          <ArrivalRow key={ri.id} ri={ri} />
-                        ))}
-                      </div>
-                    </div>
-                  );
-                }
-
                 return (
                   <div className="space-y-3">
-                    {groupOrder.map((g) => {
+                    {arrivalGroups.map((g) => {
                       const c = colorForGroupId(g.id);
-                      const items = (byGroup.get(g.id) ?? []).sort((a, b) => {
-                        const at = a.arrivalTime ? new Date(a.arrivalTime).getTime() : 0;
-                        const bt = b.arrivalTime ? new Date(b.arrivalTime).getTime() : 0;
-                        return at - bt;
-                      });
+                      const startMs = new Date(g.start).getTime();
+                      const endMs = new Date(g.end).getTime();
+                      const items = arrived
+                        .filter((ri) => {
+                          const t = ri.arrivalTime ? new Date(ri.arrivalTime).getTime() : NaN;
+                          return !isNaN(t) && t >= startMs && t <= endMs;
+                        })
+                        .sort((a, b) => {
+                          const at = a.arrivalTime ? new Date(a.arrivalTime).getTime() : 0;
+                          const bt = b.arrivalTime ? new Date(b.arrivalTime).getTime() : 0;
+                          return at - bt;
+                        });
                       return (
                         <div
                           key={g.id}
@@ -588,63 +592,40 @@ export default function RaceDetailsPage() {
                           <div className={cn("flex items-center justify-between px-3 py-2", c.bg)}>
                             <div>
                               <p className={cn("font-medium text-sm", c.text)}>
-                                {g.name || `Group ${g.id}`}
+                                {g.name}
                                 <span className="ml-2 text-xs opacity-80">
                                   ({items.length} bird{items.length === 1 ? "" : "s"})
                                 </span>
                               </p>
                               <p className="text-[11px] text-muted-foreground">
-                                {g.arrivalTimeStart
-                                  ? new Date(g.arrivalTimeStart).toLocaleString()
-                                  : "—"}{" "}
-                                →{" "}
-                                {g.arrivalTimeEnd
-                                  ? new Date(g.arrivalTimeEnd).toLocaleString()
-                                  : "—"}
+                                {new Date(g.start).toLocaleString()} →{" "}
+                                {new Date(g.end).toLocaleString()}
                               </p>
                             </div>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={async () => {
-                                await fetch(
-                                  `/api/admin/race/${raceId}/arrival-groups?id=${g.id}`,
-                                  { method: "DELETE" },
-                                );
-                                fetchGroups();
-                                queryClient.invalidateQueries({
-                                  queryKey: ["raceItems", "list", `raceId-${raceId}`],
-                                });
-                              }}
+                              onClick={() =>
+                                setArrivalGroups((prev) => prev.filter((x) => x.id !== g.id))
+                              }
                             >
                               <Trash2 className="h-4 w-4 text-red-500" />
                             </Button>
                           </div>
-                          <div className={cn("divide-y", c.bg, "bg-opacity-40")}>
-                            {items.map((ri) => (
-                              <ArrivalRow key={ri.id} ri={ri} />
-                            ))}
-                          </div>
+                          {items.length > 0 ? (
+                            <div className={cn("divide-y", c.bg, "bg-opacity-40")}>
+                              {items.map((ri) => (
+                                <ArrivalRow key={ri.id} ri={ri} />
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground px-3 py-2">
+                              No birds arrived in this window.
+                            </p>
+                          )}
                         </div>
                       );
                     })}
-                    {ungrouped.length > 0 && (
-                      <div className="rounded border-2 border-gray-300 overflow-hidden">
-                        <div className="px-3 py-2 bg-gray-50">
-                          <p className="font-medium text-sm text-gray-700">
-                            Ungrouped
-                            <span className="ml-2 text-xs opacity-80">
-                              ({ungrouped.length})
-                            </span>
-                          </p>
-                        </div>
-                        <div className="divide-y bg-gray-50/40">
-                          {ungrouped.map((ri) => (
-                            <ArrivalRow key={ri.id} ri={ri} />
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 );
               })()}

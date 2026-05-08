@@ -10,14 +10,16 @@ import {
   getResultsRows,
   getBasketsRows,
   getBirdsRows,
+  getPaymentsRows,
   type ExportData,
 } from "@/lib/exportFormats";
 import { ExportTablePDF } from "@/components/export-table-pdf";
+import { prisma } from "@/lib/prisma";
 
-type Kind = "registrations" | "results" | "baskets" | "birds";
+type Kind = "registrations" | "results" | "baskets" | "birds" | "payments";
 type Format = "xlsx" | "csv" | "pdf" | "html";
 
-const KINDS: readonly Kind[] = ["registrations", "results", "baskets", "birds"];
+const KINDS: readonly Kind[] = ["registrations", "results", "baskets", "birds", "payments"];
 const FORMATS: readonly Format[] = ["xlsx", "csv", "pdf", "html"];
 
 function htmlEscape(s: string): string {
@@ -82,22 +84,37 @@ export async function GET(
   const format = formatRaw;
   const eventIdParam = searchParams.get("eventId");
   const raceIdParam = searchParams.get("raceId");
+  const breederIdParam = searchParams.get("breederId");
   const eventId = eventIdParam ? parseInt(eventIdParam, 10) : undefined;
   const raceId = raceIdParam ? parseInt(raceIdParam, 10) : undefined;
 
-  const breeder = await getOrCreateBreeder(
-    session.user.id,
-    session.user.email,
-    session.user.name,
-  );
+  const isAdmin = session.user.role === "ADMIN" || session.user.role === "SUPERADMIN";
+
+  let breederIdResolved: number;
+  if (breederIdParam && isAdmin) {
+    const target = await prisma.breeder.findUnique({
+      where: { id: parseInt(breederIdParam, 10) },
+    });
+    if (!target) {
+      return NextResponse.json({ message: "Breeder not found" }, { status: 404 });
+    }
+    breederIdResolved = target.id;
+  } else {
+    const breeder = await getOrCreateBreeder(
+      session.user.id,
+      session.user.email,
+      session.user.name,
+    );
+    breederIdResolved = breeder.id;
+  }
 
   let data: ExportData;
   switch (kind) {
     case "registrations":
-      data = await getRegistrationRows(breeder.id, eventId);
+      data = await getRegistrationRows(breederIdResolved, eventId);
       break;
     case "results":
-      data = await getResultsRows(breeder.id, eventId, raceId);
+      data = await getResultsRows(breederIdResolved, eventId, raceId);
       break;
     case "baskets":
       if (!eventId) {
@@ -106,10 +123,13 @@ export async function GET(
           { status: 400 },
         );
       }
-      data = await getBasketsRows(breeder.id, eventId);
+      data = await getBasketsRows(breederIdResolved, eventId);
       break;
     case "birds":
-      data = await getBirdsRows(breeder.id);
+      data = await getBirdsRows(breederIdResolved);
+      break;
+    case "payments":
+      data = await getPaymentsRows(breederIdResolved, eventId);
       break;
   }
 

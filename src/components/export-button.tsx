@@ -11,13 +11,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Download } from "lucide-react";
 
-export type ExportKind = "registrations" | "results" | "baskets" | "birds";
+export type ExportKind =
+  | "registrations"
+  | "results"
+  | "baskets"
+  | "birds"
+  | "payments";
 export type ExportFormat = "xlsx" | "csv" | "pdf" | "html";
 
 interface ExportButtonProps {
   kind: ExportKind;
   eventId?: string | number;
   raceId?: string | number;
+  breederId?: string | number;
   label?: string;
 }
 
@@ -28,11 +34,18 @@ const FORMATS: { format: ExportFormat; label: string }[] = [
   { format: "html", label: "Web Page (.html)" },
 ];
 
-export function ExportButton({ kind, eventId, raceId, label }: ExportButtonProps) {
+export function ExportButton({
+  kind,
+  eventId,
+  raceId,
+  breederId,
+  label,
+}: ExportButtonProps) {
   const open = (format: ExportFormat) => {
     const qs = new URLSearchParams({ format });
     if (eventId !== undefined) qs.set("eventId", String(eventId));
     if (raceId !== undefined) qs.set("raceId", String(raceId));
+    if (breederId !== undefined) qs.set("breederId", String(breederId));
     window.open(`/api/breeder/export/${kind}?${qs.toString()}`, "_blank");
   };
 

@@ -13,6 +13,7 @@ import { Download, Plus, Trash2, Edit } from "lucide-react";
 import type { Event, EventInventory, EventInventoryItem } from "@/lib/types";
 import { EditBirdDialog } from "./edit-bird-dialog";
 import { CreateBirdDialog } from "./create-bird-dialog";
+import { ExportButton } from "./export-button";
 
 const METHOD_LABELS: Record<number, string> = { 0: "Cash", 1: "Credit Card", 2: "PayPal", 3: "Bank Transfer" };
 const TYPE_LABELS: Record<number, string> = { 0: "Perch Fee", 1: "Per Bird Fee", 2: "Races Fee", 3: "Payouts", 4: "Other" };
@@ -267,16 +268,26 @@ export function BreederDetailsDialog({
               <div className="lg:col-span-2 space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-lg">Payments</h3>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      resetPaymentForm();
-                      setIsAddPaymentOpen(!isAddPaymentOpen);
-                    }}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Payment
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {eventInventory?.breederId != null && (
+                      <ExportButton
+                        kind="payments"
+                        eventId={event.id}
+                        breederId={eventInventory.breederId}
+                        label="Export"
+                      />
+                    )}
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        resetPaymentForm();
+                        setIsAddPaymentOpen(!isAddPaymentOpen);
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Payment
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Add/Edit Payment Form */}

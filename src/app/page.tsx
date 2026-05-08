@@ -1,13 +1,29 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import { useListBreederEvents, useListLiveRaces } from "@/lib/api/breeder";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import Image from "next/image";
 import Link from "next/link";
-import { Calendar, Trophy, Radio, MapPin } from "lucide-react";
+import { Calendar, Trophy, Radio, MapPin, ArrowUpDown } from "lucide-react";
 import type { Event, Race } from "@/lib/types";
+
+type SortKey =
+  | "date-desc"
+  | "date-asc"
+  | "name-asc"
+  | "name-desc"
+  | "races-desc"
+  | "status-open";
 
 interface EventWithRaces extends Event {
   races: Race[];
@@ -42,6 +58,32 @@ export default function Home() {
   const events = (eventsData?.events || []) as EventWithRaces[];
   const liveRaces = ((liveRacesData?.races || []) as RaceWithEvent[]).filter((r) => r.event);
 
+  const [sortKey, setSortKey] = useState<SortKey>("date-desc");
+
+  const sortedEvents = useMemo(() => {
+    const arr = [...events];
+    const ts = (d: string | Date | null | undefined) =>
+      d ? new Date(d).getTime() : 0;
+    switch (sortKey) {
+      case "date-asc":
+        return arr.sort((a, b) => ts(a.eventDate) - ts(b.eventDate));
+      case "date-desc":
+        return arr.sort((a, b) => ts(b.eventDate) - ts(a.eventDate));
+      case "name-asc":
+        return arr.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
+      case "name-desc":
+        return arr.sort((a, b) => (b.name ?? "").localeCompare(a.name ?? ""));
+      case "races-desc":
+        return arr.sort((a, b) => (b._count?.races ?? 0) - (a._count?.races ?? 0));
+      case "status-open":
+        return arr.sort(
+          (a, b) => Number(b.isOpen ?? 0) - Number(a.isOpen ?? 0) || ts(b.eventDate) - ts(a.eventDate),
+        );
+      default:
+        return arr;
+    }
+  }, [events, sortKey]);
+
   if (eventsLoading || liveRacesLoading) {
     return (
       <div className="container mx-auto p-6 space-y-8">
@@ -59,9 +101,27 @@ export default function Home() {
     <div className="container mx-auto p-6 space-y-8">
       {/* Events Section */}
       <section>
-        <h2 className="text-2xl font-bold mb-4">All Events</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h2 className="text-2xl font-bold">All Events</h2>
+          <div className="flex items-center gap-2">
+            <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+            <Select value={sortKey} onValueChange={(v) => setSortKey(v as SortKey)}>
+              <SelectTrigger className="w-50">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date-desc">Date (newest first)</SelectItem>
+                <SelectItem value="date-asc">Date (oldest first)</SelectItem>
+                <SelectItem value="name-asc">Name (A–Z)</SelectItem>
+                <SelectItem value="name-desc">Name (Z–A)</SelectItem>
+                <SelectItem value="races-desc">Most races</SelectItem>
+                <SelectItem value="status-open">Open first</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {events.map((event) => {
+          {sortedEvents.map((event) => {
             const liveRacesCount = event.races.filter((r) => r.startTime && !r.isClosed).length;
             
             return (

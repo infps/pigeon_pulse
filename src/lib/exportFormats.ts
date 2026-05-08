@@ -8,6 +8,20 @@ export interface ExportData {
 
 const SEX_LABEL: Record<number, string> = { 0: "Cock", 1: "Hen", 2: "Unknown" };
 
+const PAYMENT_TYPE_LABEL: Record<number, string> = {
+  0: "Perch Fee",
+  1: "Per Bird Fee",
+  2: "Races Fee",
+  3: "Payouts",
+  4: "Other",
+};
+const PAYMENT_METHOD_LABEL: Record<number, string> = {
+  0: "Cash",
+  1: "Credit Card",
+  2: "PayPal",
+  3: "Bank Transfer",
+};
+
 function fmtDate(d: Date | string | null | undefined): string {
   if (!d) return "";
   const dt = typeof d === "string" ? new Date(d) : d;
@@ -178,6 +192,54 @@ export async function getBasketsRows(
     rows,
     title: `Baskets - ${event?.name ?? `Event ${eventId}`}`,
   };
+}
+
+export async function getPaymentsRows(
+  breederId: number,
+  eventId?: number,
+): Promise<ExportData> {
+  const payments = await prisma.payment.findMany({
+    where: {
+      eventInventory: {
+        breederId,
+        ...(eventId ? { eventId } : {}),
+      },
+    },
+    include: {
+      eventInventory: { include: { event: true } },
+    },
+    orderBy: { paymentDate: "desc" },
+  });
+
+  const columns = [
+    "Event",
+    "Date",
+    "Type",
+    "Method",
+    "Amount",
+    "Status",
+    "Reference",
+    "Description",
+  ];
+
+  const rows: string[][] = payments.map((p) => [
+    p.eventInventory?.event?.name ?? "",
+    fmtDateTime(p.paymentDate ?? null),
+    p.paymentType != null ? PAYMENT_TYPE_LABEL[p.paymentType] ?? String(p.paymentType) : "",
+    p.paymentMethod != null ? PAYMENT_METHOD_LABEL[p.paymentMethod] ?? String(p.paymentMethod) : "",
+    p.paymentValue != null ? p.paymentValue.toFixed(2) : "",
+    String(p.status ?? ""),
+    p.transactionId ?? "",
+    p.paymentDesc ?? "",
+  ]);
+
+  let title = "My Payments";
+  if (eventId) {
+    const evName = payments[0]?.eventInventory?.event?.name;
+    title = `Payments - ${evName ?? `Event ${eventId}`}`;
+  }
+
+  return { columns, rows, title };
 }
 
 export async function getBirdsRows(breederId: number): Promise<ExportData> {
