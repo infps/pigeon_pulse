@@ -56,6 +56,7 @@ model User {
   sessions       Session[]
   accounts       Account[]
   breeder        Breeder?
+  eventMessages  EventMessage[]
 
   @@map("Users")
 }
@@ -387,6 +388,7 @@ model Race {
   arrivalWeather     String?   @map("ARRIVAL_WEATHER")
   arrivalWind        String?   @map("ARRIVAL_WIND")
   isClosed           Int?      @map("IS_CLOSED")
+  season             String?   @map("SEASON")
   name               String    @default("")
   isLive             Boolean   @default(false)
   status             RaceStatus @default(REGISTERING) @map("STATUS")
@@ -527,8 +529,43 @@ model Event {
   avgWinnerPrizes  AvgWinnerPrizes[]
   prizeValues      PrizeValue[]
   phantomBirds     RacePhantomBird[]
+  messages         EventMessage[]
+  raceStations     RaceStation[]
 
   @@map("Events")
+}
+
+model RaceStation {
+  id        Int      @id @default(autoincrement())
+  eventId   Int
+  name      String
+  miles     Float?
+  km        Float?
+  latitude  Float?
+  longitude Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+}
+
+model EventMessage {
+  id        Int      @id @default(autoincrement()) @map("ID_EVENT_MESSAGE")
+  eventId   Int      @map("ID_EVENT")
+  authorId  String   @map("AUTHOR_ID")
+  title     String?  @map("TITLE")
+  body      String   @map("BODY")
+  mediaUrls String[] @map("MEDIA_URLS")
+  createdAt DateTime @default(now()) @map("CREATED_AT")
+  updatedAt DateTime @updatedAt @map("UPDATED_AT")
+
+  event  Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  author User  @relation(fields: [authorId], references: [id])
+
+  @@index([eventId, createdAt])
+  @@map("EventMessages")
 }
 
 model EventInventory {

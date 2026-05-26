@@ -1,7 +1,7 @@
 "use client";
 
 import { use } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useGetBreederEvent } from "@/lib/api/breeder";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,12 +16,22 @@ import type { Event } from "@/lib/types";
 import { EventDetailsTab } from "./event-details-tab";
 import { EventBirdsTab } from "./event-birds-tab";
 import { EventBreedersTab } from "./event-breeders-tab";
-import { EventRacesTab } from "./event-races-tab";
+import { EventResultTab } from "./event-result-tab";
 import { EventRegisterTab } from "./event-register-tab";
+import { EventMessagesTab } from "./event-messages-tab";
+import { EventStationsTab } from "./event-stations-tab";
+import { EventHistoryTab } from "./event-history-tab";
+
+const VALID_TABS = ["details", "breeders", "birds", "result", "stations", "messages", "history", "register"] as const;
 
 export default function PublicEventPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const initialTab = (VALID_TABS as readonly string[]).includes(tabParam ?? "")
+    ? (tabParam as string)
+    : "details";
 
   const { data: eventData, isPending, isError } = useGetBreederEvent({ eventId });
 
@@ -70,12 +80,15 @@ export default function PublicEventPage({ params }: { params: Promise<{ eventId:
         )}
       </div>
 
-      <Tabs defaultValue="details" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+      <Tabs defaultValue={initialTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="breeders">Breeders</TabsTrigger>
           <TabsTrigger value="birds">Birds</TabsTrigger>
-          <TabsTrigger value="races">Races</TabsTrigger>
+          <TabsTrigger value="result">Result</TabsTrigger>
+          <TabsTrigger value="stations">Stations</TabsTrigger>
+          <TabsTrigger value="messages">Messages</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="register">Register</TabsTrigger>
         </TabsList>
 
@@ -91,8 +104,20 @@ export default function PublicEventPage({ params }: { params: Promise<{ eventId:
           <EventBirdsTab eventId={eventId} />
         </TabsContent>
 
-        <TabsContent value="races" className="mt-6">
-          <EventRacesTab event={event} eventId={eventId} />
+        <TabsContent value="result" className="mt-6">
+          <EventResultTab event={event} eventId={eventId} />
+        </TabsContent>
+
+        <TabsContent value="stations" className="mt-6">
+          <EventStationsTab eventId={eventId} />
+        </TabsContent>
+
+        <TabsContent value="messages" className="mt-6">
+          <EventMessagesTab eventId={eventId} />
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-6">
+          <EventHistoryTab eventId={eventId} />
         </TabsContent>
 
         <TabsContent value="register" className="mt-6">

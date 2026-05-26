@@ -293,48 +293,51 @@ export const createColumns = (
     id: "actions",
     cell: ({ row }) => {
       const user = row.original
+      const stop = (e: React.SyntheticEvent) => e.stopPropagation()
 
       return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(user.id)}
-            >
-              Copy ID
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(user.email)}
-            >
-              Copy Email
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => onViewTeams(user)}>
-                  View Teams
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-            {onCopy && (
-              <DropdownMenuItem onClick={() => onCopy(user)}>
-                Copy Breeder
+        <div onClick={stop}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0" onClick={stop}>
+                <span className="sr-only">Open menu</span>
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" onClick={stop}>
+              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => navigator.clipboard.writeText(user.id)}
+              >
+                Copy ID
               </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={() => onEdit(user)}>
-              Edit
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => onDelete(user.id)}
-              className="text-red-600"
-            >
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <DropdownMenuItem
+                onClick={() => navigator.clipboard.writeText(user.email)}
+              >
+                Copy Email
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onViewTeams(user)}>
+                View Teams
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {onCopy && (
+                <DropdownMenuItem onClick={() => onCopy(user)}>
+                  Copy Breeder
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => onEdit(user)}>
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => onDelete(user.id)}
+                className="text-red-600"
+              >
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       )
     },
   },

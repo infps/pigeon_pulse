@@ -69,6 +69,7 @@ export interface Breeder {
   name?: string | null;
   image?: string | null;
   state?: string | null;
+  user?: { id?: string | null; loftName: string | null; image: string | null } | null;
 }
 
 export interface OrganizerData {
@@ -356,6 +357,7 @@ export interface Race {
   arrivalWind: string | null;
   isClosed: number | null;
   status: "REGISTERING" | "STARTED" | "ENDED";
+  season?: string | null;
   event?: Event;
   raceType?: RaceType;
   raceItems?: RaceItem[];
@@ -376,6 +378,7 @@ export interface RaceItem {
   eventInventoryItem?: EventInventoryItem;
   birdPosition?: number | null;
   arrivalTime?: string | null;
+  previousPosition?: number | null;
   loftBasketLabel?: string | null;
   raceBasketLabel?: string | null;
   groupId?: number | null;

@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, X } from "lucide-react";
-import { useListBreeders, useListBreederBirds } from "@/lib/api/breeders";
+import { useListBreederBirds } from "@/lib/api/breeders";
 import { useListTeams, useCreateTeam } from "@/lib/api/teams";
 import { toast } from "sonner";
 import { AddEditBreederDialog } from "@/components/add-edit-breeder-dialog";
@@ -82,8 +82,44 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
   const [isAddTeamOpen, setIsAddTeamOpen] = useState(false);
   const [teamName, setTeamName] = useState("");
 
-  const { data: breedersData } = useListBreeders({});
-  const breeders: any[] = breedersData?.breeders || [];
+  const [breederQuery, setBreederQuery] = useState("");
+  const [lookedUpBreeder, setLookedUpBreeder] = useState<{
+    id: number;
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+    loginName: string | null;
+    number: number | null;
+    user?: { username: string | null; displayUsername: string | null; loftName: string | null; image: string | null } | null;
+  } | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
+
+  const lookupBreeder = async () => {
+    const q = breederQuery.trim();
+    if (!q) { toast.error("Enter username or ID"); return; }
+    setLookupLoading(true);
+    try {
+      const res = await fetch(`/api/admin/breeders/lookup?q=${encodeURIComponent(q)}`);
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        toast.error(j.message || "Breeder not found");
+        setLookedUpBreeder(null);
+        setSelectedBreederId("");
+        return;
+      }
+      const j = await res.json();
+      setLookedUpBreeder(j.breeder);
+      handleBreederChange(String(j.breeder.id));
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  const clearBreeder = () => {
+    setLookedUpBreeder(null);
+    setBreederQuery("");
+    handleBreederChange("");
+  };
 
   const { data: teamsData } = useListTeams({
     params: selectedBreederId ? { breederId: selectedBreederId } : undefined,
@@ -292,24 +328,47 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
           <h3 className="font-semibold">Breeder Information</h3>
           <div className="flex gap-2">
             <div className="flex-1 space-y-2">
-              <Label htmlFor="breeder">Select Breeder *</Label>
-              <div className="flex gap-2">
-                <Select value={selectedBreederId} onValueChange={handleBreederChange}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select breeder" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {breeders.map((breeder: any) => (
-                      <SelectItem key={breeder.id} value={String(breeder.id)}>
-                        {breeder.firstName} {breeder.lastName || ""} ({breeder.email})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button type="button" variant="outline" size="icon" onClick={() => setIsAddBreederOpen(true)}>
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
+              <Label htmlFor="breeder">Breeder Username or ID *</Label>
+              {lookedUpBreeder ? (
+                <div className="flex items-center justify-between gap-2 rounded-md border p-3 bg-muted/40">
+                  <div className="flex flex-col text-sm">
+                    <span className="font-semibold">
+                      {lookedUpBreeder.firstName || ""} {lookedUpBreeder.lastName || ""}
+                      {lookedUpBreeder.user?.loftName && (
+                        <span className="text-muted-foreground"> — {lookedUpBreeder.user.loftName}</span>
+                      )}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      ID: {lookedUpBreeder.id}
+                      {lookedUpBreeder.user?.username && ` · @${lookedUpBreeder.user.username}`}
+                    </span>
+                  </div>
+                  <Button type="button" variant="ghost" size="sm" onClick={clearBreeder}>
+                    Change
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Input
+                    id="breeder"
+                    placeholder="Enter full username or breeder ID"
+                    value={breederQuery}
+                    onChange={(e) => setBreederQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        lookupBreeder();
+                      }
+                    }}
+                  />
+                  <Button type="button" variant="outline" onClick={lookupBreeder} disabled={lookupLoading}>
+                    {lookupLoading ? "Looking..." : "Lookup"}
+                  </Button>
+                  <Button type="button" variant="outline" size="icon" onClick={() => setIsAddBreederOpen(true)}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>

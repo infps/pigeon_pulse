@@ -13,27 +13,22 @@ export async function GET(
   }
 
   try {
-    const eventInventory = await prisma.eventInventory.findMany({
+    const messages = await prisma.eventMessage.findMany({
       where: { eventId },
       include: {
-        breeder: {
-          include: {
-            user: { select: { id: true, image: true, name: true } },
-          },
-        },
-        items: {
-          include: { bird: true },
+        author: {
+          select: { id: true, name: true, lastName: true, image: true },
         },
       },
-      orderBy: { signInDate: "desc" },
+      orderBy: { createdAt: "desc" },
     });
 
     return NextResponse.json(
-      { eventInventory, message: "Event inventory fetched successfully" },
+      { messages, message: "Event messages fetched successfully" },
       { status: 200 }
     );
   } catch (error) {
-    console.error("Error fetching event inventory:", error);
+    console.error("Error fetching event messages:", error);
     return NextResponse.json(
       { message: "Internal server error" },
       { status: 500 }

@@ -57,6 +57,7 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
     wind: "",
     weather: "",
     isClosed: 0 as number,
+    season: "",
   });
 
   if (isPending) {
@@ -127,6 +128,7 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
         wind: formData.wind || undefined,
         weather: formData.weather || undefined,
         isClosed: formData.isClosed,
+        season: formData.season || undefined,
       });
 
       toast.success("Race created successfully");
@@ -148,6 +150,7 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
         wind: "",
         weather: "",
         isClosed: 0,
+        season: "",
       });
     } catch (error) {
       toast.error("Failed to create race");
@@ -180,6 +183,7 @@ function toDateTimeLocal(iso: string) {
       wind: race.wind || "",
       weather: race.weather || "",
       isClosed: race.isClosed ?? 0,
+      season: race.season ?? "",
     });
     setIsDialogOpen(true);
   };
@@ -232,6 +236,7 @@ function toDateTimeLocal(iso: string) {
         wind: formData.wind || undefined,
         weather: formData.weather || undefined,
         isClosed: formData.isClosed,
+        season: formData.season || undefined,
       });
 
       toast.success("Race updated successfully");
@@ -253,6 +258,7 @@ function toDateTimeLocal(iso: string) {
         wind: "",
         weather: "",
         isClosed: 0,
+        season: "",
       });
     } catch (error) {
       toast.error("Failed to update race");
@@ -294,6 +300,7 @@ function toDateTimeLocal(iso: string) {
             wind: "",
             weather: "",
             isClosed: 0,
+            season: "",
           });
           setIsDialogOpen(true);
         }}>
@@ -379,6 +386,17 @@ function toDateTimeLocal(iso: string) {
                       setFormData({ ...formData, distance: e.target.value })
                     }
                     required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="season">Season</Label>
+                  <Input
+                    id="season"
+                    placeholder="e.g. YB25"
+                    value={formData.season}
+                    onChange={(e) =>
+                      setFormData({ ...formData, season: e.target.value })
+                    }
                   />
                 </div>
                 <div className="space-y-2 md:col-span-2">
@@ -591,6 +609,7 @@ function toDateTimeLocal(iso: string) {
                     wind: "",
                     weather: "",
                     isClosed: 0,
+                    season: "",
                   });
                 }}
               >

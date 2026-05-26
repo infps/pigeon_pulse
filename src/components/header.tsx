@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth-client";
-import { LogOut, User, Shield } from "lucide-react";
+import { LogOut, User, Shield, Bell } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
 
 export function Header() {
@@ -67,6 +67,13 @@ export function Header() {
           <Link href="/updates">
             <Button variant="ghost">Updates</Button>
           </Link>
+          {session?.user && (
+            <Link href="/notifications" aria-label="Notifications">
+              <Button variant="ghost" size="icon">
+                <Bell className="h-5 w-5" />
+              </Button>
+            </Link>
+          )}
           <ModeToggle />
 
           {session?.user ? (

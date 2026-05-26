@@ -17,6 +17,11 @@ export async function GET(
 
     const raceIdInt = parseInt(raceId);
 
+    const currentRace = await prisma.race.findUnique({
+      where: { id: raceIdInt },
+      select: { id: true, startTime: true },
+    });
+
     const raceItems = await prisma.raceItem.findMany({
       where: { raceId: raceIdInt },
       include: {
@@ -28,6 +33,10 @@ export async function GET(
                   select: {
                     firstName: true,
                     lastName: true,
+                    country: true,
+                    user: {
+                      select: { id: true, loftName: true, image: true },
+                    },
                   },
                 },
               },
@@ -37,18 +46,52 @@ export async function GET(
         result: true,
       },
       orderBy: [
-        { result: { birdPosition: "asc" } },
         { result: { arrivalTime: "asc" } },
       ],
     });
 
+    // Compute rank delta vs each bird's most recent prior race
+    const birdIds = raceItems
+      .map((it) => it.inventoryItem?.bird?.id)
+      .filter((id): id is number => typeof id === "number");
+
+    const priorByBird = new Map<number, number>();
+    if (birdIds.length > 0 && currentRace?.startTime) {
+      const priorItems = await prisma.raceItem.findMany({
+        where: {
+          raceId: { not: raceIdInt },
+          inventoryItem: { bird: { id: { in: birdIds } } },
+          result: { birdPosition: { not: null } },
+          race: { startTime: { lt: currentRace.startTime } },
+        },
+        select: {
+          inventoryItem: { select: { bird: { select: { id: true } } } },
+          result: { select: { birdPosition: true } },
+          race: { select: { startTime: true } },
+        },
+        orderBy: [{ race: { startTime: "desc" } }],
+      });
+
+      for (const p of priorItems) {
+        const bid = p.inventoryItem?.bird?.id;
+        const pos = p.result?.birdPosition;
+        if (bid == null || pos == null) continue;
+        if (!priorByBird.has(bid)) priorByBird.set(bid, pos);
+      }
+    }
+
     // Flatten nested relations for UI column accessors (matches admin API shape)
-    const flattenedRaceItems = raceItems.map((item) => ({
-      ...item,
-      bird: item.inventoryItem?.bird ?? undefined,
-      birdPosition: item.result?.birdPosition ?? null,
-      arrivalTime: item.result?.arrivalTime ?? null,
-    }));
+    const flattenedRaceItems = raceItems.map((item) => {
+      const birdId = item.inventoryItem?.bird?.id ?? null;
+      const previousPosition = birdId != null ? priorByBird.get(birdId) ?? null : null;
+      return {
+        ...item,
+        bird: item.inventoryItem?.bird ?? undefined,
+        birdPosition: item.result?.birdPosition ?? null,
+        arrivalTime: item.result?.arrivalTime ?? null,
+        previousPosition,
+      };
+    });
 
     return NextResponse.json(
       { raceItems: flattenedRaceItems, message: "Race items fetched successfully" },

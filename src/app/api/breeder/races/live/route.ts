@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
 export async function GET(req: NextRequest) {
   try {
-    // Live = startTime is set and not closed
     const liveRaces = await prisma.race.findMany({
       where: {
         startTime: { not: null },
@@ -15,6 +13,7 @@ export async function GET(req: NextRequest) {
             id: true,
             name: true,
             shortName: true,
+            logoImage: true,
             isOpen: true,
           },
         },
@@ -29,15 +28,24 @@ export async function GET(req: NextRequest) {
             raceItems: true,
           },
         },
+        raceItems: {
+          where: { status: "ARRIVED" },
+          select: { id: true },
+        },
       },
       orderBy: {
-        startTime: "desc",
+        id: "desc",
       },
     });
 
+    const races = liveRaces.map(({ raceItems, ...r }) => ({
+      ...r,
+      arrivedCount: raceItems.length,
+    }));
+
     return NextResponse.json({
-      races: liveRaces,
-      count: liveRaces.length,
+      races,
+      count: races.length,
     });
   } catch (error) {
     console.error("Error fetching live races:", error);

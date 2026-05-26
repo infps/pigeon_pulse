@@ -101,6 +101,7 @@ export async function POST(request: Request) {
       wind,
       weather,
       isClosed,
+      season,
     } = body;
 
     const event = await prisma.event.findUnique({
@@ -137,6 +138,7 @@ export async function POST(request: Request) {
           wind,
           weather,
           isClosed: isClosed ? 1 : 0,
+          season: season ?? null,
         },
         include: {
           raceType: true,
@@ -214,6 +216,7 @@ export async function PUT(request: Request) {
     if (data.wind !== undefined) updateData.wind = data.wind;
     if (data.weather !== undefined) updateData.weather = data.weather;
     if (data.isClosed !== undefined) updateData.isClosed = data.isClosed ? 1 : 0;
+    if (data.season !== undefined) updateData.season = data.season || null;
 
     const race = await prisma.race.update({
       where: { id: parseInt(raceId) },

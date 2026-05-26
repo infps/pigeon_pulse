@@ -76,6 +76,14 @@ const breeder = {
   eventInventoryItems: (eventId: number | string) => `/api/breeder/event/${eventId}/inventory-items`,
   eventInventory: (eventId: number | string) => `/api/breeder/event/${eventId}/inventory`,
   raceItems: (raceId: number | string) => `/api/breeder/races/${raceId}/items`,
+  eventMessages: (eventId: number | string) => `/api/breeder/event/${eventId}/messages`,
+  messages: "/api/breeder/messages",
+};
+
+const eventMessages = {
+  list: (eventId: number | string) => `/api/admin/event/${eventId}/messages`,
+  byId: (eventId: number | string, messageId: number | string) =>
+    `/api/admin/event/${eventId}/messages/${messageId}`,
 };
 
 const birds = {
@@ -108,6 +116,7 @@ export const apiEndpoints = {
   raceItems,
   breeder,
   eventBaskets,
+  eventMessages,
   birds,
   admin: {
     birds: adminBirds,

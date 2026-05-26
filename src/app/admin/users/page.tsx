@@ -374,6 +374,16 @@ export default function UsersPage() {
           { id: "username", title: "Username" },
           { id: "phoneNumber", title: "Phone" },
         ]}
+        initialColumnVisibility={{
+          email: false,
+          phoneNumber: false,
+          address: false,
+          city: false,
+          postalCode: false,
+          country: false,
+          state: false,
+          webAddress: false,
+        }}
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
         onRowClick={handleRowClick}

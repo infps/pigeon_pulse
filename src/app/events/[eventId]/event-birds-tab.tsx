@@ -298,7 +298,8 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
       <DataTableColumnHeader column={column} title="Breeder" />
     ),
     cell: ({ row }) => {
-      const breederName = row.original.eventInventory?.breeder?.name;
+      const b = row.original.eventInventory?.breeder;
+          const breederName = b ? [b.firstName, b.lastName].filter(Boolean).join(" ") || null : null;
       const isMyBird = isOwner(row.original);
       return (
         <div className={isMyBird ? "bg-transparent -mx-6 px-6 -my-3 py-3" : ""}>

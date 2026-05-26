@@ -23,6 +23,10 @@ import { BirdsTab } from "./birds-tab";
 import { BasketsTab } from "./baskets-tab";
 import { RacesTab } from "./races-tab";
 import { RegisterTab } from "./register-tab";
+import { MessagesTab } from "./messages-tab";
+import { StationsTab } from "./stations-tab";
+import { EventHistoryTab } from "@/app/events/[eventId]/event-history-tab";
+import { EventResultTab } from "@/app/events/[eventId]/event-result-tab";
 
 export default function EventDetailsPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = use(params);
@@ -80,12 +84,16 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
       </div>
 
       <Tabs defaultValue="edit" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-10">
           <TabsTrigger value="edit">Edit</TabsTrigger>
           <TabsTrigger value="breeders">Breeders</TabsTrigger>
           <TabsTrigger value="birds">Birds</TabsTrigger>
           <TabsTrigger value="baskets">Baskets</TabsTrigger>
           <TabsTrigger value="races">Races</TabsTrigger>
+          <TabsTrigger value="result">Result</TabsTrigger>
+          <TabsTrigger value="stations">Stations</TabsTrigger>
+          <TabsTrigger value="messages">Messages</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="register">Register</TabsTrigger>
         </TabsList>
 
@@ -113,6 +121,22 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
 
         <TabsContent value="races" className="mt-6">
           <RacesTab event={event} eventId={eventId} />
+        </TabsContent>
+
+        <TabsContent value="result" className="mt-6">
+          <EventResultTab event={event} eventId={eventId} />
+        </TabsContent>
+
+        <TabsContent value="stations" className="mt-6">
+          <StationsTab eventId={eventId} />
+        </TabsContent>
+
+        <TabsContent value="messages" className="mt-6">
+          <MessagesTab eventId={eventId} />
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-6">
+          <EventHistoryTab eventId={eventId} />
         </TabsContent>
 
         <TabsContent value="register" className="mt-6">

@@ -42,3 +42,10 @@ export function useListLiveRaces() {
     queryKey: ["breeder", "liveRaces"],
   });
 }
+
+export function useListBreederRaces() {
+  return useApiQuery({
+    endpoint: apiEndpoints.breeder.races,
+    queryKey: ["breeder", "races", "list"],
+  });
+}

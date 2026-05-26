@@ -49,7 +49,7 @@ function BreederDialog({ open, onOpenChange, inventory }: BreederDialogProps) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-4">
             <Avatar className="h-16 w-16">
-              <AvatarImage src={breeder?.image ?? undefined} alt={breeder?.firstName ?? ""} />
+              <AvatarImage src={breeder?.user?.image ?? breeder?.image ?? undefined} alt={breeder?.firstName ?? ""} />
               <AvatarFallback className="text-lg">
                 {getInitials(breeder?.firstName ?? "")}
               </AvatarFallback>
@@ -77,19 +77,19 @@ function BreederDialog({ open, onOpenChange, inventory }: BreederDialogProps) {
                       </span>
                     </div>
                   )}
-                  {breeder?.state && (
+                  {breeder?.state1 && (
                     <div className="flex items-center gap-1.5">
-                      {getStateFlag(breeder.state) && (
+                      {getStateFlag(breeder.state1) && (
                         <Image
-                          src={getStateFlag(breeder.state)!}
-                          alt={getStateName(breeder.state)}
+                          src={getStateFlag(breeder.state1)!}
+                          alt={getStateName(breeder.state1)}
                           width={20}
                           height={15}
                           className="rounded"
                         />
                       )}
                       <span className="text-xs text-muted-foreground">
-                        {getStateName(breeder.state)}
+                        {getStateName(breeder.state1)}
                       </span>
                     </div>
                   )}
@@ -170,7 +170,7 @@ export function EventBreedersTab({ eventId }: EventBreedersTabProps) {
       cell: ({ row }) => {
         const inv = row.original;
         const name = inv.breeder?.firstName ?? "";
-        const image = inv.breeder?.image;
+        const image = inv.breeder?.user?.image ?? inv.breeder?.image;
         const isMe = String(inv.breeder?.userId) === loggedInBreederId;
 
         return (
@@ -223,20 +223,20 @@ export function EventBreedersTab({ eventId }: EventBreedersTabProps) {
     },
     {
       id: "state",
-      accessorFn: (row) => row.breeder?.state,
+      accessorFn: (row) => row.breeder?.state1,
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="State" />
       ),
       cell: ({ row }) => {
-        const state = row.original.breeder?.state;
+        const state = row.original.breeder?.state1;
         if (!state) return <span>-</span>;
-        const flag = getStateFlag(state);
+        const flag = getStateFlag(state ?? "");
         return (
           <div className="flex items-center gap-2">
             {flag && (
-              <Image src={flag} alt={getStateName(state)} width={20} height={15} className="rounded" />
+              <Image src={flag} alt={getStateName(state ?? "")} width={20} height={15} className="rounded" />
             )}
-            <span>{getStateName(state)}</span>
+            <span>{getStateName(state ?? "")}</span>
           </div>
         );
       },
