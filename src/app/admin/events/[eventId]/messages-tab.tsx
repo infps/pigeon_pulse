@@ -27,7 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { MessageSquare, Pencil, Plus, Trash2 } from "lucide-react";
+import { ImageIcon, MessageSquare, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import {
   useListAdminEventMessages,
   useCreateEventMessage,
@@ -78,13 +78,35 @@ export function MessagesTab({ eventId }: { eventId: string }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<EventMessage | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<EventMessage | null>(null);
+  const [search, setSearch] = useState("");
 
   const messages: EventMessage[] = data?.messages ?? [];
 
+  const filtered = search.trim()
+    ? messages.filter((m) => {
+        const q = search.trim().toLowerCase();
+        return (
+          m.title?.toLowerCase().includes(q) ||
+          m.body.toLowerCase().includes(q)
+        );
+      })
+    : messages;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h2 className="text-xl font-semibold">Messages</h2>
+        <div className="flex items-center gap-2 flex-1 max-w-sm">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search messages..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+        </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4 mr-1" /> New Message
         </Button>
@@ -104,9 +126,14 @@ export function MessagesTab({ eventId }: { eventId: string }) {
           <MessageSquare className="h-12 w-12 mb-3" />
           <p>No messages yet. Post your first announcement.</p>
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <Search className="h-12 w-12 mb-3" />
+          <p>No messages match &ldquo;{search}&rdquo;</p>
+        </div>
       ) : (
         <div className="space-y-4">
-          {messages.map((m) => (
+          {filtered.map((m) => (
             <Card key={m.id} className="overflow-hidden p-0 gap-0">
               <div className="bg-muted/60 border-b py-3 px-4 flex items-center gap-3">
                 <Avatar className="size-10">
@@ -140,8 +167,22 @@ export function MessagesTab({ eventId }: { eventId: string }) {
                   </Button>
                 </div>
               </div>
-              <CardContent className="p-4">
+              <CardContent className="p-4 space-y-3">
                 <div className="rich-editor-content" dangerouslySetInnerHTML={{ __html: m.body }} />
+                {m.mediaUrls.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {m.mediaUrls.map((url, i) => (
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={url}
+                          alt={`attachment-${i + 1}`}
+                          className="h-32 w-auto rounded-md border object-cover hover:opacity-90 transition-opacity"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -169,6 +210,78 @@ export function MessagesTab({ eventId }: { eventId: string }) {
   );
 }
 
+async function uploadMessageImage(eventId: string, file: File): Promise<string> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(`/api/admin/event/${eventId}/messages/upload`, {
+    method: "POST",
+    body: fd,
+  });
+  if (!res.ok) throw new Error("Upload failed");
+  const data = await res.json();
+  return data.url as string;
+}
+
+function ImageAttachments({
+  eventId,
+  urls,
+  onChange,
+}: {
+  eventId: string;
+  urls: string[];
+  onChange: (urls: string[]) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      const uploaded = await Promise.all(
+        Array.from(files).map((f) => uploadMessageImage(eventId, f))
+      );
+      onChange([...urls, ...uploaded]);
+    } catch {
+      toast.error("Image upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label>Images (optional)</Label>
+      <div className="flex flex-wrap gap-2">
+        {urls.map((url, i) => (
+          <div key={i} className="relative group">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt="" className="h-20 w-auto rounded-md border object-cover" />
+            <button
+              type="button"
+              onClick={() => onChange(urls.filter((_, j) => j !== i))}
+              className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        ))}
+        <label className={`flex items-center gap-1.5 px-3 py-2 border rounded-md text-sm cursor-pointer hover:bg-muted transition-colors ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
+          <ImageIcon className="h-4 w-4" />
+          {uploading ? "Uploading..." : "Add Image"}
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            className="sr-only"
+            onChange={(e) => handleFiles(e.target.files)}
+            disabled={uploading}
+          />
+        </label>
+      </div>
+    </div>
+  );
+}
+
 function CreateDialog({
   eventId,
   open,
@@ -180,6 +293,7 @@ function CreateDialog({
 }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [sendPublic, setSendPublic] = useState(true);
   const [sendBreeders, setSendBreeders] = useState(false);
   const create = useCreateEventMessage({ eventId });
@@ -187,6 +301,7 @@ function CreateDialog({
   const reset = () => {
     setTitle("");
     setBody("");
+    setMediaUrls([]);
     setSendPublic(true);
     setSendBreeders(false);
   };
@@ -195,7 +310,7 @@ function CreateDialog({
     e.preventDefault();
     if (!body.trim()) return;
     create.mutate(
-      { title: title.trim() || undefined, body, mediaUrls: [] },
+      { title: title.trim() || undefined, body, mediaUrls },
       {
         onSuccess: () => {
           toast.success("Message posted");
@@ -237,6 +352,7 @@ function CreateDialog({
               placeholder="Write your message..."
             />
           </div>
+          <ImageAttachments eventId={eventId} urls={mediaUrls} onChange={setMediaUrls} />
           <div className="space-y-2">
             <Label>Send To</Label>
             <div className="flex flex-col gap-2">
@@ -299,6 +415,7 @@ function EditDialogInner({
 }) {
   const [title, setTitle] = useState(message.title ?? "");
   const [body, setBody] = useState(message.body);
+  const [mediaUrls, setMediaUrls] = useState<string[]>(message.mediaUrls);
   const [sendPublic, setSendPublic] = useState(true);
   const [sendBreeders, setSendBreeders] = useState(false);
   const update = useUpdateEventMessage({ eventId, messageId: message.id });
@@ -307,7 +424,7 @@ function EditDialogInner({
     e.preventDefault();
     if (!body.trim()) return;
     update.mutate(
-      { title: title.trim() || null, body },
+      { title: title.trim() || null, body, mediaUrls },
       {
         onSuccess: () => {
           toast.success("Message updated");
@@ -342,6 +459,7 @@ function EditDialogInner({
               placeholder="Write your message..."
             />
           </div>
+          <ImageAttachments eventId={eventId} urls={mediaUrls} onChange={setMediaUrls} />
           <div className="space-y-2">
             <Label>Send To</Label>
             <div className="flex flex-col gap-2">

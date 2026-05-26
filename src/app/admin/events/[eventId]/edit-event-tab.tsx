@@ -113,7 +113,7 @@ export function EditEventTab({
         submitFormData.append('bannerImage', bannerImageFile);
       }
 
-      submitFormData.append('id', eventId);
+      submitFormData.append('eventId', eventId);
 
       if (!updateMutation.mutateAsync) return;
       await updateMutation.mutateAsync(submitFormData);
