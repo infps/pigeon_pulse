@@ -38,6 +38,7 @@ export async function GET(request: Request) {
           bettingScheme: true,
           createdBy: true,
           races: { include: { raceType: true }, orderBy: { startTime: "asc" } },
+          _count: { select: { races: true, eventInventories: true } },
         },
       });
       if (!event) {
@@ -46,8 +47,19 @@ export async function GET(request: Request) {
           { status: 404 }
         );
       }
+      const birdCount = await prisma.eventInventoryItem.count({
+        where: { eventInventory: { eventId } },
+      });
       return NextResponse.json(
-        { event, message: "Event fetched successfully" },
+        {
+          event,
+          stats: {
+            breeders: event._count.eventInventories,
+            birds: birdCount,
+            races: event._count.races,
+          },
+          message: "Event fetched successfully",
+        },
         { status: 200 }
       );
     }

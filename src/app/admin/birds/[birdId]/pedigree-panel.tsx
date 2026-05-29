@@ -24,8 +24,8 @@ import { Search, Plus, X, Bird as BirdIcon } from "lucide-react";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { apiEndpoints } from "@/lib/endpoints";
 import type { Bird } from "@/lib/types";
-
-const SEX_MAP: Record<number, string> = { 0: "Unknown", 1: "Cock", 2: "Hen" };
+import { getSexLabel } from "@/lib/bird-constants";
+import { useSettings } from "@/lib/settings-context";
 
 interface PedigreePanelProps {
   bird: Bird;
@@ -45,6 +45,7 @@ function BirdCard({
   isOwner: boolean;
 }) {
   const router = useRouter();
+  const { sexTerminology } = useSettings();
   return (
     <div
       className="border rounded-lg p-3 cursor-pointer hover:bg-muted/50 transition-colors"
@@ -70,7 +71,7 @@ function BirdCard({
       <p className="text-sm text-muted-foreground">{bird.birdName || "Unnamed"}</p>
       <div className="flex gap-2 mt-1">
         {bird.color && <Badge variant="outline" className="text-xs">{bird.color}</Badge>}
-        <span className="text-xs text-muted-foreground">{SEX_MAP[bird.sex ?? 0]}</span>
+        <span className="text-xs text-muted-foreground">{getSexLabel(bird.sex, sexTerminology)}</span>
       </div>
     </div>
   );
@@ -78,6 +79,7 @@ function BirdCard({
 
 function BirdListItem({ bird }: { bird: Bird }) {
   const router = useRouter();
+  const { sexTerminology } = useSettings();
   return (
     <div
       className="flex items-center justify-between py-2 px-3 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
@@ -89,7 +91,7 @@ function BirdListItem({ bird }: { bird: Bird }) {
       </div>
       <div className="flex gap-2 items-center">
         {bird.color && <Badge variant="outline" className="text-xs">{bird.color}</Badge>}
-        <span className="text-xs text-muted-foreground">{SEX_MAP[bird.sex ?? 0]}</span>
+        <span className="text-xs text-muted-foreground">{getSexLabel(bird.sex, sexTerminology)}</span>
       </div>
     </div>
   );

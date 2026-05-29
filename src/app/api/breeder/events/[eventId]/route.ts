@@ -66,7 +66,18 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ event });
+    const birdCount = await prisma.eventInventoryItem.count({
+      where: { eventInventory: { eventId } },
+    });
+
+    return NextResponse.json({
+      event,
+      stats: {
+        breeders: event._count.eventInventories,
+        birds: birdCount,
+        races: event._count.races,
+      },
+    });
   } catch (error) {
     console.error("Error fetching event details:", error);
     return NextResponse.json(

@@ -30,6 +30,8 @@ import Link from "next/link";
 import { BirdDialog } from "@/app/birds/bird-dialog";
 import { PayPalButton } from "@/components/paypal-button";
 import { calculateFees } from "@/lib/fee-calculator";
+import { getSexLabel } from "@/lib/bird-constants";
+import { useSettings } from "@/lib/settings-context";
 
 interface EventRegisterTabProps {
   event: Event;
@@ -44,9 +46,8 @@ interface SelectedBird {
   sex: number;
 }
 
-const SEX_LABELS: Record<number, string> = { 0: "Unknown", 1: "Cock", 2: "Hen" };
-
 export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
+  const { sexTerminology } = useSettings();
   const router = useRouter();
   const { data: session, isPending: isSessionPending } = authClient.useSession();
 
@@ -312,7 +313,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                       </div>
                       <div>
                         <p className="text-muted-foreground">Sex</p>
-                        <p className="font-medium">{SEX_LABELS[bird.sex] || "Unknown"}</p>
+                        <p className="font-medium">{getSexLabel(bird.sex, sexTerminology)}</p>
                       </div>
                     </div>
                     <Button type="button" variant="ghost" size="icon" onClick={() => removeBird(bird.id)}>

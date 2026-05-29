@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { DollarSign, Trophy, MapPin, ArrowUp, ArrowDown, Minus } from "lucide-react";
 import Image from "next/image";
 import type { RaceItem } from "@/lib/types";
+import { getSexLabel } from "@/lib/bird-constants";
+import type { VelocityUnit, SexTerminology } from "@/lib/settings-context";
 
 export type EnrichedRaceItem = RaceItem & {
   rank: number | null;
@@ -18,6 +20,8 @@ export type EnrichedRaceItem = RaceItem & {
   bandSex: number | null;
   color: string | null;
   previousPosition: number | null;
+  breederId: number | null;
+  birdId: number | null;
 };
 
 function countryToFlag(code: string | null): string {
@@ -48,7 +52,18 @@ function formatArrival(d: string | null): string {
   return `${hh}:${mm}:${ss}.${ms}`;
 }
 
-export const raceResultsColumns: ColumnDef<EnrichedRaceItem>[] = [
+export function makeRaceResultsColumns({
+  velocityUnit,
+  sexTerminology,
+  onBreederClick,
+  onBirdClick,
+}: {
+  velocityUnit: VelocityUnit;
+  sexTerminology: SexTerminology;
+  onBreederClick?: (breederId: number, loftName: string) => void;
+  onBirdClick?: (birdId: number, band: string) => void;
+}): ColumnDef<EnrichedRaceItem>[] {
+return [
   {
     id: "rank",
     accessorKey: "rank",
@@ -108,11 +123,17 @@ export const raceResultsColumns: ColumnDef<EnrichedRaceItem>[] = [
     cell: ({ row }) => {
       const o = row.original;
       const flag = countryToFlag(o.countryCode);
+      const sexLabel = o.bandSex != null && o.bandSex !== 0 ? getSexLabel(o.bandSex, sexTerminology) : "";
       const sexIcon = o.bandSex === 1 ? "♂" : o.bandSex === 2 ? "♀" : "";
-      const sexColor = o.bandSex === 1 ? "text-blue-600" : "text-pink-600";
+      const sexColor = o.bandSex === 1 ? "text-blue-500" : "text-pink-500";
       return (
         <div className="flex items-center gap-3">
-          <div className="relative h-10 w-10 rounded-full overflow-hidden bg-muted shrink-0">
+          <button
+            type="button"
+            className="relative h-10 w-10 rounded-full overflow-hidden bg-muted shrink-0 hover:ring-2 hover:ring-primary transition-all"
+            onClick={() => o.breederId && onBreederClick?.(o.breederId, o.loftName)}
+            title={onBreederClick ? `View ${o.loftName}'s birds` : undefined}
+          >
             {o.loftImage ? (
               <Image src={o.loftImage} alt={o.loftName} fill className="object-cover" />
             ) : (
@@ -120,16 +141,34 @@ export const raceResultsColumns: ColumnDef<EnrichedRaceItem>[] = [
                 {(o.loftName || "?").substring(0, 2).toUpperCase()}
               </div>
             )}
-          </div>
+          </button>
           <div className="flex flex-col">
-            <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              className="flex items-center gap-1.5 text-left hover:underline"
+              onClick={() => o.breederId && onBreederClick?.(o.breederId, o.loftName)}
+            >
               {flag && <span className="text-base leading-none">{flag}</span>}
               <span className="font-semibold text-sm">{o.loftName || "-"}</span>
-            </div>
+            </button>
             <div className="flex items-center gap-1.5">
               <MapPin className="h-3 w-3 text-green-600" />
-              <span className="font-mono text-xs text-green-700">{o.band || "-"}</span>
-              {sexIcon && <span className={`text-xs ${sexColor}`}>{sexIcon}</span>}
+              <button
+                type="button"
+                className="font-mono text-xs text-green-700 hover:underline"
+                onClick={() => o.birdId && onBirdClick?.(o.birdId, o.band)}
+                title={onBirdClick ? "View bird history" : undefined}
+              >
+                {o.band || "-"}
+              </button>
+              {sexLabel && (
+                <span className={`text-xs font-medium ${sexColor}`}>
+                  {sexIcon} {sexLabel}
+                </span>
+              )}
+              {o.color && (
+                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">{o.color}</Badge>
+              )}
             </div>
           </div>
         </div>
@@ -165,18 +204,13 @@ export const raceResultsColumns: ColumnDef<EnrichedRaceItem>[] = [
   },
   {
     id: "speed",
-    header: () => <span>Speed</span>,
+    header: () => <span>Speed ({velocityUnit})</span>,
     cell: ({ row }) => {
       const v = row.original.ypm;
       if (v == null) return <span className="text-muted-foreground">-</span>;
-      return <span className="font-semibold text-blue-600">{v.toFixed(4)} YPM</span>;
+      const display = velocityUnit === "MPM" ? (v * 0.9144).toFixed(4) : v.toFixed(4);
+      return <span className="font-semibold text-blue-600">{display} {velocityUnit}</span>;
     },
-  },
-  {
-    id: "color",
-    accessorFn: (row) => row.color ?? "",
-    header: () => <span>Color</span>,
-    cell: ({ row }) => <span className="text-sm">{row.original.color || "-"}</span>,
   },
   {
     id: "competitions",
@@ -189,3 +223,4 @@ export const raceResultsColumns: ColumnDef<EnrichedRaceItem>[] = [
     ),
   },
 ];
+}

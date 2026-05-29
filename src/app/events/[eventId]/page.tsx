@@ -36,6 +36,7 @@ export default function PublicEventPage({ params }: { params: Promise<{ eventId:
   const { data: eventData, isPending, isError } = useGetBreederEvent({ eventId });
 
   const event: Event | undefined = eventData?.event;
+  const stats: { breeders: number; birds: number; races: number } | undefined = eventData?.stats;
 
   if (isPending) {
     return (
@@ -93,7 +94,7 @@ export default function PublicEventPage({ params }: { params: Promise<{ eventId:
         </TabsList>
 
         <TabsContent value="details" className="mt-6">
-          <EventDetailsTab event={event} />
+          <EventDetailsTab event={event} stats={stats} />
         </TabsContent>
 
         <TabsContent value="breeders" className="mt-6">

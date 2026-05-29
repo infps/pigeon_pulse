@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useSettings } from "@/lib/settings-context";
 import { useListBreederEvents, useListLiveRaces } from "@/lib/api/breeder";
 import { useListBreederMessages } from "@/lib/api/event-messages";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,15 +57,19 @@ function formatDistance(dist: number | null): string {
   return `${(dist / 1000).toFixed(2)} MI`;
 }
 
-function calcVelocity(dist: number | null, startTime: string): string {
+function calcVelocity(dist: number | null, startTime: string, unit: "YPM" | "MPM"): string {
   if (!dist) return "—";
   const elapsedMin = (Date.now() - new Date(startTime).getTime()) / 60000;
   if (elapsedMin <= 0) return "—";
+  if (unit === "MPM") {
+    return `${(dist / elapsedMin).toFixed(2)} MPM`;
+  }
   const yards = dist * 1.09361;
   return `${(yards / elapsedMin).toFixed(2)} YPM`;
 }
 
 function LiveRaceCard({ race }: { race: RaceWithEvent }) {
+  const { velocityUnit } = useSettings();
   const total = race._count.raceItems ?? 0;
   const arrived = race.arrivedCount ?? 0;
   const progress = total > 0 ? (arrived / total) * 100 : 0;
@@ -117,7 +122,7 @@ function LiveRaceCard({ race }: { race: RaceWithEvent }) {
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Distance</p>
               </div>
               <div className="text-center">
-                <p className="text-sm font-bold">{calcVelocity(race.distance, race.startTime)}</p>
+                <p className="text-sm font-bold">{calcVelocity(race.distance, race.startTime, velocityUnit)}</p>
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Race Velocity</p>
               </div>
               <div className="text-center">

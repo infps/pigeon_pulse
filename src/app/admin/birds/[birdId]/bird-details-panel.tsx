@@ -17,10 +17,9 @@ import { Pencil, X, Save } from "lucide-react";
 import { toast } from "sonner";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { apiEndpoints } from "@/lib/endpoints";
-import { COLORS } from "@/lib/bird-constants";
+import { COLORS, getSexLabel } from "@/lib/bird-constants";
+import { useSettings } from "@/lib/settings-context";
 import type { Bird } from "@/lib/types";
-
-const SEX_MAP: Record<number, string> = { 0: "Unknown", 1: "Cock", 2: "Hen" };
 
 interface BirdDetailsPanelProps {
   bird: Bird;
@@ -29,6 +28,7 @@ interface BirdDetailsPanelProps {
 }
 
 export function BirdDetailsPanel({ bird, isOwner, onUpdate }: BirdDetailsPanelProps) {
+  const { sexTerminology } = useSettings();
   const [editing, setEditing] = useState(false);
   const [sex, setSex] = useState(String(bird.sex ?? 0));
   const [color, setColor] = useState(bird.color ?? "");
@@ -113,7 +113,7 @@ export function BirdDetailsPanel({ bird, isOwner, onUpdate }: BirdDetailsPanelPr
                 </SelectContent>
               </Select>
             ) : (
-              <span>{SEX_MAP[bird.sex ?? 0] ?? "Unknown"}</span>
+              <span>{getSexLabel(bird.sex, sexTerminology)}</span>
             )}
           </dd>
         </div>

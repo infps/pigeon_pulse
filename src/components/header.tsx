@@ -12,12 +12,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth-client";
-import { LogOut, User, Shield, Bell } from "lucide-react";
+import { LogOut, User, Shield, Bell, Settings } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
+import { SettingsDialog } from "@/components/settings-dialog";
+import { useState } from "react";
 
 export function Header() {
   const pathname = usePathname();
   const { data: session } = authClient.useSession();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Don't show header on admin pages
   if (pathname?.startsWith("/admin")) {
@@ -108,6 +111,13 @@ export function Header() {
                     </Link>
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem
+                  onClick={() => setSettingsOpen(true)}
+                  className="cursor-pointer"
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  Display Settings
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
                   <LogOut className="mr-2 h-4 w-4" />
@@ -127,6 +137,7 @@ export function Header() {
           )}
         </div>
       </div>
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </header>
   );
 }

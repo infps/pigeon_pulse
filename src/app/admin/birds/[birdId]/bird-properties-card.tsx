@@ -4,15 +4,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Settings } from "lucide-react";
 import type { Bird } from "@/lib/types";
-
-const SEX_MAP: Record<number, string> = { 0: "Unknown", 1: "Cock", 2: "Hen" };
+import { getSexLabel } from "@/lib/bird-constants";
+import { useSettings } from "@/lib/settings-context";
 
 interface Props {
   bird: Bird;
 }
 
 export function BirdPropertiesCard({ bird }: Props) {
-  const sexLabel = SEX_MAP[bird.sex ?? 0] ?? "Unknown";
+  const { sexTerminology } = useSettings();
+  const sexLabel = getSexLabel(bird.sex, sexTerminology);
   const statusNode =
     bird.isLost === 1 ? (
       <Badge variant="destructive">Lost</Badge>

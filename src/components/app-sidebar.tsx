@@ -10,10 +10,13 @@ import {
   Home,
   LogOut,
   Package,
+  Settings,
   Trophy,
   User2,
   Users,
 } from "lucide-react"
+import { useState } from "react"
+import { SettingsDialog } from "@/components/settings-dialog"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -96,6 +99,7 @@ export function AppSidebar({
   ...props
 }: AppSidebarProps) {
   const router = useRouter()
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const handleLogout = async () => {
     await authClient.signOut({
@@ -205,6 +209,13 @@ export function AppSidebar({
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem
+                  onClick={() => setSettingsOpen(true)}
+                  className="cursor-pointer"
+                >
+                  <Settings className="mr-2 size-4" />
+                  <span>Display Settings</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   onClick={handleLogout}
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >
@@ -216,6 +227,7 @@ export function AppSidebar({
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </Sidebar>
   )
 }

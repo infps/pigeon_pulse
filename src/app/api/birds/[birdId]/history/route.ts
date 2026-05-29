@@ -1,6 +1,4 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 type HistoryType =
@@ -22,6 +20,14 @@ interface HistoryEntry {
   phase?: "LOFT" | "RACE";
   position?: number;
   prizeValue?: number;
+  // enriched fields
+  distance?: number;
+  ypm?: number;
+  gapMs?: number;
+  raceTypeName?: string | null;
+  startTime?: string;
+  flightTimeMs?: number;
+  eventBanner?: string | null;
 }
 
 export async function GET(
@@ -29,11 +35,6 @@ export async function GET(
   { params }: { params: Promise<{ birdId: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
-
     const { birdId } = await params;
     const birdIdInt = parseInt(birdId);
     if (Number.isNaN(birdIdInt)) {
@@ -42,28 +43,48 @@ export async function GET(
 
     const bird = await prisma.bird.findUnique({
       where: { id: birdIdInt },
-      include: { breeder: { select: { userId: true } } },
+      include: {
+        breeder: {
+          select: {
+            userId: true,
+            firstName: true,
+            lastName: true,
+            user: { select: { loftName: true, image: true } },
+          },
+        },
+      },
     });
     if (!bird) {
       return NextResponse.json({ message: "Bird not found" }, { status: 404 });
-    }
-
-    const role = session.user.role;
-    const isPrivileged = role === "ADMIN" || role === "SUPERADMIN";
-    const isOwner = bird.breeder?.userId === session.user.id;
-    if (!isPrivileged && !isOwner) {
-      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
     const inventoryItems = await prisma.eventInventoryItem.findMany({
       where: { birdId: birdIdInt },
       include: {
         eventInventory: {
-          include: { event: { select: { id: true, name: true } } },
+          include: {
+            event: {
+              select: {
+                id: true,
+                name: true,
+                bannerImage: true,
+                logoImage: true,
+              },
+            },
+          },
         },
         raceItems: {
           include: {
-            race: { select: { id: true, name: true, startTime: true, eventId: true } },
+            race: {
+              select: {
+                id: true,
+                name: true,
+                startTime: true,
+                eventId: true,
+                distance: true,
+                raceType: { select: { name: true } },
+              },
+            },
             result: true,
           },
         },
@@ -77,6 +98,34 @@ export async function GET(
       },
     });
 
+    // Batch-fetch leader (first arrival) per race for gap computation
+    const arrivedRaceIds = new Set<number>();
+    for (const inv of inventoryItems) {
+      for (const ri of inv.raceItems) {
+        if (ri.status === "ARRIVED" && ri.race?.id && ri.result?.arrivalTime) {
+          arrivedRaceIds.add(ri.race.id);
+        }
+      }
+    }
+
+    const leaderTimesMap = new Map<number, number>(); // raceId -> earliest arrival ms
+    if (arrivedRaceIds.size > 0) {
+      const allArrivals = await prisma.raceItem.findMany({
+        where: { raceId: { in: [...arrivedRaceIds] }, status: "ARRIVED" },
+        include: { result: { select: { arrivalTime: true } } },
+      });
+      for (const ri of allArrivals) {
+        const t = ri.result?.arrivalTime;
+        if (ri.raceId && t) {
+          const ms = new Date(t).getTime();
+          const existing = leaderTimesMap.get(ri.raceId);
+          if (existing === undefined || ms < existing) {
+            leaderTimesMap.set(ri.raceId, ms);
+          }
+        }
+      }
+    }
+
     const lostHistory = await prisma.lostHistory.findMany({
       where: { birdId: birdIdInt },
       include: { race: { select: { id: true, name: true } } },
@@ -86,6 +135,7 @@ export async function GET(
 
     for (const inv of inventoryItems) {
       const ev = inv.eventInventory?.event;
+      const eventBanner = ev?.bannerImage ?? ev?.logoImage ?? null;
       const signIn = inv.eventInventory?.signInDate ?? inv.arrivalDate;
       if (signIn && ev) {
         entries.push({
@@ -98,6 +148,8 @@ export async function GET(
 
       for (const ri of inv.raceItems) {
         if (!ri.race) continue;
+        const raceTypeName = ri.race.raceType?.name ?? null;
+
         if (ri.status === "RELEASED") {
           if (ri.race.startTime) {
             entries.push({
@@ -106,21 +158,47 @@ export async function GET(
               eventId: ri.race.eventId ?? undefined,
               eventName: ev?.name ?? undefined,
               raceId: ri.race.id,
-              raceName: ri.race.name,
+              raceName: ri.race.name ?? undefined,
+              raceTypeName,
             });
           }
         } else if (ri.status === "ARRIVED") {
           const t = ri.result?.arrivalTime ?? ri.race.startTime;
           if (t) {
+            const arrivalMs = new Date(t).getTime();
+            const startMs = ri.race.startTime
+              ? new Date(ri.race.startTime).getTime()
+              : null;
+            const distanceMi = ri.race.distance ?? 0;
+            const distanceYards = distanceMi * 1760;
+            let ypm: number | undefined;
+            let flightTimeMs: number | undefined;
+            if (startMs) {
+              flightTimeMs = arrivalMs - startMs;
+              if (distanceYards > 0 && flightTimeMs > 0) {
+                ypm = distanceYards / (flightTimeMs / 60000);
+              }
+            }
+            const leaderMs = leaderTimesMap.get(ri.race.id);
+            const gapMs =
+              leaderMs !== undefined ? arrivalMs - leaderMs : undefined;
+
             entries.push({
               type: "ARRIVED",
               date: t.toISOString(),
               eventId: ri.race.eventId ?? undefined,
               eventName: ev?.name ?? undefined,
               raceId: ri.race.id,
-              raceName: ri.race.name,
+              raceName: ri.race.name ?? undefined,
               position: ri.result?.birdPosition ?? undefined,
               prizeValue: ri.result?.prizeValue ?? undefined,
+              distance: distanceMi > 0 ? distanceMi : undefined,
+              ypm,
+              gapMs,
+              raceTypeName,
+              startTime: ri.race.startTime?.toISOString(),
+              flightTimeMs,
+              eventBanner,
             });
           }
         } else if (ri.status === "FOREIGN_BIRD") {
@@ -132,7 +210,8 @@ export async function GET(
               eventId: ri.race.eventId ?? undefined,
               eventName: ev?.name ?? undefined,
               raceId: ri.race.id,
-              raceName: ri.race.name,
+              raceName: ri.race.name ?? undefined,
+              raceTypeName,
             });
           }
         }
@@ -144,7 +223,8 @@ export async function GET(
           date: ba.assignedAt.toISOString(),
           eventId: ba.eventBasket.event?.id,
           eventName: ba.eventBasket.event?.name ?? undefined,
-          basketLabel: ba.eventBasket.label ?? `Basket #${ba.eventBasket.basketNo}`,
+          basketLabel:
+            ba.eventBasket.label ?? `Basket #${ba.eventBasket.basketNo}`,
           phase: ba.eventBasket.phase,
         });
       }
@@ -162,9 +242,32 @@ export async function GET(
 
     entries.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 
-    return NextResponse.json({ entries });
+    const breeder = bird.breeder;
+    const loftName =
+      breeder?.user?.loftName ||
+      `${breeder?.firstName ?? ""} ${breeder?.lastName ?? ""}`.trim() ||
+      "Unknown";
+    const loftImage = breeder?.user?.image ?? null;
+    const bandParts = [bird.band1, bird.band2, bird.band3, bird.band4].filter(
+      Boolean
+    );
+
+    const birdInfo = {
+      band: bandParts.join("-"),
+      loftName,
+      breederName: breeder
+        ? `${breeder.firstName ?? ""} ${breeder.lastName ?? ""}`.trim()
+        : "",
+      loftImage,
+      eligible: bird.isActive === 1,
+    };
+
+    return NextResponse.json({ entries, birdInfo });
   } catch (error) {
     console.error("Error fetching bird history:", error);
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { message: "Internal server error" },
+      { status: 500 }
+    );
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect } from "react";
+import { use } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useListEvents } from "@/lib/api/events";
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/tabs";
 import { ArrowLeft } from "lucide-react";
 import type { BettingScheme, Event, FeeScheme, PrizeScheme } from "@/lib/types";
+import { DetailsTab } from "./details-tab";
 import { EditEventTab } from "./edit-event-tab";
 import { BreedersTab } from "./breeders-tab";
 import { BirdsTab } from "./birds-tab";
@@ -38,6 +39,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
   const { data: bettingSchemesData } = useListBettingSchemes({});
 
   const event: Event | undefined = eventData?.event;
+  const stats: { breeders: number; birds: number; races: number } | undefined = eventData?.stats;
   const feeSchemes: FeeScheme[] = feeSchemesData?.feeSchemes || [];
   const prizeSchemes: PrizeScheme[] = prizeSchemesData?.prizeSchemes || [];
   const bettingSchemes: BettingScheme[] = bettingSchemesData?.bettingSchemes || [];
@@ -80,11 +82,11 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Events
         </Button>
-        <h1 className="text-3xl font-bold text-center">{event.name}</h1>
       </div>
 
-      <Tabs defaultValue="edit" className="w-full">
-        <TabsList className="grid w-full grid-cols-10">
+      <Tabs defaultValue="details" className="w-full">
+        <TabsList className="grid w-full grid-cols-11">
+          <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="edit">Edit</TabsTrigger>
           <TabsTrigger value="breeders">Breeders</TabsTrigger>
           <TabsTrigger value="birds">Birds</TabsTrigger>
@@ -96,6 +98,10 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
           <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="register">Register</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="details" className="mt-6">
+          <DetailsTab event={event} stats={stats} />
+        </TabsContent>
 
         <TabsContent value="edit" className="mt-6">
           <EditEventTab

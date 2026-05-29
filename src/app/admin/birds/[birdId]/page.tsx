@@ -189,9 +189,14 @@ export default function BirdDetailPage({
               <h1 className="text-2xl font-bold leading-tight">
                 {bird.birdName || "Unnamed Bird"}
               </h1>
-              <p className="text-muted-foreground font-mono text-xs mt-1">
-                {bandDisplay || "No band"}
-              </p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-muted-foreground font-mono text-xs">
+                  {bandDisplay || "No band"}
+                </p>
+                {bird.color && (
+                  <Badge variant="outline" className="text-xs font-mono">{bird.color}</Badge>
+                )}
+              </div>
             </div>
 
             {isAdmin && (
