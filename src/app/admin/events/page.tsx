@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import type { BettingScheme, Event, EventType, FeeScheme, PrizeScheme } from "@/lib/types";
 import { ImageUploadWithCrop } from "@/components/image-upload-with-crop";
+import { EventLocationField } from "@/components/map/event-location-field";
 import { useRouter } from "next/navigation";
 
 export default function EventsPage() {
@@ -52,6 +53,8 @@ export default function EventsPage() {
     feeSchemeId: "",
     finalPrizeSchemeId: "",
     bettingSchemeId: "",
+    latitude: null as number | null,
+    longitude: null as number | null,
     contactName: "",
     contactEmail: "",
     contactPhone: "",
@@ -180,6 +183,8 @@ export default function EventsPage() {
       feeSchemeId: "",
       finalPrizeSchemeId: "",
       bettingSchemeId: "",
+      latitude: null,
+      longitude: null,
       contactName: "",
       contactEmail: "",
       contactPhone: "",
@@ -306,6 +311,14 @@ export default function EventsPage() {
                 placeholder="Event description..."
               />
             </div>
+
+            <EventLocationField
+              latitude={formData.latitude}
+              longitude={formData.longitude}
+              onChange={(lat, lng) =>
+                setFormData({ ...formData, latitude: lat, longitude: lng })
+              }
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <div>

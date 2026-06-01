@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ImageUploadWithCrop } from "@/components/image-upload-with-crop";
+import { EventLocationField } from "@/components/map/event-location-field";
 import type { BettingScheme, Event, EventType, FeeScheme, PrizeScheme } from "@/lib/types";
 
 interface EditEventTabProps {
@@ -45,6 +46,8 @@ export function EditEventTab({
     feeSchemeId: String(event.feeSchemeId ?? ""),
     finalPrizeSchemeId: String(event.finalPrizeSchemeId ?? ""),
     bettingSchemeId: String(event.bettingSchemeId ?? ""),
+    latitude: event.latitude ?? (null as number | null),
+    longitude: event.longitude ?? (null as number | null),
     contactName: event.contactName || "",
     contactEmail: event.contactEmail || "",
     contactPhone: event.contactPhone || "",
@@ -193,6 +196,14 @@ export function EditEventTab({
           placeholder="Event description..."
         />
       </div>
+
+      <EventLocationField
+        latitude={formData.latitude}
+        longitude={formData.longitude}
+        onChange={(lat, lng) =>
+          setFormData({ ...formData, latitude: lat, longitude: lng })
+        }
+      />
 
       <div className="grid grid-cols-2 gap-4">
         <div>

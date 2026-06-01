@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { haversine } from "@/lib/geo";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -42,7 +43,7 @@ export async function PUT(
     if (access.error) return access.error;
 
     const body = await req.json();
-    const { name, miles, km, latitude, longitude } = body || {};
+    const { name, miles, km, latitude, longitude, isActive } = body || {};
 
     const existing = await prisma.raceStation.findFirst({
       where: { id: stationId, eventId },
@@ -51,15 +52,33 @@ export async function PUT(
       return NextResponse.json({ message: "Station not found" }, { status: 404 });
     }
 
+    const data: Record<string, unknown> = {
+      ...(typeof name === "string" ? { name: name.trim() } : {}),
+      ...(miles !== undefined ? { miles: miles != null ? Number(miles) : null } : {}),
+      ...(km !== undefined ? { km: km != null ? Number(km) : null } : {}),
+      ...(latitude !== undefined ? { latitude: latitude != null ? Number(latitude) : null } : {}),
+      ...(longitude !== undefined ? { longitude: longitude != null ? Number(longitude) : null } : {}),
+      ...(isActive !== undefined ? { isActive: Boolean(isActive) } : {}),
+    };
+
+    // Recompute distance when coords are provided but no explicit miles/km override.
+    const lat = latitude != null ? Number(latitude) : null;
+    const lng = longitude != null ? Number(longitude) : null;
+    if (lat != null && lng != null && miles == null && km == null) {
+      const event = await prisma.event.findUnique({
+        where: { id: eventId },
+        select: { latitude: true, longitude: true },
+      });
+      if (event?.latitude != null && event?.longitude != null) {
+        const d = haversine(event.latitude, event.longitude, lat, lng);
+        data.miles = d.miles;
+        data.km = d.km;
+      }
+    }
+
     const station = await prisma.raceStation.update({
       where: { id: stationId },
-      data: {
-        ...(typeof name === "string" ? { name: name.trim() } : {}),
-        ...(miles !== undefined ? { miles: miles != null ? Number(miles) : null } : {}),
-        ...(km !== undefined ? { km: km != null ? Number(km) : null } : {}),
-        ...(latitude !== undefined ? { latitude: latitude != null ? Number(latitude) : null } : {}),
-        ...(longitude !== undefined ? { longitude: longitude != null ? Number(longitude) : null } : {}),
-      },
+      data,
     });
     return NextResponse.json({ station, message: "updated" });
   } catch (error) {

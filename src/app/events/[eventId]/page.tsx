@@ -109,7 +109,7 @@ export default function PublicEventPage({ params }: { params: Promise<{ eventId:
         </TabsContent>
 
         <TabsContent value="stations" className="mt-6">
-          <EventStationsTab eventId={eventId} />
+          <EventStationsTab eventId={eventId} event={event} />
         </TabsContent>
 
         <TabsContent value="messages" className="mt-6">

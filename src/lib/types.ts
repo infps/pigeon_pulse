@@ -222,6 +222,8 @@ export interface Event {
   hotSpot3PrizeSchemeId: number | null;
   hotSpotAvgPrizeSchemeId: number | null;
   createdById: number | null;
+  latitude: number | null;
+  longitude: number | null;
   createdBy?: OrganizerData;
   feeScheme?: FeeScheme;
   bettingScheme?: BettingScheme;

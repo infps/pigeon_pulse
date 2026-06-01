@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { haversine } from "@/lib/geo";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -60,19 +61,39 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     if (access.error) return access.error;
 
     const body = await req.json();
-    const { name, miles, km, latitude, longitude } = body || {};
+    const { name, miles, km, latitude, longitude, isActive } = body || {};
     if (!name || typeof name !== "string") {
       return NextResponse.json({ message: "name required" }, { status: 400 });
+    }
+
+    const lat = latitude != null ? Number(latitude) : null;
+    const lng = longitude != null ? Number(longitude) : null;
+
+    // Auto-compute distance from event point when station coords present and no
+    // explicit override supplied by the client.
+    let milesVal = miles != null ? Number(miles) : null;
+    let kmVal = km != null ? Number(km) : null;
+    if (lat != null && lng != null && milesVal == null && kmVal == null) {
+      const event = await prisma.event.findUnique({
+        where: { id: eventId },
+        select: { latitude: true, longitude: true },
+      });
+      if (event?.latitude != null && event?.longitude != null) {
+        const d = haversine(event.latitude, event.longitude, lat, lng);
+        milesVal = d.miles;
+        kmVal = d.km;
+      }
     }
 
     const station = await prisma.raceStation.create({
       data: {
         eventId,
         name: name.trim(),
-        miles: miles != null ? Number(miles) : null,
-        km: km != null ? Number(km) : null,
-        latitude: latitude != null ? Number(latitude) : null,
-        longitude: longitude != null ? Number(longitude) : null,
+        miles: milesVal,
+        km: kmVal,
+        latitude: lat,
+        longitude: lng,
+        isActive: isActive != null ? Boolean(isActive) : true,
       },
     });
     return NextResponse.json({ station, message: "created" }, { status: 201 });

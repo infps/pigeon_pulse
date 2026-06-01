@@ -154,6 +154,8 @@ export async function POST(request: Request) {
         feeSchemeId: validatedData.feeSchemeId ?? null,
         finalPrizeSchemeId: validatedData.finalPrizeSchemeId ?? null,
         bettingSchemeId: validatedData.bettingSchemeId ?? null,
+        latitude: validatedData.latitude ?? null,
+        longitude: validatedData.longitude ?? null,
         createdById: organizer?.id ?? null,
         logoImage: logoImageUrl,
         logoImageKey: logoImageKey,
@@ -290,6 +292,8 @@ export async function PUT(request: Request) {
         ...(validatedData.bettingSchemeId !== undefined && {
           bettingSchemeId: validatedData.bettingSchemeId,
         }),
+        ...(validatedData.latitude !== undefined && { latitude: validatedData.latitude }),
+        ...(validatedData.longitude !== undefined && { longitude: validatedData.longitude }),
         logoImage: logoImageUrl,
         logoImageKey: logoImageKey,
         bannerImage: bannerImageUrl,

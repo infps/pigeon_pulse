@@ -151,6 +151,8 @@ export const createEventSchema = z.object({
     hotSpot2PrizeSchemeId: z.coerce.number().int().optional(),
     hotSpot3PrizeSchemeId: z.coerce.number().int().optional(),
     hotSpotAvgPrizeSchemeId: z.coerce.number().int().optional(),
+    latitude: z.coerce.number().min(-90).max(90).optional(),
+    longitude: z.coerce.number().min(-180).max(180).optional(),
 })
 
 export const updateEventSchema = z.object({
@@ -166,4 +168,6 @@ export const updateEventSchema = z.object({
     hotSpot2PrizeSchemeId: z.coerce.number().int().optional(),
     hotSpot3PrizeSchemeId: z.coerce.number().int().optional(),
     hotSpotAvgPrizeSchemeId: z.coerce.number().int().optional(),
+    latitude: z.coerce.number().min(-90).max(90).optional(),
+    longitude: z.coerce.number().min(-180).max(180).optional(),
 })
