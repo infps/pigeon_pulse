@@ -3,6 +3,9 @@
 import type { Event, Race } from "@/lib/types";
 import { useListRaces, useCreateRace, useUpdateRace, useDeleteRace } from "@/lib/api/races";
 import { useListRaceTypes } from "@/lib/api/race-types";
+import { useStations } from "@/lib/api/stations";
+import { haversine } from "@/lib/geo";
+import { StationsMap } from "@/components/map";
 import { WEATHER_OPTIONS, getWeatherIcon } from "@/lib/weather-constants";
 import { DataTable } from "@/components/ui/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,6 +39,7 @@ interface RacesTabProps {
 export function RacesTab({ event, eventId }: RacesTabProps) {
   const { data, isPending, error } = useListRaces({ params: { eventId } });
   const { data: raceTypesData } = useListRaceTypes();
+  const { data: stationsData } = useStations(eventId);
   const createRaceMutation = useCreateRace();
   const updateRaceMutation = useUpdateRace();
   const deleteRaceMutation = useDeleteRace();
@@ -43,6 +47,7 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
   const [editingRace, setEditingRace] = useState<Race | null>(null);
   const [formData, setFormData] = useState({
     raceTypeId: "",
+    raceStationId: "",
     name: "",
     description: "",
     distance: "",
@@ -81,6 +86,28 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
   const races: Race[] = data?.races || [];
   const raceTypes = raceTypesData?.raceTypes || [];
 
+  // Launch-station picker: active stations + the loft base point from the event.
+  const activeStations = (stationsData?.stations ?? []).filter((s) => s.isActive);
+  const selectedStation = activeStations.find(
+    (s) => String(s.id) === formData.raceStationId,
+  );
+  const hasLoft = event.latitude != null && event.longitude != null;
+  const loftBase = hasLoft
+    ? { lat: event.latitude as number, lng: event.longitude as number, name: event.name ?? "Loft" }
+    : null;
+  const derivedMiles =
+    selectedStation == null
+      ? null
+      : selectedStation.miles ??
+        (hasLoft && selectedStation.latitude != null && selectedStation.longitude != null
+          ? haversine(
+              event.latitude as number,
+              event.longitude as number,
+              selectedStation.latitude,
+              selectedStation.longitude,
+            ).miles
+          : null);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!createRaceMutation.mutateAsync) return;
@@ -112,7 +139,12 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
         eventId,
         name: formData.name,
         description: formData.description || undefined,
-        distance: parseInt(formData.distance),
+        raceStationId: formData.raceStationId || undefined,
+        distance: formData.raceStationId
+          ? undefined
+          : formData.distance
+            ? parseInt(formData.distance)
+            : undefined,
         location: formData.location,
         startTime: new Date(formData.startTime).toISOString(),
         sunrise: sunriseDateTime.toISOString(),
@@ -136,6 +168,7 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
       setEditingRace(null);
       setFormData({
         raceTypeId: "",
+        raceStationId: "",
         name: "",
         description: "",
         distance: "",
@@ -169,6 +202,7 @@ function toDateTimeLocal(iso: string) {
 
     setFormData({
       raceTypeId: String(race.raceTypeId ?? ""),
+      raceStationId: String(race.raceStationId ?? ""),
       name: race.name ?? "",
       description: race.description || "",
       distance: race.distance?.toString() ?? "",
@@ -220,7 +254,12 @@ function toDateTimeLocal(iso: string) {
         eventId,
         name: formData.name,
         description: formData.description || undefined,
-        distance: parseInt(formData.distance),
+        raceStationId: formData.raceStationId || undefined,
+        distance: formData.raceStationId
+          ? undefined
+          : formData.distance
+            ? parseInt(formData.distance)
+            : undefined,
         location: formData.location,
         startTime: formData.startTime,
         sunrise: sunriseDateTime.toISOString(),
@@ -244,6 +283,7 @@ function toDateTimeLocal(iso: string) {
       setEditingRace(null);
       setFormData({
         raceTypeId: "",
+        raceStationId: "",
         name: "",
         description: "",
         distance: "",
@@ -286,6 +326,7 @@ function toDateTimeLocal(iso: string) {
           setEditingRace(null);
           setFormData({
             raceTypeId: "",
+            raceStationId: "",
             name: "",
             description: "",
             distance: "",
@@ -376,17 +417,53 @@ function toDateTimeLocal(iso: string) {
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="launchStation">Launch Station</Label>
+                  <Select
+                    value={formData.raceStationId || "none"}
+                    onValueChange={(value) =>
+                      setFormData({
+                        ...formData,
+                        raceStationId: value === "none" ? "" : value,
+                      })
+                    }
+                  >
+                    <SelectTrigger className="w-full" id="launchStation">
+                      <SelectValue placeholder="Select launch station" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No station</SelectItem>
+                      {activeStations.map((s) => (
+                        <SelectItem key={s.id} value={String(s.id)}>
+                          {s.name}
+                          {s.miles != null ? ` — ${s.miles.toFixed(2)} mi` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!hasLoft && (
+                    <p className="text-xs text-amber-600">
+                      Set the event location (Edit tab) to enable station distance + path.
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="distance">Distance (miles) *</Label>
                   <Input
                     id="distance"
                     type="number"
                     step="1"
-                    value={formData.distance}
+                    value={selectedStation ? (derivedMiles != null ? String(Math.round(derivedMiles)) : "") : formData.distance}
                     onChange={(e) =>
                       setFormData({ ...formData, distance: e.target.value })
                     }
+                    disabled={!!selectedStation}
                     required
                   />
+                  {selectedStation && (
+                    <p className="text-xs text-muted-foreground">
+                      Locked to launch station distance.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="season">Season</Label>
@@ -411,6 +488,31 @@ function toDateTimeLocal(iso: string) {
                 </div>
               </div>
             </div>
+
+            {/* Launch path: station → loft */}
+            {hasLoft && selectedStation && (
+              <div className="space-y-2">
+                <h3 className="font-semibold">Launch Path</h3>
+                <p className="text-xs text-muted-foreground">
+                  {selectedStation.name} → {loftBase?.name}
+                  {derivedMiles != null ? ` (${derivedMiles.toFixed(2)} mi)` : ""}
+                </p>
+                <StationsMap
+                  base={loftBase}
+                  stations={[
+                    {
+                      id: selectedStation.id,
+                      name: selectedStation.name,
+                      latitude: selectedStation.latitude,
+                      longitude: selectedStation.longitude,
+                      miles: derivedMiles,
+                      isActive: selectedStation.isActive,
+                    },
+                  ]}
+                  height={260}
+                />
+              </div>
+            )}
 
             {/* Date & Time Information */}
             <div className="space-y-4">
@@ -595,6 +697,7 @@ function toDateTimeLocal(iso: string) {
                   setEditingRace(null);
                   setFormData({
                     raceTypeId: "",
+                    raceStationId: "",
                     name: "",
                     description: "",
                     distance: "",

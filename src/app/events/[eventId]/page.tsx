@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/tabs";
 import { ArrowLeft } from "lucide-react";
 import type { Event } from "@/lib/types";
-import { EventDetailsTab } from "./event-details-tab";
 import { EventBirdsTab } from "./event-birds-tab";
 import { EventBreedersTab } from "./event-breeders-tab";
 import { EventResultTab } from "./event-result-tab";
@@ -22,7 +21,7 @@ import { EventMessagesTab } from "./event-messages-tab";
 import { EventStationsTab } from "./event-stations-tab";
 import { EventHistoryTab } from "./event-history-tab";
 
-const VALID_TABS = ["details", "breeders", "birds", "result", "stations", "messages", "history", "register"] as const;
+const VALID_TABS = ["breeders", "birds", "result", "stations", "messages", "history", "register"] as const;
 
 export default function PublicEventPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = use(params);
@@ -31,7 +30,7 @@ export default function PublicEventPage({ params }: { params: Promise<{ eventId:
   const tabParam = searchParams.get("tab");
   const initialTab = (VALID_TABS as readonly string[]).includes(tabParam ?? "")
     ? (tabParam as string)
-    : "details";
+    : "breeders";
 
   const { data: eventData, isPending, isError } = useGetBreederEvent({ eventId });
 
@@ -81,8 +80,7 @@ export default function PublicEventPage({ params }: { params: Promise<{ eventId:
       </div>
 
       <Tabs defaultValue={initialTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-8">
-          <TabsTrigger value="details">Details</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="breeders">Breeders</TabsTrigger>
           <TabsTrigger value="birds">Birds</TabsTrigger>
           <TabsTrigger value="result">Result</TabsTrigger>
@@ -91,10 +89,6 @@ export default function PublicEventPage({ params }: { params: Promise<{ eventId:
           <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="register">Register</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="details" className="mt-6">
-          <EventDetailsTab event={event} />
-        </TabsContent>
 
         <TabsContent value="breeders" className="mt-6">
           <EventBreedersTab eventId={eventId} />

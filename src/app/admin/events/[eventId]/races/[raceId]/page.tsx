@@ -6,32 +6,30 @@ import { useApiQuery } from "@/hooks/useApi";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { apiEndpoints } from "@/lib/endpoints";
 import { useListRaceItems } from "@/lib/api/race-items";
-import { colorForGroupId } from "@/lib/arrivalGrouping";
-import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { BasketTabs } from "./basket-tabs";
 import { BasketRaceItemsDialog } from "./basket-race-items-dialog";
 import { raceItemsColumns } from "./race-items-columns";
 import { getWeatherIcon } from "@/lib/weather-constants";
+import { StationsMap } from "@/components/map";
 import type { Race, Event, RaceItem } from "@/lib/types";
 import type { RowSelectionState } from "@tanstack/react-table";
 import Image from "next/image";
-import { Layers, Package, Play, Radio, Square, StopCircle, Trash2 } from "lucide-react";
+import { Package, Play, Radio, Square, StopCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-
-interface ArrivalGroup {
-  id: number;
-  name: string;
-  start: string; // datetime-local value
-  end: string;
-}
 
 export default function RaceDetailsPage() {
   const params = useParams();
@@ -40,13 +38,10 @@ export default function RaceDetailsPage() {
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [basketDialogOpen, setBasketDialogOpen] = useState(false);
+  const [pathOpen, setPathOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [arrivalFrom, setArrivalFrom] = useState<string>("");
   const [arrivalTo, setArrivalTo] = useState<string>("");
-  const [arrivalGroups, setArrivalGroups] = useState<ArrivalGroup[]>([]);
-  const [newGroupName, setNewGroupName] = useState("");
-  const [newGroupStart, setNewGroupStart] = useState("");
-  const [newGroupEnd, setNewGroupEnd] = useState("");
   const lastScannedRfidRef = useRef<string | null>(null);
   const scannerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const queryClient = useQueryClient();
@@ -205,6 +200,10 @@ export default function RaceDetailsPage() {
 
   // Get selected race items
   const selectedRaceItems = raceItems.filter((_, index) => rowSelection[index]);
+
+  // Launch path available when race has a station + event has loft coords.
+  const hasPath =
+    !!race?.raceStation && event?.latitude != null && event?.longitude != null;
 
   const handleBasketSuccess = () => {
     setRowSelection({});
@@ -414,11 +413,20 @@ export default function RaceDetailsPage() {
                     </div>
                     <div className="text-xs text-gray-500 mt-1">Start Time</div>
                   </div>
-                  <div className="border rounded-lg p-2 md:p-3 bg-transparent text-center">
+                  <button
+                    type="button"
+                    disabled={!hasPath}
+                    onClick={() => hasPath && setPathOpen(true)}
+                    className={`border rounded-lg p-2 md:p-3 bg-transparent text-center ${
+                      hasPath ? "cursor-pointer hover:border-gray-400 hover:bg-gray-50" : ""
+                    }`}
+                  >
                     <div className="text-lg md:text-xl font-bold text-gray-900">{race.distance}</div>
                     <div className="text-xs md:text-sm text-gray-600">Mi</div>
-                    <div className="text-xs text-gray-500 mt-1">Distance</div>
-                  </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Distance{hasPath ? " · View path" : ""}
+                    </div>
+                  </button>
                   <div className="border rounded-lg p-2 md:p-3 bg-transparent text-center">
                     <div className="text-lg md:text-xl font-bold text-gray-900">
                       {race.sunrise ? new Date(race.sunrise).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-"}
@@ -434,6 +442,7 @@ export default function RaceDetailsPage() {
           </div>
         </CardContent>
       </Card>
+
 
       {/* Main Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-4 md:gap-6">
@@ -494,143 +503,6 @@ export default function RaceDetailsPage() {
               />
             </CardContent>
           </Card>
-          {/* Arrival Groups Card — UI-only, time-window based */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Arrival Groups ({arrivalGroups.length})</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Group creation form */}
-              <div className="flex flex-wrap items-end gap-3 border rounded p-3 bg-muted/20">
-                <div className="space-y-1">
-                  <Label className="text-xs">Name</Label>
-                  <Input
-                    className="h-9 w-40"
-                    placeholder="Group A"
-                    value={newGroupName}
-                    onChange={(e) => setNewGroupName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Start (Time A)</Label>
-                  <Input
-                    type="datetime-local"
-                    className="h-9 w-56"
-                    value={newGroupStart}
-                    onChange={(e) => setNewGroupStart(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">End (Time B)</Label>
-                  <Input
-                    type="datetime-local"
-                    className="h-9 w-56"
-                    value={newGroupEnd}
-                    onChange={(e) => setNewGroupEnd(e.target.value)}
-                  />
-                </div>
-                <Button
-                  size="sm"
-                  className="gap-1"
-                  disabled={!newGroupStart || !newGroupEnd}
-                  onClick={() => {
-                    if (!newGroupStart || !newGroupEnd) return;
-                    if (new Date(newGroupStart).getTime() > new Date(newGroupEnd).getTime()) {
-                      toast.error("Start must be before end");
-                      return;
-                    }
-                    setArrivalGroups((prev) => [
-                      ...prev,
-                      {
-                        id: Date.now(),
-                        name: newGroupName.trim() || `Group ${prev.length + 1}`,
-                        start: newGroupStart,
-                        end: newGroupEnd,
-                      },
-                    ]);
-                    setNewGroupName("");
-                    setNewGroupStart("");
-                    setNewGroupEnd("");
-                  }}
-                >
-                  <Layers className="h-4 w-4" />
-                  Add Group
-                </Button>
-              </div>
-
-              {/* Render groups + matching birds */}
-              {(() => {
-                const arrived = raceItems.filter((ri) => ri.arrivalTime);
-                if (arrivalGroups.length === 0) {
-                  return (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No groups defined. Add a time window above.
-                    </p>
-                  );
-                }
-                return (
-                  <div className="space-y-3">
-                    {arrivalGroups.map((g) => {
-                      const c = colorForGroupId(g.id);
-                      const startMs = new Date(g.start).getTime();
-                      const endMs = new Date(g.end).getTime();
-                      const items = arrived
-                        .filter((ri) => {
-                          const t = ri.arrivalTime ? new Date(ri.arrivalTime).getTime() : NaN;
-                          return !isNaN(t) && t >= startMs && t <= endMs;
-                        })
-                        .sort((a, b) => {
-                          const at = a.arrivalTime ? new Date(a.arrivalTime).getTime() : 0;
-                          const bt = b.arrivalTime ? new Date(b.arrivalTime).getTime() : 0;
-                          return at - bt;
-                        });
-                      return (
-                        <div
-                          key={g.id}
-                          className={cn("rounded border-2 overflow-hidden", c.border)}
-                        >
-                          <div className={cn("flex items-center justify-between px-3 py-2", c.bg)}>
-                            <div>
-                              <p className={cn("font-medium text-sm", c.text)}>
-                                {g.name}
-                                <span className="ml-2 text-xs opacity-80">
-                                  ({items.length} bird{items.length === 1 ? "" : "s"})
-                                </span>
-                              </p>
-                              <p className="text-[11px] text-muted-foreground">
-                                {new Date(g.start).toLocaleString()} →{" "}
-                                {new Date(g.end).toLocaleString()}
-                              </p>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                setArrivalGroups((prev) => prev.filter((x) => x.id !== g.id))
-                              }
-                            >
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </div>
-                          {items.length > 0 ? (
-                            <div className={cn("divide-y", c.bg, "bg-opacity-40")}>
-                              {items.map((ri) => (
-                                <ArrivalRow key={ri.id} ri={ri} />
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-xs text-muted-foreground px-3 py-2">
-                              No birds arrived in this window.
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-            </CardContent>
-          </Card>
         </div>
 
         {/* Right Side - 30% */}
@@ -647,29 +519,35 @@ export default function RaceDetailsPage() {
         eventId={eventId}
         onSuccess={handleBasketSuccess}
       />
+
+      {/* Launch path popup: station → loft */}
+      {hasPath && race.raceStation && (
+        <Dialog open={pathOpen} onOpenChange={setPathOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>
+                Launch Path — {race.raceStation.name} → {event.name ?? "Loft"}
+                {race.distance != null ? ` (${race.distance} mi)` : ""}
+              </DialogTitle>
+            </DialogHeader>
+            <StationsMap
+              base={{ lat: event.latitude as number, lng: event.longitude as number, name: event.name ?? "Loft" }}
+              stations={[
+                {
+                  id: race.raceStation.id,
+                  name: race.raceStation.name,
+                  latitude: race.raceStation.latitude,
+                  longitude: race.raceStation.longitude,
+                  miles: race.raceStation.miles ?? race.distance,
+                  isActive: race.raceStation.isActive,
+                },
+              ]}
+              height={420}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
 
-function ArrivalRow({ ri }: { ri: RaceItem }) {
-  const band = ri.bird?.band ?? "—";
-  const name = ri.bird?.birdName ?? "";
-  const pos = ri.birdPosition ?? null;
-  const t = ri.arrivalTime ? new Date(ri.arrivalTime) : null;
-  return (
-    <div className="flex items-center justify-between px-3 py-1.5 text-sm">
-      <div className="flex items-center gap-2 min-w-0">
-        {pos != null && (
-          <span className="font-mono text-xs text-muted-foreground w-6 text-right">
-            #{pos}
-          </span>
-        )}
-        <span className="font-medium truncate">{band}</span>
-        {name && <span className="text-muted-foreground truncate">{name}</span>}
-      </div>
-      <span className="text-xs text-muted-foreground tabular-nums">
-        {t ? t.toLocaleTimeString() : "—"}
-      </span>
-    </div>
-  );
-}

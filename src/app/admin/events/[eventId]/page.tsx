@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/tabs";
 import { ArrowLeft } from "lucide-react";
 import type { BettingScheme, Event, FeeScheme, PrizeScheme } from "@/lib/types";
-import { DetailsTab } from "./details-tab";
 import { EditEventTab } from "./edit-event-tab";
 import { BreedersTab } from "./breeders-tab";
 import { BirdsTab } from "./birds-tab";
@@ -39,7 +38,6 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
   const { data: bettingSchemesData } = useListBettingSchemes({});
 
   const event: Event | undefined = eventData?.event;
-  const stats: { breeders: number; birds: number; races: number } | undefined = eventData?.stats;
   const feeSchemes: FeeScheme[] = feeSchemesData?.feeSchemes || [];
   const prizeSchemes: PrizeScheme[] = prizeSchemesData?.prizeSchemes || [];
   const bettingSchemes: BettingScheme[] = bettingSchemesData?.bettingSchemes || [];
@@ -84,9 +82,8 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
         </Button>
       </div>
 
-      <Tabs defaultValue="details" className="w-full">
-        <TabsList className="grid w-full grid-cols-11">
-          <TabsTrigger value="details">Details</TabsTrigger>
+      <Tabs defaultValue="edit" className="w-full">
+        <TabsList className="grid w-full grid-cols-10">
           <TabsTrigger value="edit">Edit</TabsTrigger>
           <TabsTrigger value="breeders">Breeders</TabsTrigger>
           <TabsTrigger value="birds">Birds</TabsTrigger>
@@ -98,10 +95,6 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
           <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="register">Register</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="details" className="mt-6">
-          <DetailsTab event={event} stats={stats} />
-        </TabsContent>
 
         <TabsContent value="edit" className="mt-6">
           <EditEventTab

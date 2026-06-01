@@ -392,9 +392,11 @@ model Race {
   name               String    @default("")
   isLive             Boolean   @default(false)
   status             RaceStatus @default(REGISTERING) @map("STATUS")
+  raceStationId      Int?      @map("ID_RACE_STATION")
 
-  event     Event?    @relation(fields: [eventId], references: [id])
-  raceType  RaceType? @relation(fields: [raceTypeId], references: [id])
+  event       Event?       @relation(fields: [eventId], references: [id])
+  raceType    RaceType?    @relation(fields: [raceTypeId], references: [id])
+  raceStation RaceStation? @relation(fields: [raceStationId], references: [id])
   raceItems RaceItem[]
   lostBirds Bird[]
   lostHistory    LostHistory[]
@@ -549,7 +551,8 @@ model RaceStation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  races Race[]
 
   @@index([eventId])
 }

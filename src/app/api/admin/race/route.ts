@@ -1,7 +1,32 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { haversine } from "@/lib/geo";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+// Resolve a race's distance (miles, rounded int) from its launch station + event loft.
+// Prefers the station's stored `miles`; falls back to haversine when coords exist.
+async function deriveStationDistance(
+  raceStationId: number,
+  eventId: number,
+): Promise<number | null> {
+  const station = await prisma.raceStation.findUnique({ where: { id: raceStationId } });
+  if (!station) return null;
+  if (station.miles != null) return Math.round(station.miles);
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { latitude: true, longitude: true },
+  });
+  if (
+    event?.latitude != null &&
+    event?.longitude != null &&
+    station.latitude != null &&
+    station.longitude != null
+  ) {
+    return Math.round(haversine(event.latitude, event.longitude, station.latitude, station.longitude).miles);
+  }
+  return null;
+}
 
 export async function GET(request: Request) {
   try {
@@ -24,6 +49,7 @@ export async function GET(request: Request) {
         include: {
           raceType: true,
           event: true,
+          raceStation: true,
         },
       });
 
@@ -102,6 +128,7 @@ export async function POST(request: Request) {
       weather,
       isClosed,
       season,
+      raceStationId,
     } = body;
 
     const event = await prisma.event.findUnique({
@@ -118,6 +145,11 @@ export async function POST(request: Request) {
       where: { eventInventory: { eventId: parseInt(eventId) } },
     });
 
+    // Launch station selected → distance is derived (locked) from station→loft.
+    const stationId = raceStationId ? parseInt(raceStationId) : null;
+    const derivedDistance =
+      stationId != null ? await deriveStationDistance(stationId, parseInt(eventId)) : null;
+
     const race = await prisma.$transaction(async (tx) => {
       const created = await tx.race.create({
         data: {
@@ -126,15 +158,16 @@ export async function POST(request: Request) {
           raceNumber: raceNumber ? parseInt(raceNumber) : null,
           name: name || "",
           description,
-          distance: distance ? parseInt(distance) : null,
+          raceStationId: stationId,
+          distance: stationId != null ? derivedDistance : distance ? parseInt(distance) : null,
           location,
           startTime: startTime ? new Date(startTime) : null,
           sunrise: sunrise ? new Date(sunrise) : null,
           sunset: sunset ? new Date(sunset) : null,
-          arrivalTemperature: arrivalTemperature ?? null,
+          arrivalTemperature: arrivalTemperature != null ? String(arrivalTemperature) : null,
           arrivalWind,
           arrivalWeather,
-          temperature: temperature ?? null,
+          temperature: temperature != null ? String(temperature) : null,
           wind,
           weather,
           isClosed: isClosed ? 1 : 0,
@@ -142,6 +175,7 @@ export async function POST(request: Request) {
         },
         include: {
           raceType: true,
+          raceStation: true,
           event: {
             select: {
               id: true,
@@ -202,17 +236,36 @@ export async function PUT(request: Request) {
     if (data.raceNumber !== undefined) updateData.raceNumber = data.raceNumber ? parseInt(data.raceNumber) : null;
     if (data.name !== undefined) updateData.name = data.name;
     if (data.description !== undefined) updateData.description = data.description;
-    if (data.distance) updateData.distance = parseInt(data.distance);
     if (data.location) updateData.location = data.location;
+
+    // Launch station: persist + derive locked distance. Clearing keeps last distance.
+    if (data.raceStationId !== undefined) {
+      const stationId = data.raceStationId ? parseInt(data.raceStationId) : null;
+      updateData.raceStationId = stationId;
+      if (stationId != null) {
+        const existing = await prisma.race.findUnique({
+          where: { id: parseInt(raceId) },
+          select: { eventId: true },
+        });
+        const evId = data.eventId ? parseInt(data.eventId) : existing?.eventId;
+        if (evId != null) {
+          const derived = await deriveStationDistance(stationId, evId);
+          if (derived != null) updateData.distance = derived;
+        }
+      }
+    } else if (data.distance) {
+      updateData.distance = parseInt(data.distance);
+    }
     if (data.startTime) updateData.startTime = new Date(data.startTime);
     if (data.sunrise) updateData.sunrise = new Date(data.sunrise);
     if (data.sunset) updateData.sunset = new Date(data.sunset);
     if (data.arrivalTemperature !== undefined)
-      updateData.arrivalTemperature = data.arrivalTemperature ?? null;
+      updateData.arrivalTemperature =
+        data.arrivalTemperature != null ? String(data.arrivalTemperature) : null;
     if (data.arrivalWind !== undefined) updateData.arrivalWind = data.arrivalWind;
     if (data.arrivalWeather !== undefined) updateData.arrivalWeather = data.arrivalWeather;
     if (data.temperature !== undefined)
-      updateData.temperature = data.temperature ?? null;
+      updateData.temperature = data.temperature != null ? String(data.temperature) : null;
     if (data.wind !== undefined) updateData.wind = data.wind;
     if (data.weather !== undefined) updateData.weather = data.weather;
     if (data.isClosed !== undefined) updateData.isClosed = data.isClosed ? 1 : 0;
@@ -223,6 +276,7 @@ export async function PUT(request: Request) {
       data: updateData,
       include: {
         raceType: true,
+        raceStation: true,
         event: {
           select: {
             id: true,

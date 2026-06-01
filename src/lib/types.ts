@@ -360,9 +360,22 @@ export interface Race {
   isClosed: number | null;
   status: "REGISTERING" | "STARTED" | "ENDED";
   season?: string | null;
+  raceStationId: number | null;
   event?: Event;
   raceType?: RaceType;
+  raceStation?: RaceStation | null;
   raceItems?: RaceItem[];
+}
+
+export interface RaceStation {
+  id: number;
+  eventId: number;
+  name: string;
+  miles: number | null;
+  km: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  isActive: boolean;
 }
 
 export interface RaceItem {
