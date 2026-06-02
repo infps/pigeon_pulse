@@ -166,12 +166,22 @@ return [
                   {sexIcon} {sexLabel}
                 </span>
               )}
-              {o.color && (
-                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">{o.color}</Badge>
-              )}
             </div>
           </div>
         </div>
+      );
+    },
+  },
+  {
+    id: "color",
+    accessorFn: (row) => row.color ?? "",
+    header: () => <span>Color</span>,
+    cell: ({ row }) => {
+      const c = row.original.color;
+      return c ? (
+        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">{c}</Badge>
+      ) : (
+        <span className="text-muted-foreground">-</span>
       );
     },
   },

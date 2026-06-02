@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
 import { createUserSchema, updateUserSchema } from "@/lib/zod";
 import { headers } from "next/headers";
@@ -331,10 +332,18 @@ export async function PUT(request: Request) {
 
     const validatedData = updateUserSchema.parse(updateData);
 
+    // Empty string on the unique username column collides across users
+    // (Postgres allows many NULLs but only one ""). Store blanks as null.
+    const normalizedUsername =
+      validatedData.username !== undefined
+        ? validatedData.username.trim() || null
+        : undefined;
+
     const updatedUser = await prisma.user.update({
       where: { id },
       data: {
         ...validatedData,
+        username: normalizedUsername,
         statusDate: validatedData.status ? new Date() : undefined,
       },
       select: {
@@ -379,6 +388,16 @@ export async function PUT(request: Request) {
       return NextResponse.json(
         { message: "Validation error", errors: error.issues },
         { status: 400 }
+      );
+    }
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const fields = (error.meta?.target as string[] | undefined)?.join(", ");
+      return NextResponse.json(
+        { message: `Already in use: ${fields ?? "unique field"}` },
+        { status: 409 }
       );
     }
     console.error("Error updating user:", error);
