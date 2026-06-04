@@ -227,6 +227,12 @@ enum RaceStatus {
   ENDED
 }
 
+enum TransportStatus {
+  IDLE
+  IN_TRANSIT
+  ARRIVED
+}
+
 model FeeScheme {
   id                 Int          @id @default(autoincrement()) @map("ID_FEE_SCHEME")
   name               String?      @map("FEE_SCHEME_NAME")
@@ -349,12 +355,14 @@ model RaceNumberGroup {
 model RaceType {
   id            Int  @id @default(autoincrement()) @map("ID_RACE_TYPE")
   name          String? @map("TYPE_NAME")
+  color         String? @map("COLOR")
   numberGroupId Int?    @map("ID_NUMBER_GROUP")
 
   numberGroup      RaceNumberGroup?    @relation(fields: [numberGroupId], references: [id])
   races            Race[]
   prizeValues      PrizeValue[]
   raceTypeFees     RaceTypeFeeScheme[]
+  raceStations     RaceStation[]
 }
 
 model EventRaceNumber {
@@ -393,10 +401,14 @@ model Race {
   isLive             Boolean   @default(false)
   status             RaceStatus @default(REGISTERING) @map("STATUS")
   raceStationId      Int?      @map("ID_RACE_STATION")
+  transportStatus    TransportStatus @default(IDLE) @map("TRANSPORT_STATUS")
+  transportStartedAt DateTime?       @map("TRANSPORT_STARTED_AT")
+  transportEndedAt   DateTime?       @map("TRANSPORT_ENDED_AT")
 
   event       Event?       @relation(fields: [eventId], references: [id])
   raceType    RaceType?    @relation(fields: [raceTypeId], references: [id])
   raceStation RaceStation? @relation(fields: [raceStationId], references: [id])
+  truckPings  TruckPing[]
   raceItems RaceItem[]
   lostBirds Bird[]
   lostHistory    LostHistory[]
@@ -406,6 +418,22 @@ model Race {
   ignoreBirds    RaceIgnoreBird[]
   arrivalGroups  ArrivalGroup[]
   eventBaskets   EventBasket[]
+}
+
+model TruckPing {
+  id         Int      @id @default(autoincrement())
+  raceId     Int
+  latitude   Float
+  longitude  Float
+  speed      Float?
+  heading    Float?
+  accuracy   Float?
+  recordedAt DateTime
+  createdAt  DateTime @default(now())
+
+  race Race @relation(fields: [raceId], references: [id], onDelete: Cascade)
+
+  @@index([raceId, recordedAt])
 }
 
 model ArrivalGroup {
@@ -545,14 +573,16 @@ model RaceStation {
   name      String
   miles     Float?
   km        Float?
-  latitude  Float?
-  longitude Float?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  latitude   Float?
+  longitude  Float?
+  isActive   Boolean  @default(true)
+  raceTypeId Int?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  event Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  races Race[]
+  event    Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  raceType RaceType? @relation(fields: [raceTypeId], references: [id])
+  races    Race[]
 
   @@index([eventId])
 }

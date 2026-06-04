@@ -38,6 +38,7 @@ export async function POST(request: Request) {
     const newRaceType = await prisma.raceType.create({
       data: {
         name: validatedData.name,
+        color: validatedData.color ?? null,
       },
     });
     return NextResponse.json(
@@ -83,6 +84,7 @@ export async function PUT(request: Request) {
       where: { id: parseInt(id) },
       data: {
         name: validatedData.name,
+        color: validatedData.color ?? null,
       },
     });
 

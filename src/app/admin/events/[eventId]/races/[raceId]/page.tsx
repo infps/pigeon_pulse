@@ -21,6 +21,7 @@ import {
 import { DataTable } from "@/components/ui/data-table";
 import { BasketTabs } from "./basket-tabs";
 import { BasketRaceItemsDialog } from "./basket-race-items-dialog";
+// GPS disabled for now: import { TransportCard, RouteHistoryCard } from "./transport-card";
 import { raceItemsColumns } from "./race-items-columns";
 import { getWeatherIcon } from "@/lib/weather-constants";
 import { StationsMap } from "@/components/map";
@@ -448,6 +449,10 @@ export default function RaceDetailsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-4 md:gap-6">
         {/* Left Side */}
         <div className="space-y-4 md:space-y-6 min-w-0">
+
+          {/* GPS disabled for now (re-enable after deploy/testing) */}
+          {/* <TransportCard raceId={raceId} /> */}
+          {/* <RouteHistoryCard raceId={raceId} /> */}
 
           {/* Race Items Table */}
           <Card>

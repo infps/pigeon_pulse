@@ -6,6 +6,7 @@ import { useListRaceTypes } from "@/lib/api/race-types";
 import { useStations } from "@/lib/api/stations";
 import { haversine } from "@/lib/geo";
 import { StationsMap } from "@/components/map";
+import { resolveTypeColor } from "@/lib/type-color";
 import { WEATHER_OPTIONS, getWeatherIcon } from "@/lib/weather-constants";
 import { DataTable } from "@/components/ui/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -420,12 +421,18 @@ function toDateTimeLocal(iso: string) {
                   <Label htmlFor="launchStation">Launch Station</Label>
                   <Select
                     value={formData.raceStationId || "none"}
-                    onValueChange={(value) =>
+                    onValueChange={(value) => {
+                      const id = value === "none" ? "" : value;
+                      const st = activeStations.find((s) => String(s.id) === id);
+                      // Autofill race type from the station's type (if set).
+                      const rtId =
+                        st?.raceTypeId != null ? String(st.raceTypeId) : formData.raceTypeId;
                       setFormData({
                         ...formData,
-                        raceStationId: value === "none" ? "" : value,
-                      })
-                    }
+                        raceStationId: id,
+                        raceTypeId: rtId,
+                      });
+                    }}
                   >
                     <SelectTrigger className="w-full" id="launchStation">
                       <SelectValue placeholder="Select launch station" />
@@ -507,6 +514,7 @@ function toDateTimeLocal(iso: string) {
                       longitude: selectedStation.longitude,
                       miles: derivedMiles,
                       isActive: selectedStation.isActive,
+                      color: resolveTypeColor(selectedStation.raceTypeId, selectedStation.raceType?.color),
                     },
                   ]}
                   height={260}

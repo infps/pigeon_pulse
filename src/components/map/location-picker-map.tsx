@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
+import { MapContainer, Marker, useMapEvents, useMap, ZoomControl } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { BASE_ICON } from "./icons";
+import { BaseLayers } from "./base-layers";
+import { MapSearchControl } from "./map-search";
 
 export interface LatLng {
   lat: number;
@@ -45,11 +47,11 @@ export default function LocationPickerMap({ value, onChange, height = 320 }: Pro
       style={{ height, width: "100%" }}
       className="rounded-md z-0"
       scrollWheelZoom
+      zoomControl={false}
     >
-      <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-      />
+      <ZoomControl position="bottomleft" />
+      <BaseLayers />
+      <MapSearchControl onPick={(lat, lng) => onChange(lat, lng)} />
       <ClickHandler onChange={onChange} />
       <Recenter value={value} />
       {value && (

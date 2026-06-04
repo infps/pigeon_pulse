@@ -43,7 +43,7 @@ export async function PUT(
     if (access.error) return access.error;
 
     const body = await req.json();
-    const { name, miles, km, latitude, longitude, isActive } = body || {};
+    const { name, miles, km, latitude, longitude, isActive, raceTypeId } = body || {};
 
     const existing = await prisma.raceStation.findFirst({
       where: { id: stationId, eventId },
@@ -59,6 +59,9 @@ export async function PUT(
       ...(latitude !== undefined ? { latitude: latitude != null ? Number(latitude) : null } : {}),
       ...(longitude !== undefined ? { longitude: longitude != null ? Number(longitude) : null } : {}),
       ...(isActive !== undefined ? { isActive: Boolean(isActive) } : {}),
+      ...(raceTypeId !== undefined
+        ? { raceTypeId: raceTypeId != null && raceTypeId !== "" ? Number(raceTypeId) : null }
+        : {}),
     };
 
     // Recompute distance when coords are provided but no explicit miles/km override.

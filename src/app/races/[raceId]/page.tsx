@@ -13,6 +13,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { Cloud, Thermometer, Wind, ArrowUpRight, TrendingUp, TrendingDown, Gauge, Building, Home as HomeIcon, Users, Bird as BirdIcon, Calendar, Trophy, ExternalLink, DollarSign, MapPin as MapPinIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { makeRaceResultsColumns, type EnrichedRaceItem } from "./race-results-columns";
+// GPS disabled for now: import { LiveTransit } from "./live-transit";
 import { useSettings } from "@/lib/settings-context";
 import type { Race, RaceItem } from "@/lib/types";
 import Image from "next/image";
@@ -308,6 +309,9 @@ export default function PublicRacePage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* GPS disabled for now (re-enable after deploy/testing) */}
+      {/* <LiveTransit raceId={raceId} /> */}
 
       {/* Race Results Table */}
       <Card>

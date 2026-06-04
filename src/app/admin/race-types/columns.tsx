@@ -20,6 +20,7 @@ export type RaceType = {
   id: string
   name: string
   isPaid: boolean
+  color: string | null
   createdAt: string
 }
 
@@ -54,6 +55,26 @@ export const createColumns = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Name" />
     ),
+  },
+  {
+    accessorKey: "color",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Color" />
+    ),
+    cell: ({ row }) => {
+      const color = row.getValue("color") as string | null
+      return color ? (
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-block h-4 w-4 rounded-full border"
+            style={{ backgroundColor: color }}
+          />
+          <span className="font-mono text-xs text-muted-foreground">{color}</span>
+        </div>
+      ) : (
+        <span className="text-muted-foreground">-</span>
+      )
+    },
   },
   {
     accessorKey: "isPaid",

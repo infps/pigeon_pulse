@@ -26,10 +26,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { MapPin, Pencil, Plus, Trash2, Search } from "lucide-react";
+import { MapPin, Plus, Search } from "lucide-react";
 import { StationsMap, LocationPickerMap } from "@/components/map";
 import { haversine } from "@/lib/geo";
 import { useStations, type Station } from "@/lib/api/stations";
+import { useListRaceTypes } from "@/lib/api/race-types";
+import { resolveTypeColor, textOn } from "@/lib/type-color";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { Event } from "@/lib/types";
 
 export function StationsTab({ eventId, event }: { eventId: string; event?: Event }) {
@@ -40,21 +49,44 @@ export function StationsTab({ eventId, event }: { eventId: string; event?: Event
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Station | null>(null);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "active">("all");
+  // Type tab: "all", a raceTypeId, or "untyped".
+  const [typeTab, setTypeTab] = useState<"all" | "untyped" | number>("all");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const base =
     event?.latitude != null && event?.longitude != null
       ? { lat: event.latitude, lng: event.longitude, name: event.name ?? "Event" }
       : null;
 
+  // Distinct types present across stations, for the tab row.
+  const presentTypes = useMemo(() => {
+    const map = new Map<number, { id: number; name: string; color: string }>();
+    let hasUntyped = false;
+    for (const s of stations) {
+      if (s.raceTypeId == null) {
+        hasUntyped = true;
+        continue;
+      }
+      if (!map.has(s.raceTypeId)) {
+        map.set(s.raceTypeId, {
+          id: s.raceTypeId,
+          name: s.raceType?.name ?? `Type ${s.raceTypeId}`,
+          color: resolveTypeColor(s.raceTypeId, s.raceType?.color) ?? "#64748b",
+        });
+      }
+    }
+    return { types: [...map.values()], hasUntyped };
+  }, [stations]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return stations.filter((s) => {
-      if (filter === "active" && !s.isActive) return false;
+      if (typeTab === "untyped" && s.raceTypeId != null) return false;
+      if (typeof typeTab === "number" && s.raceTypeId !== typeTab) return false;
       if (q && !s.name.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [stations, search, filter]);
+  }, [stations, search, typeTab]);
 
   return (
     <div className="space-y-4">
@@ -94,21 +126,48 @@ export function StationsTab({ eventId, event }: { eventId: string; event?: Event
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant={filter === "all" ? "default" : "outline"}
-                  onClick={() => setFilter("all")}
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setTypeTab("all")}
+                  className={`px-2.5 py-1 rounded text-xs border ${
+                    typeTab === "all" ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                  }`}
                 >
                   All
-                </Button>
-                <Button
-                  size="sm"
-                  variant={filter === "active" ? "default" : "outline"}
-                  onClick={() => setFilter("active")}
-                >
-                  Active
-                </Button>
+                </button>
+                {presentTypes.types.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTypeTab(t.id)}
+                    className={`px-2.5 py-1 rounded text-xs border inline-flex items-center gap-1.5 ${
+                      typeTab === t.id ? "ring-2 ring-offset-1" : "hover:bg-muted"
+                    }`}
+                    style={
+                      typeTab === t.id
+                        ? { backgroundColor: t.color, color: textOn(t.color), borderColor: t.color }
+                        : undefined
+                    }
+                  >
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-full"
+                      style={{ backgroundColor: t.color }}
+                    />
+                    {t.name}
+                  </button>
+                ))}
+                {presentTypes.hasUntyped && (
+                  <button
+                    type="button"
+                    onClick={() => setTypeTab("untyped")}
+                    className={`px-2.5 py-1 rounded text-xs border ${
+                      typeTab === "untyped" ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                    }`}
+                  >
+                    Untyped
+                  </button>
+                )}
               </div>
             </div>
 
@@ -122,11 +181,26 @@ export function StationsTab({ eventId, event }: { eventId: string; event?: Event
                 filtered.map((s) => (
                   <div
                     key={s.id}
-                    className="group flex items-start justify-between gap-2 px-3 py-3 border-b hover:bg-muted/50"
+                    onClick={() => setSelectedId((cur) => (cur === s.id ? null : s.id))}
+                    className={`group flex items-start justify-between gap-2 px-3 py-3 border-b cursor-pointer ${
+                      selectedId === s.id ? "bg-muted ring-1 ring-primary" : "hover:bg-muted/50"
+                    }`}
                   >
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium truncate">{s.name}</span>
+                        {s.raceTypeId != null &&
+                          (() => {
+                            const c = resolveTypeColor(s.raceTypeId, s.raceType?.color) ?? "#64748b";
+                            return (
+                              <span
+                                className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                                style={{ backgroundColor: c, color: textOn(c) }}
+                              >
+                                {s.raceType?.name ?? `Type ${s.raceTypeId}`}
+                              </span>
+                            );
+                          })()}
                         <Badge variant={s.isActive ? "default" : "secondary"}>
                           {s.isActive ? "active" : "inactive"}
                         </Badge>
@@ -136,14 +210,35 @@ export function StationsTab({ eventId, event }: { eventId: string; event?: Event
                         {s.miles != null ? `${s.miles.toFixed(2)} MI` : "— MI"}
                       </div>
                     </div>
-                    <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" onClick={() => setEditing(s)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => setDeleting(s)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    {selectedId === s.id ? (
+                      <div className="flex gap-1 shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditing(s);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleting(s);
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                        select →
+                      </span>
+                    )}
                   </div>
                 ))
               )}
@@ -155,10 +250,24 @@ export function StationsTab({ eventId, event }: { eventId: string; event?: Event
 
           {/* Map */}
           <div className="border rounded-md overflow-hidden">
-            <StationsMap base={base} stations={filtered} height={560} onSelect={(id) => {
-              const s = stations.find((x) => x.id === id);
-              if (s) setEditing(s);
-            }} />
+            <StationsMap
+              base={base}
+              stations={filtered.map((s) => ({
+                ...s,
+                color: resolveTypeColor(s.raceTypeId, s.raceType?.color),
+              }))}
+              height={560}
+              selectedId={selectedId}
+              onSelectId={setSelectedId}
+              onEditSelected={(id) => {
+                const s = stations.find((x) => x.id === id);
+                if (s) setEditing(s);
+              }}
+              onDeleteSelected={(id) => {
+                const s = stations.find((x) => x.id === id);
+                if (s) setDeleting(s);
+              }}
+            />
           </div>
         </div>
       )}
@@ -192,6 +301,7 @@ interface FormState {
   latitude: number | null;
   longitude: number | null;
   isActive: boolean;
+  raceTypeId: string;
 }
 
 function StationFormDialog({
@@ -215,8 +325,11 @@ function StationFormDialog({
     latitude: null,
     longitude: null,
     isActive: true,
+    raceTypeId: "",
   });
   const [saving, setSaving] = useState(false);
+  const { data: raceTypesData } = useListRaceTypes({});
+  const raceTypes: { id: number; name: string | null }[] = raceTypesData?.raceTypes ?? [];
 
   // Sync form when editing target changes
   const targetId = station?.id ?? null;
@@ -230,6 +343,7 @@ function StationFormDialog({
       latitude: station?.latitude ?? null,
       longitude: station?.longitude ?? null,
       isActive: station?.isActive ?? true,
+      raceTypeId: station?.raceTypeId != null ? String(station.raceTypeId) : "",
     });
   }
 
@@ -265,6 +379,7 @@ function StationFormDialog({
         latitude: form.latitude,
         longitude: form.longitude,
         isActive: form.isActive,
+        raceTypeId: form.raceTypeId === "" ? null : Number(form.raceTypeId),
       };
       const url = station
         ? `/api/admin/event/${eventId}/stations/${station.id}`
@@ -310,6 +425,31 @@ function StationFormDialog({
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               placeholder="e.g. HWY95 ROME SW"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Station Type</Label>
+            <Select
+              value={form.raceTypeId || "none"}
+              onValueChange={(v) =>
+                setForm((f) => ({ ...f, raceTypeId: v === "none" ? "" : v }))
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select race type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No type</SelectItem>
+                {raceTypes.map((rt) => (
+                  <SelectItem key={rt.id} value={String(rt.id)}>
+                    {rt.name ?? `Type ${rt.id}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Race type for this station. Autofills the race type when this station is chosen.
+            </p>
           </div>
 
           <div className="space-y-1">

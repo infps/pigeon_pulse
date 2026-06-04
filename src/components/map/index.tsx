@@ -14,5 +14,11 @@ export const StationsMap = dynamic(() => import("./stations-map"), {
   loading: () => <Skeleton className="w-full" style={{ height: 460 }} />,
 });
 
+export const TruckTrackMap = dynamic(() => import("./truck-track-map"), {
+  ssr: false,
+  loading: () => <Skeleton className="w-full" style={{ height: 360 }} />,
+});
+
 export type { LatLng } from "./location-picker-map";
 export type { MapStation } from "./stations-map";
+export type { TrackPoint, TruckPoint } from "./truck-track-map";

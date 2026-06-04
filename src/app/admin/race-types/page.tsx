@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function RaceTypesPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ name: "", isPaid: false });
+  const [formData, setFormData] = useState({ name: "", isPaid: false, color: "#1d4ed8" });
 
   // Fetch race types
   const { data: raceTypesData, isPending, isError } = useListRaceTypes({});
@@ -49,7 +49,7 @@ export default function RaceTypesPage() {
         await createMutation.mutateAsync(formData);
         toast.success("Race type created successfully");
       }
-      setFormData({ name: "", isPaid: false });
+      setFormData({ name: "", isPaid: false, color: "#1d4ed8" });
       setIsCreating(false);
     } catch (error) {
       toast.error(editingId ? "Failed to update race type" : "Failed to create race type");
@@ -58,7 +58,7 @@ export default function RaceTypesPage() {
 
   const handleEdit = (raceType: RaceType) => {
     setEditingId(raceType.id);
-    setFormData({ name: raceType.name, isPaid: raceType.isPaid });
+    setFormData({ name: raceType.name, isPaid: raceType.isPaid, color: raceType.color || "#1d4ed8" });
     setIsCreating(true);
   };
 
@@ -78,7 +78,7 @@ export default function RaceTypesPage() {
   const handleCancel = () => {
     setIsCreating(false);
     setEditingId(null);
-    setFormData({ name: "", isPaid: false });
+    setFormData({ name: "", isPaid: false, color: "#1d4ed8" });
   };
 
   const columns = createColumns(handleEdit, handleDelete);
@@ -128,6 +128,33 @@ export default function RaceTypesPage() {
                 required
               />
             </div>
+            <div>
+              <Label htmlFor="color">Color</Label>
+              <div className="flex items-center gap-3">
+                <input
+                  id="color"
+                  type="color"
+                  value={formData.color}
+                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                  className="h-9 w-12 rounded border cursor-pointer bg-transparent p-0.5"
+                />
+                <Input
+                  type="text"
+                  value={formData.color}
+                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                  placeholder="#1d4ed8"
+                  className="w-32 font-mono"
+                />
+                <span
+                  className="inline-block h-6 w-6 rounded-full border"
+                  style={{ backgroundColor: formData.color }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Used to color stations of this type on the map.
+              </p>
+            </div>
+
             <div className="flex items-center space-x-2">
               <input
                 id="isPaid"

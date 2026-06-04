@@ -94,6 +94,7 @@ export interface OrganizerData {
 export interface RaceType {
   id: number;
   name: string | null;
+  color: string | null;
   numberGroupId: number | null;
 }
 
@@ -360,6 +361,9 @@ export interface Race {
   isClosed: number | null;
   status: "REGISTERING" | "STARTED" | "ENDED";
   season?: string | null;
+  transportStatus?: "IDLE" | "IN_TRANSIT" | "ARRIVED" | null;
+  transportStartedAt?: string | null;
+  transportEndedAt?: string | null;
   raceStationId: number | null;
   event?: Event;
   raceType?: RaceType;

@@ -41,6 +41,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ eventId
     const stations = await prisma.raceStation.findMany({
       where: { eventId },
       orderBy: { miles: "asc" },
+      include: { raceType: true },
     });
     return NextResponse.json({ stations, message: "ok" });
   } catch (error) {
@@ -61,7 +62,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     if (access.error) return access.error;
 
     const body = await req.json();
-    const { name, miles, km, latitude, longitude, isActive } = body || {};
+    const { name, miles, km, latitude, longitude, isActive, raceTypeId } = body || {};
     if (!name || typeof name !== "string") {
       return NextResponse.json({ message: "name required" }, { status: 400 });
     }
@@ -94,6 +95,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         latitude: lat,
         longitude: lng,
         isActive: isActive != null ? Boolean(isActive) : true,
+        raceTypeId: raceTypeId != null && raceTypeId !== "" ? Number(raceTypeId) : null,
       },
     });
     return NextResponse.json({ station, message: "created" }, { status: 201 });

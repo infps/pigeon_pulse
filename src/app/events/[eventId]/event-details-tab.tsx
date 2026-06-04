@@ -28,7 +28,7 @@ export function EventDetailsTab({ event }: EventDetailsTabProps) {
         )}
 
         {/* Right Column - Event Information */}
-        <Card className="h-fit">
+        <Card className="h-fit">``
         <CardHeader>
           <CardTitle>Event Information</CardTitle>
         </CardHeader>

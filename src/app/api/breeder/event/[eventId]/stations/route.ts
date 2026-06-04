@@ -11,6 +11,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ eventId
     const stations = await prisma.raceStation.findMany({
       where: { eventId },
       orderBy: { miles: "asc" },
+      include: { raceType: true },
     });
     return NextResponse.json({ stations, message: "ok" });
   } catch (error) {
