@@ -245,7 +245,6 @@ export default function ProfilePage() {
       <Tabs defaultValue="profile" className="w-full">
         <TabsList>
           <TabsTrigger value="profile">Profile Information</TabsTrigger>
-          <TabsTrigger value="sessions">Active Sessions</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
@@ -517,9 +516,6 @@ export default function ProfilePage() {
                                       Current
                                     </span>
                                   )}
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                  IP: {sessionItem.ipAddress || "Unknown"}
                                 </p>
                                 <p className="text-sm text-muted-foreground">
                                   Created: {format(new Date(sessionItem.createdAt), "PPpp")}

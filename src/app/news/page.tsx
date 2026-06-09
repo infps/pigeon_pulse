@@ -9,8 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Newspaper } from "lucide-react";
 import { useListBreederMessages } from "@/lib/api/event-messages";
-
-const snippet = (b: string, n = 300) => (b.length > n ? b.slice(0, n).trimEnd() + "…" : b);
+import { plainSnippet } from "@/lib/text";
 
 interface NewsMessage {
   id: number;
@@ -87,7 +86,7 @@ export default function NewsPage() {
                     {m.title && <span className="text-muted-foreground"> · {m.title}</span>}
                   </p>
                   <p className="text-sm text-muted-foreground line-clamp-3 mt-1">
-                    {snippet(m.body, 300)}
+                    {plainSnippet(m.body, 300)}
                   </p>
                   <span className="text-xs text-purple-600 mt-1 inline-block">Read More →</span>
                 </div>

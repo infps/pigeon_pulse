@@ -9,6 +9,9 @@ const auth = betterAuth({
     }),
     advanced: {
         disableCSRFCheck: true,
+        ipAddress: {
+            disableIpTracking: true,
+        },
     },
     emailAndPassword:{
         enabled:true,
