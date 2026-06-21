@@ -36,6 +36,7 @@ export function BirdEditDialog({ bird, open, onOpenChange, onSaved }: Props) {
   const [band2, setBand2] = useState(bird.band2 ?? "");
   const [band3, setBand3] = useState(bird.band3 ?? "");
   const [band4, setBand4] = useState(bird.band4 ?? "");
+  const [codeMasked, setCodeMasked] = useState(bird.codeMasked ?? "");
   const [color, setColor] = useState(bird.color ?? "");
   const [sex, setSex] = useState(String(bird.sex ?? 0));
   const [birdName, setBirdName] = useState(bird.birdName ?? "");
@@ -58,6 +59,7 @@ export function BirdEditDialog({ bird, open, onOpenChange, onSaved }: Props) {
     setBand2(bird.band2 ?? "");
     setBand3(bird.band3 ?? "");
     setBand4(bird.band4 ?? "");
+    setCodeMasked(bird.codeMasked ?? "");
     setColor(bird.color ?? "");
     setSex(String(bird.sex ?? 0));
     setBirdName(bird.birdName ?? "");
@@ -80,6 +82,7 @@ export function BirdEditDialog({ bird, open, onOpenChange, onSaved }: Props) {
         band2,
         band3: band3.toUpperCase(),
         band4,
+        codeMasked: codeMasked || null,
         birdName: birdName || null,
         color: color || null,
         sex: parseInt(sex),
@@ -164,6 +167,15 @@ export function BirdEditDialog({ bird, open, onOpenChange, onSaved }: Props) {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div>
+            <Label className="text-xs text-muted-foreground">Code Masked</Label>
+            <Input
+              value={codeMasked}
+              onChange={(e) => setCodeMasked(e.target.value)}
+              placeholder="e.g. AU-0-F2-03"
+            />
           </div>
 
           <div>

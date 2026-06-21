@@ -268,7 +268,30 @@ export async function PUT(request: Request) {
       updateData.temperature = data.temperature != null ? String(data.temperature) : null;
     if (data.wind !== undefined) updateData.wind = data.wind;
     if (data.weather !== undefined) updateData.weather = data.weather;
-    if (data.isClosed !== undefined) updateData.isClosed = data.isClosed ? 1 : 0;
+    // Closed state is dual-tracked: `isClosed` flag + `status`/`endTime`.
+    // Keep them in sync so unmarking "closed" actually re-opens the race.
+    if (data.isClosed !== undefined) {
+      if (data.isClosed) {
+        updateData.isClosed = 1;
+        updateData.status = "ENDED";
+        if (!updateData.endTime) updateData.endTime = new Date();
+      } else {
+        updateData.isClosed = 0;
+        updateData.endTime = null;
+        // Re-open: STARTED if release time has passed, else REGISTERING.
+        const start =
+          updateData.startTime ??
+          (
+            await prisma.race.findUnique({
+              where: { id: parseInt(raceId) },
+              select: { startTime: true },
+            })
+          )?.startTime ??
+          null;
+        updateData.status =
+          start && new Date(start).getTime() <= Date.now() ? "STARTED" : "REGISTERING";
+      }
+    }
     if (data.season !== undefined) updateData.season = data.season || null;
 
     const race = await prisma.race.update({

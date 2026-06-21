@@ -608,6 +608,7 @@ model EventInventory {
   id             Int       @id @default(autoincrement()) @map("ID_EVENT_INVENTORY")
   eventId        Int?      @map("ID_EVENT")
   breederId      Int?      @map("ID_BREEDER")
+  teamId         Int?      @map("ID_TEAM")
   reservedBirds  Int?      @map("RESERVED_BIRDS")
   loft           String?   @map("LOFT")
   note           String?   @map("NOTE")
@@ -617,6 +618,7 @@ model EventInventory {
 
   event   Event?   @relation(fields: [eventId], references: [id])
   breeder Breeder? @relation(fields: [breederId], references: [id])
+  team    Team?    @relation(fields: [teamId], references: [id])
 
   items    EventInventoryItem[]
   partners Partner[]
@@ -738,6 +740,7 @@ model Bird {
   band2              String?   @map("BAND_2")
   band3              String?   @map("BAND_3")
   band4              String?   @map("BAND_4")
+  codeMasked         String?   @map("CODE_MASKED")
   birdName           String?   @map("BIRD_NAME")
   color              String?   @map("COLOR")
   rfid               String?   @map("RF_ID")
@@ -849,6 +852,8 @@ model Team {
   breederId Int?    @map("ID_BREEDER")
 
   breeder Breeder? @relation(fields: [breederId], references: [id])
+
+  eventInventories EventInventory[]
 
   @@unique([name, breederId])
 }

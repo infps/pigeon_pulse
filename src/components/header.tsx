@@ -55,6 +55,12 @@ export function Header() {
               <Link href="/birds">
                 <Button variant="ghost" size="sm">Birds</Button>
               </Link>
+              <Link href="/races">
+                <Button variant="ghost" size="sm">Races</Button>
+              </Link>
+              <Link href="/races/calendar">
+                <Button variant="ghost" size="sm">Calendar</Button>
+              </Link>
               <Link href="/payments">
                 <Button variant="ghost" size="sm">Payments</Button>
               </Link>

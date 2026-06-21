@@ -424,6 +424,7 @@ export interface Bird {
   band2: string | null;
   band3: string | null;
   band4: string | null;
+  codeMasked: string | null;
   birdName: string | null;
   color: string | null;
   rfid: string | null;

@@ -60,7 +60,7 @@ export function BirdHistoryPanel({ birdId }: { birdId: string | number }) {
 
   return (
     <Card>
-      <CardHeader className="pb-3">
+      <CardHeader className="py-2">
         <CardTitle className="flex items-center gap-2 text-base">
           <History className="h-4 w-4" />
           History
@@ -78,7 +78,7 @@ export function BirdHistoryPanel({ birdId }: { birdId: string | number }) {
         ) : entries.length === 0 ? (
           <p className="text-sm text-muted-foreground">No history yet.</p>
         ) : (
-          <ol className="relative space-y-4 border-l pl-4">
+          <ol className="relative max-h-90 space-y-4 overflow-y-auto border-l pl-4 pr-1">
             {entries.map((e, i) => {
               const Icon = ICON_MAP[e.type];
               const sub = subText(e);

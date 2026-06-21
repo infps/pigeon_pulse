@@ -228,7 +228,11 @@ export default function BirdDetailPage({
           </CardContent>
         </Card>
 
-        <BirdPropertiesCard bird={bird} />
+        <BirdPropertiesCard
+          bird={bird}
+          isAdmin={isAdmin}
+          onUpdated={() => refetch()}
+        />
         {showEventScopedCards ? (
           <BirdFeesCard items={scopedItems} />
         ) : (

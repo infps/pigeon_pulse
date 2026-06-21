@@ -46,8 +46,99 @@ export async function GET(request: Request) {
         }
     })
 
+    // Enrich each team with birds + events via the real EventInventory.teamId
+    // relation (registration binds loft → Team).
+    const teamIds = teams.map((t) => t.id);
+    const inventories = teamIds.length
+      ? await prisma.eventInventory.findMany({
+          where: { breederId: breederIdInt, teamId: { in: teamIds } },
+          select: {
+            teamId: true,
+            event: { select: { id: true, name: true } },
+            items: {
+              select: {
+                birdId: true,
+                bird: {
+                  select: {
+                    id: true,
+                    band: true,
+                    band1: true,
+                    band2: true,
+                    band3: true,
+                    band4: true,
+                    birdName: true,
+                  },
+                },
+                raceItems: {
+                  select: {
+                    race: {
+                      select: { id: true, name: true, raceNumber: true, event: { select: { name: true } } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        })
+      : [];
+
+    type TeamBird = { id: number; band: string; name: string | null };
+    const statsByTeam = new Map<
+      number,
+      {
+        birds: Map<number, TeamBird>;
+        races: Map<number, string>;
+        events: Map<number, string>;
+      }
+    >();
+    for (const inv of inventories) {
+      if (inv.teamId == null) continue;
+      const stat =
+        statsByTeam.get(inv.teamId) ?? {
+          birds: new Map<number, TeamBird>(),
+          races: new Map<number, string>(),
+          events: new Map<number, string>(),
+        };
+      if (inv.event?.id != null) {
+        stat.events.set(inv.event.id, inv.event.name ?? `Event ${inv.event.id}`);
+      }
+      for (const item of inv.items) {
+        const b = item.bird;
+        if (b?.id != null) {
+          const band =
+            b.band?.trim() ||
+            [b.band1, b.band2, b.band3, b.band4].filter(Boolean).join("-") ||
+            "No band";
+          stat.birds.set(b.id, { id: b.id, band, name: b.birdName });
+        } else if (item.birdId != null) {
+          stat.birds.set(item.birdId, { id: item.birdId, band: "No band", name: null });
+        }
+        for (const ri of item.raceItems) {
+          const race = ri.race;
+          if (!race) continue;
+          const label = race.name?.trim()
+            || (race.event?.name ? `${race.event.name}${race.raceNumber ? ` #${race.raceNumber}` : ""}` : `Race ${race.id}`);
+          stat.races.set(race.id, label);
+        }
+      }
+      statsByTeam.set(inv.teamId, stat);
+    }
+
+    const enrichedTeams = teams.map((t) => {
+      const stat = statsByTeam.get(t.id);
+      return {
+        ...t,
+        birdCount: stat ? stat.birds.size : 0,
+        birds: stat ? Array.from(stat.birds.values()) : [],
+        races: stat ? Array.from(stat.races.values()) : [],
+        events: stat
+          ? Array.from(stat.events.entries()).map(([id, name]) => ({ id, name }))
+          : [],
+      };
+    });
+
     return NextResponse.json(
-      { teams, message: "Teams fetched successfully" },
+      { teams: enrichedTeams, message: "Teams fetched successfully" },
       { status: 200 }
     );
   } catch (error) {

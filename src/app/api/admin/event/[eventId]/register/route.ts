@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PaymentStatus } from "@/generated/prisma/enums";
 import { calculateFees } from "@/lib/fee-calculator";
+import { resolveTeamId } from "@/lib/resolve-team";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import z from "zod";
@@ -98,11 +99,15 @@ export async function POST(
 
     // Use a transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
+      // Bind loft to a real Team row (create if missing) for the Teams page
+      const teamId = await resolveTeamId(tx, breederId, validatedData.loftName);
+
       // Create EventInventory
       const eventInventory = await tx.eventInventory.create({
         data: {
           eventId,
           breederId,
+          teamId,
           loft: validatedData.loftName,
           reservedBirds: validatedData.reservedBirds,
           note: validatedData.note,

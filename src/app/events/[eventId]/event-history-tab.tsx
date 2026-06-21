@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { History } from "lucide-react";
+import { RaceCalendar, type CalendarRace } from "@/components/race-calendar";
 
 interface HistoryRace {
   id: number;
@@ -22,6 +23,7 @@ interface HistoryRace {
   startTime: string | null;
   distance: number | null;
   season: string | null;
+  status: string | null;
   raceType: { id: number; name: string | null } | null;
 }
 
@@ -86,8 +88,22 @@ export function EventHistoryTab({ eventId }: { eventId: string }) {
     );
   }
 
+  const calendarRaces: CalendarRace[] = (data?.races ?? []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    startTime: r.startTime,
+    distance: r.distance,
+    status: r.status,
+  }));
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-bold text-center mb-2">Race Calendar</h2>
+        <RaceCalendar races={calendarRaces} />
+      </div>
+
       <h2 className="text-lg font-bold text-center mb-2">List Archived Races</h2>
       <div className="rounded-md border overflow-hidden">
         <Table>

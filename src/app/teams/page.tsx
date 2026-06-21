@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,17 +14,32 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Users } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, Bird, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { authClient } from "@/lib/auth-client";
 import { useApiQuery } from "@/hooks/useApi";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { apiEndpoints } from "@/lib/endpoints";
 
+interface TeamBird {
+  id: number;
+  band: string;
+  name: string | null;
+}
+
+interface TeamEvent {
+  id: number;
+  name: string;
+}
+
 interface Team {
   id: number;
   name: string;
   breederId: number;
+  birdCount?: number;
+  birds?: TeamBird[];
+  events?: TeamEvent[];
+  races?: string[];
 }
 
 export default function TeamsPage() {
@@ -162,23 +178,77 @@ export default function TeamsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {teams.map((team) => (
             <Card key={team.id}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Users className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-medium">{team.name}</span>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Users className="h-5 w-5 text-muted-foreground" />
+                    <span className="font-medium">{team.name}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(team)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(team)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(team)}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(team)}
-                    disabled={deleteMutation.isPending}
-                  >
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </Button>
+
+                <div className="space-y-1">
+                  <div className="text-xs font-medium text-muted-foreground">
+                    Registered Events
+                  </div>
+                  {team.events && team.events.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {team.events.map((ev) => (
+                        <Link key={ev.id} href={`/events/${ev.id}`}>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary hover:bg-primary/20">
+                            <Calendar className="h-3 w-3" />
+                            {ev.name}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      Not registered to any event
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                    <Bird className="h-4 w-4" />
+                    <span>
+                      Birds ({team.birdCount ?? team.birds?.length ?? 0})
+                    </span>
+                  </div>
+                  {team.birds && team.birds.length > 0 ? (
+                    <div className="max-h-40 space-y-0.5 overflow-y-auto pr-1">
+                      {team.birds.map((b) => (
+                        <div
+                          key={b.id}
+                          className="flex items-center justify-between rounded px-1.5 py-1 text-xs"
+                        >
+                          <span className="font-mono">{b.band}</span>
+                          {b.name && (
+                            <span className="ml-2 truncate text-muted-foreground">
+                              {b.name}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      No birds in this team
+                    </span>
+                  )}
                 </div>
               </CardContent>
             </Card>

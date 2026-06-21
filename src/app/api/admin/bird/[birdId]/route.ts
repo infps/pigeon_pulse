@@ -10,6 +10,7 @@ const updateBirdSchema = z.object({
   band3: z.string().min(1).optional(),
   band4: z.string().min(1).optional(),
   band: z.string().nullable().optional(),
+  codeMasked: z.string().nullable().optional(),
   birdName: z.string().nullable().optional(),
   color: z.string().nullable().optional(),
   sex: z.coerce.number().int().min(0).max(2).optional(),
@@ -60,7 +61,7 @@ export async function GET(
     const bird = await prisma.bird.findUnique({
       where: { id },
       include: {
-        breeder: true,
+        breeder: { include: { user: true } },
         picture: true,
         inventoryItems: {
           include: {
@@ -140,6 +141,7 @@ export async function PATCH(
           : bandChanged
           ? { band: `${band1 ?? ""}-${band2 ?? ""}-${band3 ?? ""}-${band4 ?? ""}` }
           : {}),
+        ...(data.codeMasked !== undefined && { codeMasked: data.codeMasked }),
         ...(data.birdName !== undefined && { birdName: data.birdName }),
         ...(data.color !== undefined && { color: data.color }),
         ...(data.sex !== undefined && { sex: data.sex }),
