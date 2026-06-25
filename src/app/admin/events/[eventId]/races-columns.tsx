@@ -15,6 +15,36 @@ import {
 import { MoreHorizontal } from "lucide-react";
 import type { Race } from "@/lib/types";
 import Link from "next/link";
+import { Switch } from "@/components/ui/switch";
+import { useToggleBetting } from "@/lib/api/bets";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+
+function BettingToggleCell({ race }: { race: Race }) {
+  const queryClient = useQueryClient();
+  const toggle = useToggleBetting(race.id);
+  const open = !!race.bettingOpen;
+  const disabled = race.status !== "REGISTERING" || toggle.isPending;
+
+  const onToggle = () => {
+    toggle.mutate(undefined, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["races"] });
+      },
+      onError: (e: unknown) => {
+        const msg = e instanceof Error ? e.message : "Failed to toggle betting";
+        toast.error(msg);
+      },
+    });
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <Switch checked={open} disabled={disabled} onCheckedChange={onToggle} />
+      <span className="text-xs text-muted-foreground">{open ? "Open" : "Closed"}</span>
+    </div>
+  );
+}
 
 export const createRacesColumns = (
   onEdit: (race: Race) => void,
@@ -107,6 +137,13 @@ export const createRacesColumns = (
       const weather = row.original.arrivalWeather;
       return <span>{weather || "-"}</span>;
     },
+  },
+  {
+    id: "betting",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Betting" />
+    ),
+    cell: ({ row }) => <BettingToggleCell race={row.original} />,
   },
   {
     id: "actions",

@@ -64,6 +64,7 @@ export async function POST(request: Request) {
       data: {
         name: validatedData.name,
         bettingCutPercent: validatedData.bettingCutPercent,
+        belgianRatio: validatedData.belgianRatio,
         belgianShow1: validatedData.belgianShow1,
         belgianShow2: validatedData.belgianShow2,
         belgianShow3: validatedData.belgianShow3,
@@ -150,6 +151,7 @@ export async function PUT(request: Request) {
       data: {
         name: validatedData.name,
         bettingCutPercent: validatedData.bettingCutPercent,
+        belgianRatio: validatedData.belgianRatio,
         belgianShow1: validatedData.belgianShow1,
         belgianShow2: validatedData.belgianShow2,
         belgianShow3: validatedData.belgianShow3,

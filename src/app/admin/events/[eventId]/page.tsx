@@ -22,6 +22,7 @@ import { BirdsTab } from "./birds-tab";
 
 import { BasketsTab } from "./baskets-tab";
 import { RacesTab } from "./races-tab";
+import { BettingTab } from "./betting-tab";
 import { RegisterTab } from "./register-tab";
 import { MessagesTab } from "./messages-tab";
 import { StationsTab } from "./stations-tab";
@@ -83,12 +84,13 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
       </div>
 
       <Tabs defaultValue="edit" className="w-full">
-        <TabsList className="grid w-full grid-cols-10">
+        <TabsList className="grid w-full grid-cols-11">
           <TabsTrigger value="edit">Edit</TabsTrigger>
           <TabsTrigger value="breeders">Breeders</TabsTrigger>
           <TabsTrigger value="birds">Birds</TabsTrigger>
           <TabsTrigger value="baskets">Baskets</TabsTrigger>
           <TabsTrigger value="races">Races</TabsTrigger>
+          <TabsTrigger value="betting">Betting</TabsTrigger>
           <TabsTrigger value="result">Result</TabsTrigger>
           <TabsTrigger value="stations">Stations</TabsTrigger>
           <TabsTrigger value="messages">Messages</TabsTrigger>
@@ -120,6 +122,10 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
 
         <TabsContent value="races" className="mt-6">
           <RacesTab event={event} eventId={eventId} />
+        </TabsContent>
+
+        <TabsContent value="betting" className="mt-6">
+          <BettingTab event={event} eventId={eventId} />
         </TabsContent>
 
         <TabsContent value="result" className="mt-6">

@@ -51,7 +51,12 @@ export async function buildReceiptData(inventoryId: number): Promise<ReceiptData
       items: {
         include: {
           bird: true,
-          raceItems: { include: { result: true } },
+          raceItems: {
+            include: {
+              result: true,
+              bets: { select: { id: true, amount: true, payoutValue: true, status: true, bettorId: true } },
+            },
+          },
         },
       },
       payments: true,
@@ -123,7 +128,25 @@ export async function buildReceiptData(inventoryId: number): Promise<ReceiptData
     classesPaid: 0,
   };
 
-  // TODO: requires prizeCategory field on RaceItemResult to split prize categories.
+  // classesEarned: sum of won/refunded bet payouts where this breeder's user is the bettor
+  const breederUserId = inv.breeder?.userId ?? null;
+  const classesEarned = itemsList.reduce((s, it) => {
+    return s + (it.raceItems ?? []).reduce((rs, raceItem) => {
+      return rs + (raceItem.bets ?? []).reduce((bs, bet) => {
+        if (
+          breederUserId &&
+          bet.bettorId === breederUserId &&
+          (bet.status === "WON" || bet.status === "REFUNDED") &&
+          bet.payoutValue
+        ) {
+          return bs + Number(bet.payoutValue);
+        }
+        return bs;
+      }, 0);
+    }, 0);
+  }, 0);
+
+  // Capital/hotspot prizes remain from RaceItemResult.prizeValue (non-betting race prizes)
   const totalEarned = itemsList.reduce((s, it) => {
     return s + (it.raceItems ?? []).reduce((rs, r) => rs + Number(r.result?.prizeValue ?? 0), 0);
   }, 0);
@@ -131,9 +154,11 @@ export async function buildReceiptData(inventoryId: number): Promise<ReceiptData
   const winner = {
     hotSpotEarned: 0, hotSpotPaid: 0,
     avgSpeedEarned: 0, avgSpeedPaid: 0,
-    classesEarned: 0, classesPaid: 0,
-    capitalEarned: 0, capitalPaid: 0,
-    totalPayoutEarned: totalEarned,
+    classesEarned,
+    classesPaid: sumPayments(2),
+    capitalEarned: totalEarned,
+    capitalPaid: 0,
+    totalPayoutEarned: totalEarned + classesEarned,
     totalPayoutPaid: sumPayments(3),
   };
 

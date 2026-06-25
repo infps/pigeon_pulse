@@ -4,11 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
+interface BetSelection {
+  birdId: number;
+  pools: { category: "BELGIAN" | "STANDARD" | "WTA"; tierIndex: number }[];
+}
+
 interface PayPalButtonProps {
   eventId: string;
   loftName: string;
   reservedBirds: number;
   birdIds: number[];
+  bets?: BetSelection[];
   disabled?: boolean;
   onPaid?: () => void;
 }
@@ -18,6 +24,7 @@ export function PayPalButton({
   loftName,
   reservedBirds,
   birdIds,
+  bets = [],
   disabled,
   onPaid,
 }: PayPalButtonProps) {
@@ -110,6 +117,7 @@ export function PayPalButton({
           loftName,
           reservedBirds,
           birds: birdIds.map((id) => ({ birdId: id })),
+          bets,
         }),
       });
       const regJson = await regRes.json();

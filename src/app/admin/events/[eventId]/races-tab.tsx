@@ -12,8 +12,9 @@ import { DataTable } from "@/components/ui/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { createRacesColumns } from "./races-columns";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, CloudSun, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { fetchReleaseForecast } from "@/lib/weather-forecast";
 import {
   Dialog,
   DialogContent,
@@ -46,6 +47,7 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
   const deleteRaceMutation = useDeleteRace();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRace, setEditingRace] = useState<Race | null>(null);
+  const [fetchingWx, setFetchingWx] = useState(false);
   const [formData, setFormData] = useState({
     raceTypeId: "",
     raceStationId: "",
@@ -108,6 +110,55 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
               selectedStation.longitude,
             ).miles
           : null);
+
+  // One fetch fills both condition blocks:
+  //  - Release: forecast at the liberation point (launch station)
+  //  - Arrival: forecast at the loft (event base point)
+  // Both use the release start time (no separate arrival time field).
+  const handleFetchForecast = async () => {
+    const stLat = selectedStation?.latitude;
+    const stLon = selectedStation?.longitude;
+    if (stLat == null || stLon == null) {
+      toast.error("Select a launch station with coordinates first");
+      return;
+    }
+    if (!formData.startTime) {
+      toast.error("Set the release start time first");
+      return;
+    }
+    const hasLoftCoords = event.latitude != null && event.longitude != null;
+    setFetchingWx(true);
+    try {
+      const [release, arrival] = await Promise.all([
+        fetchReleaseForecast(stLat, stLon, formData.startTime),
+        hasLoftCoords
+          ? fetchReleaseForecast(event.latitude as number, event.longitude as number, formData.startTime)
+          : Promise.resolve(null),
+      ]);
+      setFormData((prev) => ({
+        ...prev,
+        temperature: String(release.temperatureC),
+        wind: `${release.windKph} km/h`,
+        weather: release.weather,
+        ...(arrival
+          ? {
+              arrivalTemperature: String(arrival.temperatureC),
+              arrivalWind: `${arrival.windKph} km/h`,
+              arrivalWeather: arrival.weather,
+            }
+          : {}),
+      }));
+      toast.success(
+        arrival
+          ? "Forecast filled for release + arrival"
+          : "Release forecast filled (loft has no coordinates for arrival)"
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to fetch forecast");
+    } finally {
+      setFetchingWx(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -624,7 +675,23 @@ function toDateTimeLocal(iso: string) {
 
             {/* Release Conditions */}
             <div className="space-y-4">
-              <h3 className="font-semibold">Release Conditions</h3>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="font-semibold">Release Conditions</h3>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleFetchForecast}
+                  disabled={fetchingWx}
+                >
+                  {fetchingWx ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CloudSun className="h-4 w-4" />
+                  )}
+                  Fetch Forecast
+                </Button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="temperature">

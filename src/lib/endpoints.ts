@@ -80,6 +80,18 @@ const breeder = {
   messages: "/api/breeder/messages",
 };
 
+const betting = {
+  // breeder/bettor — per race
+  bets: (raceId: number | string) => `/api/breeder/race/${raceId}/bet`,
+  // admin — per race
+  toggle: (raceId: number | string) => `/api/admin/race/${raceId}/betting/toggle`,
+  pool: (raceId: number | string) => `/api/admin/race/${raceId}/betting/pool`,
+  calculatePayouts: (raceId: number | string) =>
+    `/api/admin/race/${raceId}/betting/calculate-payouts`,
+  placeCashBet: (raceId: number | string) =>
+    `/api/admin/race/${raceId}/betting/place-cash-bet`,
+};
+
 const eventMessages = {
   list: (eventId: number | string) => `/api/admin/event/${eventId}/messages`,
   byId: (eventId: number | string, messageId: number | string) =>
@@ -116,6 +128,7 @@ export const apiEndpoints = {
   raceItems,
   breeder,
   eventBaskets,
+  betting,
   eventMessages,
   birds,
   admin: {

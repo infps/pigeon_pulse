@@ -360,6 +360,7 @@ export interface Race {
   arrivalWind: string | null;
   isClosed: number | null;
   status: "REGISTERING" | "STARTED" | "ENDED";
+  bettingOpen?: boolean;
   season?: string | null;
   transportStatus?: "IDLE" | "IN_TRANSIT" | "ARRIVED" | null;
   transportStartedAt?: string | null;

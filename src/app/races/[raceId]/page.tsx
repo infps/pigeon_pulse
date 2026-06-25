@@ -13,6 +13,8 @@ import { DataTable } from "@/components/ui/data-table";
 import { Cloud, Thermometer, Wind, ArrowUpRight, TrendingUp, TrendingDown, Gauge, Building, Home as HomeIcon, Users, Bird as BirdIcon, Calendar, Trophy, ExternalLink, DollarSign, MapPin as MapPinIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { makeRaceResultsColumns, type EnrichedRaceItem } from "./race-results-columns";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { RaceBettingTab } from "./race-betting-tab";
 // GPS disabled for now: import { LiveTransit } from "./live-transit";
 import { useSettings } from "@/lib/settings-context";
 import type { Race, RaceItem } from "@/lib/types";
@@ -313,22 +315,37 @@ export default function PublicRacePage() {
       {/* GPS disabled for now (re-enable after deploy/testing) */}
       {/* <LiveTransit raceId={raceId} /> */}
 
-      {/* Race Results Table */}
-      <Card>
-        <CardContent className="p-4 md:p-6">
-          <h2 className="text-center text-lg font-bold text-blue-600 mb-4">
-            Race Results by Rank
-          </h2>
-          <DataTable
-            columns={columns}
-            data={myTeamOnly && currentUserId
-              ? enriched.filter((e) => e.bird?.breeder?.user?.id === currentUserId)
-              : enriched}
-            searchKey="loftAndBand"
-            searchPlaceholder="Loft Name or Bird Band"
-          />
-        </CardContent>
-      </Card>
+      {/* Results + Betting */}
+      <Tabs defaultValue="results">
+        <TabsList>
+          <TabsTrigger value="results">Results</TabsTrigger>
+          <TabsTrigger value="betting">Betting</TabsTrigger>
+        </TabsList>
+        <TabsContent value="results" className="mt-4">
+          <Card>
+            <CardContent className="p-4 md:p-6">
+              <h2 className="text-center text-lg font-bold text-blue-600 mb-4">
+                Race Results by Rank
+              </h2>
+              <DataTable
+                columns={columns}
+                data={myTeamOnly && currentUserId
+                  ? enriched.filter((e) => e.bird?.breeder?.user?.id === currentUserId)
+                  : enriched}
+                searchKey="loftAndBand"
+                searchPlaceholder="Loft Name or Bird Band"
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="betting" className="mt-4">
+          <Card>
+            <CardContent className="p-4 md:p-6">
+              <RaceBettingTab raceId={raceId} currentUserId={currentUserId} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {breederPopup && (
         <BreederBirdsModal

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { PaymentStatus } from "@/generated/prisma/enums";
 import { calculateFees } from "@/lib/fee-calculator";
 import { resolveTeamId } from "@/lib/resolve-team";
+import { schemeTierAmount, type BetCategory } from "@/lib/betting-pools";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import z from "zod";
@@ -22,11 +23,26 @@ const birdSchema = z.union([
   }),
 ]);
 
+// Owner bet selections, keyed by existing bird id. "All races, same pools":
+// each selected pool enters that bird into the same tier in every REGISTERING race.
+const betSelectionSchema = z.object({
+  birdId: z.number().int().positive(),
+  pools: z
+    .array(
+      z.object({
+        category: z.enum(["BELGIAN", "STANDARD", "WTA"]),
+        tierIndex: z.number().int().min(1).max(7),
+      })
+    )
+    .default([]),
+});
+
 // Define the registration schema (breederId comes from session, not request)
 const registrationSchema = z.object({
   loftName: z.string().min(1, "Loft name is required"),
   reservedBirds: z.number().int().positive("Reserved birds must be a positive integer"),
   birds: z.array(birdSchema).optional().default([]),
+  bets: z.array(betSelectionSchema).optional().default([]),
   note: z.string().optional(),
 });
 
@@ -69,6 +85,7 @@ export async function POST(
             raceTypeFees: true,
           },
         },
+        bettingScheme: true,
         races: true,
       },
     });
@@ -168,22 +185,61 @@ export async function POST(
         inventoryItems.push({ birdId: item.birdId!, id: item.id });
       }
 
-      // Add birds to races still accepting registrations
+      // Add birds to races still accepting registrations.
+      // Track created RaceItem ids so we can attach owner bets to each one.
       const existingRaces = await tx.race.findMany({
         where: { eventId, status: "REGISTERING" },
         select: { id: true },
       });
-      if (existingRaces.length > 0) {
-        const raceItemData = existingRaces.flatMap((race) =>
-          inventoryItems.map((item) => ({
-            raceId: race.id,
-            inventoryItemId: item.id,
-          }))
-        );
-        await tx.raceItem.createMany({ data: raceItemData });
+      // raceItems per inventory item id (one bird → one RaceItem per race)
+      const raceItemsByInventory = new Map<number, number[]>();
+      for (const race of existingRaces) {
+        for (const item of inventoryItems) {
+          const ri = await tx.raceItem.create({
+            data: { raceId: race.id, inventoryItemId: item.id },
+          });
+          const list = raceItemsByInventory.get(item.id) ?? [];
+          list.push(ri.id);
+          raceItemsByInventory.set(item.id, list);
+        }
+      }
+
+      // Build owner bets (same pools applied to the bird in every race).
+      let betStakesTotal = 0;
+      const betRows: {
+        raceId: number;
+        raceItemId: number;
+        category: BetCategory;
+        tierIndex: number;
+        amount: number;
+      }[] = [];
+      if (validatedData.bets.length > 0 && event.bettingScheme) {
+        const scheme = event.bettingScheme as unknown as Record<string, unknown>;
+        for (const sel of validatedData.bets) {
+          const invItem = inventoryItems.find((it) => it.birdId === sel.birdId);
+          if (!invItem) continue; // bird not part of this registration
+          const raceItemIds = raceItemsByInventory.get(invItem.id) ?? [];
+          // de-dupe pools per bird
+          const seen = new Set<string>();
+          for (const pool of sel.pools) {
+            const key = `${pool.category}:${pool.tierIndex}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            const amount = schemeTierAmount(scheme, pool.category, pool.tierIndex);
+            if (amount <= 0) continue; // tier not funded — skip
+            // raceItemIds[k] corresponds to existingRaces[k] (built in order)
+            existingRaces.forEach((race, k) => {
+              const raceItemId = raceItemIds[k];
+              if (!raceItemId) return;
+              betRows.push({ raceId: race.id, raceItemId, category: pool.category, tierIndex: pool.tierIndex, amount });
+              betStakesTotal += amount;
+            });
+          }
+        }
       }
 
       // Calculate fees and populate EventInventoryItem fee fields
+      let feeTotal = 0;
       if (event.feeScheme) {
         const fees = calculateFees({
           numBirds: validatedData.reservedBirds,
@@ -194,6 +250,7 @@ export async function POST(
           },
           races: event.races || [],
         });
+        feeTotal = fees.total;
 
         const raceFeePerBird = validatedData.reservedBirds > 0
           ? fees.raceFees / validatedData.reservedBirds
@@ -211,24 +268,51 @@ export async function POST(
             },
           });
         }
+      }
 
-        // Create Payment record (PENDING - breeder pays later or via PayPal)
-        await tx.payment.create({
+      // Single PENDING Payment folds registration fees + bet stakes together,
+      // so the existing PayPal flow (which charges one pending payment per
+      // inventory) collects both at once. Bets link to this payment.
+      const grandTotal = feeTotal + betStakesTotal;
+      let payment: { id: number } | null = null;
+      if (grandTotal > 0) {
+        const descParts = [`Registration: ${validatedData.reservedBirds} birds`];
+        if (betStakesTotal > 0) descParts.push(`bets: $${betStakesTotal.toFixed(2)}`);
+        payment = await tx.payment.create({
           data: {
             eventInventoryId: eventInventory.id,
             breederId,
-            paymentValue: fees.total,
+            paymentValue: grandTotal,
             paymentDate: new Date(),
             paymentTimestamp: new Date(),
-            paymentDesc: `Registration: ${validatedData.reservedBirds} birds`,
+            paymentDesc: descParts.join(" + "),
             status: PaymentStatus.PENDING,
           },
+        });
+      }
+
+      // Persist owner bets under the registering breeder's user id.
+      if (betRows.length > 0) {
+        await tx.bet.createMany({
+          data: betRows.map((b) => ({
+            raceId: b.raceId,
+            raceItemId: b.raceItemId,
+            bettorId: session.user.id,
+            ownerUserId: session.user.id,
+            category: b.category,
+            tierIndex: b.tierIndex,
+            amount: b.amount,
+            status: "PLACED" as const,
+            stakePaymentId: payment?.id,
+          })),
         });
       }
 
       return {
         eventInventory,
         inventoryItems,
+        betsPlaced: betRows.length,
+        betStakesTotal,
       };
     });
 

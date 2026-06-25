@@ -32,6 +32,8 @@ import { PayPalButton } from "@/components/paypal-button";
 import { calculateFees } from "@/lib/fee-calculator";
 import { getSexLabel } from "@/lib/bird-constants";
 import { useSettings } from "@/lib/settings-context";
+import { Checkbox } from "@/components/ui/checkbox";
+import { schemePools, poolKey, type BetCategory } from "@/lib/betting-pools";
 
 interface EventRegisterTabProps {
   event: Event;
@@ -57,6 +59,8 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
   const [isAddTeamOpen, setIsAddTeamOpen] = useState(false);
   const [teamName, setTeamName] = useState("");
   const [isAddBirdOpen, setIsAddBirdOpen] = useState(false);
+  // Owner bet selections: birdId → set of pool keys ("CATEGORY:tier")
+  const [betsByBird, setBetsByBird] = useState<Record<number, string[]>>({});
 
   const { data: teamsData } = useListTeams({
     endpoint: apiEndpoints.breeder.teams,
@@ -103,6 +107,52 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
     });
   }, [event.feeScheme, event.races, reservedBirds]);
 
+  // Betting pools from the event's scheme; "all races, same pools" → a picked
+  // pool charges once per REGISTERING race.
+  const betPools = useMemo(
+    () => schemePools(event.bettingScheme as unknown as Record<string, unknown> | undefined),
+    [event.bettingScheme]
+  );
+  const registeringRaceCount = useMemo(
+    () => (event.races ?? []).filter((r) => r.status === "REGISTERING").length,
+    [event.races]
+  );
+  const poolAmount = useMemo(() => {
+    const m = new Map<string, number>();
+    betPools.forEach((p) => m.set(poolKey(p), p.amount));
+    return m;
+  }, [betPools]);
+
+  const betStakesTotal = useMemo(() => {
+    let total = 0;
+    for (const keys of Object.values(betsByBird)) {
+      for (const k of keys) total += (poolAmount.get(k) ?? 0) * registeringRaceCount;
+    }
+    return total;
+  }, [betsByBird, poolAmount, registeringRaceCount]);
+
+  // Payload for the register API: per selected bird, its chosen pools.
+  const betsPayload = useMemo(() => {
+    const selectedIds = new Set(selectedBirds.map((b) => b.id));
+    return Object.entries(betsByBird)
+      .filter(([birdId, keys]) => selectedIds.has(Number(birdId)) && keys.length > 0)
+      .map(([birdId, keys]) => ({
+        birdId: Number(birdId),
+        pools: keys.map((k) => {
+          const [category, tier] = k.split(":");
+          return { category: category as BetCategory, tierIndex: Number(tier) };
+        }),
+      }));
+  }, [betsByBird, selectedBirds]);
+
+  const togglePool = (birdId: number, key: string) => {
+    setBetsByBird((prev) => {
+      const cur = prev[birdId] ?? [];
+      const next = cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key];
+      return { ...prev, [birdId]: next };
+    });
+  };
+
   // Trim selected birds if reservedBirds decreases
   useEffect(() => {
     if (reservedBirds > 0 && selectedBirds.length > reservedBirds) {
@@ -141,12 +191,18 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
 
   const removeBird = (birdId: number) => {
     setSelectedBirds((prev) => prev.filter((b) => b.id !== birdId));
+    setBetsByBird((prev) => {
+      const next = { ...prev };
+      delete next[birdId];
+      return next;
+    });
   };
 
   const resetForm = () => {
     setSelectedLoft("");
     setReservedBirds(0);
     setSelectedBirds([]);
+    setBetsByBird({});
   };
 
   const canSubmit =
@@ -297,28 +353,63 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
 
                 {/* Selected birds list */}
                 {selectedBirds.map((bird) => (
-                  <div key={bird.id} className="border rounded-lg p-4 flex items-center justify-between">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm flex-1">
-                      <div>
-                        <p className="text-muted-foreground">Band</p>
-                        <p className="font-medium">{bird.band}</p>
+                  <div key={bird.id} className="border rounded-lg p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm flex-1">
+                        <div>
+                          <p className="text-muted-foreground">Band</p>
+                          <p className="font-medium">{bird.band}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Name</p>
+                          <p className="font-medium">{bird.birdName || "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Color</p>
+                          <p className="font-medium">{bird.color || "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Sex</p>
+                          <p className="font-medium">{getSexLabel(bird.sex, sexTerminology)}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-muted-foreground">Name</p>
-                        <p className="font-medium">{bird.birdName || "—"}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Color</p>
-                        <p className="font-medium">{bird.color || "—"}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Sex</p>
-                        <p className="font-medium">{getSexLabel(bird.sex, sexTerminology)}</p>
-                      </div>
+                      <Button type="button" variant="ghost" size="icon" onClick={() => removeBird(bird.id)}>
+                        <X className="h-4 w-4" />
+                      </Button>
                     </div>
-                    <Button type="button" variant="ghost" size="icon" onClick={() => removeBird(bird.id)}>
-                      <X className="h-4 w-4" />
-                    </Button>
+
+                    {/* Owner bets — optional, applied to this bird in every race */}
+                    {betPools.length > 0 && registeringRaceCount > 0 && (
+                      <div className="border-t pt-3 space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Place bets (optional) — each applies across {registeringRaceCount || 0} race
+                          {registeringRaceCount === 1 ? "" : "s"}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {betPools.map((p) => {
+                            const key = poolKey(p);
+                            const checked = (betsByBird[bird.id] ?? []).includes(key);
+                            return (
+                              <label
+                                key={key}
+                                className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs cursor-pointer ${
+                                  checked ? "border-primary bg-primary/5" : ""
+                                }`}
+                              >
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={() => togglePool(bird.id, key)}
+                                />
+                                <span className="font-medium capitalize">
+                                  {p.category.toLowerCase()} #{p.tierIndex}
+                                </span>
+                                <span className="text-muted-foreground">${p.amount}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
 
@@ -341,17 +432,17 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
             )}
 
             {/* Fee Breakdown */}
-            {fees && (
+            {(fees || betStakesTotal > 0) && (
               <div className="space-y-4">
                 <h3 className="font-semibold">Payment Summary</h3>
                 <div className="border rounded-lg p-4 space-y-2">
-                  {fees.purgeFee > 0 && (
+                  {fees && fees.purgeFee > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Entry Fee (one-time):</span>
                       <span className="font-medium">${fees.purgeFee.toFixed(2)}</span>
                     </div>
                   )}
-                  {fees.perchFees > 0 && (
+                  {fees && fees.perchFees > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">
                         Per Bird Fees ({reservedBirds} bird{reservedBirds === 1 ? "" : "s"}):
@@ -359,21 +450,29 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                       <span className="font-medium">${fees.perchFees.toFixed(2)}</span>
                     </div>
                   )}
-                  {fees.raceFees > 0 && (
+                  {fees && fees.raceFees > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Race Fees:</span>
                       <span className="font-medium">${fees.raceFees.toFixed(2)}</span>
                     </div>
                   )}
-                  {fees.hotspotFees > 0 && (
+                  {fees && fees.hotspotFees > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Hotspot Fees:</span>
                       <span className="font-medium">${fees.hotspotFees.toFixed(2)}</span>
                     </div>
                   )}
+                  {betStakesTotal > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        Bet Stakes ({registeringRaceCount} race{registeringRaceCount === 1 ? "" : "s"}):
+                      </span>
+                      <span className="font-medium">${betStakesTotal.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-lg font-bold pt-2 border-t">
                     <span>Total:</span>
-                    <span>${fees.total.toFixed(2)}</span>
+                    <span>${((fees?.total ?? 0) + betStakesTotal).toFixed(2)}</span>
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
@@ -390,6 +489,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                   loftName={selectedLoft}
                   reservedBirds={reservedBirds}
                   birdIds={selectedBirds.map((b) => b.id)}
+                  bets={betsPayload}
                   disabled={!canSubmit}
                   onPaid={resetForm}
                 />

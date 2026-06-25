@@ -21,6 +21,21 @@ enum UserRole {
   BREEDER
   ADMIN
   SUPERADMIN
+  BETTOR
+}
+
+enum BetCategory {
+  BELGIAN
+  STANDARD
+  WTA
+}
+
+enum BetStatus {
+  PLACED
+  REFUNDED
+  WON
+  LOST
+  PAID
 }
 
 model User {
@@ -57,6 +72,8 @@ model User {
   accounts       Account[]
   breeder        Breeder?
   eventMessages  EventMessage[]
+  betsPlaced     Bet[]          @relation("BetsPlaced")
+  bettorPayments Payment[]      @relation("BettorPayments")
 
   @@map("Users")
 }
@@ -307,6 +324,7 @@ model BettingScheme {
   id                Int    @id @default(autoincrement()) @map("ID_BETTING_SCHEME")
   name              String? @map("BETTING_SCHEME_NAME")
   bettingCutPercent Float? @map("BETTING_CUT_PERCENT")
+  belgianRatio      Int?   @map("BELGIAN_RATIO")
   belgianShow1      Float? @map("BELGIAN_SHOW_1")
   belgianShow2      Float? @map("BELGIAN_SHOW_2")
   belgianShow3      Float? @map("BELGIAN_SHOW_3")
@@ -404,12 +422,14 @@ model Race {
   transportStatus    TransportStatus @default(IDLE) @map("TRANSPORT_STATUS")
   transportStartedAt DateTime?       @map("TRANSPORT_STARTED_AT")
   transportEndedAt   DateTime?       @map("TRANSPORT_ENDED_AT")
+  bettingOpen        Boolean         @default(false) @map("BETTING_OPEN")
 
   event       Event?       @relation(fields: [eventId], references: [id])
   raceType    RaceType?    @relation(fields: [raceTypeId], references: [id])
   raceStation RaceStation? @relation(fields: [raceStationId], references: [id])
   truckPings  TruckPing[]
   raceItems RaceItem[]
+  bets        Bet[]
   lostBirds Bird[]
   lostHistory    LostHistory[]
   rfidScans      RfidScan[]
@@ -459,6 +479,7 @@ model RaceItem {
   inventoryItem    EventInventoryItem? @relation(fields: [inventoryItemId], references: [id])
   result           RaceItemResult?
   scans            RaceItemScan[]
+  bets             Bet[]
 }
 
 model RaceItemResult {
@@ -720,10 +741,12 @@ model Payment {
   transactionId    String?   @map("TRANSACTION_ID")
   legacyStatus     Int?          @map("STATUS")
   status           PaymentStatus @default(PENDING)
+  bettorId         String?       @map("BETTOR_ID")
 
   eventInventory EventInventory? @relation(fields: [eventInventoryId], references: [id])
   breeder        Breeder?        @relation(fields: [breederId], references: [id])
   picture        Picture?        @relation(fields: [pictureId], references: [id])
+  bettor         User?           @relation("BettorPayments", fields: [bettorId], references: [id])
 
   @@unique([transactionId])
   @@map("Payments")
@@ -856,4 +879,31 @@ model Team {
   eventInventories EventInventory[]
 
   @@unique([name, breederId])
+}
+
+// ============================================================
+// BETTING
+// ============================================================
+
+model Bet {
+  id             Int         @id @default(autoincrement()) @map("ID_BET")
+  raceId         Int         @map("ID_RACE")
+  raceItemId     Int         @map("ID_RACE_ITEM")
+  bettorId       String      @map("ID_BETTOR")
+  ownerUserId    String?     @map("ID_OWNER_USER")
+  category       BetCategory @map("CATEGORY")
+  tierIndex      Int         @map("TIER_INDEX")
+  amount         Float       @map("AMOUNT")
+  status         BetStatus   @default(PLACED) @map("STATUS")
+  payoutValue    Float?      @map("PAYOUT_VALUE")
+  stakePaymentId Int?        @map("ID_STAKE_PAYMENT")
+  createdAt      DateTime    @default(now()) @map("CREATED_AT")
+
+  race     Race     @relation(fields: [raceId], references: [id])
+  raceItem RaceItem @relation(fields: [raceItemId], references: [id])
+  bettor   User     @relation("BetsPlaced", fields: [bettorId], references: [id])
+
+  @@unique([raceItemId, category, tierIndex])
+  @@index([raceId, category, tierIndex])
+  @@map("Bets")
 }
