@@ -39,6 +39,7 @@ export async function POST(request: Request) {
       data: {
         name: validatedData.name,
         color: validatedData.color ?? null,
+        isPaymentRequired: validatedData.isPaymentRequired ?? false,
       },
     });
     return NextResponse.json(
@@ -85,6 +86,7 @@ export async function PUT(request: Request) {
       data: {
         name: validatedData.name,
         color: validatedData.color ?? null,
+        isPaymentRequired: validatedData.isPaymentRequired ?? false,
       },
     });
 

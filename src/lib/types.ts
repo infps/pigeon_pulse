@@ -96,6 +96,7 @@ export interface RaceType {
   name: string | null;
   color: string | null;
   numberGroupId: number | null;
+  isPaymentRequired: boolean;
 }
 
 export interface FeeScheme {
@@ -259,6 +260,7 @@ export interface EventInventory {
   signInDate: string | null;
   isWaiting: number | null;
   waitingDate: string | null;
+  cashPromised: boolean;
   event?: Event;
   breeder?: Breeder;
   items?: EventInventoryItem[];
@@ -529,4 +531,39 @@ export interface RfidScan {
   createdAt: string;
   bird?: Bird;
   race?: Race;
+}
+
+// ============================================================
+// EVENT STORE & DEFAULTERS
+// ============================================================
+
+export interface EventStoreListing {
+  id: number;
+  eventId: number;
+  originalBreederId: number;
+  listingPrice: number;
+  status: "AVAILABLE" | "SOLD";
+  purchasedByBreederId: number | null;
+  purchasedAt: string | null;
+  createdAt: string;
+  originalBreeder?: Breeder;
+  purchasedBy?: Breeder | null;
+  items?: EventStoreListingItem[];
+}
+
+export interface EventStoreListingItem {
+  id: number;
+  listingId: number;
+  eventInventoryItemId: number;
+  inventoryItem?: EventInventoryItem;
+}
+
+export interface DefaulterBreeder {
+  eventInventoryId: number;
+  breederId: number;
+  breederName: string;
+  loft: string | null;
+  cashPromised: boolean;
+  balanceOwed: number;
+  birds: EventInventoryItem[];
 }

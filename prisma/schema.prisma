@@ -38,6 +38,11 @@ enum BetStatus {
   PAID
 }
 
+enum EventStoreListingStatus {
+  AVAILABLE
+  SOLD
+}
+
 model User {
   id             String     @id
   name           String
@@ -202,6 +207,8 @@ model Breeder {
   partners         Partner[]
   teams            Team[]
   payments         Payment[]
+  storeListingsOriginal   EventStoreListing[] @relation("OriginalBreeder")
+  storeListingsPurchased  EventStoreListing[] @relation("PurchasedByBreeder")
 
   @@map("Breeders")
 }
@@ -371,10 +378,11 @@ model RaceNumberGroup {
 }
 
 model RaceType {
-  id            Int  @id @default(autoincrement()) @map("ID_RACE_TYPE")
-  name          String? @map("TYPE_NAME")
-  color         String? @map("COLOR")
-  numberGroupId Int?    @map("ID_NUMBER_GROUP")
+  id                Int     @id @default(autoincrement()) @map("ID_RACE_TYPE")
+  name              String? @map("TYPE_NAME")
+  color             String? @map("COLOR")
+  numberGroupId     Int?    @map("ID_NUMBER_GROUP")
+  isPaymentRequired Boolean @default(false) @map("IS_PAYMENT_REQUIRED")
 
   numberGroup      RaceNumberGroup?    @relation(fields: [numberGroupId], references: [id])
   races            Race[]
@@ -584,6 +592,7 @@ model Event {
   phantomBirds     RacePhantomBird[]
   messages         EventMessage[]
   raceStations     RaceStation[]
+  storeListings    EventStoreListing[]
 
   @@map("Events")
 }
@@ -636,6 +645,7 @@ model EventInventory {
   signInDate     DateTime? @map("SIGN_IN_DATE")
   isWaiting      Int?      @map("IS_WAITING")
   waitingDate    DateTime? @map("WAITING_DATE")
+  cashPromised   Boolean   @default(false) @map("CASH_PROMISED")
 
   event   Event?   @relation(fields: [eventId], references: [id])
   breeder Breeder? @relation(fields: [breederId], references: [id])
@@ -693,6 +703,7 @@ model EventInventoryItem {
   basketAssignments BasketAssignment[]
   ignoreBirds       RaceIgnoreBird[]
   avgWinners        AvgWinnerPrizes[]
+  storeListingItems EventStoreListingItem[]
 }
 
 model Partner {
@@ -906,4 +917,37 @@ model Bet {
   @@unique([raceItemId, category, tierIndex])
   @@index([raceId, category, tierIndex])
   @@map("Bets")
+}
+
+// ============================================================
+// EVENT STORE (defaulter bird sales)
+// ============================================================
+
+model EventStoreListing {
+  id                   Int                      @id @default(autoincrement()) @map("ID_EVENT_STORE_LISTING")
+  eventId              Int                      @map("ID_EVENT")
+  originalBreederId    Int                      @map("ID_ORIGINAL_BREEDER")
+  listingPrice         Float                    @map("LISTING_PRICE")
+  status               EventStoreListingStatus  @default(AVAILABLE) @map("STATUS")
+  purchasedByBreederId Int?                     @map("ID_PURCHASED_BY")
+  purchasedAt          DateTime?                @map("PURCHASED_AT")
+  createdAt            DateTime                 @default(now()) @map("CREATED_AT")
+
+  event           Event   @relation(fields: [eventId], references: [id])
+  originalBreeder Breeder @relation("OriginalBreeder", fields: [originalBreederId], references: [id])
+  purchasedBy     Breeder? @relation("PurchasedByBreeder", fields: [purchasedByBreederId], references: [id])
+  items           EventStoreListingItem[]
+
+  @@map("EventStoreListings")
+}
+
+model EventStoreListingItem {
+  id                   Int @id @default(autoincrement()) @map("ID_EVENT_STORE_LISTING_ITEM")
+  listingId            Int @map("ID_LISTING")
+  eventInventoryItemId Int @map("ID_EVENT_INVENTORY_ITEM")
+
+  listing       EventStoreListing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  inventoryItem EventInventoryItem @relation(fields: [eventInventoryItemId], references: [id])
+
+  @@map("EventStoreListingItems")
 }

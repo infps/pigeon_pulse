@@ -211,6 +211,7 @@ export async function GET(
           tierIndex: b.tierIndex,
           bettorId: b.bettorId,
           isYours: b.bettorId === session.user.id,
+          stakePaymentId: b.stakePaymentId,
         })),
       };
     });

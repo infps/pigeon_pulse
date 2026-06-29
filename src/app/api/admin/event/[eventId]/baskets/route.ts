@@ -129,6 +129,69 @@ export async function POST(
   }
 }
 
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ eventId: string }> }
+) {
+  const { eventId: eventIdParam } = await params;
+  const eventId = parseInt(eventIdParam);
+
+  if (isNaN(eventId)) {
+    return NextResponse.json({ message: "Invalid event ID" }, { status: 400 });
+  }
+
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const basketId = parseInt(body.basketId);
+    if (isNaN(basketId)) {
+      return NextResponse.json({ message: "Invalid basket ID" }, { status: 400 });
+    }
+
+    const basket = await prisma.eventBasket.findFirst({
+      where: { id: basketId, eventId },
+      include: { _count: { select: { assignments: true } } },
+    });
+    if (!basket) {
+      return NextResponse.json({ message: "Basket not found" }, { status: 404 });
+    }
+
+    const data: { label?: string | null; capacity?: number } = {};
+
+    if (body.label !== undefined) {
+      data.label = body.label === "" ? null : String(body.label).trim();
+    }
+    if (body.capacity !== undefined) {
+      const cap = parseInt(body.capacity);
+      if (isNaN(cap) || cap < 1) {
+        return NextResponse.json({ message: "Capacity must be a positive integer" }, { status: 400 });
+      }
+      if (cap < (basket._count?.assignments ?? 0)) {
+        return NextResponse.json(
+          { message: `Cannot set capacity below current bird count (${basket._count?.assignments})` },
+          { status: 409 }
+        );
+      }
+      data.capacity = cap;
+    }
+
+    const updated = await prisma.eventBasket.update({
+      where: { id: basketId },
+      data,
+      include: { _count: { select: { assignments: true } } },
+    });
+
+    return NextResponse.json({ basket: updated });
+  } catch (error) {
+    console.error("Error updating basket:", error);
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+  }
+}
+
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }

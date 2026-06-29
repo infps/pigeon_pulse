@@ -57,6 +57,7 @@ export const updateUserSchema = z.object({
 export const createRaceTypeSchema = z.object({
     name: z.string().min(1, "Name is required"),
     color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color must be a hex like #1d4ed8").optional().nullable(),
+    isPaymentRequired: z.boolean().optional().default(false),
 })
 
 export const createEventTypeSchema = z.object({

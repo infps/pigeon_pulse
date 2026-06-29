@@ -51,11 +51,13 @@ export async function GET(
       bettorEmail: string;
       raceItemId: number;
       band: string | null;
+      ownerUserId: string | null;
       ownerName: string | null;
       position: number | null;
       amountIn: number;
       status: string;
       payoutValue: number | null;
+      stakePaymentId: number | null;
     };
 
     type Pool = {
@@ -92,11 +94,13 @@ export async function GET(
         bettorEmail: bet.bettor.email,
         raceItemId: bet.raceItemId,
         band,
+        ownerUserId: bet.ownerUserId,
         ownerName,
         position: bet.raceItem.result?.birdPosition ?? null,
         amountIn: bet.amount,
         status: bet.status,
         payoutValue: bet.payoutValue,
+        stakePaymentId: bet.stakePaymentId,
       });
     }
 

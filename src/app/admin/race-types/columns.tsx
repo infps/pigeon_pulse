@@ -20,6 +20,7 @@ export type RaceType = {
   id: string
   name: string
   isPaid: boolean
+  isPaymentRequired: boolean
   color: string | null
   createdAt: string
 }
@@ -88,6 +89,16 @@ export const createColumns = (
           {isPaid ? "Paid" : "Free"}
         </Badge>
       )
+    },
+  },
+  {
+    accessorKey: "isPaymentRequired",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Payment Required" />
+    ),
+    cell: ({ row }) => {
+      const v = row.getValue("isPaymentRequired") as boolean
+      return v ? <Badge variant="destructive">Yes</Badge> : <span className="text-muted-foreground">No</span>
     },
   },
   {

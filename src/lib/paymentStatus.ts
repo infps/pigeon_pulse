@@ -13,11 +13,12 @@ export interface PaymentStatusItem {
     perchFeeValue?: number | null;
     raceFeeValue?: number | null;
     hotSpotFeeValue?: number | null;
-    bird?: { rfid?: string | null } | null;
 }
 
 export interface PaymentStatusPayment {
     paymentValue?: number | null;
+    paymentDesc?: string | null;
+    paymentType?: number | null;
 }
 
 export function computePaymentStatus(
@@ -25,8 +26,6 @@ export function computePaymentStatus(
     payments: ReadonlyArray<PaymentStatusPayment>
 ): PaymentStatus {
     const owed = items.reduce((s, i) => {
-        const scanned = !!i.bird?.rfid;
-        if (!scanned) return s;
         return (
             s +
             (i.entryFeeValue ?? 0) +
@@ -35,7 +34,12 @@ export function computePaymentStatus(
             (i.hotSpotFeeValue ?? 0)
         );
     }, 0);
-    const paid = payments.reduce((s, p) => s + (p.paymentValue ?? 0), 0);
+    const refundsOut = payments
+        .filter((p) => p.paymentType === 3)
+        .reduce((s, p) => s + Math.abs(p.paymentValue ?? 0), 0);
+    const paid = payments
+        .filter((p) => !p.paymentDesc?.toLowerCase().includes("bet stake") && p.paymentType !== 3)
+        .reduce((s, p) => s + (p.paymentValue ?? 0), 0) - refundsOut;
     if (owed === 0) return "NA";
     if (paid > owed) return "OVERPAID";
     if (paid === owed && paid > 0) return "PAID";

@@ -34,9 +34,17 @@ function poolKey(p: { category: string; tierIndex: number }) {
 // ── Pool standings types ──────────────────────────────────────────────────────
 type PoolEntry = {
   betId: number; bettorId: string; bettorName: string; bettorEmail: string;
-  raceItemId: number; band: string | null; ownerName: string | null;
+  raceItemId: number; band: string | null; ownerUserId: string | null; ownerName: string | null;
   position: number | null; amountIn: number; status: string; payoutValue: number | null;
+  stakePaymentId: number | null;
 };
+
+function betRowBg(bettorId: string, ownerUserId: string | null, stakePaymentId: number | null) {
+  const isOwner = ownerUserId !== null && bettorId === ownerUserId;
+  const paid = stakePaymentId !== null;
+  if (isOwner) return paid ? "bg-green-100" : "bg-green-50";
+  return paid ? "bg-pink-100" : "bg-pink-50";
+}
 type Pool = { category: string; tierIndex: number; totalIn: number; totalPayout: number; entries: PoolEntry[] };
 type PoolResponse = {
   raceId: number; bettingOpen: boolean; raceStatus: string;
@@ -359,7 +367,7 @@ export function BettingTab({ eventId }: { event: unknown; eventId: string }) {
                     </thead>
                     <tbody>
                       {allBets.map((e) => (
-                        <tr key={e.betId} className="border-b">
+                        <tr key={e.betId} className={`border-b ${betRowBg(e.bettorId, e.ownerUserId, e.stakePaymentId)}`}>
                           <td className="p-2">
                             <div className="font-medium">{e.bettorName || "-"}</div>
                             <div className="text-xs text-muted-foreground">{e.bettorEmail}</div>
@@ -404,7 +412,7 @@ export function BettingTab({ eventId }: { event: unknown; eventId: string }) {
                     </thead>
                     <tbody>
                       {p.entries.map((e) => (
-                        <tr key={e.betId} className="border-b">
+                        <tr key={e.betId} className={`border-b ${betRowBg(e.bettorId, e.ownerUserId, e.stakePaymentId)}`}>
                           <td className="p-2">
                             <div className="font-medium">{e.bettorName || "-"}</div>
                             <div className="text-xs text-muted-foreground">{e.bettorEmail}</div>

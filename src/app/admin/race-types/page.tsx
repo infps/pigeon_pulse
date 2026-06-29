@@ -13,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function RaceTypesPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ name: "", isPaid: false, color: "#1d4ed8" });
+  const [formData, setFormData] = useState({ name: "", isPaid: false, isPaymentRequired: false, color: "#1d4ed8" });
 
   // Fetch race types
   const { data: raceTypesData, isPending, isError } = useListRaceTypes({});
@@ -49,7 +49,7 @@ export default function RaceTypesPage() {
         await createMutation.mutateAsync(formData);
         toast.success("Race type created successfully");
       }
-      setFormData({ name: "", isPaid: false, color: "#1d4ed8" });
+      setFormData({ name: "", isPaid: false, isPaymentRequired: false, color: "#1d4ed8" });
       setIsCreating(false);
     } catch (error) {
       toast.error(editingId ? "Failed to update race type" : "Failed to create race type");
@@ -58,7 +58,7 @@ export default function RaceTypesPage() {
 
   const handleEdit = (raceType: RaceType) => {
     setEditingId(raceType.id);
-    setFormData({ name: raceType.name, isPaid: raceType.isPaid, color: raceType.color || "#1d4ed8" });
+    setFormData({ name: raceType.name, isPaid: raceType.isPaid, isPaymentRequired: raceType.isPaymentRequired, color: raceType.color || "#1d4ed8" });
     setIsCreating(true);
   };
 
@@ -78,7 +78,7 @@ export default function RaceTypesPage() {
   const handleCancel = () => {
     setIsCreating(false);
     setEditingId(null);
-    setFormData({ name: "", isPaid: false, color: "#1d4ed8" });
+    setFormData({ name: "", isPaid: false, isPaymentRequired: false, color: "#1d4ed8" });
   };
 
   const columns = createColumns(handleEdit, handleDelete);
@@ -165,6 +165,18 @@ export default function RaceTypesPage() {
               />
               <Label htmlFor="isPaid" className="cursor-pointer">
                 Is Paid
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                id="isPaymentRequired"
+                type="checkbox"
+                checked={formData.isPaymentRequired}
+                onChange={(e) => setFormData({ ...formData, isPaymentRequired: e.target.checked })}
+                className="w-4 h-4"
+              />
+              <Label htmlFor="isPaymentRequired" className="cursor-pointer">
+                Payment Required (triggers defaulter detection 7 days before race)
               </Label>
             </div>
             <div className="flex gap-2">

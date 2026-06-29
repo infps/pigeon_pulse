@@ -80,7 +80,7 @@ export function RaceCalendar({
   const selectedRaces = selected ? byDay.get(selected) ?? [] : [];
 
   return (
-    <div className="grid gap-4 md:grid-cols-[1fr_320px]">
+    <div className="grid gap-4 md:grid-cols-[1fr_500px]">
       {/* Calendar grid */}
       <div className="rounded-md border p-3">
         <div className="flex items-center justify-between mb-3">
@@ -114,7 +114,7 @@ export function RaceCalendar({
           ))}
         </div>
 
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-0.5">
           {days.map((d) => {
             const k = dayKey(d);
             const list = byDay.get(k) ?? [];
@@ -126,21 +126,19 @@ export function RaceCalendar({
               <button
                 key={k}
                 type="button"
-                onClick={() => hasRaces && setSelected(k)}
-                disabled={!hasRaces}
+                onClick={() => setSelected(k)}
                 className={[
-                  "relative aspect-square rounded-md text-sm flex flex-col items-center justify-center transition-colors",
+                  "relative h-8 rounded text-xs flex flex-col items-center justify-center transition-colors hover:bg-muted cursor-pointer",
                   inMonth ? "" : "text-muted-foreground/40",
-                  hasRaces ? "hover:bg-muted cursor-pointer" : "cursor-default",
                   isSel ? "bg-blue-600 text-white hover:bg-blue-600" : "",
                   !isSel && isToday(d) ? "ring-1 ring-blue-400" : "",
                 ].join(" ")}
               >
-                <span>{format(d, "d")}</span>
+                <span className="leading-none">{format(d, "d")}</span>
                 {hasRaces && (
                   <span
                     className={[
-                      "mt-0.5 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full text-[10px] font-semibold",
+                      "inline-flex items-center justify-center min-w-3 h-3 px-0.5 rounded-full text-[8px] font-semibold leading-none",
                       isSel
                         ? "bg-white text-blue-600"
                         : live

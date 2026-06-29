@@ -43,6 +43,11 @@ export async function GET(
             paymentDate: "desc",
           },
         },
+        partners: {
+          include: {
+            breeder: true,
+          },
+        },
         items: {
           include: {
             bird: true,

@@ -25,12 +25,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { AlertTriangle, ChevronDown, ChevronRight, Plus, Trash2, Wand2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Pencil, Plus, Trash2, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   useEventBaskets,
   useCreateBasket,
   useDeleteBasket,
+  useUpdateBasket,
   useAssignBaskets,
   useAssignRaceBaskets,
   useCheckinStatus,
@@ -125,6 +126,7 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
   const { data: checkinData } = useCheckinStatus(eventId);
   const createMutation = useCreateBasket(eventId);
   const deleteMutation = useDeleteBasket(eventId);
+  const updateMutation = useUpdateBasket(eventId);
   const assignMutation = useAssignBaskets(eventId);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -133,6 +135,9 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
   const [assignUnassigned, setAssignUnassigned] = useState<UnassignedItem[]>([]);
   const [assignSummary, setAssignSummary] = useState<AssignSummary | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [editBasket, setEditBasket] = useState<EventBasketItem | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editCapacity, setEditCapacity] = useState("");
 
   const baskets: EventBasketItem[] = data?.baskets || [];
   const totalCapacity = baskets.reduce((s, b) => s + b.capacity, 0);
@@ -171,6 +176,33 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
       }
     } catch (error: unknown) {
       toast.error((error as Error)?.message || "Failed to create basket");
+    }
+  };
+
+  const openEdit = (basket: EventBasketItem) => {
+    setEditBasket(basket);
+    setEditLabel(basket.label ?? "");
+    setEditCapacity(String(basket.capacity));
+  };
+
+  const handleEditSave = async () => {
+    if (!editBasket) return;
+    const cap = parseInt(editCapacity);
+    if (isNaN(cap) || cap < 1) {
+      toast.error("Capacity must be a positive number");
+      return;
+    }
+    try {
+      await updateMutation.mutateAsync({
+        basketId: editBasket.id,
+        label: editLabel,
+        capacity: cap,
+      });
+      toast.success("Basket updated");
+      setEditBasket(null);
+      refetch();
+    } catch (error: unknown) {
+      toast.error((error as Error)?.message || "Failed to update basket");
     }
   };
 
@@ -315,7 +347,46 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
         isPending={isPending}
         phase="Loft"
         onDelete={handleDelete}
+        onEdit={openEdit}
       />
+
+      {/* Edit Basket Dialog */}
+      <Dialog open={!!editBasket} onOpenChange={(o) => !o && setEditBasket(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Basket #{editBasket?.basketNo}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-loft-label">Name / Label</Label>
+              <Input
+                id="edit-loft-label"
+                placeholder="e.g. LB-SMITH-1"
+                value={editLabel}
+                onChange={(e) => setEditLabel(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-loft-capacity">Capacity</Label>
+              <Input
+                id="edit-loft-capacity"
+                type="number"
+                min="1"
+                value={editCapacity}
+                onChange={(e) => setEditCapacity(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleEditSave()}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditBasket(null)}>Cancel</Button>
+            <Button onClick={handleEditSave} disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add New Basket Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -436,6 +507,7 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
   const { data: loftData } = useEventBaskets(eventId, "LOFT");
   const createMutation = useCreateBasket(eventId);
   const deleteMutation = useDeleteBasket(eventId);
+  const updateMutation = useUpdateBasket(eventId);
   const assignMutation = useAssignRaceBaskets(eventId);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -444,6 +516,9 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
   const [previewSummary, setPreviewSummary] = useState<RaceAssignSummary | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingMode, setPendingMode] = useState<"reset" | "incremental">("reset");
+  const [editBasket, setEditBasket] = useState<EventBasketItem | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editCapacity, setEditCapacity] = useState("");
 
   const baskets: EventBasketItem[] = data?.baskets || [];
   const loftBaskets: EventBasketItem[] = loftData?.baskets || [];
@@ -495,6 +570,33 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
       }
     } catch (error: unknown) {
       toast.error((error as Error)?.message || "Failed to create basket");
+    }
+  };
+
+  const openEdit = (basket: EventBasketItem) => {
+    setEditBasket(basket);
+    setEditLabel(basket.label ?? "");
+    setEditCapacity(String(basket.capacity));
+  };
+
+  const handleEditSave = async () => {
+    if (!editBasket) return;
+    const cap = parseInt(editCapacity);
+    if (isNaN(cap) || cap < 1) {
+      toast.error("Capacity must be a positive number");
+      return;
+    }
+    try {
+      await updateMutation.mutateAsync({
+        basketId: editBasket.id,
+        label: editLabel,
+        capacity: cap,
+      });
+      toast.success("Basket updated");
+      setEditBasket(null);
+      refetch();
+    } catch (error: unknown) {
+      toast.error((error as Error)?.message || "Failed to update basket");
     }
   };
 
@@ -713,7 +815,46 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
         isPending={isPending}
         phase="Race"
         onDelete={handleDelete}
+        onEdit={openEdit}
       />
+
+      {/* Edit Basket Dialog */}
+      <Dialog open={!!editBasket} onOpenChange={(o) => !o && setEditBasket(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Basket #{editBasket?.basketNo}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-race-label">Name / Label</Label>
+              <Input
+                id="edit-race-label"
+                placeholder="e.g. RB-1"
+                value={editLabel}
+                onChange={(e) => setEditLabel(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-race-capacity">Capacity</Label>
+              <Input
+                id="edit-race-capacity"
+                type="number"
+                min="1"
+                value={editCapacity}
+                onChange={(e) => setEditCapacity(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleEditSave()}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditBasket(null)}>Cancel</Button>
+            <Button onClick={handleEditSave} disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add New Basket Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -803,11 +944,13 @@ function PersistedBasketsView({
   isPending,
   phase,
   onDelete,
+  onEdit,
 }: {
   baskets: EventBasketItem[];
   isPending: boolean;
   phase: string;
   onDelete?: (basket: EventBasketItem) => void;
+  onEdit?: (basket: EventBasketItem) => void;
 }) {
   if (isPending) {
     return <Skeleton className="h-32 w-full" />;
@@ -836,7 +979,7 @@ function PersistedBasketsView({
       <CardContent>
         <div className="space-y-2">
           {baskets.map((basket) => (
-            <PersistedBasketCard key={basket.id} basket={basket} onDelete={onDelete} />
+            <PersistedBasketCard key={basket.id} basket={basket} onDelete={onDelete} onEdit={onEdit} />
           ))}
         </div>
       </CardContent>
@@ -847,9 +990,11 @@ function PersistedBasketsView({
 function PersistedBasketCard({
   basket,
   onDelete,
+  onEdit,
 }: {
   basket: EventBasketItem;
   onDelete?: (basket: EventBasketItem) => void;
+  onEdit?: (basket: EventBasketItem) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const birdCount = basket._count?.assignments ?? basket.assignments?.length ?? 0;
@@ -884,15 +1029,26 @@ function PersistedBasketCard({
             {breeders.join(", ")}
           </span>
         </button>
-        {onDelete && isEmpty && (
-          <button
-            className="p-2 mr-2 text-muted-foreground hover:text-destructive transition-colors"
-            onClick={() => onDelete(basket)}
-            title="Delete empty basket"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        )}
+        <div className="flex items-center mr-2">
+          {onEdit && (
+            <button
+              className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => onEdit(basket)}
+              title="Edit basket"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          )}
+          {onDelete && isEmpty && (
+            <button
+              className="p-2 text-muted-foreground hover:text-destructive transition-colors"
+              onClick={() => onDelete(basket)}
+              title="Delete empty basket"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
       {expanded && basket.assignments && (
         <div className="border-t px-3 py-2 space-y-1">

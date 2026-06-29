@@ -87,6 +87,15 @@ export function useDeleteBasket(eventId: string | number) {
   });
 }
 
+export function useUpdateBasket(eventId: string | number) {
+  return useApiMutation({
+    method: "PATCH",
+    endpoint: apiEndpoints.eventBaskets.list(eventId),
+    queryKey: ["event-baskets"],
+    exact: false,
+  });
+}
+
 export function useAssignBaskets(eventId: string | number) {
   return useApiMutation({
     method: "POST",

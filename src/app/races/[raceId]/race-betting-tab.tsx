@@ -221,8 +221,13 @@ export function RaceBettingTab({
                     const k = cartKey(bird.raceItemId, pool.category, pool.tierIndex);
                     const inCart = cart.has(k);
                     if (existing) {
+                      const isOwnerBet = bird.ownerUserId !== null && existing.bettorId === bird.ownerUserId;
+                      const paid = existing.stakePaymentId !== null;
+                      const cellBg = isOwnerBet
+                        ? (paid ? "bg-green-100" : "bg-green-50")
+                        : (paid ? "bg-pink-100" : "bg-pink-50");
                       return (
-                        <td key={poolKey(pool)} className="p-2 text-center">
+                        <td key={poolKey(pool)} className={`p-2 text-center ${cellBg}`}>
                           {existing.isYours ? <Badge className="bg-blue-600">Yours</Badge> : <Badge variant="secondary">Taken</Badge>}
                         </td>
                       );
