@@ -25,7 +25,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { AlertTriangle, ChevronDown, ChevronRight, Pencil, Plus, Trash2, Wand2 } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, ChevronDown, ChevronRight, Pencil, Plus, Trash2, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   useEventBaskets,
@@ -33,6 +33,7 @@ import {
   useDeleteBasket,
   useUpdateBasket,
   useAssignBaskets,
+  useClearBasket,
   useAssignRaceBaskets,
   useCheckinStatus,
 } from "@/lib/api/event-baskets";
@@ -128,9 +129,11 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
   const deleteMutation = useDeleteBasket(eventId);
   const updateMutation = useUpdateBasket(eventId);
   const assignMutation = useAssignBaskets(eventId);
+  const clearMutation = useClearBasket(eventId);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [capacity, setCapacity] = useState("");
+  const [assignMode, setAssignMode] = useState<"shuffle" | "assign" | null>(null);
   const [assignPreview, setAssignPreview] = useState<AssignPreviewItem[] | null>(null);
   const [assignUnassigned, setAssignUnassigned] = useState<UnassignedItem[]>([]);
   const [assignSummary, setAssignSummary] = useState<AssignSummary | null>(null);
@@ -138,6 +141,8 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
   const [editBasket, setEditBasket] = useState<EventBasketItem | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [editCapacity, setEditCapacity] = useState("");
+  const [clearTarget, setClearTarget] = useState<EventBasketItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<EventBasketItem | null>(null);
 
   const baskets: EventBasketItem[] = data?.baskets || [];
   const totalCapacity = baskets.reduce((s, b) => s + b.capacity, 0);
@@ -206,25 +211,16 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
     }
   };
 
-  const handleDelete = async (basket: EventBasketItem) => {
+  const handlePreviewAssign = async (mode: "shuffle" | "assign") => {
     try {
-      await deleteMutation.mutateAsync({ basketId: basket.id });
-      toast.success(`Basket #${basket.basketNo} deleted`);
-      refetch();
-    } catch (error: unknown) {
-      toast.error((error as Error)?.message || "Failed to delete basket");
-    }
-  };
-
-  const handlePreviewAssign = async () => {
-    try {
-      const res = await assignMutation.mutateAsync({ preview: true });
+      const res = await assignMutation.mutateAsync({ preview: true, mode });
       const result = (res as { data?: unknown })?.data || res;
       const r = result as { assigned?: AssignPreviewItem[]; unassigned?: UnassignedItem[]; summary?: AssignSummary; message?: string };
       if (!r?.assigned?.length && !r?.unassigned?.length) {
-        toast.info(r?.message || "No registered birds found");
+        toast.info(r?.message || "No birds to assign");
         return;
       }
+      setAssignMode(mode);
       setAssignPreview(r.assigned ?? []);
       setAssignUnassigned(r.unassigned ?? []);
       setAssignSummary(r.summary ?? null);
@@ -235,15 +231,40 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
 
   const handleConfirmAssign = async () => {
     try {
-      await assignMutation.mutateAsync({ preview: false });
+      await assignMutation.mutateAsync({ preview: false, mode: assignMode ?? "shuffle" });
       toast.success("Birds assigned to baskets");
       setAssignPreview(null);
       setAssignUnassigned([]);
       setAssignSummary(null);
+      setAssignMode(null);
       setConfirmOpen(false);
       refetch();
     } catch (error: unknown) {
       toast.error((error as Error)?.message || "Failed to assign baskets");
+    }
+  };
+
+  const handleConfirmClear = async () => {
+    if (!clearTarget) return;
+    try {
+      await clearMutation.mutateAsync({ basketId: clearTarget.id, action: "clear" });
+      toast.success(`Basket #${clearTarget.basketNo} cleared`);
+      setClearTarget(null);
+      refetch();
+    } catch (error: unknown) {
+      toast.error((error as Error)?.message || "Failed to clear basket");
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteMutation.mutateAsync({ basketId: deleteTarget.id });
+      toast.success(`Basket #${deleteTarget.basketNo} deleted`);
+      setDeleteTarget(null);
+      refetch();
+    } catch (error: unknown) {
+      toast.error((error as Error)?.message || "Failed to delete basket");
     }
   };
 
@@ -264,12 +285,22 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
                 size="sm"
                 variant="outline"
                 className="gap-1.5"
-                onClick={hasExistingAssignments ? () => setConfirmOpen(true) : handlePreviewAssign}
+                onClick={hasExistingAssignments ? () => setConfirmOpen(true) : () => handlePreviewAssign("shuffle")}
                 disabled={assignMutation.isPending || baskets.length === 0 || insufficient}
                 title={insufficient ? `Not enough capacity for ${activeBirds} active birds` : undefined}
               >
                 <Wand2 className="h-4 w-4" />
                 {assignMutation.isPending ? "Running..." : "Set Baskets"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => handlePreviewAssign("assign")}
+                disabled={assignMutation.isPending || baskets.length === 0}
+              >
+                <Plus className="h-4 w-4" />
+                {assignMutation.isPending ? "Running..." : "Assign"}
               </Button>
               <Button size="sm" className="gap-1.5" onClick={openDialog}>
                 <Plus className="h-4 w-4" />
@@ -346,7 +377,8 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
         baskets={baskets}
         isPending={isPending}
         phase="Loft"
-        onDelete={handleDelete}
+        onDelete={(b) => setDeleteTarget(b)}
+        onMove={(b) => setClearTarget(b)}
         onEdit={openEdit}
       />
 
@@ -455,10 +487,55 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
             <AlertDialogAction
               onClick={() => {
                 setConfirmOpen(false);
-                handlePreviewAssign();
+                handlePreviewAssign("shuffle");
               }}
             >
               Preview & Re-assign
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Clear basket (Move = unassign all birds from basket) */}
+      <AlertDialog open={!!clearTarget} onOpenChange={(o) => !o && setClearTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear Basket #{clearTarget?.basketNo}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(clearTarget?._count?.assignments ?? clearTarget?.assignments?.length ?? 0) > 0
+                ? `${clearTarget?._count?.assignments ?? clearTarget?.assignments?.length ?? 0} bird(s) will be unassigned and need to be reassigned.`
+                : "Basket is empty."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmClear} disabled={clearMutation.isPending}>
+              {clearMutation.isPending ? "Clearing..." : "Clear Basket"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete basket */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Basket #{deleteTarget?.basketNo}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(deleteTarget?._count?.assignments ?? deleteTarget?.assignments?.length ?? 0) > 0
+                ? `${deleteTarget?._count?.assignments ?? deleteTarget?.assignments?.length ?? 0} bird(s) will be unassigned and need to be reassigned. `
+                : ""}
+              This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={handleConfirmDelete}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete Basket"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -944,12 +1021,14 @@ function PersistedBasketsView({
   isPending,
   phase,
   onDelete,
+  onMove,
   onEdit,
 }: {
   baskets: EventBasketItem[];
   isPending: boolean;
   phase: string;
   onDelete?: (basket: EventBasketItem) => void;
+  onMove?: (basket: EventBasketItem) => void;
   onEdit?: (basket: EventBasketItem) => void;
 }) {
   if (isPending) {
@@ -979,7 +1058,7 @@ function PersistedBasketsView({
       <CardContent>
         <div className="space-y-2">
           {baskets.map((basket) => (
-            <PersistedBasketCard key={basket.id} basket={basket} onDelete={onDelete} onEdit={onEdit} />
+            <PersistedBasketCard key={basket.id} basket={basket} onDelete={onDelete} onMove={onMove} onEdit={onEdit} />
           ))}
         </div>
       </CardContent>
@@ -990,10 +1069,12 @@ function PersistedBasketsView({
 function PersistedBasketCard({
   basket,
   onDelete,
+  onMove,
   onEdit,
 }: {
   basket: EventBasketItem;
   onDelete?: (basket: EventBasketItem) => void;
+  onMove?: (basket: EventBasketItem) => void;
   onEdit?: (basket: EventBasketItem) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -1034,16 +1115,25 @@ function PersistedBasketCard({
             <button
               className="p-2 text-muted-foreground hover:text-foreground transition-colors"
               onClick={() => onEdit(basket)}
-              title="Edit basket"
+              title="Edit label / capacity"
             >
               <Pencil className="h-4 w-4" />
             </button>
           )}
-          {onDelete && isEmpty && (
+          {onMove && (
+            <button
+              className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => onMove(basket)}
+              title="Clear birds from basket"
+            >
+              <ArrowRightLeft className="h-4 w-4" />
+            </button>
+          )}
+          {onDelete && (
             <button
               className="p-2 text-muted-foreground hover:text-destructive transition-colors"
               onClick={() => onDelete(basket)}
-              title="Delete empty basket"
+              title="Delete basket"
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -1052,19 +1142,25 @@ function PersistedBasketCard({
       </div>
       {expanded && basket.assignments && (
         <div className="border-t px-3 py-2 space-y-1">
-          {basket.assignments.map((a) => (
-            <div key={a.id} className="flex items-center gap-3 text-sm py-0.5">
-              <span className="font-mono text-xs text-muted-foreground w-32 truncate">
-                {a.inventoryItem?.bird?.band || "N/A"}
-              </span>
-              <span className="flex-1">
-                {a.inventoryItem?.bird?.birdName || "N/A"}
-              </span>
-              <span className="text-muted-foreground">
-                {a.inventoryItem?.eventInventory?.breeder?.lastName || ""}
-              </span>
-            </div>
-          ))}
+          {[...basket.assignments]
+            .sort((a, b) => {
+              const la = a.inventoryItem?.eventInventory?.breeder?.lastName ?? "";
+              const lb = b.inventoryItem?.eventInventory?.breeder?.lastName ?? "";
+              return la.localeCompare(lb);
+            })
+            .map((a) => (
+              <div key={a.id} className="flex items-center gap-3 text-sm py-0.5">
+                <span className="font-mono text-xs text-muted-foreground w-32 truncate">
+                  {a.inventoryItem?.bird?.band || "N/A"}
+                </span>
+                <span className="flex-1">
+                  {a.inventoryItem?.bird?.birdName || "N/A"}
+                </span>
+                <span className="text-muted-foreground">
+                  {a.inventoryItem?.eventInventory?.breeder?.lastName || ""}
+                </span>
+              </div>
+            ))}
         </div>
       )}
     </div>

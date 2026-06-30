@@ -71,7 +71,30 @@ export function RaceBettingTab({
     });
   };
 
+  const [placingCash, setPlacingCash] = useState(false);
   const invalidateBets = () => qc.invalidateQueries({ queryKey: ["bets", "race", String(raceId)] });
+
+  const handlePayCashLater = async () => {
+    if (cartSelections.length === 0) return;
+    setPlacingCash(true);
+    try {
+      for (const s of cartSelections) {
+        await fetch(`/api/breeder/race/${raceId}/bet`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ raceItemId: s.raceItemId, category: s.category, tierIndex: s.tierIndex }),
+        });
+      }
+      setCart(new Map());
+      invalidateBets();
+      toast.success(`${cartSelections.length} bet(s) registered — pay cash to admin.`);
+    } catch {
+      toast.error("Failed to register cash bets");
+    } finally {
+      setPlacingCash(false);
+    }
+  };
 
   const cleanupPopup = () => {
     if (pollRef.current) clearInterval(pollRef.current);
@@ -222,13 +245,15 @@ export function RaceBettingTab({
                     const inCart = cart.has(k);
                     if (existing) {
                       const isOwnerBet = bird.ownerUserId !== null && existing.bettorId === bird.ownerUserId;
-                      const paid = existing.stakePaymentId !== null;
                       const cellBg = isOwnerBet
-                        ? (paid ? "bg-green-100" : "bg-green-50")
-                        : (paid ? "bg-pink-100" : "bg-pink-50");
+                        ? (existing.stakePaid ? "bg-green-100" : "bg-green-50")
+                        : (existing.stakePaid ? "bg-pink-100" : "bg-pink-50");
+                      const badgeCls = isOwnerBet ? "bg-green-600" : "bg-pink-600";
                       return (
                         <td key={poolKey(pool)} className={`p-2 text-center ${cellBg}`}>
-                          {existing.isYours ? <Badge className="bg-blue-600">Yours</Badge> : <Badge variant="secondary">Taken</Badge>}
+                          {existing.isYours
+                            ? <Badge className={badgeCls}>Yours</Badge>
+                            : <Badge variant="secondary">Taken</Badge>}
                         </td>
                       );
                     }
@@ -266,12 +291,15 @@ export function RaceBettingTab({
                 </div>
               ))}
             </div>
-            <div className="flex gap-2">
-              <Button onClick={handlePayPalCheckout} disabled={checkingOut}
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={handlePayPalCheckout} disabled={checkingOut || placingCash}
                 className="bg-[#FFC439] hover:bg-[#f0b832] text-black">
                 {checkingOut ? "Processing…" : `Pay $${cartTotal.toFixed(2)} with PayPal`}
               </Button>
-              <Button variant="ghost" size="sm" disabled={checkingOut} onClick={() => setCart(new Map())}>
+              <Button variant="outline" onClick={handlePayCashLater} disabled={checkingOut || placingCash}>
+                {placingCash ? "Registering…" : "Pay Cash Later"}
+              </Button>
+              <Button variant="ghost" size="sm" disabled={checkingOut || placingCash} onClick={() => setCart(new Map())}>
                 Clear
               </Button>
             </div>

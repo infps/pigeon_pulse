@@ -66,7 +66,7 @@ export async function GET(
         inventoryItems: {
           include: {
             eventInventory: { include: { event: true, breeder: true } },
-            raceItems: { include: { race: true, result: true } },
+            raceItems: { include: { race: true, result: true, bets: { select: { bettorId: true, ownerUserId: true, category: true, tierIndex: true, stakePaymentId: true } } } },
             basketAssignments: {
               include: {
                 eventBasket: { include: { event: true, race: true } },
@@ -85,7 +85,29 @@ export async function GET(
       return NextResponse.json({ message: "Bird not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ bird });
+    const allBetStakeIds = bird.inventoryItems.flatMap((inv) =>
+      inv.raceItems.flatMap((ri) => ri.bets.flatMap((b) => b.stakePaymentId ? [b.stakePaymentId] : []))
+    );
+    const paidPayments = allBetStakeIds.length > 0
+      ? await prisma.payment.findMany({ where: { id: { in: allBetStakeIds }, status: "PAID" }, select: { id: true } })
+      : [];
+    const paidSet = new Set(paidPayments.map((p) => p.id));
+
+    const birdOut = {
+      ...bird,
+      inventoryItems: bird.inventoryItems.map((inv) => ({
+        ...inv,
+        raceItems: inv.raceItems.map((ri) => ({
+          ...ri,
+          bets: ri.bets.map((b) => ({
+            ...b,
+            stakePaid: b.stakePaymentId !== null && paidSet.has(b.stakePaymentId),
+          })),
+        })),
+      })),
+    };
+
+    return NextResponse.json({ bird: birdOut });
   } catch (error) {
     console.error("Error fetching bird (admin):", error);
     return NextResponse.json(

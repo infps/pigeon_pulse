@@ -14,9 +14,122 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { EventInventory } from "@/lib/types";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
-import { User } from "lucide-react";
+import { User, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import { getCountryFlag, getStateFlag, getCountryName, getStateName } from "@/lib/flag-constants";
 import Image from "next/image";
+
+interface PublicDefaulter {
+  eventInventoryId: number;
+  breederName: string;
+  loft: string | null;
+  birds: Array<{
+    id: number;
+    band: string | null;
+    band1: string | null;
+    band2: string | null;
+    band3: string | null;
+    band4: string | null;
+    birdName: string | null;
+    color: string | null;
+    sex: unknown;
+  }>;
+}
+
+function DefaultersCard({ eventId }: { eventId: string }) {
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+
+  const { data, isPending } = useApiQuery({
+    queryKey: ["event-defaulters-public", eventId],
+    endpoint: apiEndpoints.breeder.eventDefaulters(eventId),
+    enabled: !!eventId,
+  });
+
+  const defaulters: PublicDefaulter[] = data?.defaulters ?? [];
+
+  if (isPending) return <Skeleton className="h-24 w-full" />;
+  if (defaulters.length === 0) return null;
+
+  const toggle = (id: number) =>
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  return (
+    <Card className="border-red-200">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-red-600">
+          <AlertTriangle className="h-5 w-5" />
+          Defaulters ({defaulters.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-8" />
+              <TableHead>Breeder</TableHead>
+              <TableHead>Loft</TableHead>
+              <TableHead>Birds</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {defaulters.map((d) => {
+              const expanded = expandedIds.has(d.eventInventoryId);
+              return (
+                <>
+                  <TableRow
+                    key={d.eventInventoryId}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => d.birds.length > 0 && toggle(d.eventInventoryId)}
+                  >
+                    <TableCell className="w-8">
+                      {d.birds.length > 0 && (
+                        expanded
+                          ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          : <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </TableCell>
+                    <TableCell className="font-medium">{d.breederName}</TableCell>
+                    <TableCell>{d.loft ?? "-"}</TableCell>
+                    <TableCell>{d.birds.length}</TableCell>
+                  </TableRow>
+                  {expanded && d.birds.length > 0 && (
+                    <TableRow key={`${d.eventInventoryId}-birds`}>
+                      <TableCell colSpan={4} className="bg-muted/30 px-8 py-2">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Band</TableHead>
+                              <TableHead>Name</TableHead>
+                              <TableHead>Color</TableHead>
+                              <TableHead>Sex</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {d.birds.map((b) => (
+                              <TableRow key={b.id}>
+                                <TableCell className="font-mono text-sm">{b.band ?? "-"}</TableCell>
+                                <TableCell>{b.birdName ?? "-"}</TableCell>
+                                <TableCell>{b.color ?? "-"}</TableCell>
+                                <TableCell className="capitalize">{b.sex != null ? String(b.sex) : "-"}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
 
 interface EventBreedersTabProps {
   eventId: string;
@@ -286,6 +399,8 @@ export function EventBreedersTab({ eventId }: EventBreedersTabProps) {
           </div>
         </CardContent>
       </Card>
+
+      <DefaultersCard eventId={eventId} />
 
       <BreederDialog
         open={dialogOpen}

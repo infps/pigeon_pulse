@@ -160,6 +160,21 @@ export function BreederDetailsDialog({
     await deletePaymentMutation.mutateAsync({ paymentId });
   };
 
+  const handleCashReceived = async (pendingBalance: number) => {
+    if (!eventInventory || pendingBalance <= 0) return;
+    if (!createPaymentMutation.mutateAsync) return;
+    await createPaymentMutation.mutateAsync({
+      eventInventoryId: eventInventory.id,
+      breederId: eventInventory.breederId,
+      amountPaid: pendingBalance,
+      amountToPay: pendingBalance,
+      currency: "USD",
+      method: "CASH",
+      paymentType: "OTHER",
+      description: "Cash payment received",
+    });
+  };
+
   const handleBirdClick = (bird: EventInventoryItem) => {
     setEditingBird(bird);
     setIsCreateBirdMode(false);
@@ -408,6 +423,16 @@ export function BreederDetailsDialog({
                         breederId={eventInventory.breederId}
                         label="Export"
                       />
+                    )}
+                    {balance > 0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleCashReceived(balance)}
+                        disabled={createPaymentMutation.isPending}
+                      >
+                        Cash Received ({fmtMoney(balance)})
+                      </Button>
                     )}
                     <Button
                       size="sm"

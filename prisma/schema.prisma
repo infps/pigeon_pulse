@@ -76,6 +76,7 @@ model User {
   sessions       Session[]
   accounts       Account[]
   breeder        Breeder?
+  organizerData  OrganizerData?
   eventMessages  EventMessage[]
   betsPlaced     Bet[]          @relation("BetsPlaced")
   bettorPayments Payment[]      @relation("BettorPayments")
@@ -147,6 +148,7 @@ model Picture {
 
 model OrganizerData {
   id       Int     @id @default(autoincrement()) @map("ID")
+  userId   String? @unique @map("USER_ID")
   name     String? @map("NAME")
   email    String  @map("EMAIL")
   phone    String? @map("PHONE")
@@ -160,9 +162,10 @@ model OrganizerData {
   note     String? @map("NOTE")
   password String? @map("PASSWORD")
 
-  events        Event[]
-  feeSchemes    FeeScheme[]
-  prizeSchemes  PrizeScheme[]
+  user           User?           @relation(fields: [userId], references: [id])
+  events         Event[]
+  feeSchemes     FeeScheme[]
+  prizeSchemes   PrizeScheme[]
   bettingSchemes BettingScheme[]
 }
 
@@ -551,12 +554,25 @@ model EventType {
   @@map("EventTypes")
 }
 
+model Season {
+  id        Int       @id @default(autoincrement())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean   @default(false)
+
+  events    Event[]
+
+  @@map("Seasons")
+}
+
 model Event {
   id                      Int  @id @default(autoincrement()) @map("ID_EVENT")
   name                    String?   @map("EVENT_NAME")
   shortName               String?   @map("EVENT_SHORT_NAME")
   eventDate               DateTime? @map("EVENT_DATE")
   eventTypeId             Int?      @map("EVENT_TYPE")
+  seasonId                Int?      @map("SEASON_ID")
   isOpen                  Int?      @map("IS_OPEN")
   feeSchemeId             Int?      @map("ID_FEE_SCHEME")
   bettingSchemeId         Int?      @map("ID_BETTING_SCHEME")
@@ -568,11 +584,24 @@ model Event {
   createdById             Int?      @map("CREATOR_ID")
   latitude                Float?    @map("LATITUDE")
   longitude               Float?    @map("LONGITUDE")
+  locationAddress         String?   @map("LOCATION_ADDRESS")
+  description             String?   @map("DESCRIPTION")
+  endDate                 DateTime? @map("END_DATE")
+  contactName             String?   @map("CONTACT_NAME")
+  contactEmail            String?   @map("CONTACT_EMAIL")
+  contactPhone            String?   @map("CONTACT_PHONE")
+  contactWebsite          String?   @map("CONTACT_WEBSITE")
+  contactAddress          String?   @map("CONTACT_ADDRESS")
+  socialYt                String?   @map("SOCIAL_YT")
+  socialFb                String?   @map("SOCIAL_FB")
+  socialTwitter           String?   @map("SOCIAL_TWITTER")
+  socialInsta             String?   @map("SOCIAL_INSTA")
   logoImage               String?   @map("LOGO_IMAGE")
   logoImageKey            String?   @map("LOGO_IMAGE_KEY")
   bannerImage             String?   @map("BANNER_IMAGE")
   bannerImageKey          String?   @map("BANNER_IMAGE_KEY")
 
+  season           Season?        @relation(fields: [seasonId], references: [id])
   eventType        EventType?     @relation(fields: [eventTypeId], references: [id])
   createdBy        OrganizerData? @relation(fields: [createdById], references: [id])
   feeScheme        FeeScheme?     @relation(fields: [feeSchemeId], references: [id])

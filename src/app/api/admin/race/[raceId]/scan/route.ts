@@ -75,7 +75,6 @@ export async function POST(
       );
     }
 
-    // Determine if race is live (STARTED or ENDED — late arrivals allowed)
     const isLive = race.status === "STARTED" || race.status === "ENDED";
 
     // Pre-race scan (loft basketing)
@@ -121,14 +120,14 @@ export async function POST(
       );
     }
 
-    // Post-race scan (arrival)
-    if (raceItem.status === "ARRIVED") {
+    // Already processed
+    if (raceItem.status === "ARRIVED" || raceItem.status === "FOREIGN_BIRD") {
       return NextResponse.json(
         {
           raceItem,
-          message: "Bird already arrived",
+          message: raceItem.status === "FOREIGN_BIRD" ? "Bird already marked as foreign bird" : "Bird already arrived",
           isNewScan: false,
-          scanType: "arrival",
+          scanType: raceItem.status === "FOREIGN_BIRD" ? "foreign" : "arrival",
         },
         { status: 200 }
       );
@@ -144,21 +143,46 @@ export async function POST(
       parseInt(timestamp.substring(12, 14))
     );
 
-    // Calculate position
+    // Race already ended → foreign bird (arrived after race closed)
+    if (race.status === "ENDED") {
+      const updatedRaceItem = await prisma.raceItem.update({
+        where: { id: raceItem.id },
+        data: { status: "FOREIGN_BIRD", raceBasketTime: arrivalTime },
+        include: {
+          inventoryItem: {
+            include: {
+              bird: {
+                include: {
+                  breeder: {
+                    select: { firstName: true, lastName: true, email: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      return NextResponse.json(
+        {
+          raceItem: updatedRaceItem,
+          message: "Bird marked as foreign bird (arrived after race ended)",
+          isNewScan: true,
+          scanType: "foreign",
+        },
+        { status: 200 }
+      );
+    }
+
+    // Live race scan (STARTED) → arrival with ranking
     const arrivedCount = await prisma.raceItem.count({
-      where: {
-        raceId: raceIdInt,
-        status: "ARRIVED",
-      },
+      where: { raceId: raceIdInt, status: "ARRIVED" },
     });
     const birdPosition = arrivedCount + 1;
 
     const updatedRaceItem = await prisma.raceItem.update({
       where: { id: raceItem.id },
-      data: {
-        status: "ARRIVED",
-        raceBasketTime: arrivalTime,
-      },
+      data: { status: "ARRIVED", raceBasketTime: arrivalTime },
       include: {
         inventoryItem: {
           include: {
@@ -174,18 +198,10 @@ export async function POST(
       },
     });
 
-    // Upsert race item result for arrival
     await prisma.raceItemResult.upsert({
       where: { raceItemId: raceItem.id },
-      create: {
-        raceItemId: raceItem.id,
-        arrivalTime,
-        birdPosition,
-      },
-      update: {
-        arrivalTime,
-        birdPosition,
-      },
+      create: { raceItemId: raceItem.id, arrivalTime, birdPosition },
+      update: { arrivalTime, birdPosition },
     });
 
     return NextResponse.json(

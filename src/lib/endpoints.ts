@@ -75,6 +75,7 @@ const breeder = {
   payments: "/api/breeder/payments",
   eventInventoryItems: (eventId: number | string) => `/api/breeder/event/${eventId}/inventory-items`,
   eventInventory: (eventId: number | string) => `/api/breeder/event/${eventId}/inventory`,
+  eventDefaulters: (eventId: number | string) => `/api/breeder/event/${eventId}/defaulters`,
   raceItems: (raceId: number | string) => `/api/breeder/races/${raceId}/items`,
   eventMessages: (eventId: number | string) => `/api/breeder/event/${eventId}/messages`,
   messages: "/api/breeder/messages",

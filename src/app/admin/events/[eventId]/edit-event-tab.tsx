@@ -48,6 +48,7 @@ export function EditEventTab({
     bettingSchemeId: String(event.bettingSchemeId ?? ""),
     latitude: event.latitude ?? (null as number | null),
     longitude: event.longitude ?? (null as number | null),
+    locationAddress: event.locationAddress || "",
     contactName: event.contactName || "",
     contactEmail: event.contactEmail || "",
     contactPhone: event.contactPhone || "",
@@ -195,6 +196,21 @@ export function EditEventTab({
           }
           placeholder="Event description..."
         />
+      </div>
+
+      <div>
+        <Label htmlFor="locationAddress">Liberation Point Address</Label>
+        <Input
+          id="locationAddress"
+          value={formData.locationAddress}
+          onChange={(e) =>
+            setFormData({ ...formData, locationAddress: e.target.value })
+          }
+          placeholder="e.g. 123 Main St, Springfield, IL 62701"
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Human-readable address shown to breeders. Pin the exact coordinates below.
+        </p>
       </div>
 
       <EventLocationField

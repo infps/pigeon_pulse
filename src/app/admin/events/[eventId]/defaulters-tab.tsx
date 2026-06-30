@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { DefaulterBreeder, EventInventoryItem } from "@/lib/types";
+import type { DefaulterBreeder, EventInventoryItem, Event } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -16,9 +16,11 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { BreederDetailsDialog } from "@/components/breeder-details-dialog";
 
 interface DefaultersTabProps {
   eventId: string;
+  event: Event;
 }
 
 interface DefaultersResponse {
@@ -32,14 +34,20 @@ function formatCurrency(n: number) {
 }
 
 function getBirdLabel(bird: EventInventoryItem) {
-  return `#${bird.birdNo ?? "?"}`;
+  const b = bird.bird;
+  if (!b) return `#${bird.birdNo ?? "?"}`;
+  const band = [b.band1, b.band2, b.band3, b.band4].filter(Boolean).join("-") || b.band || "?";
+  const sex = b.sex === 1 ? "Cock" : b.sex === 0 ? "Hen" : null;
+  const parts = [band, b.color, sex].filter(Boolean).join(" · ");
+  return parts;
 }
 
-export function DefaultersTab({ eventId }: DefaultersTabProps) {
+export function DefaultersTab({ eventId, event }: DefaultersTabProps) {
   const qc = useQueryClient();
   const [storePriceInputs, setStorePriceInputs] = useState<Record<number, string>>({});
   const [selectBirdsOpen, setSelectBirdsOpen] = useState<DefaulterBreeder | null>(null);
   const [selectedBirdIds, setSelectedBirdIds] = useState<Set<number>>(new Set());
+  const [detailsDialogId, setDetailsDialogId] = useState<number | null>(null);
 
   const { data, isPending, isError } = useQuery<DefaultersResponse>({
     queryKey: ["defaulters", eventId],
@@ -161,7 +169,12 @@ export function DefaultersTab({ eventId }: DefaultersTabProps) {
     <div key={d.eventInventoryId} className="border rounded-lg p-4 space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <span className="font-semibold">{d.breederName}</span>
+          <span
+            className="font-semibold cursor-pointer text-blue-600 hover:underline"
+            onClick={() => setDetailsDialogId(d.eventInventoryId)}
+          >
+            {d.breederName}
+          </span>
           {d.loft && <span className="text-muted-foreground text-sm ml-2">({d.loft})</span>}
         </div>
         <div className="flex items-center gap-2">
@@ -233,6 +246,13 @@ export function DefaultersTab({ eventId }: DefaultersTabProps) {
         </div>
       )}
 
+      <BreederDetailsDialog
+        open={detailsDialogId !== null}
+        onOpenChange={(open) => { if (!open) setDetailsDialogId(null); }}
+        eventInventoryId={detailsDialogId}
+        event={event}
+      />
+
       {/* Bird selector dialog */}
       <Dialog
         open={!!selectBirdsOpen}
@@ -263,7 +283,9 @@ export function DefaultersTab({ eventId }: DefaultersTabProps) {
                     });
                   }}
                 />
-                <span>{getBirdLabel(bird)}</span>
+                <span className="flex-1">{getBirdLabel(bird)}</span>
+                {bird.bird?.isLost === 1 && <Badge variant="destructive" className="text-xs">Lost</Badge>}
+                {bird.bird?.isActive === 0 && bird.bird?.isLost !== 1 && <Badge variant="secondary" className="text-xs">Inactive</Badge>}
               </label>
             ))}
           </div>

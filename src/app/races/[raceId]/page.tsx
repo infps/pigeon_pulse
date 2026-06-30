@@ -18,6 +18,7 @@ import { RaceBettingTab } from "./race-betting-tab";
 // GPS disabled for now: import { LiveTransit } from "./live-transit";
 import { useSettings } from "@/lib/settings-context";
 import type { Race, RaceItem } from "@/lib/types";
+import { RaceWindButton } from "@/components/map/race-wind-dialog";
 import Image from "next/image";
 
 function raceTypeLabel(code?: string | null): string {
@@ -297,6 +298,7 @@ export default function PublicRacePage() {
                 <Gauge className="h-4 w-4" />
                 Avg. Speed
               </Button>
+              <RaceWindButton raceId={raceId} />
               {currentUserId && (
                 <Button
                   variant={myTeamOnly ? "default" : "outline"}

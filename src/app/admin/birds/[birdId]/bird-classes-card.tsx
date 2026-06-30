@@ -3,41 +3,42 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Hash } from "lucide-react";
 import type { InventoryItemView } from "./bird-event-section";
+import { findBetMeta, betChipBg } from "./bird-event-section";
 
 interface Props {
   items: InventoryItemView[];
 }
 
-type Bet = { label: string; value: number | null | undefined };
+type Bet = { label: string; value: number | null | undefined; meta?: ReturnType<typeof findBetMeta> };
 
 function belgian(item: InventoryItemView): Bet[] {
   return [
-    { label: "B1", value: item.belgianShowBet1 },
-    { label: "B2", value: item.belgianShowBet2 },
-    { label: "B3", value: item.belgianShowBet3 },
-    { label: "B4", value: item.belgianShowBet4 },
-    { label: "B5", value: item.belgianShowBet5 },
-    { label: "B6", value: item.belgianShowBet6 },
-    { label: "B7", value: item.belgianShowBet7 },
+    { label: "B1", value: item.belgianShowBet1, meta: findBetMeta(item, "BELGIAN", 1) },
+    { label: "B2", value: item.belgianShowBet2, meta: findBetMeta(item, "BELGIAN", 2) },
+    { label: "B3", value: item.belgianShowBet3, meta: findBetMeta(item, "BELGIAN", 3) },
+    { label: "B4", value: item.belgianShowBet4, meta: findBetMeta(item, "BELGIAN", 4) },
+    { label: "B5", value: item.belgianShowBet5, meta: findBetMeta(item, "BELGIAN", 5) },
+    { label: "B6", value: item.belgianShowBet6, meta: findBetMeta(item, "BELGIAN", 6) },
+    { label: "B7", value: item.belgianShowBet7, meta: findBetMeta(item, "BELGIAN", 7) },
   ];
 }
 function standard(item: InventoryItemView): Bet[] {
   return [
-    { label: "S1", value: item.standardShowBet1 },
-    { label: "S2", value: item.standardShowBet2 },
-    { label: "S3", value: item.standardShowBet3 },
-    { label: "S4", value: item.standardShowBet4 },
-    { label: "S5", value: item.standardShowBet5 },
-    { label: "S6", value: item.standardShowBet6 },
+    { label: "S1", value: item.standardShowBet1, meta: findBetMeta(item, "STANDARD", 1) },
+    { label: "S2", value: item.standardShowBet2, meta: findBetMeta(item, "STANDARD", 2) },
+    { label: "S3", value: item.standardShowBet3, meta: findBetMeta(item, "STANDARD", 3) },
+    { label: "S4", value: item.standardShowBet4, meta: findBetMeta(item, "STANDARD", 4) },
+    { label: "S5", value: item.standardShowBet5, meta: findBetMeta(item, "STANDARD", 5) },
+    { label: "S6", value: item.standardShowBet6, meta: findBetMeta(item, "STANDARD", 6) },
   ];
 }
 function wta(item: InventoryItemView): Bet[] {
   return [
-    { label: "W1", value: item.wtaBet1 },
-    { label: "W2", value: item.wtaBet2 },
-    { label: "W3", value: item.wtaBet3 },
-    { label: "W4", value: item.wtaBet4 },
-    { label: "W5", value: item.wtaBet5 },
+    { label: "W1", value: item.wtaBet1, meta: findBetMeta(item, "WTA", 1) },
+    { label: "W2", value: item.wtaBet2, meta: findBetMeta(item, "WTA", 2) },
+    { label: "W3", value: item.wtaBet3, meta: findBetMeta(item, "WTA", 3) },
+    { label: "W4", value: item.wtaBet4, meta: findBetMeta(item, "WTA", 4) },
+    { label: "W5", value: item.wtaBet5, meta: findBetMeta(item, "WTA", 5) },
   ];
 }
 
@@ -96,7 +97,7 @@ function ChipRow({ title, bets }: { title: string; bets: Bet[] }) {
         {bets.map((b) => (
           <div
             key={b.label}
-            className="border rounded px-2 py-0.5 text-xs flex items-center gap-1"
+            className={`border rounded px-2 py-0.5 text-xs flex items-center gap-1 ${betChipBg(b.meta)}`}
           >
             <span className="font-mono text-muted-foreground">{b.label}</span>
             <span>${(b.value ?? 0).toFixed(2)}</span>

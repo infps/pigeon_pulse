@@ -16,6 +16,8 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 
 type Nullable<T> = T | null | undefined;
 
+type BetMeta = { bettorId: string; ownerUserId: string | null; category: string; tierIndex: number; stakePaymentId: number | null; stakePaid: boolean };
+
 interface RaceItemView {
   id: number;
   status?: Nullable<string>;
@@ -25,6 +27,24 @@ interface RaceItemView {
     prizeValue: Nullable<number>;
     arrivalTime: Nullable<string>;
   }>;
+  bets?: Nullable<BetMeta[]>;
+}
+
+type BetEntry = { label: string; value: Nullable<number>; meta?: BetMeta | null };
+
+export function findBetMeta(item: InventoryItemView, category: string, tierIndex: number): BetMeta | null {
+  for (const ri of item.raceItems ?? []) {
+    const b = ri.bets?.find((b) => b.category === category && b.tierIndex === tierIndex);
+    if (b) return b;
+  }
+  return null;
+}
+
+export function betChipBg(meta?: BetMeta | null): string {
+  if (!meta) return "";
+  const isOwner = meta.ownerUserId !== null && meta.bettorId === meta.ownerUserId;
+  if (isOwner) return meta.stakePaid ? "bg-green-100" : "bg-green-50";
+  return meta.stakePaid ? "bg-pink-100" : "bg-pink-50";
 }
 
 interface BasketAssignmentView {
@@ -110,29 +130,29 @@ export function BirdEventSection({ item, defaultOpen = false }: Props) {
   const eventName = event?.name ?? "Unknown Event";
   const signInDate = event?.signInDate ?? item.signInDateEvent;
 
-  const belgianBets: [string, Nullable<number>][] = [
-    ["B1", item.belgianShowBet1],
-    ["B2", item.belgianShowBet2],
-    ["B3", item.belgianShowBet3],
-    ["B4", item.belgianShowBet4],
-    ["B5", item.belgianShowBet5],
-    ["B6", item.belgianShowBet6],
-    ["B7", item.belgianShowBet7],
+  const belgianBets: BetEntry[] = [
+    { label: "B1", value: item.belgianShowBet1, meta: findBetMeta(item, "BELGIAN", 1) },
+    { label: "B2", value: item.belgianShowBet2, meta: findBetMeta(item, "BELGIAN", 2) },
+    { label: "B3", value: item.belgianShowBet3, meta: findBetMeta(item, "BELGIAN", 3) },
+    { label: "B4", value: item.belgianShowBet4, meta: findBetMeta(item, "BELGIAN", 4) },
+    { label: "B5", value: item.belgianShowBet5, meta: findBetMeta(item, "BELGIAN", 5) },
+    { label: "B6", value: item.belgianShowBet6, meta: findBetMeta(item, "BELGIAN", 6) },
+    { label: "B7", value: item.belgianShowBet7, meta: findBetMeta(item, "BELGIAN", 7) },
   ];
-  const standardBets: [string, Nullable<number>][] = [
-    ["S1", item.standardShowBet1],
-    ["S2", item.standardShowBet2],
-    ["S3", item.standardShowBet3],
-    ["S4", item.standardShowBet4],
-    ["S5", item.standardShowBet5],
-    ["S6", item.standardShowBet6],
+  const standardBets: BetEntry[] = [
+    { label: "S1", value: item.standardShowBet1, meta: findBetMeta(item, "STANDARD", 1) },
+    { label: "S2", value: item.standardShowBet2, meta: findBetMeta(item, "STANDARD", 2) },
+    { label: "S3", value: item.standardShowBet3, meta: findBetMeta(item, "STANDARD", 3) },
+    { label: "S4", value: item.standardShowBet4, meta: findBetMeta(item, "STANDARD", 4) },
+    { label: "S5", value: item.standardShowBet5, meta: findBetMeta(item, "STANDARD", 5) },
+    { label: "S6", value: item.standardShowBet6, meta: findBetMeta(item, "STANDARD", 6) },
   ];
-  const wtaBets: [string, Nullable<number>][] = [
-    ["W1", item.wtaBet1],
-    ["W2", item.wtaBet2],
-    ["W3", item.wtaBet3],
-    ["W4", item.wtaBet4],
-    ["W5", item.wtaBet5],
+  const wtaBets: BetEntry[] = [
+    { label: "W1", value: item.wtaBet1, meta: findBetMeta(item, "WTA", 1) },
+    { label: "W2", value: item.wtaBet2, meta: findBetMeta(item, "WTA", 2) },
+    { label: "W3", value: item.wtaBet3, meta: findBetMeta(item, "WTA", 3) },
+    { label: "W4", value: item.wtaBet4, meta: findBetMeta(item, "WTA", 4) },
+    { label: "W5", value: item.wtaBet5, meta: findBetMeta(item, "WTA", 5) },
   ];
 
   return (
@@ -272,24 +292,20 @@ function FeeCell({ label, value }: { label: string; value: Nullable<number> }) {
   );
 }
 
-function BetRow({
-  title,
-  bets,
-}: {
-  title: string;
-  bets: [string, Nullable<number>][];
-}) {
+function BetRow({ title, bets }: { title: string; bets: BetEntry[] }) {
+  const active = bets.filter((b) => (b.value ?? 0) > 0);
+  if (active.length === 0) return null;
   return (
     <div>
       <div className="text-xs text-muted-foreground mb-1">{title}</div>
       <div className="flex flex-wrap gap-2">
-        {bets.map(([label, val]) => (
+        {active.map((b) => (
           <div
-            key={label}
-            className="border rounded px-2 py-1 text-xs flex items-center gap-1"
+            key={b.label}
+            className={`border rounded px-2 py-1 text-xs flex items-center gap-1 ${betChipBg(b.meta)}`}
           >
-            <span className="font-mono text-muted-foreground">{label}</span>
-            <span>{val != null ? fmtMoney(val) : "-"}</span>
+            <span className="font-mono text-muted-foreground">{b.label}</span>
+            <span>{b.value != null ? fmtMoney(b.value) : "-"}</span>
           </div>
         ))}
       </div>

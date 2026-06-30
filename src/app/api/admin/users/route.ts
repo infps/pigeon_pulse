@@ -379,6 +379,19 @@ export async function PUT(request: Request) {
       },
     });
 
+    // When elevated to admin/superadmin, ensure they have an OrganizerData record
+    if (validatedData.role && ["ADMIN", "SUPERADMIN"].includes(validatedData.role)) {
+      await prisma.organizerData.upsert({
+        where: { userId: id },
+        create: {
+          userId: id,
+          email: updatedUser.email,
+          name: `${updatedUser.name}${updatedUser.lastName ? ` ${updatedUser.lastName}` : ""}`,
+        },
+        update: {},
+      });
+    }
+
     return NextResponse.json(
       { message: "User updated successfully", user: updatedUser },
       { status: 200 }

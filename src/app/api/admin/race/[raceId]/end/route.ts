@@ -50,6 +50,12 @@ export async function POST(
       },
     });
 
+    // Mark all still-released birds as lost
+    await prisma.raceItem.updateMany({
+      where: { raceId: raceIdInt, status: "RELEASED" },
+      data: { isLost: 1, lostRaceId: raceIdInt },
+    });
+
     return NextResponse.json(
       { race: updatedRace, message: "Race ended successfully" },
       { status: 200 }

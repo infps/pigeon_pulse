@@ -248,6 +248,8 @@ export interface Event {
   logoImageKey: string | null;
   bannerImage: string | null;
   bannerImageKey: string | null;
+  locationAddress: string | null;
+  seasonId: number | null;
 }
 
 export interface EventInventory {

@@ -194,6 +194,12 @@ export async function GET(
       }
     }
 
+    const stakeIds = raceItems.flatMap((ri) => ri.bets.flatMap((b) => b.stakePaymentId ? [b.stakePaymentId] : []));
+    const paidPayments = stakeIds.length > 0
+      ? await prisma.payment.findMany({ where: { id: { in: stakeIds }, status: "PAID" }, select: { id: true } })
+      : [];
+    const paidSet = new Set(paidPayments.map((p) => p.id));
+
     const birds = raceItems.map((ri) => {
       const breeder = ri.inventoryItem?.eventInventory?.breeder;
       const ownerUserId = breeder?.userId ?? null;
@@ -212,6 +218,7 @@ export async function GET(
           bettorId: b.bettorId,
           isYours: b.bettorId === session.user.id,
           stakePaymentId: b.stakePaymentId,
+          stakePaid: b.stakePaymentId !== null && paidSet.has(b.stakePaymentId),
         })),
       };
     });

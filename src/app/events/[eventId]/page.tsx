@@ -11,7 +11,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MapPin } from "lucide-react";
 import type { Event } from "@/lib/types";
 import { EventBirdsTab } from "./event-birds-tab";
 import { EventBreedersTab } from "./event-breeders-tab";
@@ -76,6 +76,12 @@ export default function PublicEventPage({ params }: { params: Promise<{ eventId:
         <h1 className="text-3xl font-bold text-center">{event.name}</h1>
         {event.shortName && (
           <p className="text-center text-muted-foreground mt-2">{event.shortName}</p>
+        )}
+        {event.locationAddress && (
+          <p className="text-center text-sm text-muted-foreground flex items-center justify-center gap-1.5 mt-1">
+            <MapPin className="h-3.5 w-3.5 shrink-0" />
+            Liberation Point: {event.locationAddress}
+          </p>
         )}
       </div>
 

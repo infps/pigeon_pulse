@@ -11,7 +11,7 @@ export type RaceBetBird = {
   ownerUserId: string | null;
   ownerName: string | null;
   isOwnBird: boolean;
-  bets: { category: string; tierIndex: number; bettorId: string; isYours: boolean; stakePaymentId: number | null }[];
+  bets: { category: string; tierIndex: number; bettorId: string; isYours: boolean; stakePaymentId: number | null; stakePaid: boolean }[];
 };
 export type RaceBetsResponse = {
   birds: RaceBetBird[];

@@ -29,6 +29,7 @@ import type { Race, Event, RaceItem } from "@/lib/types";
 import type { RowSelectionState } from "@tanstack/react-table";
 import Image from "next/image";
 import { Package, Play, Radio, Square, StopCircle } from "lucide-react";
+import { RaceWindButton } from "@/components/map/race-wind-dialog";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -225,7 +226,7 @@ export default function RaceDetailsPage() {
       {/* Compact Race Header */}
       <Card className="overflow-hidden">
         <CardContent className="p-4 md:p-6">
-          <div className="flex flex-col md:flex-row gap-4 md:gap-6">
+          <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-start">
             {/* Event Logo */}
             <div className="flex-shrink-0">
               <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden shadow-lg border-4 border-white">
@@ -439,6 +440,12 @@ export default function RaceDetailsPage() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Side panel — map */}
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              <span className="text-xs text-gray-500">Tools</span>
+              <RaceWindButton raceId={race.id} />
             </div>
           </div>
         </CardContent>

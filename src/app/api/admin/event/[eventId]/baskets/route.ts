@@ -154,10 +154,28 @@ export async function PATCH(
 
     const basket = await prisma.eventBasket.findFirst({
       where: { id: basketId, eventId },
-      include: { _count: { select: { assignments: true } } },
+      include: {
+        _count: { select: { assignments: true } },
+        assignments: { select: { eventInventoryItemId: true } },
+      },
     });
     if (!basket) {
       return NextResponse.json({ message: "Basket not found" }, { status: 404 });
+    }
+
+    // Clear all birds from basket (they become unassigned)
+    if (body.action === "clear") {
+      const itemIds = basket.assignments.map((a) => a.eventInventoryItemId);
+      await prisma.$transaction(async (tx) => {
+        await tx.basketAssignment.deleteMany({ where: { eventBasketId: basketId } });
+        if (itemIds.length > 0) {
+          await tx.raceItem.updateMany({
+            where: { inventoryItemId: { in: itemIds }, status: "LOFT_BASKETED" },
+            data: { status: "REGISTERED" },
+          });
+        }
+      });
+      return NextResponse.json({ message: "Basket cleared" });
     }
 
     const data: { label?: string | null; capacity?: number } = {};
@@ -216,21 +234,25 @@ export async function DELETE(
       return NextResponse.json({ message: "Invalid basket ID" }, { status: 400 });
     }
 
-    // Verify basket belongs to this event
     const basket = await prisma.eventBasket.findFirst({
       where: { id: basketId, eventId },
-      include: { _count: { select: { assignments: true } } },
+      include: { assignments: { select: { eventInventoryItemId: true } } },
     });
 
     if (!basket) {
       return NextResponse.json({ message: "Basket not found" }, { status: 404 });
     }
 
-    if ((basket._count?.assignments ?? 0) > 0) {
-      return NextResponse.json({ message: "Cannot delete basket with assigned birds" }, { status: 409 });
-    }
-
-    await prisma.eventBasket.delete({ where: { id: basketId } });
+    const itemIds = basket.assignments.map((a) => a.eventInventoryItemId);
+    await prisma.$transaction(async (tx) => {
+      if (itemIds.length > 0) {
+        await tx.raceItem.updateMany({
+          where: { inventoryItemId: { in: itemIds }, status: "LOFT_BASKETED" },
+          data: { status: "REGISTERED" },
+        });
+      }
+      await tx.eventBasket.delete({ where: { id: basketId } });
+    });
 
     return NextResponse.json({ message: "Basket deleted" });
   } catch (error) {

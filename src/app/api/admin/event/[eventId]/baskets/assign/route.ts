@@ -24,10 +24,16 @@ export async function POST(
 
     const body = await request.json();
     const preview = body.preview === true;
+    // "assign" = incremental (only unassigned birds, real fill counts)
+    // anything else = shuffle (wipe all, BFD from scratch)
+    const mode: "shuffle" | "assign" = body.mode === "assign" ? "assign" : "shuffle";
 
-    // 1. Fetch all registered birds for this event with breeder info
+    // 1. Fetch birds for this event (incremental mode skips already-assigned)
     const inventoryItems = await prisma.eventInventoryItem.findMany({
-      where: { eventInventory: { eventId } },
+      where: {
+        eventInventory: { eventId },
+        ...(mode === "assign" ? { basketAssignments: { none: {} } } : {}),
+      },
       select: {
         id: true,
         eventInventory: {
@@ -76,12 +82,12 @@ export async function POST(
       );
     }
 
-    // Save phase wipes all loft assignments before re-inserting,
-    // so packer must treat baskets as empty for both preview and persist.
+    // shuffle: treat all baskets as empty (wipe before re-insert)
+    // assign: pass real fill counts so BFD only uses remaining space
     const slots: BasketSlot[] = eventBaskets.map((b) => ({
       id: b.id,
       capacity: b.capacity,
-      used: 0,
+      used: mode === "assign" ? (b._count?.assignments ?? 0) : 0,
       label: b.label,
       basketNo: b.basketNo,
     }));
@@ -118,11 +124,13 @@ export async function POST(
 
     // 5. Persist in transaction
     await prisma.$transaction(async (tx) => {
-      // Delete existing LOFT assignments for this event
-      const loftBasketIds = eventBaskets.map((b) => b.id);
-      await tx.basketAssignment.deleteMany({
-        where: { eventBasketId: { in: loftBasketIds } },
-      });
+      // shuffle: wipe all existing assignments first; assign: leave them alone
+      if (mode === "shuffle") {
+        const loftBasketIds = eventBaskets.map((b) => b.id);
+        await tx.basketAssignment.deleteMany({
+          where: { eventBasketId: { in: loftBasketIds } },
+        });
+      }
 
       // Create new assignments (one per bird, all in breeder's assigned basket)
       const assignmentData = assigned.flatMap((a) =>

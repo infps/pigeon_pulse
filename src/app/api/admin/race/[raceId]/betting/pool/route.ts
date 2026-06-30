@@ -58,6 +58,7 @@ export async function GET(
       status: string;
       payoutValue: number | null;
       stakePaymentId: number | null;
+      stakePaid: boolean;
     };
 
     type Pool = {
@@ -66,6 +67,12 @@ export async function GET(
       totalIn: number;
       entries: PoolEntry[];
     };
+
+    const stakeIds = bets.flatMap((b) => b.stakePaymentId ? [b.stakePaymentId] : []);
+    const paidPayments = stakeIds.length > 0
+      ? await prisma.payment.findMany({ where: { id: { in: stakeIds }, status: "PAID" }, select: { id: true } })
+      : [];
+    const paidSet = new Set(paidPayments.map((p) => p.id));
 
     const poolMap = new Map<string, Pool>();
 
@@ -101,6 +108,7 @@ export async function GET(
         status: bet.status,
         payoutValue: bet.payoutValue,
         stakePaymentId: bet.stakePaymentId,
+        stakePaid: bet.stakePaymentId !== null && paidSet.has(bet.stakePaymentId),
       });
     }
 
