@@ -12,7 +12,8 @@ import { useUpdateEventInventoryItem } from "@/lib/api/event-inventory-item";
 import { useScanLoftBasket } from "@/lib/api/event-baskets";
 import { useListRaces } from "@/lib/api/races";
 import type { EventInventoryItem, Race, Event } from "@/lib/types";
-import { Wifi, WifiOff } from "lucide-react";
+import { Wifi, WifiOff, Usb } from "lucide-react";
+import { useWebSerial } from "@/hooks/useWebSerial";
 
 const FEDERATIONS = ["AU", "IF", "NPA", "CU", "BB", "ARPU", "IPB"];
 const COLORS = [
@@ -160,6 +161,35 @@ export function EditBirdDialog({
     }
   }, [eventInventoryItem]);
 
+  // Shared: handle incoming rfid from either source (dedupe + assign + update field)
+  const handleRfidScanned = async (rfid: string) => {
+    if (!eventInventoryItem) return;
+    if (rfid === lastScannedRfidRef.current) return;
+    lastScannedRfidRef.current = rfid;
+
+    try {
+      const result = await scanLoftMutation.mutateAsync({
+        eventInventoryItemId: eventInventoryItem.id,
+        rfid,
+        capacity: parseInt(capacity) || 10,
+      }) as any;
+
+      setRfid(rfid);
+      if (result?.alreadyAssigned) {
+        toast.info(`Already basketed: ${result.basket?.label || ""}`);
+      } else {
+        toast.success(`Scanned & basketed → ${result?.basket?.label || ""}`);
+      }
+      // For poll we stop; for serial keep open (user stops)
+    } catch (error: any) {
+      toast.error(error?.message || "Scan failed");
+    }
+  };
+
+  const handleSerialScan = (rfid: string) => {
+    handleRfidScanned(rfid);
+  };
+
   // Polling management — scans RFID + assigns loft basket in one step
   const pollScanner = async () => {
     if (!eventInventoryItem) return;
@@ -172,26 +202,8 @@ export function EditBirdDialog({
         const data = await response.json();
         if (data && data.length > 0 && data[0].el) {
           const newRfid = data[0].el;
-          if (newRfid === lastScannedRfidRef.current) return;
-          lastScannedRfidRef.current = newRfid;
-
-          try {
-            const result = await scanLoftMutation.mutateAsync({
-              eventInventoryItemId: eventInventoryItem.id,
-              rfid: newRfid,
-              capacity: parseInt(capacity) || 10,
-            }) as any;
-
-            setRfid(newRfid);
-            if (result?.alreadyAssigned) {
-              toast.info(`Already basketed: ${result.basket?.label || ""}`);
-            } else {
-              toast.success(`Scanned & basketed → ${result?.basket?.label || ""}`);
-            }
-            stopPolling();
-          } catch (error: any) {
-            toast.error(error?.message || "Scan failed");
-          }
+          await handleRfidScanned(newRfid);
+          stopPolling();
         }
       }
     } catch (error) {
@@ -203,6 +215,9 @@ export function EditBirdDialog({
     if (pollingIntervalRef.current) {
       return; // Already polling
     }
+
+    // Stop serial if running (mutually exclusive for testing)
+    if (isSerial) disconnectSerial();
 
     setIsPolling(true);
     lastScannedRfidRef.current = null;
@@ -224,13 +239,31 @@ export function EditBirdDialog({
     toast.info('Scanner disconnected');
   };
 
+  const startSerial = async () => {
+    if (isPolling) stopPolling();
+    lastScannedRfidRef.current = null;
+    toast.success('Web Serial connecting... (grant port in browser)');
+    await connectSerial();
+  };
+
+  const stopSerial = async () => {
+    await disconnectSerial();
+    toast.info('Web Serial disconnected');
+  };
+
+  // Web Serial hook (placed after handler defs to avoid TDZ)
+  const { isConnected: isSerial, error: serialError, connect: connectSerial, disconnect: disconnectSerial } =
+    useWebSerial({ onScan: handleSerialScan });
+
   // Cleanup on unmount or dialog close
   useEffect(() => {
     if (!open) {
       stopPolling();
+      disconnectSerial();
     }
     return () => {
       stopPolling();
+      disconnectSerial();
     };
   }, [open]);
 
@@ -383,29 +416,42 @@ export function EditBirdDialog({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="rfid">RFID</Label>
-                <div className="flex gap-2">
+                <div className="flex gap-1">
                   <Input
                     id="rfid"
                     value={rfid}
                     onChange={(e) => setRfid(e.target.value)}
                     className="flex-1"
                   />
+                  {/* Poll path button (python client push or tipes) */}
                   <Button
                     type="button"
                     variant={isPolling ? "default" : "outline"}
                     size="icon"
                     onClick={isPolling ? stopPolling : startPolling}
-                    title={isPolling ? "Disconnect scanner (scan + basket)" : "Scan RFID + assign loft basket"}
+                    title="Poll Scanner (python / tipes)"
                   >
-                    {isPolling ? (
-                      <Wifi className="h-4 w-4" />
-                    ) : (
-                      <WifiOff className="h-4 w-4" />
-                    )}
+                    {isPolling ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
+                  </Button>
+                  {/* Web Serial direct button */}
+                  <Button
+                    type="button"
+                    variant={isSerial ? "default" : "outline"}
+                    size="icon"
+                    onClick={isSerial ? stopSerial : startSerial}
+                    title="Web Serial (browser COM port, Chrome/Edge)"
+                  >
+                    <Usb className="h-4 w-4" />
                   </Button>
                 </div>
                 {isPolling && (
-                  <p className="text-xs text-green-600 animate-pulse">Scanning — will assign to loft basket...</p>
+                  <p className="text-xs text-green-600 animate-pulse">Poll Active</p>
+                )}
+                {isSerial && (
+                  <p className="text-xs text-blue-600 animate-pulse">Web Serial active — scan to assign</p>
+                )}
+                {serialError && (
+                  <p className="text-xs text-red-600">{serialError}</p>
                 )}
               </div>
               <div className="space-y-2">

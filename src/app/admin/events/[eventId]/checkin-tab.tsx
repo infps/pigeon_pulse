@@ -23,7 +23,8 @@ import {
 } from "@/components/ui/select";
 import { DataTable } from "@/components/ui/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Radio, Square, CheckCircle2 } from "lucide-react";
+import { Radio, Square, CheckCircle2, Wifi, WifiOff, Usb } from "lucide-react";
+import { useWebSerial } from "@/hooks/useWebSerial";
 import { toast } from "sonner";
 import {
   useCheckinStatus,
@@ -47,15 +48,20 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<CheckinStatusItem | null>(null);
   const [rfidInput, setRfidInput] = useState("");
-  const [isScanning, setIsScanning] = useState(false);
+  const [isPollActive, setIsPollActive] = useState(false);
   const [capacity, setCapacity] = useState("10");
   const [breederFilter, setBreederFilter] = useState<string>("all");
   const lastScannedRfidRef = useRef<string | null>(null);
   const scannerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const selectedItemRef = useRef<CheckinStatusItem | null>(null);
+  const webSerialOnScanRef = useRef<(rfid: string) => void>(() => {});
 
   // Keep ref in sync for scanner callback
   selectedItemRef.current = selectedItem;
+
+  // Web Serial hook early (safe for TDZ in callbacks)
+  const { isConnected: isSerialActive, error: serialError, connect: connectSerial, disconnect: disconnectSerial } =
+    useWebSerial({ onScan: (rfid) => webSerialOnScanRef.current(rfid) });
 
   const items: CheckinStatusItem[] = data?.items || [];
   const summary: CheckinSummary = data?.summary || { total: 0, checkedIn: 0, notCheckedIn: 0 };
@@ -108,7 +114,8 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
       return;
     }
     setSelectedItem(item);
-    if (!isScanning) {
+    const anyScanner = isPollActive || isSerialActive;
+    if (!anyScanner) {
       // Open link dialog for manual RFID entry
       setRfidInput("");
       setLinkDialogOpen(true);
@@ -170,10 +177,26 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
     [scanLoftMutation, capacity, refetch]
   );
 
-  const startScanner = useCallback(() => {
-    setIsScanning(true);
+  // Direct from web serial
+  const handleWebSerialScan = (rfid: string) => {
+    if (rfid === lastScannedRfidRef.current) return;
+    lastScannedRfidRef.current = rfid;
+    if (selectedItemRef.current) {
+      handleScanResult(rfid);
+    } else {
+      setRfidInput(rfid);
+      toast.info(`Scanned: ${rfid} — select a bird to assign`);
+    }
+  };
+  // Keep ref current for the early hook
+  webSerialOnScanRef.current = handleWebSerialScan;
+
+  // Poll path (python push or tipes)
+  const startPollScanner = useCallback(() => {
+    if (isSerialActive) disconnectSerial(); // mutually exclusive
+    setIsPollActive(true);
     lastScannedRfidRef.current = null;
-    toast.success("Scanner started — select a bird then scan");
+    toast.success("Poll scanner started — select a bird then scan");
 
     scannerIntervalRef.current = setInterval(async () => {
       try {
@@ -192,20 +215,34 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
           }
         }
       } catch {
-        // silent fail on poll
+        // silent
       }
     }, 2000);
-  }, [handleScanResult]);
+  }, [handleScanResult, isSerialActive, disconnectSerial]);
 
-  const stopScanner = useCallback(() => {
+  const stopPollScanner = useCallback(() => {
     if (scannerIntervalRef.current) {
       clearInterval(scannerIntervalRef.current);
       scannerIntervalRef.current = null;
     }
-    setIsScanning(false);
+    setIsPollActive(false);
     lastScannedRfidRef.current = null;
-    toast.info("Scanner stopped");
+    toast.info("Poll scanner stopped");
   }, []);
+
+  // Web serial connect/stop wrappers
+  const startSerialScanner = async () => {
+    if (isPollActive) stopPollScanner();
+    lastScannedRfidRef.current = null;
+    toast.success("Web Serial: select port in browser");
+    await connectSerial();
+  };
+
+  const stopSerialScanner = async () => {
+    await disconnectSerial();
+    lastScannedRfidRef.current = null;
+    toast.info("Web Serial stopped");
+  };
 
   const columns = createCheckinColumns(handleLink, handleUnlink);
 
@@ -230,22 +267,43 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Loft Basketing</CardTitle>
             <div className="flex items-center gap-2">
-              {isScanning ? (
+              {/* Poll button (python / tipes) */}
+              {isPollActive ? (
                 <Button
-                  onClick={stopScanner}
+                  onClick={stopPollScanner}
                   size="sm"
                   className="gap-2 bg-red-600 hover:bg-red-700"
                 >
                   <Square className="h-4 w-4" />
-                  Stop Scanner
+                  Stop Poll
                 </Button>
               ) : (
-                <Button onClick={startScanner} size="sm" className="gap-2">
-                  <Radio className="h-4 w-4" />
-                  Start Scanner
+                <Button onClick={startPollScanner} size="sm" variant="outline" className="gap-2">
+                  <Wifi className="h-4 w-4" />
+                  Poll
+                </Button>
+              )}
+
+              {/* Web Serial direct */}
+              {isSerialActive ? (
+                <Button
+                  onClick={stopSerialScanner}
+                  size="sm"
+                  className="gap-2 bg-red-600 hover:bg-red-700"
+                >
+                  <Square className="h-4 w-4" />
+                  Stop USB
+                </Button>
+              ) : (
+                <Button onClick={startSerialScanner} size="sm" className="gap-2">
+                  <Usb className="h-4 w-4" />
+                  Web Serial
                 </Button>
               )}
             </div>
+            {serialError && (
+              <div className="text-xs text-red-600 mt-1">Serial: {serialError}</div>
+            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -365,13 +423,13 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
               <Label htmlFor="rfid">RFID Tag</Label>
               <Input
                 id="rfid"
-                placeholder={isScanning ? "Waiting for scanner..." : "Enter RFID tag"}
+                placeholder={(isPollActive || isSerialActive) ? "Waiting for scanner..." : "Enter RFID tag"}
                 value={rfidInput}
                 onChange={(e) => setRfidInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleConfirmLink()}
                 autoFocus
               />
-              {isScanning && (
+              {(isPollActive || isSerialActive) && (
                 <p className="text-xs text-muted-foreground mt-1 animate-pulse">
                   Scanner active — scan a tag to auto-fill
                 </p>
