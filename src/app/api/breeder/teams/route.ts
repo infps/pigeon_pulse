@@ -5,6 +5,14 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import z from "zod";
 
+const STATUS_PRIORITY: Record<string, number> = {
+  ARRIVED: 5,
+  FOREIGN_BIRD: 4,
+  RELEASED: 3,
+  LOFT_BASKETED: 2,
+  REGISTERED: 1,
+};
+
 const createTeamSchema = z.object({
   name: z.string().min(1, "Team name is required"),
   breederId: z.union([z.string(), z.number()]).transform(v => parseInt(String(v))).optional(),
@@ -69,8 +77,16 @@ export async function GET(request: Request) {
                     birdName: true,
                   },
                 },
+                loftGroup: {
+                  select: { _count: { select: { vaccinations: true } } },
+                },
+                basketAssignments: {
+                  select: { eventBasket: { select: { phase: true } } },
+                },
                 raceItems: {
                   select: {
+                    status: true,
+                    result: { select: { birdPosition: true } },
                     race: {
                       select: { id: true, name: true, raceNumber: true, event: { select: { name: true } } },
                     },
@@ -82,7 +98,14 @@ export async function GET(request: Request) {
         })
       : [];
 
-    type TeamBird = { id: number; band: string; name: string | null };
+    type TeamBird = {
+      id: number;
+      band: string;
+      name: string | null;
+      status: string | null;
+      position: number | null;
+      vaccinated: boolean;
+    };
     const statsByTeam = new Map<
       number,
       {
@@ -104,21 +127,39 @@ export async function GET(request: Request) {
       }
       for (const item of inv.items) {
         const b = item.bird;
+
+        const hasRaceBasket = item.basketAssignments.some(
+          (a) => a.eventBasket.phase === "RACE"
+        );
+        let bestStatus: string | null = null;
+        let bestPriority = 0;
+        let position: number | null = null;
+        for (const ri of item.raceItems) {
+          const p = STATUS_PRIORITY[ri.status] ?? 0;
+          if (p > bestPriority) {
+            bestPriority = p;
+            bestStatus = ri.status;
+            position = ri.status === "ARRIVED" ? (ri.result?.birdPosition ?? null) : null;
+          }
+          const race = ri.race;
+          if (race) {
+            const label = race.name?.trim()
+              || (race.event?.name ? `${race.event.name}${race.raceNumber ? ` #${race.raceNumber}` : ""}` : `Race ${race.id}`);
+            stat.races.set(race.id, label);
+          }
+        }
+        const effectiveStatus =
+          bestStatus === "LOFT_BASKETED" && hasRaceBasket ? "IN_RACE_BASKET" : bestStatus;
+        const vaccinated = (item.loftGroup?._count?.vaccinations ?? 0) > 0;
+
         if (b?.id != null) {
           const band =
             b.band?.trim() ||
             [b.band1, b.band2, b.band3, b.band4].filter(Boolean).join("-") ||
             "No band";
-          stat.birds.set(b.id, { id: b.id, band, name: b.birdName });
+          stat.birds.set(b.id, { id: b.id, band, name: b.birdName, status: effectiveStatus, position, vaccinated });
         } else if (item.birdId != null) {
-          stat.birds.set(item.birdId, { id: item.birdId, band: "No band", name: null });
-        }
-        for (const ri of item.raceItems) {
-          const race = ri.race;
-          if (!race) continue;
-          const label = race.name?.trim()
-            || (race.event?.name ? `${race.event.name}${race.raceNumber ? ` #${race.raceNumber}` : ""}` : `Race ${race.id}`);
-          stat.races.set(race.id, label);
+          stat.birds.set(item.birdId, { id: item.birdId, band: "No band", name: null, status: effectiveStatus, position, vaccinated });
         }
       }
       statsByTeam.set(inv.teamId, stat);

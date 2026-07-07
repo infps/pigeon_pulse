@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useRef, useCallback, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { AlertTriangle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +42,7 @@ interface CheckinTabProps {
 }
 
 export function CheckinTab({ eventId }: CheckinTabProps) {
+  const qc = useQueryClient();
   const { data, isPending, refetch } = useCheckinStatus(eventId);
   const checkinMutation = useCheckinBird(eventId);
   const uncheckMutation = useUncheckBird(eventId);
@@ -49,8 +52,15 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
   const [selectedItem, setSelectedItem] = useState<CheckinStatusItem | null>(null);
   const [rfidInput, setRfidInput] = useState("");
   const [isPollActive, setIsPollActive] = useState(false);
-  const [capacity, setCapacity] = useState("10");
   const [breederFilter, setBreederFilter] = useState<string>("all");
+  const [capacityWarningOpen, setCapacityWarningOpen] = useState(false);
+  const [capacityWarningInfo, setCapacityWarningInfo] = useState<{ groupNo: number; pct: number } | null>(null);
+
+  const { data: groupsData } = useQuery<Array<{ id: number; groupNo: number; status: string; capacity: number; _count: { members: number } }>>({
+    queryKey: ["loft-groups", eventId],
+    queryFn: () => fetch(`/api/admin/event/${eventId}/loft-groups`).then((r) => r.json()),
+  });
+  const activeGroup = groupsData?.find((g) => g.status === "OPEN");
   const lastScannedRfidRef = useRef<string | null>(null);
   const scannerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const selectedItemRef = useRef<CheckinStatusItem | null>(null);
@@ -124,28 +134,50 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
     }
   };
 
+  const handleScanSuccess = useCallback(
+    (result: any, birdLabel: string) => {
+      if (result?.alreadyAssigned) {
+        toast.info(`Already in Group ${result.groupNo ?? ""}`);
+        return;
+      }
+      toast.success(`Scanned: ${birdLabel} → Group ${result?.loftGroup?.groupNo ?? ""}`);
+      if (result?.capacityWarning && result?.loftGroup) {
+        setCapacityWarningInfo({
+          groupNo: result.loftGroup.groupNo,
+          pct: Math.round((result.loftGroup.memberCount / result.loftGroup.capacity) * 100),
+        });
+        setCapacityWarningOpen(true);
+      }
+      qc.invalidateQueries({ queryKey: ["loft-groups", eventId] });
+      refetch();
+    },
+    [qc, eventId, refetch]
+  );
+
   const handleConfirmLink = async () => {
     if (!selectedItem || !rfidInput.trim()) {
       toast.error("Enter an RFID tag");
       return;
     }
+    if (!activeGroup) {
+      toast.error("No active group. Create a group in the Groups tab first.");
+      return;
+    }
     try {
-      await scanLoftMutation.mutateAsync({
+      const result = await scanLoftMutation.mutateAsync({
         eventInventoryItemId: selectedItem.id,
         rfid: rfidInput.trim(),
-        capacity: parseInt(capacity) || 10,
       });
-      toast.success(`Scanned & basketed: ${selectedItem.bird?.birdName || "bird"}`);
       setLinkDialogOpen(false);
       setSelectedItem(null);
       setRfidInput("");
-      refetch();
+      handleScanSuccess(result, selectedItem.bird?.birdName || "bird");
     } catch (error: any) {
       toast.error(error?.message || "Failed to scan");
     }
   };
 
-  // Scanner poll → call scan-loft (RFID link + basket assign in one step)
+  // Scanner poll → call scan-loft (RFID link + group assign in one step)
   const handleScanResult = useCallback(
     async (rfid: string) => {
       const current = selectedItemRef.current;
@@ -153,28 +185,23 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
         toast.warning("Select a bird first (click a row)");
         return;
       }
+      if (!activeGroup) {
+        toast.error("No active group. Create a group in the Groups tab first.");
+        return;
+      }
       try {
         const res = await scanLoftMutation.mutateAsync({
           eventInventoryItemId: current.id,
           rfid,
-          capacity: parseInt(capacity) || 10,
         });
-        const result = res as any;
-        if (result?.alreadyAssigned) {
-          toast.info(`Already basketed: ${result.basket?.label || ""}`);
-        } else {
-          toast.success(
-            `Scanned & basketed: ${current.bird?.birdName || "bird"} → ${result?.basket?.label || ""}`
-          );
-        }
         setSelectedItem(null);
         setLinkDialogOpen(false);
-        refetch();
+        handleScanSuccess(res as any, current.bird?.birdName || "bird");
       } catch (error: any) {
         toast.error(error?.message || "Scan failed");
       }
     },
-    [scanLoftMutation, capacity, refetch]
+    [scanLoftMutation, activeGroup, handleScanSuccess]
   );
 
   // Direct from web serial
@@ -261,6 +288,47 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
 
   return (
     <div className="space-y-4">
+      {/* Active group status bar */}
+      {activeGroup ? (
+        <div className={`flex items-center justify-between rounded-lg border px-4 py-2 ${activeGroup._count.members / activeGroup.capacity >= 0.85 ? "border-amber-400 bg-amber-50" : "border-green-300 bg-green-50"}`}>
+          <div className="flex items-center gap-3">
+            {activeGroup._count.members / activeGroup.capacity >= 0.85 && (
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+            )}
+            <span className="font-medium text-sm">Group {activeGroup.groupNo}</span>
+            <Badge variant="default" className="text-xs">OPEN</Badge>
+            <span className="text-sm text-muted-foreground">
+              {activeGroup._count.members} / {activeGroup.capacity} birds
+              {" "}({Math.round((activeGroup._count.members / activeGroup.capacity) * 100)}%)
+            </span>
+          </div>
+          <span className="text-xs text-muted-foreground">Scan to add birds to this group</span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 rounded-lg border border-dashed px-4 py-2 text-sm text-muted-foreground">
+          <AlertTriangle className="h-4 w-4" />
+          No active group — go to the <strong className="mx-1">Groups</strong> tab to create one before scanning
+        </div>
+      )}
+
+      {/* Capacity warning dialog */}
+      <Dialog open={capacityWarningOpen} onOpenChange={setCapacityWarningOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="h-5 w-5" />
+              Group {capacityWarningInfo?.groupNo} is {capacityWarningInfo?.pct}% full
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm">
+            This group is nearly at capacity. You can continue scanning or close this group and start a new one from the <strong>Groups</strong> tab.
+          </p>
+          <DialogFooter>
+            <Button onClick={() => setCapacityWarningOpen(false)}>Continue Scanning</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Progress + Scanner + Controls */}
       <Card>
         <CardHeader className="pb-3">
@@ -349,16 +417,6 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-[120px]">
-              <Label htmlFor="basket-capacity">Basket Cap.</Label>
-              <Input
-                id="basket-capacity"
-                type="number"
-                min="1"
-                value={capacity}
-                onChange={(e) => setCapacity(e.target.value)}
-              />
-            </div>
             {selectedItem && (
               <Badge variant="secondary" className="py-1.5">
                 Selected: {selectedItem.bird?.birdName || selectedItem.bird?.band || "bird"}
@@ -393,11 +451,11 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
         </div>
       )}
 
-      {/* Link RFID + Basket Dialog */}
+      {/* Link RFID + Group Dialog */}
       <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Scan & Basket Bird</DialogTitle>
+            <DialogTitle>Scan Bird → Group {activeGroup?.groupNo ?? "?"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="p-3 bg-muted rounded-lg text-sm">
@@ -442,9 +500,9 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
             </Button>
             <Button
               onClick={handleConfirmLink}
-              disabled={scanLoftMutation.isPending || !rfidInput.trim()}
+              disabled={scanLoftMutation.isPending || !rfidInput.trim() || !activeGroup}
             >
-              {scanLoftMutation.isPending ? "Scanning..." : "Scan & Basket"}
+              {scanLoftMutation.isPending ? "Scanning..." : "Scan & Assign to Group"}
             </Button>
           </DialogFooter>
         </DialogContent>

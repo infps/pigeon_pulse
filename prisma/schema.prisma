@@ -248,6 +248,11 @@ enum BasketPhase {
   RACE
 }
 
+enum LoftGroupStatus {
+  OPEN
+  CLOSED
+}
+
 enum RaceStatus {
   REGISTERING
   STARTED
@@ -622,6 +627,7 @@ model Event {
   messages         EventMessage[]
   raceStations     RaceStation[]
   storeListings    EventStoreListing[]
+  loftGroups       LoftGroup[]
 
   @@map("Events")
 }
@@ -723,10 +729,13 @@ model EventInventoryItem {
   wtaBet4           Float?    @map("WTA_BET_4")
   wtaBet5           Float?    @map("WTA_BET_5")
 
+  loftGroupId       Int?      @map("ID_LOFT_GROUP")
+
   eventInventory EventInventory? @relation(fields: [eventInventoryId], references: [id])
   bird           Bird?           @relation(fields: [birdId], references: [id])
   replacedItem   EventInventoryItem? @relation("ReplacedItem", fields: [replacedItemId], references: [id])
   replacedBy     EventInventoryItem[] @relation("ReplacedItem")
+  loftGroup      LoftGroup?      @relation(fields: [loftGroupId], references: [id])
 
   raceItems         RaceItem[]
   basketAssignments BasketAssignment[]
@@ -890,7 +899,7 @@ model EventBasket {
   race        Race?              @relation(fields: [raceId], references: [id])
   assignments BasketAssignment[]
 
-  @@unique([eventId, basketNo, phase])
+  @@unique([eventId, basketNo, phase, raceId])
   @@index([eventId, phase, raceId])
   @@map("EventBaskets")
 }
@@ -907,6 +916,38 @@ model BasketAssignment {
   @@unique([eventInventoryItemId, eventBasketId])
   @@index([eventBasketId])
   @@map("BasketAssignments")
+}
+
+model LoftGroup {
+  id        Int             @id @default(autoincrement())
+  eventId   Int
+  groupNo   Int
+  status    LoftGroupStatus @default(OPEN)
+  capacity  Int             @default(150)
+  openedAt  DateTime        @default(now())
+  closedAt  DateTime?
+
+  event        Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  members      EventInventoryItem[]
+  vaccinations VaccinationRecord[]
+
+  @@unique([eventId, groupNo])
+  @@index([eventId, status])
+}
+
+model VaccinationRecord {
+  id              Int      @id @default(autoincrement())
+  loftGroupId     Int
+  vaccineName     String
+  vaccinationDate DateTime
+  vet             String?
+  batchNo         String?
+  notes           String?
+  documentUrl     String?
+  documentKey     String?
+  createdAt       DateTime @default(now())
+
+  loftGroup LoftGroup @relation(fields: [loftGroupId], references: [id], onDelete: Cascade)
 }
 
 model Team {

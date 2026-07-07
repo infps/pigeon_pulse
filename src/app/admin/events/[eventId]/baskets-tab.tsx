@@ -123,7 +123,17 @@ interface AssignSummary {
 }
 
 function LoftBasketPanel({ eventId }: { eventId: string }) {
-  const { data, isPending, refetch } = useEventBaskets(eventId, "LOFT");
+  const { data: racesData } = useListRaces({ params: { eventId } });
+  const races: Race[] = (racesData as { races?: Race[] })?.races ?? [];
+  const [selectedRaceId, setSelectedRaceId] = useState<string>("");
+
+  useEffect(() => {
+    if (!selectedRaceId && races.length > 0) {
+      setSelectedRaceId(String(races[0].id));
+    }
+  }, [races, selectedRaceId]);
+
+  const { data, isPending, refetch } = useEventBaskets(eventId, "LOFT", selectedRaceId || undefined);
   const { data: checkinData } = useCheckinStatus(eventId);
   const createMutation = useCreateBasket(eventId);
   const deleteMutation = useDeleteBasket(eventId);
@@ -170,7 +180,7 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
       return;
     }
     try {
-      await createMutation.mutateAsync({ capacity: cap, phase: "LOFT" });
+      await createMutation.mutateAsync({ capacity: cap, phase: "LOFT", ...(selectedRaceId ? { raceId: parseInt(selectedRaceId) } : {}) });
       toast.success(`Basket #${basketNo} created`);
       refetch();
       if (keepOpen) {
@@ -213,7 +223,8 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
 
   const handlePreviewAssign = async (mode: "shuffle" | "assign") => {
     try {
-      const res = await assignMutation.mutateAsync({ preview: true, mode });
+      const raceIdPayload = selectedRaceId ? { raceId: parseInt(selectedRaceId) } : {};
+      const res = await assignMutation.mutateAsync({ preview: true, mode, ...raceIdPayload });
       const result = (res as { data?: unknown })?.data || res;
       const r = result as { assigned?: AssignPreviewItem[]; unassigned?: UnassignedItem[]; summary?: AssignSummary; message?: string };
       if (!r?.assigned?.length && !r?.unassigned?.length) {
@@ -231,7 +242,8 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
 
   const handleConfirmAssign = async () => {
     try {
-      await assignMutation.mutateAsync({ preview: false, mode: assignMode ?? "shuffle" });
+      const raceIdPayload = selectedRaceId ? { raceId: parseInt(selectedRaceId) } : {};
+      await assignMutation.mutateAsync({ preview: false, mode: assignMode ?? "shuffle", ...raceIdPayload });
       toast.success("Birds assigned to baskets");
       setAssignPreview(null);
       setAssignUnassigned([]);
@@ -276,6 +288,26 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
     <>
       <Card>
         <CardContent className="pt-4 space-y-3">
+          {/* Race selector — loft baskets are now per-race */}
+          <div className="flex items-center gap-3">
+            <Label className="text-sm shrink-0">Race</Label>
+            {races.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No races yet</p>
+            ) : (
+              <Select value={selectedRaceId} onValueChange={setSelectedRaceId}>
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue placeholder="Select a race" />
+                </SelectTrigger>
+                <SelectContent>
+                  {races.map((r) => (
+                    <SelectItem key={r.id} value={String(r.id)}>
+                      {r.name ?? `Race #${r.id}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
               Create baskets below, then use <strong>Set Baskets</strong> to auto-assign birds via BFD.

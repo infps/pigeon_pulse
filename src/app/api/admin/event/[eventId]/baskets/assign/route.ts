@@ -24,11 +24,10 @@ export async function POST(
 
     const body = await request.json();
     const preview = body.preview === true;
-    // "assign" = incremental (only unassigned birds, real fill counts)
-    // anything else = shuffle (wipe all, BFD from scratch)
     const mode: "shuffle" | "assign" = body.mode === "assign" ? "assign" : "shuffle";
+    const raceId = body.raceId ? parseInt(body.raceId) : undefined;
 
-    // 1. Fetch birds for this event (incremental mode skips already-assigned)
+    // 1. Fetch birds for this event (loftGroup-assigned only: status LOFT_BASKETED)
     const inventoryItems = await prisma.eventInventoryItem.findMany({
       where: {
         eventInventory: { eventId },
@@ -36,6 +35,7 @@ export async function POST(
       },
       select: {
         id: true,
+        loftGroupId: true,
         eventInventory: {
           select: {
             breeder: { select: { id: true, lastName: true } },
@@ -51,26 +51,50 @@ export async function POST(
       );
     }
 
-    // 2. Group items by breederId
+    // 2. Resolve loftGroup numbers for display
+    const loftGroupIds = [...new Set(inventoryItems.map((i) => i.loftGroupId).filter(Boolean))] as number[];
+    const loftGroupMap = new Map<number, number>(); // loftGroupId → groupNo
+    if (loftGroupIds.length > 0) {
+      const groups = await prisma.loftGroup.findMany({
+        where: { id: { in: loftGroupIds } },
+        select: { id: true, groupNo: true },
+      });
+      for (const g of groups) loftGroupMap.set(g.id, g.groupNo);
+    }
+
+    // 3. Build assignment groups:
+    //    - Birds WITH loftGroupId → group by loftGroupId (keep together)
+    //    - Birds WITHOUT loftGroupId → group by breederId (existing behavior)
+    //    Use negative keys for loftGroups to avoid collision with breeder IDs.
     const groupMap = new Map<number, BreederGroup>();
     for (const item of inventoryItems) {
-      const breeder = item.eventInventory?.breeder;
-      if (!breeder) continue;
-      const key = breeder.id;
+      let key: number;
+      let lastName: string;
+
+      if (item.loftGroupId) {
+        key = -item.loftGroupId; // negative = loft group
+        lastName = `Group ${loftGroupMap.get(item.loftGroupId) ?? item.loftGroupId}`;
+      } else {
+        const breeder = item.eventInventory?.breeder;
+        if (!breeder) continue;
+        key = breeder.id;
+        lastName = breeder.lastName ?? "Unknown";
+      }
+
       if (!groupMap.has(key)) {
-        groupMap.set(key, {
-          breederId: breeder.id,
-          lastName: breeder.lastName ?? "Unknown",
-          itemIds: [],
-        });
+        groupMap.set(key, { breederId: key, lastName, itemIds: [] });
       }
       groupMap.get(key)!.itemIds.push(item.id);
     }
     const groups: BreederGroup[] = [...groupMap.values()];
 
-    // 3. Fetch LOFT baskets with current assignment counts
+    // 4. Fetch LOFT baskets scoped to raceId (if provided)
     const eventBaskets = await prisma.eventBasket.findMany({
-      where: { eventId, phase: "LOFT" },
+      where: {
+        eventId,
+        phase: "LOFT",
+        ...(raceId ? { raceId } : {}),
+      },
       include: { _count: { select: { assignments: true } } },
       orderBy: { basketNo: "asc" },
     });
@@ -82,8 +106,6 @@ export async function POST(
       );
     }
 
-    // shuffle: treat all baskets as empty (wipe before re-insert)
-    // assign: pass real fill counts so BFD only uses remaining space
     const slots: BasketSlot[] = eventBaskets.map((b) => ({
       id: b.id,
       capacity: b.capacity,
@@ -92,13 +114,13 @@ export async function POST(
       basketNo: b.basketNo,
     }));
 
-    // 4. Run BFD
+    // 5. Run BFD
     const { assigned, unassigned } = bfdAssign(groups, slots);
 
     const summary = {
-      totalBreeders: groups.length,
-      assignedBreeders: assigned.length,
-      unassignedBreeders: unassigned.length,
+      totalGroups: groups.length,
+      assignedGroups: assigned.length,
+      unassignedGroups: unassigned.length,
       totalBirds: inventoryItems.length,
       assignedBirds: assigned.reduce((sum, a) => sum + a.itemIds.length, 0),
     };
@@ -107,24 +129,23 @@ export async function POST(
       return NextResponse.json({
         preview: true,
         assigned: assigned.map((a) => ({
-          breederId: a.breederId,
-          lastName: a.lastName,
+          groupKey: a.breederId,
+          label: a.lastName,
           basketNo: a.basketNo,
           basketLabel: a.basketLabel,
           birdCount: a.itemIds.length,
         })),
         unassigned: unassigned.map((u) => ({
-          breederId: u.breederId,
-          lastName: u.lastName,
+          groupKey: u.breederId,
+          label: u.lastName,
           birdCount: u.itemIds.length,
         })),
         summary,
       });
     }
 
-    // 5. Persist in transaction
+    // 6. Persist
     await prisma.$transaction(async (tx) => {
-      // shuffle: wipe all existing assignments first; assign: leave them alone
       if (mode === "shuffle") {
         const loftBasketIds = eventBaskets.map((b) => b.id);
         await tx.basketAssignment.deleteMany({
@@ -132,7 +153,6 @@ export async function POST(
         });
       }
 
-      // Create new assignments (one per bird, all in breeder's assigned basket)
       const assignmentData = assigned.flatMap((a) =>
         a.itemIds.map((itemId) => ({
           eventBasketId: a.basketId,
@@ -141,7 +161,6 @@ export async function POST(
       );
       await tx.basketAssignment.createMany({ data: assignmentData });
 
-      // Update RaceItem status to LOFT_BASKETED for assigned birds
       const assignedItemIds = assigned.flatMap((a) => a.itemIds);
       if (assignedItemIds.length > 0) {
         await tx.raceItem.updateMany({
@@ -153,7 +172,6 @@ export async function POST(
         });
       }
 
-      // Reset status for unassigned birds (in case of re-run)
       const unassignedItemIds = unassigned.flatMap((u) => u.itemIds);
       if (unassignedItemIds.length > 0) {
         await tx.raceItem.updateMany({
@@ -169,15 +187,15 @@ export async function POST(
     return NextResponse.json({
       preview: false,
       assigned: assigned.map((a) => ({
-        breederId: a.breederId,
-        lastName: a.lastName,
+        groupKey: a.breederId,
+        label: a.lastName,
         basketNo: a.basketNo,
         basketLabel: a.basketLabel,
         birdCount: a.itemIds.length,
       })),
       unassigned: unassigned.map((u) => ({
-        breederId: u.breederId,
-        lastName: u.lastName,
+        groupKey: u.breederId,
+        label: u.lastName,
         birdCount: u.itemIds.length,
       })),
       summary,

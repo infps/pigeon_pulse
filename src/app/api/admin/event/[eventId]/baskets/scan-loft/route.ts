@@ -21,7 +21,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { eventInventoryItemId, rfid, capacity } = body;
+    const { eventInventoryItemId, rfid } = body;
 
     if (!eventInventoryItemId || !rfid || typeof rfid !== "string" || rfid.trim() === "") {
       return NextResponse.json(
@@ -30,7 +30,16 @@ export async function POST(
       );
     }
 
-    const cap = parseInt(capacity) || 10;
+    // Must have an open group
+    const activeGroup = await prisma.loftGroup.findFirst({
+      where: { eventId, status: "OPEN" },
+    });
+    if (!activeGroup) {
+      return NextResponse.json(
+        { message: "No active group. Create a group before scanning." },
+        { status: 409 }
+      );
+    }
 
     // Validate item belongs to event
     const item = await prisma.eventInventoryItem.findFirst({
@@ -55,30 +64,23 @@ export async function POST(
       );
     }
 
-    // Already has loft basket? Skip + return info
-    const existingAssignment = await prisma.basketAssignment.findFirst({
-      where: {
-        eventInventoryItemId: item.id,
-        eventBasket: { eventId, phase: "LOFT" },
-      },
-      include: {
-        eventBasket: { select: { id: true, basketNo: true, label: true, capacity: true } },
-      },
-    });
-
-    if (existingAssignment) {
+    // Already assigned to a group?
+    if (item.loftGroupId !== null) {
+      const existingGroup = await prisma.loftGroup.findUnique({
+        where: { id: item.loftGroupId },
+        select: { groupNo: true, status: true },
+      });
       return NextResponse.json({
-        message: "Bird already assigned to loft basket",
+        message: `Bird already in Group ${existingGroup?.groupNo ?? item.loftGroupId}`,
         alreadyAssigned: true,
-        basket: existingAssignment.eventBasket,
+        loftGroupId: item.loftGroupId,
+        groupNo: existingGroup?.groupNo,
       });
     }
 
-    // All in transaction
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Link RFID to bird (skip if already has same RFID)
+      // 1. Link RFID to bird if new
       if (item.bird!.rfid !== rfid.trim()) {
-        // Check RFID not used by another bird
         const existing = await tx.bird.findFirst({
           where: { rfid: rfid.trim(), id: { not: item.bird!.id } },
         });
@@ -91,57 +93,13 @@ export async function POST(
         });
       }
 
-      // 2. Get breeder lastName for label
-      const lastName = item.eventInventory?.breeder?.lastName ?? "Unknown";
-
-      // 3. Find existing LOFT baskets for this breeder (by label prefix)
-      const labelPrefix = `LB-${lastName.toUpperCase()}-`;
-      const existingBaskets = await tx.eventBasket.findMany({
-        where: {
-          eventId,
-          phase: "LOFT",
-          label: { startsWith: labelPrefix },
-        },
-        include: { _count: { select: { assignments: true } } },
-        orderBy: { basketNo: "asc" },
+      // 2. Assign bird to active group
+      await tx.eventInventoryItem.update({
+        where: { id: item.id },
+        data: { loftGroupId: activeGroup.id },
       });
 
-      // 4. Find basket with space, or create new one
-      let targetBasket = existingBaskets.find(
-        (b) => (b._count?.assignments ?? 0) < b.capacity
-      );
-
-      if (!targetBasket) {
-        // Get next basketNo for this event's LOFT phase
-        const maxBasket = await tx.eventBasket.findFirst({
-          where: { eventId, phase: "LOFT" },
-          orderBy: { basketNo: "desc" },
-          select: { basketNo: true },
-        });
-        const nextNo = (maxBasket?.basketNo ?? 0) + 1;
-        const labelIndex = existingBaskets.length + 1;
-
-        targetBasket = await tx.eventBasket.create({
-          data: {
-            eventId,
-            basketNo: nextNo,
-            capacity: cap,
-            phase: "LOFT",
-            label: `${labelPrefix}${labelIndex}`,
-          },
-          include: { _count: { select: { assignments: true } } },
-        });
-      }
-
-      // 5. Create assignment
-      const assignment = await tx.basketAssignment.create({
-        data: {
-          eventBasketId: targetBasket.id,
-          eventInventoryItemId: item.id,
-        },
-      });
-
-      // 6. Update RaceItem status → LOFT_BASKETED
+      // 3. Update RaceItem status → LOFT_BASKETED
       await tx.raceItem.updateMany({
         where: {
           inventoryItemId: item.id,
@@ -150,21 +108,29 @@ export async function POST(
         data: { status: "LOFT_BASKETED" },
       });
 
+      // 4. Get updated member count
+      const memberCount = await tx.eventInventoryItem.count({
+        where: { loftGroupId: activeGroup.id },
+      });
+
+      const capacityPercent = memberCount / activeGroup.capacity;
+
       return {
-        basket: {
-          id: targetBasket.id,
-          basketNo: targetBasket.basketNo,
-          label: targetBasket.label,
-          capacity: targetBasket.capacity,
-        },
-        assignmentId: assignment.id,
         rfid: rfid.trim(),
         birdId: item.bird!.id,
+        loftGroup: {
+          id: activeGroup.id,
+          groupNo: activeGroup.groupNo,
+          memberCount,
+          capacity: activeGroup.capacity,
+          capacityPercent,
+        },
+        capacityWarning: capacityPercent >= 0.85,
       };
     });
 
     return NextResponse.json({
-      message: "Bird scanned and assigned to loft basket",
+      message: "Bird scanned and assigned to group",
       ...result,
     });
   } catch (error: any) {

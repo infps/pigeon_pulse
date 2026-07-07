@@ -25,7 +25,19 @@ interface TeamBird {
   id: number;
   band: string;
   name: string | null;
+  status: string | null;
+  position: number | null;
+  vaccinated: boolean;
 }
+
+const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
+  REGISTERED:     { label: "Inventory",       className: "bg-gray-100 text-gray-600" },
+  LOFT_BASKETED:  { label: "In Loft Basket",  className: "bg-blue-100 text-blue-700" },
+  IN_RACE_BASKET: { label: "In Race Basket",  className: "bg-purple-100 text-purple-700" },
+  RELEASED:       { label: "Flying",          className: "bg-amber-100 text-amber-700" },
+  ARRIVED:        { label: "Arrived",         className: "bg-green-100 text-green-700" },
+  FOREIGN_BIRD:   { label: "Did Not Finish",  className: "bg-red-100 text-red-700" },
+};
 
 interface TeamEvent {
   id: number;
@@ -230,19 +242,34 @@ export default function TeamsPage() {
                   </div>
                   {team.birds && team.birds.length > 0 ? (
                     <div className="max-h-40 space-y-0.5 overflow-y-auto pr-1">
-                      {team.birds.map((b) => (
-                        <div
-                          key={b.id}
-                          className="flex items-center justify-between rounded px-1.5 py-1 text-xs"
-                        >
-                          <span className="font-mono">{b.band}</span>
-                          {b.name && (
-                            <span className="ml-2 truncate text-muted-foreground">
-                              {b.name}
-                            </span>
-                          )}
-                        </div>
-                      ))}
+                      {team.birds.map((b) => {
+                        const sc = b.status ? STATUS_CONFIG[b.status] : null;
+                        return (
+                          <div
+                            key={b.id}
+                            className="flex items-center justify-between rounded px-1.5 py-1 text-xs"
+                          >
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-mono shrink-0">{b.band}</span>
+                              {b.name && (
+                                <span className="truncate text-muted-foreground">{b.name}</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 ml-2 shrink-0">
+                              {b.vaccinated && (
+                                <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                                  Vaccinated
+                                </span>
+                              )}
+                              {sc && (
+                                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${sc.className}`}>
+                                  {sc.label}{b.status === "ARRIVED" && b.position ? ` #${b.position}` : ""}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <span className="text-xs text-muted-foreground">
