@@ -10,6 +10,17 @@ const scanSchema = z.object({
   antenna: z.string().optional(),
 });
 
+function parseTimestamp(ts: string): Date {
+  return new Date(
+    parseInt(ts.substring(0, 4)),
+    parseInt(ts.substring(4, 6)) - 1,
+    parseInt(ts.substring(6, 8)),
+    parseInt(ts.substring(8, 10)),
+    parseInt(ts.substring(10, 12)),
+    parseInt(ts.substring(12, 14)),
+  );
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ raceId: string }> }
@@ -42,37 +53,67 @@ export async function POST(
     }
 
     // Find the bird by band or rfid
-    const bird = await prisma.bird.findFirst({
-      where: {
-        OR: [
-          { band: ringNo },
-          { rfid: ringNo },
-        ]
-      },
+    let bird = await prisma.bird.findFirst({
+      where: { OR: [{ band: ringNo }, { rfid: ringNo }] },
     });
-
-    if (!bird) {
-      return NextResponse.json(
-        { message: `Bird with ring number ${ringNo} not found` },
-        { status: 404 }
-      );
-    }
 
     // Find the race item for this bird in this race
-    const raceItem = await prisma.raceItem.findFirst({
-      where: {
-        raceId: raceIdInt,
-        inventoryItem: {
-          birdId: bird.id,
-        },
-      },
-    });
+    let raceItem = bird
+      ? await prisma.raceItem.findFirst({
+          where: { raceId: raceIdInt, inventoryItem: { birdId: bird.id } },
+        })
+      : null;
 
-    if (!raceItem) {
-      return NextResponse.json(
-        { message: `Bird ${ringNo} is not registered for this race` },
-        { status: 404 }
-      );
+    // Unknown bird or unregistered bird → register as foreign bird
+    if (!bird || !raceItem) {
+      // Re-check: bird may exist (created by prior scan) but have no raceItem yet
+      if (bird) {
+        raceItem = await prisma.raceItem.findFirst({
+          where: { raceId: raceIdInt, inventoryItem: { birdId: bird.id } },
+        });
+      }
+      if (raceItem) {
+        return NextResponse.json({
+          raceItem,
+          message: "Bird already marked as foreign bird",
+          isNewScan: false,
+          scanType: "foreign",
+        });
+      }
+
+      const arrivalTime = parseTimestamp(timestamp);
+      const foreignRaceItem = await prisma.$transaction(async (tx) => {
+        if (!bird) {
+          bird = await tx.bird.create({
+            data: { band: ringNo, rfid: ringNo },
+          });
+        }
+        const eventInv = await tx.eventInventory.create({
+          data: { eventId: race.eventId },
+        });
+        const invItem = await tx.eventInventoryItem.create({
+          data: { birdId: bird.id, eventInventoryId: eventInv.id },
+        });
+        const ri = await tx.raceItem.create({
+          data: {
+            raceId: raceIdInt,
+            inventoryItemId: invItem.id,
+            status: "FOREIGN_BIRD",
+            raceBasketTime: arrivalTime,
+          },
+        });
+        await tx.raceItemResult.create({
+          data: { raceItemId: ri.id, arrivalTime },
+        });
+        return ri;
+      });
+
+      return NextResponse.json({
+        raceItem: foreignRaceItem,
+        message: `Unknown bird ${ringNo} registered as foreign`,
+        isNewScan: true,
+        scanType: "foreign",
+      });
     }
 
     const isLive = race.status === "STARTED" || race.status === "ENDED";
@@ -133,15 +174,7 @@ export async function POST(
       );
     }
 
-    // Parse timestamp from scanner format (YYYYMMDDHHMMSS)
-    const arrivalTime = new Date(
-      parseInt(timestamp.substring(0, 4)),
-      parseInt(timestamp.substring(4, 6)) - 1,
-      parseInt(timestamp.substring(6, 8)),
-      parseInt(timestamp.substring(8, 10)),
-      parseInt(timestamp.substring(10, 12)),
-      parseInt(timestamp.substring(12, 14))
-    );
+    const arrivalTime = parseTimestamp(timestamp);
 
     // Race already ended → foreign bird (arrived after race closed)
     if (race.status === "ENDED") {

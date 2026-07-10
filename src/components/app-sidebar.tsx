@@ -6,6 +6,7 @@ import {
   CalendarDays,
   ChevronUp,
   CreditCard,
+  Database,
   FileText,
   Home,
   LogOut,
@@ -87,6 +88,12 @@ const superAdminMenuItems = [
     title: "Event Types",
     url: "/admin/event-types",
     icon: CreditCard,
+    roles: ["SUPERADMIN"],
+  },
+  {
+    title: "Schema",
+    url: "/admin/schema",
+    icon: Database,
     roles: ["SUPERADMIN"],
   },
 ]

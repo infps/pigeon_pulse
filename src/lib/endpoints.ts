@@ -114,7 +114,34 @@ const eventBaskets = {
   assignRace: (eventId: number | string) => `/api/admin/event/${eventId}/baskets/assign-race`,
 };
 
+const birdStatusCodes = {
+  base: "/api/admin/bird-status-codes",
+};
+
+const birdGroups = {
+  base: (eventId: number | string) => `/api/admin/event/${eventId}/bird-groups`,
+  byId: (eventId: number | string, id: number | string) => `/api/admin/event/${eventId}/bird-groups/${id}`,
+  members: (eventId: number | string, id: number | string) => `/api/admin/event/${eventId}/bird-groups/${id}/members`,
+  move: (eventId: number | string) => `/api/admin/event/${eventId}/bird-groups/move`,
+};
+
+const calcutta = {
+  config: (eventId: number | string) => `/api/admin/event/${eventId}/calcutta/config`,
+  generateGroups: (eventId: number | string) => `/api/admin/event/${eventId}/calcutta/generate-groups`,
+  groups: (eventId: number | string) => `/api/admin/event/${eventId}/calcutta/groups`,
+  earlyBuy: (eventId: number | string, groupId: number | string) => `/api/admin/event/${eventId}/calcutta/groups/${groupId}/early-buy`,
+  setHouse: (eventId: number | string, groupId: number | string) => `/api/admin/event/${eventId}/calcutta/groups/${groupId}/set-house`,
+  reprice: (eventId: number | string, groupId: number | string) => `/api/admin/event/${eventId}/calcutta/groups/${groupId}/reprice`,
+  auctionStart: (eventId: number | string) => `/api/admin/event/${eventId}/calcutta/auction/start`,
+  auctionClose: (eventId: number | string) => `/api/admin/event/${eventId}/calcutta/auction/close`,
+  bid: (eventId: number | string) => `/api/calcutta/${eventId}/bid`,
+  state: (eventId: number | string) => `/api/calcutta/${eventId}/state`,
+};
+
 export const apiEndpoints = {
+  birdStatusCodes,
+  birdGroups,
+  calcutta,
   raceTypes,
   eventTypes,
   feeSchemes,

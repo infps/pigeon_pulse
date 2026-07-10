@@ -43,6 +43,35 @@ enum EventStoreListingStatus {
   SOLD
 }
 
+enum RaceFormat {
+  STANDARD
+  CALCUTTA
+}
+
+enum EventBirdGroupType {
+  TAG_COLOR
+  STATUS
+  DEFAULTER
+  CUSTOM
+}
+
+enum CalcuttaPhase {
+  SETUP
+  EARLY_BUY
+  AUCTION
+  RACE
+  COMPLETED
+}
+
+enum CalcuttaGroupStatus {
+  PENDING
+  EARLY_BOUGHT
+  BIDDING
+  SOLD
+  HOUSE
+  COMPLETED
+}
+
 model User {
   id             String     @id
   name           String
@@ -78,8 +107,10 @@ model User {
   breeder        Breeder?
   organizerData  OrganizerData?
   eventMessages  EventMessage[]
-  betsPlaced     Bet[]          @relation("BetsPlaced")
-  bettorPayments Payment[]      @relation("BettorPayments")
+  betsPlaced          Bet[]              @relation("BetsPlaced")
+  bettorPayments      Payment[]          @relation("BettorPayments")
+  calcuttaBids        CalcuttaBid[]
+  ownedCalcuttaGroups CalcuttaBetGroup[]
 
   @@map("Users")
 }
@@ -605,6 +636,7 @@ model Event {
   logoImageKey            String?   @map("LOGO_IMAGE_KEY")
   bannerImage             String?   @map("BANNER_IMAGE")
   bannerImageKey          String?   @map("BANNER_IMAGE_KEY")
+  raceFormat              RaceFormat @default(STANDARD)
 
   season           Season?        @relation(fields: [seasonId], references: [id])
   eventType        EventType?     @relation(fields: [eventTypeId], references: [id])
@@ -628,6 +660,9 @@ model Event {
   raceStations     RaceStation[]
   storeListings    EventStoreListing[]
   loftGroups       LoftGroup[]
+  eventBirdGroups  EventBirdGroup[]
+  calcuttaConfig   CalcuttaConfig?
+  calcuttaBetGroups CalcuttaBetGroup[]
 
   @@map("Events")
 }
@@ -689,6 +724,7 @@ model EventInventory {
   items    EventInventoryItem[]
   partners Partner[]
   payments Payment[]
+  calcuttaGroupMemberships CalcuttaBetGroupMember[]
 }
 
 model EventInventoryItem {
@@ -737,11 +773,12 @@ model EventInventoryItem {
   replacedBy     EventInventoryItem[] @relation("ReplacedItem")
   loftGroup      LoftGroup?      @relation(fields: [loftGroupId], references: [id])
 
-  raceItems         RaceItem[]
-  basketAssignments BasketAssignment[]
-  ignoreBirds       RaceIgnoreBird[]
-  avgWinners        AvgWinnerPrizes[]
-  storeListingItems EventStoreListingItem[]
+  raceItems            RaceItem[]
+  basketAssignments    BasketAssignment[]
+  ignoreBirds          RaceIgnoreBird[]
+  avgWinners           AvgWinnerPrizes[]
+  storeListingItems    EventStoreListingItem[]
+  birdGroupMemberships EventBirdGroupMember[]
 }
 
 model Partner {
@@ -1020,4 +1057,119 @@ model EventStoreListingItem {
   inventoryItem EventInventoryItem @relation(fields: [eventInventoryItemId], references: [id])
 
   @@map("EventStoreListingItems")
+}
+
+// ============================================================
+// BIRD STATUS CODES
+// ============================================================
+
+model BirdStatusCode {
+  id        Int      @id @default(autoincrement()) @map("ID_BIRD_STATUS_CODE")
+  code      Int      @unique                       @map("CODE")
+  label     String                                  @map("LABEL")
+  color     String?                                 @map("COLOR")
+  createdAt DateTime @default(now())                @map("CREATED_AT")
+
+  eventBirdGroups EventBirdGroup[]
+
+  @@map("BirdStatusCodes")
+}
+
+// ============================================================
+// EVENT BIRD GROUPS
+// ============================================================
+
+model EventBirdGroup {
+  id           Int                @id @default(autoincrement())
+  eventId      Int
+  name         String
+  type         EventBirdGroupType
+  color        String?
+  statusCodeId Int?
+  notes        String?
+  createdAt    DateTime           @default(now())
+
+  event      Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  statusCode BirdStatusCode?  @relation(fields: [statusCodeId], references: [id])
+  members    EventBirdGroupMember[]
+
+  @@index([eventId, type])
+}
+
+model EventBirdGroupMember {
+  id                   Int @id @default(autoincrement())
+  groupId              Int
+  eventInventoryItemId Int
+
+  group              EventBirdGroup     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  eventInventoryItem EventInventoryItem @relation(fields: [eventInventoryItemId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, eventInventoryItemId])
+  @@index([eventInventoryItemId])
+}
+
+// ============================================================
+// CALCUTTA RACE
+// ============================================================
+
+model CalcuttaConfig {
+  id                Int           @id @default(autoincrement())
+  eventId           Int           @unique
+  pricePerBird      Decimal
+  targetGroupSize   Int           @default(15)
+  biddingDuration   Int           @default(120)
+  antiSnipeDuration Int           @default(10)
+  bidRaiseOptions   Int[]
+  youtubeStreamUrl  String?
+  phase             CalcuttaPhase @default(SETUP)
+  activeGroupId     Int?
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model CalcuttaBetGroup {
+  id              Int                 @id @default(autoincrement())
+  eventId         Int
+  groupNumber     Int
+  birdCount       Int
+  calculatedPrice Decimal
+  startingBid     Decimal
+  status          CalcuttaGroupStatus @default(PENDING)
+  ownerId         String?
+  finalPrice      Decimal?
+  isHouse         Boolean             @default(false)
+  lastBidAt       DateTime?
+  createdAt       DateTime            @default(now())
+
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  owner   User?  @relation(fields: [ownerId], references: [id])
+  members CalcuttaBetGroupMember[]
+  bids    CalcuttaBid[]
+
+  @@index([eventId, status])
+}
+
+model CalcuttaBetGroupMember {
+  id               Int @id @default(autoincrement())
+  groupId          Int
+  eventInventoryId Int
+
+  group          CalcuttaBetGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  eventInventory EventInventory   @relation(fields: [eventInventoryId], references: [id])
+
+  @@unique([groupId, eventInventoryId])
+  @@index([eventInventoryId])
+}
+
+model CalcuttaBid {
+  id        Int      @id @default(autoincrement())
+  groupId   Int
+  bidderId  String
+  amount    Decimal
+  createdAt DateTime @default(now())
+
+  group  CalcuttaBetGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  bidder User             @relation(fields: [bidderId], references: [id])
+
+  @@index([groupId, amount])
 }

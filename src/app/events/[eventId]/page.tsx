@@ -11,7 +11,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { ArrowLeft, MapPin } from "lucide-react";
+import { ArrowLeft, MapPin, ExternalLink } from "lucide-react";
 import type { Event } from "@/lib/types";
 import { EventBirdsTab } from "./event-birds-tab";
 import { EventBreedersTab } from "./event-breeders-tab";
@@ -82,6 +82,14 @@ export default function PublicEventPage({ params }: { params: Promise<{ eventId:
             <MapPin className="h-3.5 w-3.5 shrink-0" />
             Liberation Point: {event.locationAddress}
           </p>
+        )}
+        {event.raceFormat === "CALCUTTA" && (
+          <div className="text-center mt-3">
+            <Button variant="outline" size="sm" onClick={() => router.push(`/events/${eventId}/calcutta`)}>
+              <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+              Join Calcutta Auction
+            </Button>
+          </div>
         )}
       </div>
 

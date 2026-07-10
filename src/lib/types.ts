@@ -250,6 +250,7 @@ export interface Event {
   bannerImageKey: string | null;
   locationAddress: string | null;
   seasonId: number | null;
+  raceFormat?: string | null;
 }
 
 export interface EventInventory {
