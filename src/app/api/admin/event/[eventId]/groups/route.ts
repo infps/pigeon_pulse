@@ -21,26 +21,30 @@ export async function GET(
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const groups = await prisma.eventBirdGroup.findMany({
+  const groups = await prisma.eventGroup.findMany({
     where: { eventId },
+    orderBy: { createdAt: "asc" },
     include: {
       statusCode: { select: { id: true, code: true, label: true, color: true } },
+      _count: { select: { members: true, vaccinations: true } },
+      vaccinations: { orderBy: { vaccinationDate: "desc" } },
       members: {
-        include: {
-          eventInventoryItem: {
-            include: {
-              bird: { select: { id: true, band: true, band1: true, band2: true, band3: true, band4: true, color: true } },
-              eventInventory: {
-                include: {
-                  breeder: { select: { id: true, firstName: true, lastName: true } },
-                },
-              },
+        select: {
+          id: true,
+          currentGroupId: true,
+          bird: {
+            select: { id: true, band: true, band1: true, band2: true, band3: true, band4: true, color: true },
+          },
+          eventInventory: {
+            select: {
+              breeder: { select: { id: true, firstName: true, lastName: true } },
             },
           },
+          groupHistory: { orderBy: { movedAt: "desc" }, select: { fromGroupName: true, movedAt: true } },
+          breederHistory: { orderBy: { transferredAt: "desc" }, select: { fromBreederName: true, transferredAt: true } },
         },
       },
     },
-    orderBy: { createdAt: "asc" },
   });
 
   return NextResponse.json({ groups });
@@ -58,12 +62,12 @@ export async function POST(
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const { name, type, color, statusCodeId, notes } = await request.json();
-  if (!name || !type) {
-    return NextResponse.json({ message: "name and type are required" }, { status: 400 });
-  }
+  const body = await request.json().catch(() => ({}));
+  const { name, type = "LOFT", color, statusCodeId, notes, hasCapacity = true, capacity } = body;
 
-  const group = await prisma.eventBirdGroup.create({
+  if (!name) return NextResponse.json({ message: "name is required" }, { status: 400 });
+
+  const group = await prisma.eventGroup.create({
     data: {
       eventId,
       name,
@@ -71,6 +75,8 @@ export async function POST(
       color: color || null,
       statusCodeId: statusCodeId ? parseInt(statusCodeId) : null,
       notes: notes || null,
+      hasCapacity,
+      capacity: hasCapacity ? (typeof capacity === "number" ? capacity : 150) : null,
     },
   });
 

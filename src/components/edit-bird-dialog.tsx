@@ -11,9 +11,11 @@ import { toast } from "sonner";
 import { useUpdateEventInventoryItem } from "@/lib/api/event-inventory-item";
 import { useScanLoftBasket } from "@/lib/api/event-baskets";
 import { useListRaces } from "@/lib/api/races";
+import { useQuery } from "@tanstack/react-query";
 import type { EventInventoryItem, Race, Event } from "@/lib/types";
 import { Wifi, WifiOff, Usb } from "lucide-react";
 import { useWebSerial } from "@/hooks/useWebSerial";
+import { apiEndpoints } from "@/lib/endpoints";
 
 const FEDERATIONS = ["AU", "IF", "NPA", "CU", "BB", "ARPU", "IPB"];
 const COLORS = [
@@ -99,6 +101,10 @@ export function EditBirdDialog({
 
   // Loft basketing
   const [capacity, setCapacity] = useState("10");
+
+  // Breeder transfer
+  const [transferBreederId, setTransferBreederId] = useState("");
+  const [transferring, setTransferring] = useState(false);
 
   // Polling state
   const [isPolling, setIsPolling] = useState(false);
@@ -250,6 +256,33 @@ export function EditBirdDialog({
     await disconnectSerial();
     toast.info('Web Serial disconnected');
   };
+
+  const { data: breedersData } = useQuery<{ breeders: { id: number; firstName: string | null; lastName: string | null }[] }>({
+    queryKey: ["breeders"],
+    queryFn: () => fetch(apiEndpoints.breeders.base).then((r) => r.json()),
+    enabled: open,
+  });
+  const breeders = breedersData?.breeders ?? [];
+
+  async function handleTransferBreeder() {
+    if (!eventInventoryItem || !transferBreederId) return;
+    setTransferring(true);
+    try {
+      const res = await fetch(apiEndpoints.groups.transferBreeder(eventInventoryItem.id), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newBreederId: parseInt(transferBreederId) }),
+      });
+      if (!res.ok) throw new Error((await res.json()).message);
+      toast.success("Breeder transferred");
+      setTransferBreederId("");
+      onSuccess?.();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Transfer failed");
+    } finally {
+      setTransferring(false);
+    }
+  }
 
   // Web Serial hook (placed after handler defs to avoid TDZ)
   const { isConnected: isSerial, error: serialError, connect: connectSerial, disconnect: disconnectSerial } =
@@ -718,6 +751,33 @@ export function EditBirdDialog({
                   <Label htmlFor="wtaBet5">WTA 5 (${event.bettingScheme?.wta5 || 0})</Label>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Breeder Transfer */}
+          <div className="space-y-4">
+            <h3 className="font-semibold text-lg">Breeder Transfer</h3>
+            {eventInventoryItem?.eventInventory?.breeder && (
+              <p className="text-sm text-muted-foreground">
+                Current: {[eventInventoryItem.eventInventory.breeder.firstName, eventInventoryItem.eventInventory.breeder.lastName].filter(Boolean).join(" ")}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <Select value={transferBreederId} onValueChange={setTransferBreederId}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Select new breeder…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {breeders.map((b) => (
+                    <SelectItem key={b.id} value={String(b.id)}>
+                      {[b.firstName, b.lastName].filter(Boolean).join(" ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button type="button" variant="outline" onClick={handleTransferBreeder} disabled={!transferBreederId || transferring}>
+                {transferring ? "Transferring…" : "Transfer"}
+              </Button>
             </div>
           </div>
 

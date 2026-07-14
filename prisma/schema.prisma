@@ -48,7 +48,19 @@ enum RaceFormat {
   CALCUTTA
 }
 
-enum EventBirdGroupType {
+enum BirdHistoryAction {
+  RFID_LINKED
+  BASKET_ASSIGNED
+  GROUP_ASSIGNED
+  GROUP_MOVED
+  GROUP_REMOVED
+  STATUS_CHANGED
+  RELEASED
+  ARRIVED
+}
+
+enum EventGroupType {
+  LOFT
   TAG_COLOR
   STATUS
   DEFAULTER
@@ -279,7 +291,7 @@ enum BasketPhase {
   RACE
 }
 
-enum LoftGroupStatus {
+enum EventGroupStatus {
   OPEN
   CLOSED
 }
@@ -659,8 +671,7 @@ model Event {
   messages         EventMessage[]
   raceStations     RaceStation[]
   storeListings    EventStoreListing[]
-  loftGroups       LoftGroup[]
-  eventBirdGroups  EventBirdGroup[]
+  groups           EventGroup[]
   calcuttaConfig   CalcuttaConfig?
   calcuttaBetGroups CalcuttaBetGroup[]
 
@@ -765,20 +776,27 @@ model EventInventoryItem {
   wtaBet4           Float?    @map("WTA_BET_4")
   wtaBet5           Float?    @map("WTA_BET_5")
 
-  loftGroupId       Int?      @map("ID_LOFT_GROUP")
+  currentGroupId    Int?      @map("ID_CURRENT_GROUP")
+  tagColorGroupId   Int?
+  statusGroupId     Int?
 
-  eventInventory EventInventory? @relation(fields: [eventInventoryId], references: [id])
-  bird           Bird?           @relation(fields: [birdId], references: [id])
+  eventInventory EventInventory?     @relation(fields: [eventInventoryId], references: [id])
+  bird           Bird?               @relation(fields: [birdId], references: [id])
   replacedItem   EventInventoryItem? @relation("ReplacedItem", fields: [replacedItemId], references: [id])
   replacedBy     EventInventoryItem[] @relation("ReplacedItem")
-  loftGroup      LoftGroup?      @relation(fields: [loftGroupId], references: [id])
+  currentGroup   EventGroup?         @relation("LoftGroupMembers", fields: [currentGroupId], references: [id])
+  tagColorGroup  EventGroup?         @relation("TagColorGroupMembers", fields: [tagColorGroupId], references: [id])
+  statusGroup    EventGroup?         @relation("StatusGroupMembers", fields: [statusGroupId], references: [id])
 
   raceItems            RaceItem[]
   basketAssignments    BasketAssignment[]
   ignoreBirds          RaceIgnoreBird[]
   avgWinners           AvgWinnerPrizes[]
   storeListingItems    EventStoreListingItem[]
-  birdGroupMemberships EventBirdGroupMember[]
+  groupHistory         BirdGroupHistory[]
+  breederHistory       BirdBreederHistory[]
+  vaccinationRecords   BirdVaccinationRecord[]
+  birdEventHistory     BirdEventHistory[]
 }
 
 model Partner {
@@ -955,26 +973,9 @@ model BasketAssignment {
   @@map("BasketAssignments")
 }
 
-model LoftGroup {
-  id        Int             @id @default(autoincrement())
-  eventId   Int
-  groupNo   Int
-  status    LoftGroupStatus @default(OPEN)
-  capacity  Int             @default(150)
-  openedAt  DateTime        @default(now())
-  closedAt  DateTime?
-
-  event        Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  members      EventInventoryItem[]
-  vaccinations VaccinationRecord[]
-
-  @@unique([eventId, groupNo])
-  @@index([eventId, status])
-}
-
 model VaccinationRecord {
   id              Int      @id @default(autoincrement())
-  loftGroupId     Int
+  eventGroupId    Int
   vaccineName     String
   vaccinationDate DateTime
   vet             String?
@@ -984,7 +985,65 @@ model VaccinationRecord {
   documentKey     String?
   createdAt       DateTime @default(now())
 
-  loftGroup LoftGroup @relation(fields: [loftGroupId], references: [id], onDelete: Cascade)
+  eventGroup  EventGroup             @relation(fields: [eventGroupId], references: [id], onDelete: Cascade)
+  birdRecords BirdVaccinationRecord[]
+}
+
+model EventGroup {
+  id           Int              @id @default(autoincrement())
+  eventId      Int
+  name         String
+  type         EventGroupType   @default(LOFT)
+  status       EventGroupStatus @default(OPEN)
+  hasCapacity  Boolean          @default(true)
+  capacity     Int?
+  color        String?
+  statusCodeId Int?
+  notes        String?
+  isActive     Boolean          @default(false)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  event             Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  statusCode        BirdStatusCode?      @relation(fields: [statusCodeId], references: [id])
+  members           EventInventoryItem[] @relation("LoftGroupMembers")
+  tagColorMembers   EventInventoryItem[] @relation("TagColorGroupMembers")
+  statusGroupMems   EventInventoryItem[] @relation("StatusGroupMembers")
+  vaccinations      VaccinationRecord[]
+
+  @@index([eventId, type])
+  @@index([eventId, status])
+  @@index([eventId, type, isActive])
+}
+
+model BirdGroupHistory {
+  id              Int      @id @default(autoincrement())
+  inventoryItemId Int
+  fromGroupName   String
+  movedAt         DateTime @default(now())
+
+  inventoryItem EventInventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+}
+
+model BirdBreederHistory {
+  id              Int      @id @default(autoincrement())
+  inventoryItemId Int
+  fromBreederName String
+  transferredAt   DateTime @default(now())
+
+  inventoryItem EventInventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+}
+
+model BirdVaccinationRecord {
+  id                  Int      @id @default(autoincrement())
+  vaccinationRecordId Int
+  inventoryItemId     Int
+  recordedAt          DateTime @default(now())
+
+  vaccinationRecord VaccinationRecord  @relation(fields: [vaccinationRecordId], references: [id], onDelete: Cascade)
+  inventoryItem     EventInventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@unique([vaccinationRecordId, inventoryItemId])
 }
 
 model Team {
@@ -1070,43 +1129,11 @@ model BirdStatusCode {
   color     String?                                 @map("COLOR")
   createdAt DateTime @default(now())                @map("CREATED_AT")
 
-  eventBirdGroups EventBirdGroup[]
+  eventGroups EventGroup[]
 
   @@map("BirdStatusCodes")
 }
 
-// ============================================================
-// EVENT BIRD GROUPS
-// ============================================================
-
-model EventBirdGroup {
-  id           Int                @id @default(autoincrement())
-  eventId      Int
-  name         String
-  type         EventBirdGroupType
-  color        String?
-  statusCodeId Int?
-  notes        String?
-  createdAt    DateTime           @default(now())
-
-  event      Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  statusCode BirdStatusCode?  @relation(fields: [statusCodeId], references: [id])
-  members    EventBirdGroupMember[]
-
-  @@index([eventId, type])
-}
-
-model EventBirdGroupMember {
-  id                   Int @id @default(autoincrement())
-  groupId              Int
-  eventInventoryItemId Int
-
-  group              EventBirdGroup     @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  eventInventoryItem EventInventoryItem @relation(fields: [eventInventoryItemId], references: [id], onDelete: Cascade)
-
-  @@unique([groupId, eventInventoryItemId])
-  @@index([eventInventoryItemId])
-}
 
 // ============================================================
 // CALCUTTA RACE
@@ -1172,4 +1199,23 @@ model CalcuttaBid {
   bidder User             @relation(fields: [bidderId], references: [id])
 
   @@index([groupId, amount])
+}
+
+// ============================================================
+// BIRD EVENT HISTORY
+// ============================================================
+
+model BirdEventHistory {
+  id                   Int               @id @default(autoincrement())
+  eventInventoryItemId Int
+  action               BirdHistoryAction
+  detail               String?
+  groupId              Int?
+  basketId             Int?
+  performedById        String?
+  createdAt            DateTime          @default(now())
+
+  inventoryItem EventInventoryItem @relation(fields: [eventInventoryItemId], references: [id], onDelete: Cascade)
+
+  @@index([eventInventoryItemId, createdAt])
 }

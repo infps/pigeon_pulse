@@ -56,6 +56,23 @@ export async function POST(
       }),
     ]);
 
+    // Write RELEASED history for all birds now in the race
+    const releasedItems = await prisma.raceItem.findMany({
+      where: { raceId: raceIdInt, status: "RELEASED" },
+      select: { inventoryItemId: true },
+    });
+    await prisma.birdEventHistory.createMany({
+      data: releasedItems
+        .filter((i) => i.inventoryItemId !== null)
+        .map((i) => ({
+          eventInventoryItemId: i.inventoryItemId!,
+          action: "RELEASED" as const,
+          detail: `Released for race ${raceId}`,
+          performedById: session?.user?.id ?? null,
+        })),
+      skipDuplicates: true,
+    });
+
     return NextResponse.json(
       { race: updatedRace, message: "Race started successfully" },
       { status: 200 }

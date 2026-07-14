@@ -15,6 +15,7 @@ import { useBird, useUpdateBird } from "@/lib/api/bird";
 import { apiEndpoints } from "@/lib/endpoints";
 import { ImageCapture } from "@/components/image-capture";
 import { BirdHistoryPanel } from "./bird-history-panel";
+import { BirdEventHistoryPanel } from "./bird-event-history-panel";
 import { BirdActions } from "./bird-actions";
 import { BirdPropertiesCard } from "./bird-properties-card";
 import { BirdFeesCard } from "./bird-fees-card";
@@ -241,6 +242,8 @@ export default function BirdDetailPage({
         {showEventScopedCards && <BirdClassesCard items={scopedItems} />}
         {showEventScopedCards && <BirdHistoryPanel birdId={birdId} />}
       </div>
+
+      {isAdmin && <BirdEventHistoryPanel birdId={birdId} />}
 
       <BirdNotesCard
         birdId={birdId}

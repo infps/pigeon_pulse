@@ -125,6 +125,20 @@ const birdGroups = {
   move: (eventId: number | string) => `/api/admin/event/${eventId}/bird-groups/move`,
 };
 
+const groups = {
+  base: (eventId: number | string) => `/api/admin/event/${eventId}/groups`,
+  byId: (eventId: number | string, id: number | string) => `/api/admin/event/${eventId}/groups/${id}`,
+  members: (eventId: number | string, id: number | string) => `/api/admin/event/${eventId}/groups/${id}/members`,
+  move: (eventId: number | string) => `/api/admin/event/${eventId}/groups/move`,
+  vaccinations: (eventId: number | string, id: number | string) => `/api/admin/event/${eventId}/groups/${id}/vaccinations`,
+  vaccinationById: (eventId: number | string, id: number | string, vacId: number | string) => `/api/admin/event/${eventId}/groups/${id}/vaccinations/${vacId}`,
+  transferBreeder: (inventoryItemId: number | string) => `/api/admin/bird/${inventoryItemId}/transfer-breeder`,
+};
+
+const birdHistory = {
+  byItem: (eventId: number | string) => `/api/admin/event/${eventId}/bird-history`,
+};
+
 const calcutta = {
   config: (eventId: number | string) => `/api/admin/event/${eventId}/calcutta/config`,
   generateGroups: (eventId: number | string) => `/api/admin/event/${eventId}/calcutta/generate-groups`,
@@ -139,8 +153,10 @@ const calcutta = {
 };
 
 export const apiEndpoints = {
+  birdHistory,
   birdStatusCodes,
   birdGroups,
+  groups,
   calcutta,
   raceTypes,
   eventTypes,

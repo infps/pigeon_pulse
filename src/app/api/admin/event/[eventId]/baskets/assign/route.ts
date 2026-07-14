@@ -27,7 +27,7 @@ export async function POST(
     const mode: "shuffle" | "assign" = body.mode === "assign" ? "assign" : "shuffle";
     const raceId = body.raceId ? parseInt(body.raceId) : undefined;
 
-    // 1. Fetch birds for this event (loftGroup-assigned only: status LOFT_BASKETED)
+    // 1. Fetch birds for this event
     const inventoryItems = await prisma.eventInventoryItem.findMany({
       where: {
         eventInventory: { eventId },
@@ -35,7 +35,7 @@ export async function POST(
       },
       select: {
         id: true,
-        loftGroupId: true,
+        currentGroupId: true,
         eventInventory: {
           select: {
             breeder: { select: { id: true, lastName: true } },
@@ -51,29 +51,29 @@ export async function POST(
       );
     }
 
-    // 2. Resolve loftGroup numbers for display
-    const loftGroupIds = [...new Set(inventoryItems.map((i) => i.loftGroupId).filter(Boolean))] as number[];
-    const loftGroupMap = new Map<number, number>(); // loftGroupId → groupNo
-    if (loftGroupIds.length > 0) {
-      const groups = await prisma.loftGroup.findMany({
-        where: { id: { in: loftGroupIds } },
-        select: { id: true, groupNo: true },
+    // 2. Resolve group names for display
+    const groupIds = [...new Set(inventoryItems.map((i) => i.currentGroupId).filter(Boolean))] as number[];
+    const groupNameMap = new Map<number, string>(); // groupId → name
+    if (groupIds.length > 0) {
+      const groups = await prisma.eventGroup.findMany({
+        where: { id: { in: groupIds } },
+        select: { id: true, name: true },
       });
-      for (const g of groups) loftGroupMap.set(g.id, g.groupNo);
+      for (const g of groups) groupNameMap.set(g.id, g.name);
     }
 
     // 3. Build assignment groups:
-    //    - Birds WITH loftGroupId → group by loftGroupId (keep together)
-    //    - Birds WITHOUT loftGroupId → group by breederId (existing behavior)
-    //    Use negative keys for loftGroups to avoid collision with breeder IDs.
+    //    - Birds WITH currentGroupId → group by group (keep together)
+    //    - Birds WITHOUT currentGroupId → group by breederId
+    //    Use negative keys for groups to avoid collision with breeder IDs.
     const groupMap = new Map<number, BreederGroup>();
     for (const item of inventoryItems) {
       let key: number;
       let lastName: string;
 
-      if (item.loftGroupId) {
-        key = -item.loftGroupId; // negative = loft group
-        lastName = `Group ${loftGroupMap.get(item.loftGroupId) ?? item.loftGroupId}`;
+      if (item.currentGroupId) {
+        key = -item.currentGroupId; // negative = group key
+        lastName = groupNameMap.get(item.currentGroupId) ?? `Group ${item.currentGroupId}`;
       } else {
         const breeder = item.eventInventory?.breeder;
         if (!breeder) continue;

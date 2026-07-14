@@ -46,21 +46,6 @@ export async function POST(
       );
     }
 
-    // Check RFID not already used by another bird
-    const existing = await prisma.bird.findFirst({
-      where: {
-        rfid: rfid.trim(),
-        id: { not: item.bird.id },
-      },
-    });
-
-    if (existing) {
-      return NextResponse.json(
-        { message: `RFID "${rfid}" is already linked to another bird (ID: ${existing.id})` },
-        { status: 409 }
-      );
-    }
-
     // Update Bird.rfid
     await prisma.bird.update({
       where: { id: item.bird.id },

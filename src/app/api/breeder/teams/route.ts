@@ -77,8 +77,8 @@ export async function GET(request: Request) {
                     birdName: true,
                   },
                 },
-                loftGroup: {
-                  select: { _count: { select: { vaccinations: true } } },
+                currentGroup: {
+                  select: { vaccinations: { select: { id: true } } },
                 },
                 basketAssignments: {
                   select: { eventBasket: { select: { phase: true } } },
@@ -150,7 +150,7 @@ export async function GET(request: Request) {
         }
         const effectiveStatus =
           bestStatus === "LOFT_BASKETED" && hasRaceBasket ? "IN_RACE_BASKET" : bestStatus;
-        const vaccinated = (item.loftGroup?._count?.vaccinations ?? 0) > 0;
+        const vaccinated = (item.currentGroup?.vaccinations?.length ?? 0) > 0;
 
         if (b?.id != null) {
           const band =

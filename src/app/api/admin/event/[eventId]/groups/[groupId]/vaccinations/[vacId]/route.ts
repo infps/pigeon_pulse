@@ -6,11 +6,15 @@ import { NextResponse } from "next/server";
 
 type Params = { params: Promise<{ eventId: string; groupId: string; vacId: string }> };
 
+async function resolveRecord(eventId: number, groupId: number, vacId: number) {
+  return prisma.vaccinationRecord.findFirst({
+    where: { id: vacId, eventGroupId: groupId, eventGroup: { eventId } },
+  });
+}
+
 export async function PATCH(request: Request, { params }: Params) {
-  const { eventId: eventIdParam, groupId: groupIdParam, vacId: vacIdParam } = await params;
-  const eventId = parseInt(eventIdParam);
-  const groupId = parseInt(groupIdParam);
-  const vacId = parseInt(vacIdParam);
+  const { eventId: ep, groupId: gp, vacId: vp } = await params;
+  const eventId = parseInt(ep), groupId = parseInt(gp), vacId = parseInt(vp);
   if (isNaN(eventId) || isNaN(groupId) || isNaN(vacId)) {
     return NextResponse.json({ message: "Invalid ID" }, { status: 400 });
   }
@@ -20,9 +24,7 @@ export async function PATCH(request: Request, { params }: Params) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const record = await prisma.vaccinationRecord.findFirst({
-    where: { id: vacId, loftGroupId: groupId, loftGroup: { eventId } },
-  });
+  const record = await resolveRecord(eventId, groupId, vacId);
   if (!record) return NextResponse.json({ message: "Record not found" }, { status: 404 });
 
   const body = await request.json().catch(() => ({}));
@@ -42,11 +44,9 @@ export async function PATCH(request: Request, { params }: Params) {
   return NextResponse.json(updated);
 }
 
-export async function DELETE(_request: Request, { params }: Params) {
-  const { eventId: eventIdParam, groupId: groupIdParam, vacId: vacIdParam } = await params;
-  const eventId = parseInt(eventIdParam);
-  const groupId = parseInt(groupIdParam);
-  const vacId = parseInt(vacIdParam);
+export async function DELETE(_req: Request, { params }: Params) {
+  const { eventId: ep, groupId: gp, vacId: vp } = await params;
+  const eventId = parseInt(ep), groupId = parseInt(gp), vacId = parseInt(vp);
   if (isNaN(eventId) || isNaN(groupId) || isNaN(vacId)) {
     return NextResponse.json({ message: "Invalid ID" }, { status: 400 });
   }
@@ -56,9 +56,7 @@ export async function DELETE(_request: Request, { params }: Params) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const record = await prisma.vaccinationRecord.findFirst({
-    where: { id: vacId, loftGroupId: groupId, loftGroup: { eventId } },
-  });
+  const record = await resolveRecord(eventId, groupId, vacId);
   if (!record) return NextResponse.json({ message: "Record not found" }, { status: 404 });
 
   if (record.documentKey) {

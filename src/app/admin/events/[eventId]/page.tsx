@@ -31,7 +31,6 @@ import { EventResultTab } from "@/app/events/[eventId]/event-result-tab";
 import { DefaultersTab } from "./defaulters-tab";
 import { EventStoreTab } from "./event-store-tab";
 import { GroupsTab } from "./groups-tab";
-import { BirdGroupsTab } from "./bird-groups-tab";
 import { CalcuttaTab } from "./calcutta-tab";
 
 export default function EventDetailsPage({ params }: { params: Promise<{ eventId: string }> }) {
@@ -89,12 +88,11 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
       </div>
 
       <Tabs defaultValue="edit" className="w-full">
-        <TabsList className="grid w-full grid-cols-16">
+        <TabsList className="grid w-full grid-cols-15">
           <TabsTrigger value="edit">Edit</TabsTrigger>
           <TabsTrigger value="breeders">Breeders</TabsTrigger>
           <TabsTrigger value="birds">Birds</TabsTrigger>
           <TabsTrigger value="groups">Groups</TabsTrigger>
-          <TabsTrigger value="bird-groups">Bird Groups</TabsTrigger>
           <TabsTrigger value="baskets">Baskets</TabsTrigger>
           <TabsTrigger value="races">Races</TabsTrigger>
           <TabsTrigger value="betting">Betting</TabsTrigger>
@@ -128,10 +126,6 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
 
         <TabsContent value="groups" className="mt-6">
           <GroupsTab eventId={eventId} />
-        </TabsContent>
-
-        <TabsContent value="bird-groups" className="mt-6">
-          <BirdGroupsTab eventId={eventId} />
         </TabsContent>
 
         <TabsContent value="baskets" className="mt-6">

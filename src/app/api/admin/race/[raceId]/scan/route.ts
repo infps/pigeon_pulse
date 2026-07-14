@@ -21,6 +21,31 @@ function parseTimestamp(ts: string): Date {
   );
 }
 
+async function assignDefaulterGroup(eventId: number | null, inventoryItemId: number | null, userId: string | null | undefined) {
+  if (!inventoryItemId || !eventId) return;
+  let defaulterGroup = await prisma.eventGroup.findFirst({
+    where: { eventId, type: "DEFAULTER" },
+  });
+  if (!defaulterGroup) {
+    defaulterGroup = await prisma.eventGroup.create({
+      data: { eventId, name: "Defaulters", type: "DEFAULTER", hasCapacity: false },
+    });
+  }
+  await prisma.eventInventoryItem.update({
+    where: { id: inventoryItemId },
+    data: { statusGroupId: defaulterGroup.id },
+  });
+  await prisma.birdEventHistory.create({
+    data: {
+      eventInventoryItemId: inventoryItemId,
+      action: "STATUS_CHANGED",
+      detail: "Marked as FOREIGN_BIRD (Defaulter)",
+      groupId: defaulterGroup.id,
+      performedById: userId ?? null,
+    },
+  });
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ raceId: string }> }
@@ -82,7 +107,7 @@ export async function POST(
       }
 
       const arrivalTime = parseTimestamp(timestamp);
-      const foreignRaceItem = await prisma.$transaction(async (tx) => {
+      const { foreignRaceItem, invItemId } = await prisma.$transaction(async (tx) => {
         if (!bird) {
           bird = await tx.bird.create({
             data: { band: ringNo, rfid: ringNo },
@@ -105,8 +130,10 @@ export async function POST(
         await tx.raceItemResult.create({
           data: { raceItemId: ri.id, arrivalTime },
         });
-        return ri;
+        return { foreignRaceItem: ri, invItemId: invItem.id };
       });
+
+      await assignDefaulterGroup(race.eventId, invItemId, session?.user?.id);
 
       return NextResponse.json({
         raceItem: foreignRaceItem,
@@ -196,6 +223,8 @@ export async function POST(
         },
       });
 
+      await assignDefaulterGroup(race.eventId, raceItem.inventoryItemId, session?.user?.id);
+
       return NextResponse.json(
         {
           raceItem: updatedRaceItem,
@@ -236,6 +265,50 @@ export async function POST(
       create: { raceItemId: raceItem.id, arrivalTime, birdPosition },
       update: { arrivalTime, birdPosition },
     });
+
+    await prisma.birdEventHistory.create({
+      data: {
+        eventInventoryItemId: raceItem.inventoryItemId!,
+        action: "ARRIVED",
+        detail: `Arrived at position ${birdPosition}, race ${raceId}`,
+        performedById: session?.user?.id ?? null,
+      },
+    });
+
+    // Auto STATUS group: if birdPosition matches a BirdStatusCode, assign it
+    const statusCode = await prisma.birdStatusCode.findFirst({
+      where: { code: birdPosition },
+    });
+    if (statusCode) {
+      let statusGroup = await prisma.eventGroup.findFirst({
+        where: { eventId: race.eventId ?? undefined, type: "STATUS", statusCodeId: statusCode.id },
+      });
+      if (!statusGroup) {
+        statusGroup = await prisma.eventGroup.create({
+          data: {
+            eventId: race.eventId!,
+            name: statusCode.label,
+            type: "STATUS",
+            statusCodeId: statusCode.id ?? undefined,
+            color: statusCode.color ?? undefined,
+            hasCapacity: false,
+          },
+        });
+      }
+      await prisma.eventInventoryItem.update({
+        where: { id: raceItem.inventoryItemId! },
+        data: { statusGroupId: statusGroup.id },
+      });
+      await prisma.birdEventHistory.create({
+        data: {
+          eventInventoryItemId: raceItem.inventoryItemId!,
+          action: "STATUS_CHANGED",
+          detail: `Status set to: ${statusCode.label} (code ${statusCode.code})`,
+          groupId: statusGroup.id,
+          performedById: session?.user?.id ?? null,
+        },
+      });
+    }
 
     return NextResponse.json(
       {

@@ -30,13 +30,13 @@ export async function POST(
       );
     }
 
-    // Must have an open group
-    const activeGroup = await prisma.loftGroup.findFirst({
-      where: { eventId, status: "OPEN" },
+    // Must have an open LOFT group
+    const activeGroup = await prisma.eventGroup.findFirst({
+      where: { eventId, type: "LOFT", status: "OPEN" },
     });
     if (!activeGroup) {
       return NextResponse.json(
-        { message: "No active group. Create a group before scanning." },
+        { message: "No active loft group. Create a LOFT group before scanning." },
         { status: 409 }
       );
     }
@@ -49,6 +49,7 @@ export async function POST(
       },
       include: {
         bird: { select: { id: true, band: true, birdName: true, rfid: true } },
+        currentGroup: { select: { id: true, name: true } },
         eventInventory: {
           include: {
             breeder: { select: { id: true, firstName: true, lastName: true } },
@@ -65,39 +66,41 @@ export async function POST(
     }
 
     // Already assigned to a group?
-    if (item.loftGroupId !== null) {
-      const existingGroup = await prisma.loftGroup.findUnique({
-        where: { id: item.loftGroupId },
-        select: { groupNo: true, status: true },
-      });
+    if (item.currentGroupId !== null) {
       return NextResponse.json({
-        message: `Bird already in Group ${existingGroup?.groupNo ?? item.loftGroupId}`,
+        message: `Bird already in group "${item.currentGroup?.name ?? item.currentGroupId}"`,
         alreadyAssigned: true,
-        loftGroupId: item.loftGroupId,
-        groupNo: existingGroup?.groupNo,
+        groupId: item.currentGroupId,
+        groupName: item.currentGroup?.name,
       });
     }
 
     const result = await prisma.$transaction(async (tx) => {
       // 1. Link RFID to bird if new
-      if (item.bird!.rfid !== rfid.trim()) {
-        const existing = await tx.bird.findFirst({
-          where: { rfid: rfid.trim(), id: { not: item.bird!.id } },
-        });
-        if (existing) {
-          throw new Error(`RFID "${rfid}" already linked to another bird (ID: ${existing.id})`);
-        }
+      const rfidChanged = item.bird!.rfid !== rfid.trim();
+      if (rfidChanged) {
         await tx.bird.update({
           where: { id: item.bird!.id },
           data: { rfid: rfid.trim() },
         });
       }
 
-      // 2. Assign bird to active group
+      // 2. Assign bird to active LOFT group
       await tx.eventInventoryItem.update({
         where: { id: item.id },
-        data: { loftGroupId: activeGroup.id },
+        data: { currentGroupId: activeGroup.id },
       });
+
+      // 2b. If active TAG_COLOR group exists → assign bird there too
+      const activeTagGroup = await tx.eventGroup.findFirst({
+        where: { eventId, type: "TAG_COLOR", isActive: true },
+      });
+      if (activeTagGroup) {
+        await tx.eventInventoryItem.update({
+          where: { id: item.id },
+          data: { tagColorGroupId: activeTagGroup.id },
+        });
+      }
 
       // 3. Update RaceItem status → LOFT_BASKETED
       await tx.raceItem.updateMany({
@@ -108,23 +111,63 @@ export async function POST(
         data: { status: "LOFT_BASKETED" },
       });
 
-      // 4. Get updated member count
-      const memberCount = await tx.eventInventoryItem.count({
-        where: { loftGroupId: activeGroup.id },
+      // 4. Write BirdEventHistory entries
+      if (rfidChanged) {
+        await tx.birdEventHistory.create({
+          data: {
+            eventInventoryItemId: item.id,
+            action: "RFID_LINKED",
+            detail: `RFID linked: ${rfid.trim()}`,
+            performedById: session.user.id,
+          },
+        });
+      }
+
+      await tx.birdEventHistory.create({
+        data: {
+          eventInventoryItemId: item.id,
+          action: "BASKET_ASSIGNED",
+          detail: `Assigned to loft group: ${activeGroup.name}`,
+          groupId: activeGroup.id,
+          performedById: session.user.id,
+        },
       });
 
-      const capacityPercent = memberCount / activeGroup.capacity;
+      if (activeTagGroup) {
+        await tx.birdEventHistory.create({
+          data: {
+            eventInventoryItemId: item.id,
+            action: "GROUP_ASSIGNED",
+            detail: `Auto-assigned to TAG_COLOR group: ${activeTagGroup.name}`,
+            groupId: activeTagGroup.id,
+            performedById: session.user.id,
+          },
+        });
+      }
+
+      // 5. Get updated member count
+      const memberCount = await tx.eventInventoryItem.count({
+        where: { currentGroupId: activeGroup.id },
+      });
+
+      const capacityPercent = activeGroup.capacity ? memberCount / activeGroup.capacity : 0;
 
       return {
         rfid: rfid.trim(),
         birdId: item.bird!.id,
-        loftGroup: {
+        group: {
           id: activeGroup.id,
-          groupNo: activeGroup.groupNo,
+          name: activeGroup.name,
           memberCount,
           capacity: activeGroup.capacity,
           capacityPercent,
         },
+        ...(activeTagGroup && {
+          tagColorGroup: {
+            id: activeTagGroup.id,
+            name: activeTagGroup.name,
+          },
+        }),
         capacityWarning: capacityPercent >= 0.85,
       };
     });

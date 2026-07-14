@@ -30,7 +30,7 @@ export async function GET(
             payments: { select: { status: true, paymentValue: true } },
           },
         },
-        loftGroup: { select: { id: true, groupNo: true } },
+        currentGroup: { select: { id: true, name: true } },
         basketAssignments: {
           where: { eventBasket: { phase: "LOFT" } },
           include: {
