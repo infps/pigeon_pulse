@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -41,6 +41,8 @@ import {
   X,
   Pencil,
   History,
+  ScanLine,
+  StopCircle,
 } from "lucide-react";
 import { apiEndpoints } from "@/lib/endpoints";
 
@@ -762,9 +764,23 @@ function GroupCard({
 
 // ─── GroupsTab ────────────────────────────────────────────────────────────────
 
+type ScanResult = {
+  rfid: string;
+  band: string;
+  fromGroup: string | null;
+  toGroup: string;
+  time: Date;
+  status: "moved" | "already" | "notFound";
+};
+
 export function GroupsTab({ eventId }: { eventId: string }) {
   const qc = useQueryClient();
   const [newGroupOpen, setNewGroupOpen] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanTargetId, setScanTargetId] = useState<string>("");
+  const [scanning, setScanning] = useState(false);
+  const [scanResults, setScanResults] = useState<ScanResult[]>([]);
+  const lastRfidRef = useRef<string | null>(null);
   const [newForm, setNewForm] = useState<{
     name: string; type: GroupType; color: string; statusCodeId: string; notes: string; hasCapacity: boolean; capacity: string;
   }>({ name: "", type: "LOFT", color: "", statusCodeId: "", notes: "", hasCapacity: true, capacity: "150" });
@@ -788,6 +804,47 @@ export function GroupsTab({ eventId }: { eventId: string }) {
   function refetch() {
     qc.invalidateQueries({ queryKey: ["groups", eventId] });
   }
+
+  const processScan = useCallback(async (rfid: string) => {
+    if (!scanTargetId) return;
+    const res = await fetch(`/api/admin/event/${eventId}/groups/scan-move`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rfid, targetGroupId: parseInt(scanTargetId) }),
+    });
+    const data = await res.json();
+    const groups = (groupsData?.groups ?? []);
+    const targetGroup = groups.find((g) => g.id === parseInt(scanTargetId));
+    const toGroup = targetGroup?.name ?? "Unknown";
+    if (!res.ok) {
+      setScanResults((prev) => [{ rfid, band: rfid, fromGroup: null, toGroup, time: new Date(), status: "notFound" }, ...prev]);
+      return;
+    }
+    if (data.alreadyInGroup) {
+      setScanResults((prev) => [{ rfid, band: data.band, fromGroup: toGroup, toGroup, time: new Date(), status: "already" }, ...prev]);
+      return;
+    }
+    setScanResults((prev) => [{ rfid, band: data.band, fromGroup: data.fromGroup, toGroup: data.toGroup, time: new Date(), status: "moved" }, ...prev]);
+    refetch();
+  }, [scanTargetId, eventId, groupsData]);
+
+  useEffect(() => {
+    if (!scanning || !scanTargetId) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/scanner/poll", { method: "POST" });
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const rfid = data[0].el;
+          if (rfid && rfid !== lastRfidRef.current) {
+            lastRfidRef.current = rfid;
+            await processScan(rfid);
+          }
+        }
+      } catch {}
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [scanning, scanTargetId, processScan]);
 
   const inventoryItems = (inventoryData?.eventInventory ?? []).flatMap((inv) =>
     (inv.items ?? []).map((item) => ({
@@ -857,9 +914,14 @@ export function GroupsTab({ eventId }: { eventId: string }) {
           <h3 className="text-lg font-semibold">Groups</h3>
           <p className="text-sm text-muted-foreground">{groups.length} group{groups.length !== 1 ? "s" : ""} total</p>
         </div>
-        <Button size="sm" onClick={() => setNewGroupOpen(true)}>
-          <Plus className="h-4 w-4 mr-1" />New Group
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => { setScanOpen(true); setScanResults([]); lastRfidRef.current = null; }}>
+            <ScanLine className="h-4 w-4 mr-1" />Scan
+          </Button>
+          <Button size="sm" onClick={() => setNewGroupOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" />New Group
+          </Button>
+        </div>
       </div>
 
       {/* Group cards */}
@@ -947,6 +1009,84 @@ export function GroupsTab({ eventId }: { eventId: string }) {
               <Button type="submit" disabled={creating}>{creating ? "Creating…" : "Create"}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Scan Mode Modal */}
+      <Dialog open={scanOpen} onOpenChange={(v) => { setScanOpen(v); if (!v) setScanning(false); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Scan Birds into Group</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <Label>Target Group</Label>
+                <Select value={scanTargetId} onValueChange={(v) => { setScanTargetId(v); setScanning(false); lastRfidRef.current = null; }}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Select group…" /></SelectTrigger>
+                  <SelectContent>
+                    {(groupsData?.groups ?? []).map((g) => (
+                      <SelectItem key={g.id} value={String(g.id)}>{g.name} ({g.type})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="pt-6">
+                {scanning ? (
+                  <Button variant="destructive" onClick={() => setScanning(false)}>
+                    <StopCircle className="h-4 w-4 mr-1" />Stop
+                  </Button>
+                ) : (
+                  <Button onClick={() => { lastRfidRef.current = null; setScanning(true); }} disabled={!scanTargetId}>
+                    <ScanLine className="h-4 w-4 mr-1" />Start Scanner
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {scanning && (
+              <div className="flex items-center gap-2 rounded-md bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-700">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                </span>
+                Scanner active — scan a bird to move it to <strong className="ml-1">{(groupsData?.groups ?? []).find((g) => String(g.id) === scanTargetId)?.name}</strong>
+              </div>
+            )}
+
+            {scanResults.length > 0 && (
+              <div className="rounded-md border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-medium">Band</th>
+                      <th className="text-left px-3 py-2 font-medium">From</th>
+                      <th className="text-left px-3 py-2 font-medium">To</th>
+                      <th className="text-left px-3 py-2 font-medium">Time</th>
+                      <th className="text-left px-3 py-2 font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scanResults.map((r, i) => (
+                      <tr key={i} className="border-t">
+                        <td className="px-3 py-1.5 font-mono">{r.band}</td>
+                        <td className="px-3 py-1.5 text-muted-foreground">{r.fromGroup ?? "—"}</td>
+                        <td className="px-3 py-1.5">{r.toGroup}</td>
+                        <td className="px-3 py-1.5 text-muted-foreground text-xs">{r.time.toLocaleTimeString()}</td>
+                        <td className="px-3 py-1.5">
+                          {r.status === "moved" && <span className="text-green-600 font-medium">Moved</span>}
+                          {r.status === "already" && <span className="text-muted-foreground">Already here</span>}
+                          {r.status === "notFound" && <span className="text-destructive">Not found</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {scanResults.length === 0 && !scanning && (
+              <p className="text-sm text-muted-foreground text-center py-4">Select a group and start the scanner.</p>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
