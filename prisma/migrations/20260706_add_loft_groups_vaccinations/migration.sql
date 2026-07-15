@@ -1,8 +1,9 @@
--- CreateEnum
-CREATE TYPE "LoftGroupStatus" AS ENUM ('OPEN', 'CLOSED');
+-- Idempotent rewrite: LoftGroup + VaccinationRecord (superseded by 20260713_unify_groups)
 
--- CreateTable LoftGroup
-CREATE TABLE "LoftGroup" (
+DO $$ BEGIN CREATE TYPE "LoftGroupStatus" AS ENUM ('OPEN', 'CLOSED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+CREATE TABLE IF NOT EXISTS "LoftGroup" (
     "id" SERIAL NOT NULL,
     "eventId" INTEGER NOT NULL,
     "groupNo" INTEGER NOT NULL,
@@ -13,12 +14,11 @@ CREATE TABLE "LoftGroup" (
     CONSTRAINT "LoftGroup_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable VaccinationRecord
-CREATE TABLE "VaccinationRecord" (
+CREATE TABLE IF NOT EXISTS "VaccinationRecord" (
     "id" SERIAL NOT NULL,
-    "loftGroupId" INTEGER NOT NULL,
-    "vaccineName" TEXT NOT NULL,
-    "vaccinationDate" TIMESTAMP(3) NOT NULL,
+    "loftGroupId" INTEGER,
+    "vaccineName" TEXT NOT NULL DEFAULT '',
+    "vaccinationDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "vet" TEXT,
     "batchNo" TEXT,
     "notes" TEXT,
@@ -28,22 +28,20 @@ CREATE TABLE "VaccinationRecord" (
     CONSTRAINT "VaccinationRecord_pkey" PRIMARY KEY ("id")
 );
 
--- AlterTable EventInventoryItems: add loftGroupId FK
-ALTER TABLE "EventInventoryItems" ADD COLUMN "ID_LOFT_GROUP" INTEGER;
+ALTER TABLE "EventInventoryItems" ADD COLUMN IF NOT EXISTS "ID_LOFT_GROUP" INTEGER;
 
--- AlterTable EventBaskets: drop old unique constraint, add new one with raceId
-ALTER TABLE "EventBaskets" DROP CONSTRAINT IF EXISTS "EventBaskets_ID_EVENT_BASKET_NO_PHASE_key";
-CREATE UNIQUE INDEX "EventBaskets_ID_EVENT_BASKET_NO_PHASE_ID_RACE_key" ON "EventBaskets"("ID_EVENT", "BASKET_NO", "PHASE", "ID_RACE");
+DO $$ BEGIN ALTER TABLE "EventBaskets" DROP CONSTRAINT "EventBaskets_ID_EVENT_BASKET_NO_PHASE_key";
+EXCEPTION WHEN undefined_object THEN NULL; END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS "EventBaskets_ID_EVENT_BASKET_NO_PHASE_ID_RACE_key" ON "EventBaskets"("ID_EVENT", "BASKET_NO", "PHASE", "ID_RACE");
 
--- AddForeignKey LoftGroup → Events
-ALTER TABLE "LoftGroup" ADD CONSTRAINT "LoftGroup_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Events"("ID_EVENT") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN ALTER TABLE "LoftGroup" ADD CONSTRAINT "LoftGroup_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Events"("ID_EVENT") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- AddForeignKey VaccinationRecord → LoftGroup
-ALTER TABLE "VaccinationRecord" ADD CONSTRAINT "VaccinationRecord_loftGroupId_fkey" FOREIGN KEY ("loftGroupId") REFERENCES "LoftGroup"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN ALTER TABLE "VaccinationRecord" ADD CONSTRAINT "VaccinationRecord_loftGroupId_fkey" FOREIGN KEY ("loftGroupId") REFERENCES "LoftGroup"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- AddForeignKey EventInventoryItems → LoftGroup
-ALTER TABLE "EventInventoryItems" ADD CONSTRAINT "EventInventoryItems_ID_LOFT_GROUP_fkey" FOREIGN KEY ("ID_LOFT_GROUP") REFERENCES "LoftGroup"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN ALTER TABLE "EventInventoryItems" ADD CONSTRAINT "EventInventoryItems_ID_LOFT_GROUP_fkey" FOREIGN KEY ("ID_LOFT_GROUP") REFERENCES "LoftGroup"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- CreateIndex
-CREATE UNIQUE INDEX "LoftGroup_eventId_groupNo_key" ON "LoftGroup"("eventId", "groupNo");
-CREATE INDEX "LoftGroup_eventId_status_idx" ON "LoftGroup"("eventId", "status");
+CREATE UNIQUE INDEX IF NOT EXISTS "LoftGroup_eventId_groupNo_key" ON "LoftGroup"("eventId", "groupNo");
+CREATE INDEX IF NOT EXISTS "LoftGroup_eventId_status_idx" ON "LoftGroup"("eventId", "status");
