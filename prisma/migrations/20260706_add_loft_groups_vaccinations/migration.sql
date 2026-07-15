@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS "VaccinationRecord" (
     CONSTRAINT "VaccinationRecord_pkey" PRIMARY KEY ("id")
 );
 
-ALTER TABLE "EventInventoryItems" ADD COLUMN IF NOT EXISTS "ID_LOFT_GROUP" INTEGER;
+ALTER TABLE "EventInventoryItem" ADD COLUMN IF NOT EXISTS "ID_LOFT_GROUP" INTEGER;
 
 DO $$ BEGIN ALTER TABLE "EventBaskets" DROP CONSTRAINT "EventBaskets_ID_EVENT_BASKET_NO_PHASE_key";
 EXCEPTION WHEN undefined_object THEN NULL; END $$;
@@ -40,7 +40,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE "VaccinationRecord" ADD CONSTRAINT "VaccinationRecord_loftGroupId_fkey" FOREIGN KEY ("loftGroupId") REFERENCES "LoftGroup"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-DO $$ BEGIN ALTER TABLE "EventInventoryItems" ADD CONSTRAINT "EventInventoryItems_ID_LOFT_GROUP_fkey" FOREIGN KEY ("ID_LOFT_GROUP") REFERENCES "LoftGroup"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN ALTER TABLE "EventInventoryItem" ADD CONSTRAINT "EventInventoryItems_ID_LOFT_GROUP_fkey" FOREIGN KEY ("ID_LOFT_GROUP") REFERENCES "LoftGroup"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS "LoftGroup_eventId_groupNo_key" ON "LoftGroup"("eventId", "groupNo");

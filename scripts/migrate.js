@@ -20,7 +20,19 @@ async function main() {
     }
   }
 
-  console.log("DB warm — running migrations (connection held open)");
+  console.log("DB warm — resolving any previously-failed migrations");
+
+  // Clear the failed record for 20260706 (had wrong table name, now fixed)
+  await new Promise((resolve) => {
+    const proc = spawn(
+      "pnpm",
+      ["exec", "prisma", "migrate", "resolve", "--rolled-back", "20260706_add_loft_groups_vaccinations"],
+      { stdio: "inherit", env: process.env }
+    );
+    proc.on("close", resolve); // ignore exit code — no-op if already resolved
+  });
+
+  console.log("Running migrations (connection held open)");
 
   // Keep client connected so Neon compute stays alive during migrate
   const code = await new Promise((resolve) => {
