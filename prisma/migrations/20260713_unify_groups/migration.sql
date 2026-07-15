@@ -1,18 +1,37 @@
--- Unify LoftGroup + EventBirdGroup into EventGroup
--- Live data migration: loft groups win for currentGroupId when a bird is in both
+-- Idempotent catch-up migration: unify groups + all new schema (EventGroup, BirdEventHistory, Calcutta)
+-- Safe to run whether tables exist (db push) or not.
 
--- === 1. Rename/create enums ===
+-- === 1. Enums ===
 
--- LoftGroupStatus → EventGroupStatus (same values OPEN/CLOSED)
-ALTER TYPE "LoftGroupStatus" RENAME TO "EventGroupStatus";
+DO $$ BEGIN CREATE TYPE "EventGroupStatus" AS ENUM ('OPEN', 'CLOSED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- Add LOFT to EventBirdGroupType, then rename to EventGroupType
-ALTER TYPE "EventBirdGroupType" ADD VALUE IF NOT EXISTS 'LOFT';
-ALTER TYPE "EventBirdGroupType" RENAME TO "EventGroupType";
+DO $$ BEGIN CREATE TYPE "EventGroupType" AS ENUM ('LOFT', 'TAG_COLOR', 'STATUS', 'DEFAULTER', 'CUSTOM');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- === 2. Create new tables ===
+DO $$ BEGIN ALTER TYPE "EventBirdGroupType" ADD VALUE IF NOT EXISTS 'LOFT'; EXCEPTION WHEN undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TYPE "EventBirdGroupType" ADD VALUE IF NOT EXISTS 'TAG_COLOR'; EXCEPTION WHEN undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TYPE "EventBirdGroupType" ADD VALUE IF NOT EXISTS 'STATUS'; EXCEPTION WHEN undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TYPE "EventBirdGroupType" ADD VALUE IF NOT EXISTS 'DEFAULTER'; EXCEPTION WHEN undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TYPE "EventBirdGroupType" ADD VALUE IF NOT EXISTS 'CUSTOM'; EXCEPTION WHEN undefined_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TYPE "EventBirdGroupType" RENAME TO "EventGroupType";
+EXCEPTION WHEN undefined_object THEN NULL; WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TABLE "EventGroup" (
+DO $$ BEGIN CREATE TYPE "RaceFormat" AS ENUM ('STANDARD', 'CALCUTTA');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN CREATE TYPE "BirdHistoryAction" AS ENUM ('RFID_LINKED', 'BASKET_ASSIGNED', 'GROUP_ASSIGNED', 'GROUP_MOVED', 'GROUP_REMOVED', 'STATUS_CHANGED', 'RELEASED', 'ARRIVED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN CREATE TYPE "CalcuttaPhase" AS ENUM ('SETUP', 'AUCTION', 'CLOSED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN CREATE TYPE "CalcuttaGroupStatus" AS ENUM ('PENDING', 'BIDDING', 'SOLD', 'EARLY_BOUGHT', 'HOUSE', 'REPRICED');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- === 2. EventGroup ===
+
+CREATE TABLE IF NOT EXISTS "EventGroup" (
   "id"           SERIAL PRIMARY KEY,
   "eventId"      INTEGER NOT NULL,
   "name"         TEXT NOT NULL,
@@ -23,145 +42,180 @@ CREATE TABLE "EventGroup" (
   "color"        TEXT,
   "statusCodeId" INTEGER,
   "notes"        TEXT,
+  "isActive"     BOOLEAN NOT NULL DEFAULT false,
   "createdAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT "EventGroup_eventId_fkey"      FOREIGN KEY ("eventId")      REFERENCES "Events"("ID_EVENT")             ON DELETE CASCADE,
-  CONSTRAINT "EventGroup_statusCodeId_fkey" FOREIGN KEY ("statusCodeId") REFERENCES "BirdStatusCodes"("ID_BIRD_STATUS_CODE")
+  "updatedAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX "EventGroup_eventId_type_idx"   ON "EventGroup"("eventId", "type");
-CREATE INDEX "EventGroup_eventId_status_idx" ON "EventGroup"("eventId", "status");
+DO $$ BEGIN ALTER TABLE "EventGroup" ADD CONSTRAINT "EventGroup_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Events"("ID_EVENT") ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TABLE "BirdGroupHistory" (
+DO $$ BEGIN ALTER TABLE "EventGroup" ADD CONSTRAINT "EventGroup_statusCodeId_fkey" FOREIGN KEY ("statusCodeId") REFERENCES "BirdStatusCodes"("ID_BIRD_STATUS_CODE");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+CREATE INDEX IF NOT EXISTS "EventGroup_eventId_type_idx" ON "EventGroup"("eventId", "type");
+CREATE INDEX IF NOT EXISTS "EventGroup_eventId_status_idx" ON "EventGroup"("eventId", "status");
+CREATE INDEX IF NOT EXISTS "EventGroup_eventId_type_isActive_idx" ON "EventGroup"("eventId", "type", "isActive");
+
+ALTER TABLE "EventGroup" ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN NOT NULL DEFAULT false;
+
+-- === 3. VaccinationRecord: swap loftGroupId → eventGroupId ===
+
+ALTER TABLE "VaccinationRecord" ADD COLUMN IF NOT EXISTS "eventGroupId" INTEGER;
+
+DO $$ BEGIN ALTER TABLE "VaccinationRecord" DROP CONSTRAINT "VaccinationRecord_loftGroupId_fkey";
+EXCEPTION WHEN undefined_object THEN NULL; END $$;
+
+ALTER TABLE "VaccinationRecord" DROP COLUMN IF EXISTS "loftGroupId";
+
+DO $$ BEGIN ALTER TABLE "VaccinationRecord" ADD CONSTRAINT "VaccinationRecord_eventGroupId_fkey" FOREIGN KEY ("eventGroupId") REFERENCES "EventGroup"("id") ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- === 4. BirdGroupHistory, BirdBreederHistory, BirdVaccinationRecord ===
+
+CREATE TABLE IF NOT EXISTS "BirdGroupHistory" (
   "id"              SERIAL PRIMARY KEY,
   "inventoryItemId" INTEGER NOT NULL,
   "fromGroupName"   TEXT NOT NULL,
-  "movedAt"         TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT "BirdGroupHistory_inventoryItemId_fkey" FOREIGN KEY ("inventoryItemId") REFERENCES "EventInventoryItem"("ID_EVENT_INVENTORY_ITEM") ON DELETE CASCADE
+  "movedAt"         TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+DO $$ BEGIN ALTER TABLE "BirdGroupHistory" ADD CONSTRAINT "BirdGroupHistory_inventoryItemId_fkey" FOREIGN KEY ("inventoryItemId") REFERENCES "EventInventoryItem"("ID_EVENT_INVENTORY_ITEM") ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TABLE "BirdBreederHistory" (
+CREATE TABLE IF NOT EXISTS "BirdBreederHistory" (
   "id"              SERIAL PRIMARY KEY,
   "inventoryItemId" INTEGER NOT NULL,
   "fromBreederName" TEXT NOT NULL,
-  "transferredAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT "BirdBreederHistory_inventoryItemId_fkey" FOREIGN KEY ("inventoryItemId") REFERENCES "EventInventoryItem"("ID_EVENT_INVENTORY_ITEM") ON DELETE CASCADE
+  "transferredAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+DO $$ BEGIN ALTER TABLE "BirdBreederHistory" ADD CONSTRAINT "BirdBreederHistory_inventoryItemId_fkey" FOREIGN KEY ("inventoryItemId") REFERENCES "EventInventoryItem"("ID_EVENT_INVENTORY_ITEM") ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TABLE "BirdVaccinationRecord" (
+CREATE TABLE IF NOT EXISTS "BirdVaccinationRecord" (
   "id"                  SERIAL PRIMARY KEY,
   "vaccinationRecordId" INTEGER NOT NULL,
   "inventoryItemId"     INTEGER NOT NULL,
-  "recordedAt"          TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT "BirdVaccinationRecord_vaccinationRecordId_fkey" FOREIGN KEY ("vaccinationRecordId") REFERENCES "VaccinationRecord"("id") ON DELETE CASCADE,
-  CONSTRAINT "BirdVaccinationRecord_inventoryItemId_fkey"     FOREIGN KEY ("inventoryItemId")     REFERENCES "EventInventoryItem"("ID_EVENT_INVENTORY_ITEM") ON DELETE CASCADE,
-  CONSTRAINT "BirdVaccinationRecord_vaccinationRecordId_inventoryItemId_key" UNIQUE ("vaccinationRecordId", "inventoryItemId")
+  "recordedAt"          TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+DO $$ BEGIN ALTER TABLE "BirdVaccinationRecord" ADD CONSTRAINT "BirdVaccinationRecord_vaccinationRecordId_fkey" FOREIGN KEY ("vaccinationRecordId") REFERENCES "VaccinationRecord"("id") ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "BirdVaccinationRecord" ADD CONSTRAINT "BirdVaccinationRecord_inventoryItemId_fkey" FOREIGN KEY ("inventoryItemId") REFERENCES "EventInventoryItem"("ID_EVENT_INVENTORY_ITEM") ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "BirdVaccinationRecord" ADD CONSTRAINT "BirdVaccinationRecord_uq" UNIQUE ("vaccinationRecordId", "inventoryItemId");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- === 3. Add currentGroupId column to EventInventoryItem ===
+-- === 5. EventInventoryItem: new group FK columns ===
 
-ALTER TABLE "EventInventoryItem" ADD COLUMN "ID_CURRENT_GROUP" INTEGER;
+DO $$ BEGIN ALTER TABLE "EventInventoryItem" DROP CONSTRAINT "EventInventoryItem_ID_LOFT_GROUP_fkey";
+EXCEPTION WHEN undefined_object THEN NULL; END $$;
+ALTER TABLE "EventInventoryItem" DROP COLUMN IF EXISTS "ID_LOFT_GROUP";
 
--- === 4. Migrate LoftGroup → EventGroup ===
+ALTER TABLE "EventInventoryItem" ADD COLUMN IF NOT EXISTS "ID_CURRENT_GROUP" INTEGER;
+ALTER TABLE "EventInventoryItem" ADD COLUMN IF NOT EXISTS "tagColorGroupId"  INTEGER;
+ALTER TABLE "EventInventoryItem" ADD COLUMN IF NOT EXISTS "statusGroupId"    INTEGER;
 
-INSERT INTO "EventGroup" ("eventId", "name", "type", "status", "hasCapacity", "capacity", "createdAt", "updatedAt")
-SELECT
-  "eventId",
-  CONCAT('Loft Group ', "groupNo"),
-  'LOFT'::"EventGroupType",
-  "status"::"EventGroupStatus",
-  true,
-  "capacity",
-  "openedAt",
-  CURRENT_TIMESTAMP
-FROM "LoftGroup";
+DO $$ BEGIN ALTER TABLE "EventInventoryItem" ADD CONSTRAINT "EventInventoryItem_ID_CURRENT_GROUP_fkey" FOREIGN KEY ("ID_CURRENT_GROUP") REFERENCES "EventGroup"("id");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "EventInventoryItem" ADD CONSTRAINT "EventInventoryItem_tagColorGroupId_fkey" FOREIGN KEY ("tagColorGroupId") REFERENCES "EventGroup"("id");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "EventInventoryItem" ADD CONSTRAINT "EventInventoryItem_statusGroupId_fkey" FOREIGN KEY ("statusGroupId") REFERENCES "EventGroup"("id");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- === 5. Update EventInventoryItem.currentGroupId from loftGroupId (loft wins) ===
+-- === 6. BirdEventHistory ===
 
-UPDATE "EventInventoryItem" eii
-SET "ID_CURRENT_GROUP" = eg."id"
-FROM "LoftGroup" lg
-JOIN "EventGroup" eg
-  ON eg."name" = CONCAT('Loft Group ', lg."groupNo")
-  AND eg."eventId" = lg."eventId"
-  AND eg."type" = 'LOFT'
-WHERE lg."id" = eii."ID_LOFT_GROUP";
+CREATE TABLE IF NOT EXISTS "BirdEventHistory" (
+  "id"                   SERIAL PRIMARY KEY,
+  "eventInventoryItemId" INTEGER NOT NULL,
+  "action"               "BirdHistoryAction" NOT NULL,
+  "detail"               TEXT,
+  "groupId"              INTEGER,
+  "basketId"             INTEGER,
+  "performedById"        TEXT,
+  "createdAt"            TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+DO $$ BEGIN ALTER TABLE "BirdEventHistory" ADD CONSTRAINT "BirdEventHistory_eventInventoryItemId_fkey" FOREIGN KEY ("eventInventoryItemId") REFERENCES "EventInventoryItem"("ID_EVENT_INVENTORY_ITEM") ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS "BirdEventHistory_itemId_createdAt_idx" ON "BirdEventHistory"("eventInventoryItemId", "createdAt");
 
--- === 6. Migrate EventBirdGroup → EventGroup ===
+-- === 7. Events: raceFormat ===
 
-INSERT INTO "EventGroup" ("eventId", "name", "type", "status", "hasCapacity", "capacity", "color", "statusCodeId", "notes", "createdAt", "updatedAt")
-SELECT
-  "eventId",
-  "name",
-  "type"::text::"EventGroupType",
-  'OPEN'::"EventGroupStatus",
-  false,
-  NULL,
-  "color",
-  "statusCodeId",
-  "notes",
-  "createdAt",
-  CURRENT_TIMESTAMP
-FROM "EventBirdGroup";
+ALTER TABLE "Events" ADD COLUMN IF NOT EXISTS "raceFormat" "RaceFormat" NOT NULL DEFAULT 'STANDARD';
 
--- For birds with no loft group but in an EventBirdGroup, use first EventBirdGroup membership
--- (only sets currentGroupId if not already set by loft group migration above)
-UPDATE "EventInventoryItem" eii
-SET "ID_CURRENT_GROUP" = eg."id"
-FROM (
-  SELECT DISTINCT ON (bgm."eventInventoryItemId")
-    bgm."eventInventoryItemId",
-    eg."id" AS group_id
-  FROM "EventBirdGroupMember" bgm
-  JOIN "EventBirdGroup" bg ON bg."id" = bgm."groupId"
-  JOIN "EventGroup" eg
-    ON eg."name" = bg."name"
-    AND eg."eventId" = bg."eventId"
-    AND eg."type" = bg."type"::text::"EventGroupType"
-  ORDER BY bgm."eventInventoryItemId", bgm."id" ASC
-) mapped
-WHERE mapped."eventInventoryItemId" = eii."ID_EVENT_INVENTORY_ITEM"
-  AND eii."ID_CURRENT_GROUP" IS NULL;
+-- === 8. Calcutta tables ===
 
--- === 7. Migrate VaccinationRecord: loftGroupId → eventGroupId ===
+CREATE TABLE IF NOT EXISTS "CalcuttaConfig" (
+  "id"                SERIAL PRIMARY KEY,
+  "eventId"           INTEGER NOT NULL UNIQUE,
+  "pricePerBird"      DECIMAL(10,2) NOT NULL DEFAULT 0,
+  "targetGroupSize"   INTEGER NOT NULL DEFAULT 15,
+  "biddingDuration"   INTEGER NOT NULL DEFAULT 120,
+  "antiSnipeDuration" INTEGER NOT NULL DEFAULT 10,
+  "bidRaiseOptions"   INTEGER[] NOT NULL DEFAULT '{}',
+  "youtubeStreamUrl"  TEXT,
+  "phase"             "CalcuttaPhase" NOT NULL DEFAULT 'SETUP',
+  "activeGroupId"     INTEGER,
+  "createdAt"         TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt"         TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+DO $$ BEGIN ALTER TABLE "CalcuttaConfig" ADD CONSTRAINT "CalcuttaConfig_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Events"("ID_EVENT") ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-ALTER TABLE "VaccinationRecord" ADD COLUMN "eventGroupId" INTEGER;
+CREATE TABLE IF NOT EXISTS "CalcuttaBetGroup" (
+  "id"              SERIAL PRIMARY KEY,
+  "eventId"         INTEGER NOT NULL,
+  "groupNumber"     INTEGER NOT NULL,
+  "birdCount"       INTEGER NOT NULL,
+  "calculatedPrice" DECIMAL(10,2) NOT NULL,
+  "startingBid"     DECIMAL(10,2) NOT NULL,
+  "status"          "CalcuttaGroupStatus" NOT NULL DEFAULT 'PENDING',
+  "ownerId"         TEXT,
+  "finalPrice"      DECIMAL(10,2),
+  "isHouse"         BOOLEAN NOT NULL DEFAULT false,
+  "lastBidAt"       TIMESTAMP(3),
+  "createdAt"       TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+DO $$ BEGIN ALTER TABLE "CalcuttaBetGroup" ADD CONSTRAINT "CalcuttaBetGroup_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Events"("ID_EVENT") ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "CalcuttaBetGroup" ADD CONSTRAINT "CalcuttaBetGroup_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "user"("id");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS "CalcuttaBetGroup_eventId_status_idx" ON "CalcuttaBetGroup"("eventId", "status");
 
-UPDATE "VaccinationRecord" vr
-SET "eventGroupId" = eg."id"
-FROM "LoftGroup" lg
-JOIN "EventGroup" eg
-  ON eg."name" = CONCAT('Loft Group ', lg."groupNo")
-  AND eg."eventId" = lg."eventId"
-  AND eg."type" = 'LOFT'
-WHERE lg."id" = vr."loftGroupId";
+CREATE TABLE IF NOT EXISTS "CalcuttaBetGroupMember" (
+  "id"               SERIAL PRIMARY KEY,
+  "groupId"          INTEGER NOT NULL,
+  "eventInventoryId" INTEGER NOT NULL,
+  "createdAt"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+DO $$ BEGIN ALTER TABLE "CalcuttaBetGroupMember" ADD CONSTRAINT "CalcuttaBetGroupMember_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "CalcuttaBetGroup"("id") ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "CalcuttaBetGroupMember" ADD CONSTRAINT "CalcuttaBetGroupMember_eventInventoryId_fkey" FOREIGN KEY ("eventInventoryId") REFERENCES "EventInventory"("ID_EVENT_INVENTORY") ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "CalcuttaBetGroupMember" ADD CONSTRAINT "CalcuttaBetGroupMember_groupId_eventInventoryId_key" UNIQUE ("groupId", "eventInventoryId");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS "CalcuttaBetGroupMember_eventInventoryId_idx" ON "CalcuttaBetGroupMember"("eventInventoryId");
 
--- Snapshot: create BirdVaccinationRecord for all current members of each group at migration time
-INSERT INTO "BirdVaccinationRecord" ("vaccinationRecordId", "inventoryItemId", "recordedAt")
-SELECT vr."id", eii."ID_EVENT_INVENTORY_ITEM", vr."createdAt"
-FROM "VaccinationRecord" vr
-JOIN "EventInventoryItem" eii ON eii."ID_CURRENT_GROUP" = vr."eventGroupId"
-ON CONFLICT ("vaccinationRecordId", "inventoryItemId") DO NOTHING;
+CREATE TABLE IF NOT EXISTS "CalcuttaBid" (
+  "id"        SERIAL PRIMARY KEY,
+  "groupId"   INTEGER NOT NULL,
+  "bidderId"  TEXT NOT NULL,
+  "amount"    DECIMAL(10,2) NOT NULL,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+DO $$ BEGIN ALTER TABLE "CalcuttaBid" ADD CONSTRAINT "CalcuttaBid_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "CalcuttaBetGroup"("id") ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE "CalcuttaBid" ADD CONSTRAINT "CalcuttaBid_bidderId_fkey" FOREIGN KEY ("bidderId") REFERENCES "user"("id");
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS "CalcuttaBid_groupId_amount_idx" ON "CalcuttaBid"("groupId", "amount");
 
-ALTER TABLE "VaccinationRecord" ALTER COLUMN "eventGroupId" SET NOT NULL;
-ALTER TABLE "VaccinationRecord" ADD CONSTRAINT "VaccinationRecord_eventGroupId_fkey"
-  FOREIGN KEY ("eventGroupId") REFERENCES "EventGroup"("id") ON DELETE CASCADE;
+-- === 9. Fix EventBaskets unique index ===
 
--- Drop old loftGroupId from VaccinationRecord
-ALTER TABLE "VaccinationRecord" DROP CONSTRAINT IF EXISTS "VaccinationRecord_loftGroupId_fkey";
-ALTER TABLE "VaccinationRecord" DROP COLUMN "loftGroupId";
+DO $$ BEGIN ALTER TABLE "EventBaskets" DROP CONSTRAINT "EventBaskets_ID_EVENT_BASKET_NO_PHASE_key";
+EXCEPTION WHEN undefined_object THEN NULL; END $$;
+DROP INDEX IF EXISTS "EventBaskets_ID_EVENT_BASKET_NO_PHASE_key";
+CREATE UNIQUE INDEX IF NOT EXISTS "EventBaskets_ID_EVENT_BASKET_NO_PHASE_ID_RACE_key" ON "EventBaskets"("ID_EVENT", "BASKET_NO", "PHASE", "ID_RACE");
 
--- === 8. Drop currentGroupId FK + add it (now EventGroup exists) ===
+-- === 10. Drop old tables replaced by EventGroup ===
 
-ALTER TABLE "EventInventoryItem"
-  ADD CONSTRAINT "EventInventoryItem_ID_CURRENT_GROUP_fkey"
-  FOREIGN KEY ("ID_CURRENT_GROUP") REFERENCES "EventGroup"("id");
-
--- === 9. Drop old tables ===
-
-ALTER TABLE "EventInventoryItem" DROP CONSTRAINT IF EXISTS "EventInventoryItem_ID_LOFT_GROUP_fkey";
-ALTER TABLE "EventInventoryItem" DROP COLUMN "ID_LOFT_GROUP";
-
-DROP TABLE "EventBirdGroupMember";
-DROP TABLE "EventBirdGroup";
-DROP TABLE "LoftGroup";
+DROP TABLE IF EXISTS "EventBirdGroupMember";
+DROP TABLE IF EXISTS "EventBirdGroup";
+DROP TABLE IF EXISTS "LoftGroup";
