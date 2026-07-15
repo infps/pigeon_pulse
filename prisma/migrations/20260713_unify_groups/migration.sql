@@ -190,8 +190,7 @@ DO $$ BEGIN ALTER TABLE "CalcuttaBetGroupMember" ADD CONSTRAINT "CalcuttaBetGrou
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE "CalcuttaBetGroupMember" ADD CONSTRAINT "CalcuttaBetGroupMember_eventInventoryId_fkey" FOREIGN KEY ("eventInventoryId") REFERENCES "EventInventory"("ID_EVENT_INVENTORY") ON DELETE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE "CalcuttaBetGroupMember" ADD CONSTRAINT "CalcuttaBetGroupMember_groupId_eventInventoryId_key" UNIQUE ("groupId", "eventInventoryId");
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS "CalcuttaBetGroupMember_groupId_eventInventoryId_key" ON "CalcuttaBetGroupMember"("groupId", "eventInventoryId");
 CREATE INDEX IF NOT EXISTS "CalcuttaBetGroupMember_eventInventoryId_idx" ON "CalcuttaBetGroupMember"("eventInventoryId");
 
 CREATE TABLE IF NOT EXISTS "CalcuttaBid" (
