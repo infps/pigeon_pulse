@@ -32,7 +32,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ raceId:
       select: {
         transportStatus: true,
         transportStartedAt: true,
-        event: { select: { latitude: true, longitude: true, name: true } },
+        seasonRel: { include: { event: { select: { latitude: true, longitude: true, name: true } } } },
         raceStation: { select: { name: true, latitude: true, longitude: true, miles: true } },
       },
     });
@@ -75,8 +75,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ raceId:
       : null;
 
     const loft =
-      race.event?.latitude != null
-        ? { lat: race.event.latitude, lng: race.event.longitude, name: race.event.name }
+      race.seasonRel?.event?.latitude != null
+        ? { lat: race.seasonRel.event.latitude, lng: race.seasonRel.event.longitude, name: race.seasonRel.event.name }
         : null;
 
     return NextResponse.json({

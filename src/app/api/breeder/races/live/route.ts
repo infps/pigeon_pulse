@@ -8,13 +8,17 @@ export async function GET(req: NextRequest) {
         NOT: { isClosed: 1 },
       },
       include: {
-        event: {
-          select: {
-            id: true,
-            name: true,
-            shortName: true,
-            logoImage: true,
-            isOpen: true,
+        seasonRel: {
+          include: {
+            event: {
+              select: {
+                id: true,
+                name: true,
+                shortName: true,
+                logoImage: true,
+                isOpen: true,
+              },
+            },
           },
         },
         raceType: {

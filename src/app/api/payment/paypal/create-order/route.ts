@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       where: { id: eventInventoryId },
       include: {
         breeder: { select: { userId: true } },
-        event: { select: { name: true } },
+        season: { include: { event: { select: { name: true } } } },
         payments: true,
       },
     });
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
             currency_code: currency,
             value: amount.toFixed(2),
           },
-          description: `Registration: ${eventInventory.event?.name || "Event"}`,
+          description: `Registration: ${eventInventory.season?.event?.name || "Event"}`,
           custom_id: `${eventInventoryId}`,
         },
       ],

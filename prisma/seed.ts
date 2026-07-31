@@ -78,6 +78,19 @@ async function main() {
     },
   });
 
+  // Season
+  const season = await prisma.season.upsert({
+    where: { id: 1 },
+    update: {},
+    create: {
+      id: 1,
+      name: "2026 Season",
+      startDate: new Date("2026-03-01T00:00:00Z"),
+      endDate: new Date("2026-12-31T00:00:00Z"),
+      eventId: event.id,
+    },
+  });
+
   // Races
   const baseStart = new Date("2026-05-11T08:00:00Z");
   const raceConfigs = [
@@ -105,7 +118,7 @@ async function main() {
       update: {},
       create: {
         id: i + 1,
-        eventId: event.id,
+        seasonId: season.id,
         name: cfg.name,
         description: cfg.desc,
         distance: cfg.dist,
@@ -137,7 +150,7 @@ async function main() {
       update: {},
       create: {
         id: bi + 1,
-        eventId: event.id,
+        seasonId: season.id,
         breederId: breeder.id,
         signInDate: new Date("2026-03-01T00:00:00Z"),
       },

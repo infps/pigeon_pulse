@@ -29,7 +29,7 @@ export async function POST(
     const race = await prisma.race.findUnique({
       where: { id: raceIdInt },
       include: {
-        event: {
+        seasonRel: {
           include: {
             bettingScheme: { include: { standardShowPercentages: true } },
           },
@@ -42,7 +42,7 @@ export async function POST(
       return NextResponse.json({ message: "Race must be ENDED before calculating payouts" }, { status: 400 });
     }
 
-    const scheme = race.event?.bettingScheme;
+    const scheme = race.seasonRel?.bettingScheme;
     if (!scheme) {
       return NextResponse.json({ message: "No betting scheme assigned to this event" }, { status: 400 });
     }

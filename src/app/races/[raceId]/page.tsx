@@ -161,7 +161,7 @@ export default function PublicRacePage() {
           <div className="flex flex-col md:flex-row gap-4 md:gap-6">
             {/* Event Logo */}
             <div className="shrink-0">
-              <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-linear-to-br from-gray-100 to-gray-200 flex items-center justify-center overflow-hidden shadow-lg border-4 border-white">
+              <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-muted flex items-center justify-center overflow-hidden shadow-lg border-4 border-background">
                 {race.event?.logoImage ? (
                   <Image
                     src={race.event.logoImage}
@@ -171,7 +171,7 @@ export default function PublicRacePage() {
                     className="object-cover w-full h-full"
                   />
                 ) : (
-                  <span className="text-2xl md:text-3xl font-bold text-gray-600">
+                  <span className="text-2xl md:text-3xl font-bold text-muted-foreground">
                     {(race.event?.name ?? race.description ?? "").substring(0, 3).toUpperCase()}
                   </span>
                 )}
@@ -182,7 +182,7 @@ export default function PublicRacePage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
-                  <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+                  <h1 className="text-2xl md:text-3xl font-bold text-foreground">
                     {race.event?.name || race.description}
                   </h1>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -222,51 +222,51 @@ export default function PublicRacePage() {
               {/* Info row: weather block + date + distance + velocity */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-2 md:gap-3 mt-4">
                 {/* Weather */}
-                <div className="border rounded-lg p-2 text-xs space-y-1">
+                <div className="border border-border rounded-lg p-2 text-xs space-y-1 bg-card text-card-foreground">
                   <div className="flex items-center gap-2">
-                    <Building className="h-3.5 w-3.5 text-gray-500" />
+                    <Building className="h-3.5 w-3.5 text-muted-foreground" />
                     <Cloud className="h-3.5 w-3.5 text-blue-500" />
                     <span>{race.weather || "-"}</span>
                     <Thermometer className="h-3.5 w-3.5 text-red-500" />
-                    <span className="text-red-600 font-semibold">{race.temperature ? `${race.temperature}°F` : "-"}</span>
+                    <span className="text-red-600 dark:text-red-400 font-semibold">{race.temperature ? `${race.temperature}°F` : "-"}</span>
                     <Wind className="h-3.5 w-3.5" />
                     <span>{race.wind || "-"}</span>
-                    <ArrowUpRight className="h-3 w-3 text-blue-600" />
+                    <ArrowUpRight className="h-3 w-3 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div className="flex items-center gap-2">
-                    <HomeIcon className="h-3.5 w-3.5 text-gray-500" />
+                    <HomeIcon className="h-3.5 w-3.5 text-muted-foreground" />
                     <Cloud className="h-3.5 w-3.5 text-blue-500" />
                     <span>{race.arrivalWeather || "-"}</span>
                     <Thermometer className="h-3.5 w-3.5 text-red-500" />
-                    <span className="text-red-600 font-semibold">{race.arrivalTemperature ? `${race.arrivalTemperature}°F` : "-"}</span>
+                    <span className="text-red-600 dark:text-red-400 font-semibold">{race.arrivalTemperature ? `${race.arrivalTemperature}°F` : "-"}</span>
                     <Wind className="h-3.5 w-3.5" />
                     <span>{race.arrivalWind || "-"}</span>
-                    <ArrowUpRight className="h-3 w-3 text-blue-600" />
+                    <ArrowUpRight className="h-3 w-3 text-blue-600 dark:text-blue-400" />
                   </div>
                 </div>
 
                 {/* Release Date & Time */}
-                <div className="border rounded-lg p-2 md:p-3 text-center">
+                <div className="border border-border rounded-lg p-2 md:p-3 text-center bg-card text-card-foreground">
                   <div className="text-sm md:text-base font-bold">
                     {formatDateTime(race.startTime)}
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">Release Date & Time</div>
+                  <div className="text-xs text-muted-foreground mt-1">Release Date & Time</div>
                 </div>
 
                 {/* Distance */}
-                <div className="border rounded-lg p-2 md:p-3 text-center">
+                <div className="border border-border rounded-lg p-2 md:p-3 text-center bg-card text-card-foreground">
                   <div className="text-lg md:text-xl font-bold">
                     {distanceMi.toFixed(3)} <span className="text-sm">MI</span>
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">Distance</div>
+                  <div className="text-xs text-muted-foreground mt-1">Distance</div>
                 </div>
 
                 {/* Race Velocity */}
-                <div className="border rounded-lg p-2 md:p-3 text-center">
-                  <div className="text-lg md:text-xl font-bold text-red-600">
+                <div className="border border-border rounded-lg p-2 md:p-3 text-center bg-card text-card-foreground">
+                  <div className="text-lg md:text-xl font-bold text-red-600 dark:text-red-400">
                     {raceVelocity != null ? (velocityUnit === "MPM" ? (raceVelocity * 0.9144).toFixed(2) : raceVelocity.toFixed(2)) : "-"} <span className="text-sm">{velocityUnit}</span>
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">Race Velocity</div>
+                  <div className="text-xs text-muted-foreground mt-1">Race Velocity</div>
                 </div>
               </div>
 
@@ -289,7 +289,7 @@ export default function PublicRacePage() {
 
             {/* Competitions side panel */}
             <div className="flex flex-col items-end gap-2 md:w-40 shrink-0">
-              <span className="text-xs text-gray-500">Competitions</span>
+              <span className="text-xs text-muted-foreground">Competitions</span>
               <Button
                 variant="default"
                 className="bg-green-500 hover:bg-green-600 text-white gap-1.5"
@@ -468,7 +468,7 @@ function BreederBirdsModal({
         {/* Table */}
         <div className="overflow-y-auto flex-1">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-white border-b z-10">
+            <thead className="sticky top-0 bg-background border-b border-border z-10">
               <tr className="text-xs text-muted-foreground uppercase tracking-wide">
                 <th className="text-left p-3 w-14">Rank</th>
                 <th className="text-left p-3">Bird Band ID</th>
@@ -499,7 +499,7 @@ function BreederBirdsModal({
                 return (
                   <tr key={item.id} className="border-b hover:bg-muted/30">
                     <td className="p-3">
-                      <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-semibold border ${item.rank != null && item.rank <= 10 ? "border-amber-400 bg-amber-50 text-amber-700" : "border-gray-200 text-gray-700"}`}>
+                      <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-semibold border ${item.rank != null && item.rank <= 10 ? "border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300" : "border-border text-foreground"}`}>
                         {item.rank ?? "-"}
                       </span>
                     </td>
@@ -598,7 +598,7 @@ function RaceHistoryTable({ entries, velocityUnit }: { entries: HistoryEntry[]; 
             return (
               <tr key={i} className="border-b last:border-0 hover:bg-muted/30">
                 <td className="py-2.5">
-                  <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-semibold border ${e.position != null && e.position <= 10 ? "border-amber-400 bg-amber-50 text-amber-700" : "border-gray-200 text-gray-700"}`}>
+                  <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-semibold border ${e.position != null && e.position <= 10 ? "border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300" : "border-border text-foreground"}`}>
                     {e.position ?? "-"}
                   </span>
                 </td>

@@ -20,6 +20,22 @@ export async function POST(
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
+    const url = new URL(request.url);
+    const seasonIdParam = url.searchParams.get("seasonId");
+    let seasonId: number;
+    if (seasonIdParam) {
+      seasonId = parseInt(seasonIdParam);
+    } else {
+      const activeSeason = await prisma.season.findFirst({
+        where: { eventId, isActive: true },
+        orderBy: { startDate: "desc" },
+      });
+      if (!activeSeason) {
+        return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+      }
+      seasonId = activeSeason.id;
+    }
+
     const body = await request.json();
     const birdIds: number[] = body.birdIds;
 
@@ -62,20 +78,20 @@ export async function POST(
       let totalSkipped = 0;
 
       const races = await tx.race.findMany({
-        where: { eventId },
+        where: { seasonId },
         select: { id: true },
       });
 
       for (const [breederId, group] of breederGroups) {
         // Find or create EventInventory
         let eventInventory = await tx.eventInventory.findFirst({
-          where: { eventId, breederId },
+          where: { seasonId, breederId },
         });
 
         if (!eventInventory) {
           const loftName = group.breeder.lastName || group.breeder.firstName || "Default";
           eventInventory = await tx.eventInventory.create({
-            data: { eventId, breederId, loft: loftName, reservedBirds: 0 },
+            data: { seasonId, breederId, loft: loftName, reservedBirds: 0 },
           });
         }
 
@@ -104,7 +120,7 @@ export async function POST(
           data: { reservedBirds: { increment: newBirdIds.length } },
         });
 
-        // Create RaceItems for all event races
+        // Create RaceItems for all season races
         if (races.length > 0) {
           const raceItemData = races.flatMap((race) =>
             createdItems.map((item) => ({ raceId: race.id, inventoryItemId: item.id }))

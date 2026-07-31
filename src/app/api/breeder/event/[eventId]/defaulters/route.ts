@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { computePaymentStatus } from "@/lib/paymentStatus";
 
 export async function GET(
-  _req: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   const { eventId: eventIdParam } = await params;
@@ -11,8 +11,24 @@ export async function GET(
   if (isNaN(eventId)) return NextResponse.json({ message: "Invalid event ID" }, { status: 400 });
 
   try {
+    const { searchParams } = new URL(request.url);
+    const seasonIdParam = searchParams.get("seasonId");
+    let seasonId: number;
+    if (seasonIdParam) {
+      seasonId = parseInt(seasonIdParam);
+    } else {
+      const activeSeason = await prisma.season.findFirst({
+        where: { eventId, isActive: true },
+        orderBy: { startDate: "desc" },
+      });
+      if (!activeSeason) {
+        return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+      }
+      seasonId = activeSeason.id;
+    }
+
     const inventories = await prisma.eventInventory.findMany({
-      where: { eventId, cashPromised: false },
+      where: { seasonId, cashPromised: false },
       include: {
         breeder: true,
         payments: true,

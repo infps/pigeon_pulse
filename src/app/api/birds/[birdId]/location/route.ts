@@ -35,7 +35,7 @@ export async function GET(
       where: { id: birdIdInt },
       include: {
         breeder: { select: { id: true, userId: true, lastName: true } },
-        lostRace: { include: { event: { select: { name: true } } } },
+        lostRace: { include: { seasonRel: { include: { event: { select: { name: true } } } } } },
       },
     });
 
@@ -62,7 +62,7 @@ export async function GET(
         status: "LOST",
         label: `Lost at ${bird.lostRace?.location ?? bird.lostRace?.name ?? "race"}`,
         raceName: bird.lostRace?.name ?? undefined,
-        eventName: bird.lostRace?.event?.name ?? undefined,
+        eventName: bird.lostRace?.seasonRel?.event?.name ?? undefined,
         since: bird.lostDate?.toISOString(),
       };
       return NextResponse.json(res);
@@ -76,7 +76,7 @@ export async function GET(
       },
       orderBy: { id: "desc" },
       include: {
-        race: { include: { event: { select: { name: true } } } },
+        race: { include: { seasonRel: { include: { event: { select: { name: true } } } } } },
         result: true,
       },
     });
@@ -86,7 +86,7 @@ export async function GET(
         status: "ARRIVED",
         label: `Arrived at ${arrived.race.name || arrived.race.location || "race"}`,
         raceName: arrived.race.name ?? undefined,
-        eventName: arrived.race.event?.name ?? undefined,
+        eventName: arrived.race.seasonRel?.event?.name ?? undefined,
         since: arrived.result?.arrivalTime?.toISOString(),
       };
       return NextResponse.json(res);
@@ -96,12 +96,11 @@ export async function GET(
       where: {
         inventoryItem: {
           birdId: birdIdInt,
-          eventInventory: { event: { isOpen: 1 } },
         },
       },
       orderBy: { assignedAt: "desc" },
       include: {
-        eventBasket: { include: { event: { select: { name: true } } } },
+        eventBasket: { include: { season: { include: { event: { select: { name: true } } } } } },
       },
     });
 
@@ -111,7 +110,7 @@ export async function GET(
         label: assignment.eventBasket.label ?? `Basket #${assignment.eventBasket.basketNo}`,
         basketLabel: assignment.eventBasket.label ?? undefined,
         phase: assignment.eventBasket.phase,
-        eventName: assignment.eventBasket.event?.name ?? undefined,
+        eventName: assignment.eventBasket.season?.event?.name ?? undefined,
         since: assignment.assignedAt.toISOString(),
       };
       return NextResponse.json(res);

@@ -24,17 +24,15 @@ export type ReleaseForecast = {
   weather: WeatherType;
 };
 
-/**
- * Predicted weather at a liberation point and release time.
- * Uses Open-Meteo (free, no API key — same keyless pattern as the Nominatim
- * geocoder already used in the map search).
- *
- * @param lat liberation point latitude
- * @param lon liberation point longitude
- * @param localDateTime datetime-local string, e.g. "2026-06-30T05:00" (wall time)
- *
- * Open-Meteo forecast horizon is ~16 days; dates beyond that throw.
- */
+const FORECAST_HORIZON_DAYS = 16;
+
+function isHistorical(localDateTime: string): boolean {
+  const date = new Date(localDateTime.slice(0, 10));
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - FORECAST_HORIZON_DAYS);
+  return date < cutoff;
+}
+
 export async function fetchReleaseForecast(
   lat: number,
   lon: number,
@@ -43,8 +41,13 @@ export async function fetchReleaseForecast(
   const date = localDateTime.slice(0, 10); // YYYY-MM-DD
   if (date.length !== 10) throw new Error("Invalid release time");
 
+  const historical = isHistorical(localDateTime);
+  const baseUrl = historical
+    ? `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}`
+    : `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}`;
+
   const url =
-    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    baseUrl +
     `&hourly=temperature_2m,wind_speed_10m,weather_code` +
     `&wind_speed_unit=kmh&timezone=auto&start_date=${date}&end_date=${date}`;
 

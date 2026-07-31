@@ -9,16 +9,20 @@ export async function GET(request: Request) {
     const limit = Math.min(Math.max(isNaN(limitRaw) ? 10 : limitRaw, 1), 100);
     const offset = Math.max(isNaN(offsetRaw) ? 0 : offsetRaw, 0);
 
-    const [messages, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       prisma.eventMessage.findMany({
         include: {
-          event: {
-            select: {
-              id: true,
-              name: true,
-              shortName: true,
-              logoImage: true,
-              bannerImage: true,
+          season: {
+            include: {
+              event: {
+                select: {
+                  id: true,
+                  name: true,
+                  shortName: true,
+                  logoImage: true,
+                  bannerImage: true,
+                },
+              },
             },
           },
           author: {
@@ -31,6 +35,17 @@ export async function GET(request: Request) {
       }),
       prisma.eventMessage.count(),
     ]);
+
+    // Flatten season.event → event for home/news UI (expects m.event.id)
+    const messages = rows
+      .filter((m) => m.season?.event)
+      .map(({ season, ...rest }) => ({
+        ...rest,
+        seasonId: rest.seasonId,
+        eventId: season!.event.id,
+        event: season!.event,
+        season: { id: season!.id, name: season!.name },
+      }));
 
     return NextResponse.json(
       { messages, total, message: "Messages fetched successfully" },

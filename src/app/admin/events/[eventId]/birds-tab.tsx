@@ -3,6 +3,7 @@
 import type { Event, EventInventoryItem } from "@/lib/types";
 import { useState, useMemo } from "react";
 import { useListEventInventoryItems, useAddBirdsToEvent } from "@/lib/api/event-inventory-items";
+import { useSeasonContext } from "@/lib/season-context";
 import { useListEvents } from "@/lib/api/events";
 import { DataTable } from "@/components/ui/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,6 +29,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { createBirdsColumns } from "./birds-columns";
 import { EditBirdDialog } from "@/components/edit-bird-dialog";
+import { BirdDetailDialog } from "@/components/bird-detail-dialog";
 
 interface BirdsTabProps {
   event: Event;
@@ -35,12 +37,14 @@ interface BirdsTabProps {
 }
 
 export function BirdsTab({ event, eventId }: BirdsTabProps) {
+  const { selectedSeasonId } = useSeasonContext();
   const queryClient = useQueryClient();
   const [editingItem, setEditingItem] = useState<EventInventoryItem | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [detailBirdId, setDetailBirdId] = useState<number | null>(null);
 
-  const { data, isPending, error, refetch } = useListEventInventoryItems(eventId);
+  const { data, isPending, error, refetch } = useListEventInventoryItems(eventId, undefined, undefined, selectedSeasonId);
 
   const handleEdit = (item: EventInventoryItem) => {
     setEditingItem(item);
@@ -57,7 +61,7 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
     queryClient.invalidateQueries({ queryKey: ["event-inventory"] });
   };
 
-  const columns = createBirdsColumns(handleEdit, eventId);
+  const columns = createBirdsColumns(handleEdit, setDetailBirdId, eventId);
 
   const eventInventoryItems: EventInventoryItem[] =
     data?.eventInventoryItems || [];
@@ -115,6 +119,13 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
         eventId={eventId}
         existingItems={eventInventoryItems}
         onSuccess={handleAddSuccess}
+      />
+
+      <BirdDetailDialog
+        open={detailBirdId !== null}
+        onOpenChange={(o) => { if (!o) setDetailBirdId(null); }}
+        birdId={detailBirdId}
+        eventId={parseInt(eventId)}
       />
     </div>
   );

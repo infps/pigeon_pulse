@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Tabs,
   TabsContent,
@@ -26,6 +25,7 @@ import { apiEndpoints } from "@/lib/endpoints";
 import type { Bird } from "@/lib/types";
 import { getSexLabel } from "@/lib/bird-constants";
 import { useSettings } from "@/lib/settings-context";
+import { BirdDetailDialog } from "@/components/bird-detail-dialog";
 
 interface PedigreePanelProps {
   bird: Bird;
@@ -38,18 +38,19 @@ function BirdCard({
   label,
   onRemove,
   isOwner,
+  onOpen,
 }: {
   bird: Bird;
   label: string;
   onRemove?: () => void;
   isOwner: boolean;
+  onOpen: (id: number) => void;
 }) {
-  const router = useRouter();
   const { sexTerminology } = useSettings();
   return (
     <div
       className="border rounded-lg p-3 cursor-pointer hover:bg-muted/50 transition-colors"
-      onClick={() => router.push(`/admin/birds/${bird.id}`)}
+      onClick={() => onOpen(bird.id)}
     >
       <div className="flex items-center justify-between mb-1">
         <span className="text-xs text-muted-foreground">{label}</span>
@@ -77,13 +78,12 @@ function BirdCard({
   );
 }
 
-function BirdListItem({ bird }: { bird: Bird }) {
-  const router = useRouter();
+function BirdListItem({ bird, onOpen }: { bird: Bird; onOpen: (id: number) => void }) {
   const { sexTerminology } = useSettings();
   return (
     <div
       className="flex items-center justify-between py-2 px-3 rounded-md hover:bg-muted/50 cursor-pointer transition-colors"
-      onClick={() => router.push(`/admin/birds/${bird.id}`)}
+      onClick={() => onOpen(bird.id)}
     >
       <div>
         <p className="font-mono text-sm">{bird.band || "No band"}</p>
@@ -207,6 +207,7 @@ function AssignParentDialog({
 export function PedigreePanel({ bird, isOwner, onUpdate }: PedigreePanelProps) {
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignType, setAssignType] = useState<"father" | "mother">("father");
+  const [detailBirdId, setDetailBirdId] = useState<number | null>(null);
 
   const updateMutation = useApiMutation({
     endpoint: apiEndpoints.breeder.birdById(bird.id),
@@ -256,6 +257,7 @@ export function PedigreePanel({ bird, isOwner, onUpdate }: PedigreePanelProps) {
               label="Father"
               isOwner={isOwner}
               onRemove={() => handleRemoveParent("father")}
+              onOpen={setDetailBirdId}
             />
           ) : (
             <div className="border rounded-lg p-3 border-dashed">
@@ -283,6 +285,7 @@ export function PedigreePanel({ bird, isOwner, onUpdate }: PedigreePanelProps) {
               label="Mother"
               isOwner={isOwner}
               onRemove={() => handleRemoveParent("mother")}
+              onOpen={setDetailBirdId}
             />
           ) : (
             <div className="border rounded-lg p-3 border-dashed">
@@ -314,7 +317,7 @@ export function PedigreePanel({ bird, isOwner, onUpdate }: PedigreePanelProps) {
           ) : (
             <div className="space-y-1">
               {siblings.map((s) => (
-                <BirdListItem key={s.id} bird={s} />
+                <BirdListItem key={s.id} bird={s} onOpen={setDetailBirdId} />
               ))}
             </div>
           )}
@@ -329,7 +332,7 @@ export function PedigreePanel({ bird, isOwner, onUpdate }: PedigreePanelProps) {
           ) : (
             <div className="space-y-1">
               {uniqueOffspring.map((o) => (
-                <BirdListItem key={o.id} bird={o} />
+                <BirdListItem key={o.id} bird={o} onOpen={setDetailBirdId} />
               ))}
             </div>
           )}
@@ -342,6 +345,13 @@ export function PedigreePanel({ bird, isOwner, onUpdate }: PedigreePanelProps) {
         parentType={assignType}
         birdId={bird.id}
         onSuccess={onUpdate}
+      />
+
+      <BirdDetailDialog
+        open={detailBirdId !== null}
+        onOpenChange={(o) => { if (!o) setDetailBirdId(null); }}
+        birdId={detailBirdId}
+        eventId={null}
       />
     </>
   );

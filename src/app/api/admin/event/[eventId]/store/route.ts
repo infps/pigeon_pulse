@@ -10,8 +10,22 @@ const createListingSchema = z.object({
   listingPrice: z.number().positive(),
 });
 
+async function resolveSeasonId(request: Request, eventId: number): Promise<number | NextResponse> {
+  const { searchParams } = new URL(request.url);
+  const seasonIdParam = searchParams.get("seasonId");
+  if (seasonIdParam) return parseInt(seasonIdParam);
+  const activeSeason = await prisma.season.findFirst({
+    where: { eventId, isActive: true },
+    orderBy: { startDate: "desc" },
+  });
+  if (!activeSeason) {
+    return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+  }
+  return activeSeason.id;
+}
+
 export async function GET(
-  _req: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   const { eventId: eventIdParam } = await params;
@@ -23,9 +37,12 @@ export async function GET(
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
+  const seasonId = await resolveSeasonId(request, eventId);
+  if (seasonId instanceof NextResponse) return seasonId;
+
   try {
     const listings = await prisma.eventStoreListing.findMany({
-      where: { eventId },
+      where: { seasonId },
       include: {
         originalBreeder: true,
         purchasedBy: true,
@@ -53,13 +70,16 @@ export async function POST(
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
+  const seasonId = await resolveSeasonId(req, eventId);
+  if (seasonId instanceof NextResponse) return seasonId;
+
   try {
     const body = await req.json();
     const { breederId, itemIds, listingPrice } = createListingSchema.parse(body);
 
     const listing = await prisma.eventStoreListing.create({
       data: {
-        eventId,
+        seasonId,
         originalBreederId: breederId,
         listingPrice,
         items: {
@@ -95,9 +115,12 @@ export async function DELETE(
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
+  const seasonId = await resolveSeasonId(req, eventId);
+  if (seasonId instanceof NextResponse) return seasonId;
+
   try {
     const { listingId } = await req.json();
-    const listing = await prisma.eventStoreListing.findFirst({ where: { id: listingId, eventId } });
+    const listing = await prisma.eventStoreListing.findFirst({ where: { id: listingId, seasonId } });
     if (!listing) return NextResponse.json({ message: "Not found" }, { status: 404 });
     if (listing.status === "SOLD") return NextResponse.json({ message: "Cannot delete sold listing" }, { status: 400 });
 

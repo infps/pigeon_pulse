@@ -2,10 +2,13 @@ import { useApiQuery } from "@/hooks/useApi";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { apiEndpoints } from "../endpoints";
 
-export function useListAdminEventMessages({ eventId }: { eventId: number | string }) {
+export function useListAdminEventMessages({ eventId, seasonId }: { eventId: number | string; seasonId?: number | null }) {
+  const params: Record<string, string> = {};
+  if (seasonId) params.seasonId = String(seasonId);
   return useApiQuery({
     endpoint: apiEndpoints.eventMessages.list(eventId),
-    queryKey: ["admin", "event", String(eventId), "messages"],
+    queryKey: ["admin", "event", String(eventId), "messages", String(seasonId ?? "")],
+    params: Object.keys(params).length > 0 ? params : undefined,
     enabled: !!eventId,
   });
 }

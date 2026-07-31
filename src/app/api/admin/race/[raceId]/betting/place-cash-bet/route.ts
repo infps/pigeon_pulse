@@ -48,13 +48,13 @@ export async function POST(
 
     const race = await prisma.race.findUnique({
       where: { id: raceIdInt },
-      include: { event: { include: { bettingScheme: true } } },
+      include: { seasonRel: { include: { bettingScheme: true } } },
     });
     if (!race) return NextResponse.json({ message: "Race not found" }, { status: 404 });
     if (race.status !== "REGISTERING") {
       return NextResponse.json({ message: "Betting closed — race already started" }, { status: 400 });
     }
-    const scheme = race.event?.bettingScheme as Record<string, unknown> | null;
+    const scheme = race.seasonRel?.bettingScheme as Record<string, unknown> | null;
     if (!scheme) {
       return NextResponse.json({ message: "No betting scheme on this event" }, { status: 400 });
     }

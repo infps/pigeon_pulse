@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSeasonContext } from "@/lib/season-context";
 import type { DefaulterBreeder, EventInventoryItem, Event } from "@/lib/types";
 import {
   Dialog,
@@ -44,15 +45,18 @@ function getBirdLabel(bird: EventInventoryItem) {
 
 export function DefaultersTab({ eventId, event }: DefaultersTabProps) {
   const qc = useQueryClient();
+  const { selectedSeasonId } = useSeasonContext();
   const [storePriceInputs, setStorePriceInputs] = useState<Record<number, string>>({});
   const [selectBirdsOpen, setSelectBirdsOpen] = useState<DefaulterBreeder | null>(null);
   const [selectedBirdIds, setSelectedBirdIds] = useState<Set<number>>(new Set());
   const [detailsDialogId, setDetailsDialogId] = useState<number | null>(null);
 
   const { data, isPending, isError } = useQuery<DefaultersResponse>({
-    queryKey: ["defaulters", eventId],
-    queryFn: () =>
-      fetch(`/api/admin/event/${eventId}/defaulters`).then((r) => r.json()),
+    queryKey: ["defaulters", eventId, String(selectedSeasonId ?? "")],
+    queryFn: () => {
+      const params = selectedSeasonId ? `?seasonId=${selectedSeasonId}` : "";
+      return fetch(`/api/admin/event/${eventId}/defaulters${params}`).then((r) => r.json());
+    },
   });
 
   const cashPromiseMutation = useMutation({

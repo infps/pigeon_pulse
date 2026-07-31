@@ -22,6 +22,22 @@ export async function POST(
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
+    const url = new URL(request.url);
+    const seasonIdParam = url.searchParams.get("seasonId");
+    let seasonId: number;
+    if (seasonIdParam) {
+      seasonId = parseInt(seasonIdParam);
+    } else {
+      const activeSeason = await prisma.season.findFirst({
+        where: { eventId, isActive: true },
+        orderBy: { startDate: "desc" },
+      });
+      if (!activeSeason) {
+        return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+      }
+      seasonId = activeSeason.id;
+    }
+
     const body = await request.json();
     const preview = body.preview === true;
     const mode: "reset" | "incremental" = body.mode === "incremental" ? "incremental" : "reset";
@@ -40,7 +56,7 @@ export async function POST(
 
     // 1. Source pool — birds currently loft-basketed
     const loftAssignments = await prisma.basketAssignment.findMany({
-      where: { eventBasket: { eventId, phase: "LOFT" } },
+      where: { eventBasket: { seasonId, phase: "LOFT" } },
       include: {
         inventoryItem: {
           include: {
@@ -61,7 +77,7 @@ export async function POST(
 
     // 2. Target race baskets — scoped to this race
     const raceBaskets = await prisma.eventBasket.findMany({
-      where: { eventId, phase: "RACE", raceId },
+      where: { seasonId, phase: "RACE", raceId },
       include: {
         _count: { select: { assignments: true } },
         assignments: {

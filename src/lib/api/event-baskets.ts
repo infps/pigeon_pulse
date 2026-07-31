@@ -2,10 +2,13 @@ import { useApiQuery } from "@/hooks/useApi";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { apiEndpoints } from "../endpoints";
 
-export function useCheckinStatus(eventId: string | number) {
+export function useCheckinStatus(eventId: string | number, seasonId?: number | null) {
+  const params: Record<string, string> = {};
+  if (seasonId) params.seasonId = String(seasonId);
   return useApiQuery({
     endpoint: apiEndpoints.eventBaskets.checkinStatus(eventId),
-    queryKey: ["checkin-status", String(eventId)],
+    queryKey: ["checkin-status", String(eventId), String(seasonId ?? "")],
+    params: Object.keys(params).length > 0 ? params : undefined,
     enabled: !!eventId,
   });
 }
@@ -31,13 +34,15 @@ export function useUncheckBird(eventId: string | number) {
 export function useEventBaskets(
   eventId: string | number,
   phase?: string,
-  raceId?: string | number | null
+  raceId?: string | number | null,
+  seasonId?: number | null
 ) {
   const params: Record<string, string> = {};
   if (phase) params.phase = phase;
   if (raceId !== undefined && raceId !== null && raceId !== "") {
     params.raceId = String(raceId);
   }
+  if (seasonId) params.seasonId = String(seasonId);
   return useApiQuery({
     endpoint: apiEndpoints.eventBaskets.list(eventId),
     queryKey: [
@@ -45,6 +50,7 @@ export function useEventBaskets(
       String(eventId),
       phase ?? "all",
       raceId !== undefined && raceId !== null && raceId !== "" ? String(raceId) : "no-race",
+      String(seasonId ?? ""),
     ],
     params,
     enabled: !!eventId,

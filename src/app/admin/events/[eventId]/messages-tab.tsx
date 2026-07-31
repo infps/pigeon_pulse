@@ -34,6 +34,7 @@ import {
   useUpdateEventMessage,
   useDeleteEventMessage,
 } from "@/lib/api/event-messages";
+import { useSeasonContext } from "@/lib/season-context";
 
 interface Author {
   id: string;
@@ -73,7 +74,8 @@ function authorInitial(a: Author): string {
 }
 
 export function MessagesTab({ eventId }: { eventId: string }) {
-  const { data, isPending, isError, error } = useListAdminEventMessages({ eventId });
+  const { selectedSeasonId } = useSeasonContext();
+  const { data, isPending, isError, error } = useListAdminEventMessages({ eventId, seasonId: selectedSeasonId });
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<EventMessage | null>(null);

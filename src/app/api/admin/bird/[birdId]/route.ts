@@ -65,13 +65,15 @@ export async function GET(
         picture: true,
         inventoryItems: {
           include: {
-            eventInventory: { include: { event: true, breeder: true } },
-            raceItems: { include: { race: true, result: true, bets: { select: { bettorId: true, ownerUserId: true, category: true, tierIndex: true, stakePaymentId: true } } } },
+            eventInventory: { include: { season: { include: { event: true } }, breeder: true } },
+            raceItems: { include: { race: true, result: true, bets: { select: { bettorId: true, ownerUserId: true, category: true, tierIndex: true, amount: true, stakePaymentId: true } } } },
             basketAssignments: {
               include: {
-                eventBasket: { include: { event: true, race: true } },
+                eventBasket: { include: { season: { include: { event: true } }, race: true } },
               },
             },
+            currentGroup: true,
+            tagColorGroup: true,
           },
         },
         lostHistory: { include: { race: true } },
@@ -107,6 +109,10 @@ export async function GET(
       })),
     };
 
+    console.log("[bird-api] inv items:", bird.inventoryItems.map(i => ({
+      id: i.id, eventId: i.eventInventory?.season?.event?.id, currentGroupId: i.currentGroupId, tagColorGroupId: i.tagColorGroupId,
+      currentGroup: (i as any).currentGroup?.name, tagColorGroup: (i as any).tagColorGroup?.name,
+    })));
     return NextResponse.json({ bird: birdOut });
   } catch (error) {
     console.error("Error fetching bird (admin):", error);

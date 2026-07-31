@@ -1,7 +1,15 @@
 import { prisma } from "@/lib/prisma";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function POST(request: Request) {
+function getClientIp(req: NextRequest): string {
+  return (
+    req.headers.get("x-real-ip") ||
+    req.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+    "unknown"
+  );
+}
+
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { rfidTag, scannerId = "python-client" } = body;
@@ -10,10 +18,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "rfidTag required" }, { status: 400 });
     }
 
+    const deviceIp = getClientIp(request);
+
     await prisma.rfidScan.create({
       data: {
         rfidTag: rfidTag.trim(),
         scannerId,
+        deviceIp,
         processed: false,
       },
     });

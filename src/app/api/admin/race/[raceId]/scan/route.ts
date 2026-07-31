@@ -21,14 +21,14 @@ function parseTimestamp(ts: string): Date {
   );
 }
 
-async function assignDefaulterGroup(eventId: number | null, inventoryItemId: number | null, userId: string | null | undefined) {
-  if (!inventoryItemId || !eventId) return;
+async function assignDefaulterGroup(seasonId: number | null, inventoryItemId: number | null, userId: string | null | undefined) {
+  if (!inventoryItemId || !seasonId) return;
   let defaulterGroup = await prisma.eventGroup.findFirst({
-    where: { eventId, type: "DEFAULTER" },
+    where: { seasonId, type: "DEFAULTER" },
   });
   if (!defaulterGroup) {
     defaulterGroup = await prisma.eventGroup.create({
-      data: { eventId, name: "Defaulters", type: "DEFAULTER", hasCapacity: false },
+      data: { seasonId, name: "Defaulters", type: "DEFAULTER", hasCapacity: false },
     });
   }
   await prisma.eventInventoryItem.update({
@@ -114,7 +114,7 @@ export async function POST(
           });
         }
         const eventInv = await tx.eventInventory.create({
-          data: { eventId: race.eventId },
+          data: { seasonId: race.seasonId },
         });
         const invItem = await tx.eventInventoryItem.create({
           data: { birdId: bird.id, eventInventoryId: eventInv.id },
@@ -133,7 +133,7 @@ export async function POST(
         return { foreignRaceItem: ri, invItemId: invItem.id };
       });
 
-      await assignDefaulterGroup(race.eventId, invItemId, session?.user?.id);
+      await assignDefaulterGroup(race.seasonId, invItemId, session?.user?.id);
 
       return NextResponse.json({
         raceItem: foreignRaceItem,
@@ -223,7 +223,7 @@ export async function POST(
         },
       });
 
-      await assignDefaulterGroup(race.eventId, raceItem.inventoryItemId, session?.user?.id);
+      await assignDefaulterGroup(race.seasonId, raceItem.inventoryItemId, session?.user?.id);
 
       return NextResponse.json(
         {
@@ -281,12 +281,12 @@ export async function POST(
     });
     if (statusCode) {
       let statusGroup = await prisma.eventGroup.findFirst({
-        where: { eventId: race.eventId ?? undefined, type: "STATUS", statusCodeId: statusCode.id },
+        where: { seasonId: race.seasonId ?? undefined, type: "STATUS", statusCodeId: statusCode.id },
       });
       if (!statusGroup) {
         statusGroup = await prisma.eventGroup.create({
           data: {
-            eventId: race.eventId!,
+            seasonId: race.seasonId!,
             name: statusCode.label,
             type: "STATUS",
             statusCodeId: statusCode.id ?? undefined,

@@ -70,8 +70,12 @@ export async function GET(req: NextRequest) {
           include: {
             eventInventory: {
               include: {
-                event: {
-                  select: { id: true, name: true, eventDate: true },
+                season: {
+                  include: {
+                    event: {
+                      select: { id: true, name: true, eventDate: true },
+                    },
+                  },
                 },
               },
             },

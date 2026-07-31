@@ -52,6 +52,22 @@ export async function POST(
       return NextResponse.json({ message: "Invalid event ID" }, { status: 400 });
     }
 
+    const url = new URL(request.url);
+    const seasonIdParam = url.searchParams.get("seasonId");
+    let seasonId: number;
+    if (seasonIdParam) {
+      seasonId = parseInt(seasonIdParam);
+    } else {
+      const activeSeason = await prisma.season.findFirst({
+        where: { eventId, isActive: true },
+        orderBy: { startDate: "desc" },
+      });
+      if (!activeSeason) {
+        return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+      }
+      seasonId = activeSeason.id;
+    }
+
     // Parse and validate request body
     const body = await request.json();
     const validatedData = registrationSchema.parse(body);
@@ -60,15 +76,15 @@ export async function POST(
     // Check if event exists and is open
     const event = await prisma.event.findUnique({
       where: { id: eventId },
+    });
+
+    const season = await prisma.season.findFirst({
+      where: { eventId, isActive: true },
       include: {
-        feeScheme: {
-          include: {
-            birdFeeItems: { orderBy: { birdNo: "asc" } },
-            raceTypeFees: true,
-          },
-        },
-        races: true,
+        feeScheme: { include: { birdFeeItems: { orderBy: { birdNo: "asc" } }, raceTypeFees: true } },
+        races: { select: { id: true, raceTypeId: true } },
       },
+      orderBy: { startDate: "desc" },
     });
 
     if (!event) {
@@ -97,6 +113,17 @@ export async function POST(
       );
     }
 
+    // Check for duplicate registration (same breeder + loft)
+    const existingRegistration = await prisma.eventInventory.findFirst({
+      where: { seasonId, breederId, loft: validatedData.loftName },
+    });
+    if (existingRegistration) {
+      return NextResponse.json(
+        { message: "Breeder already registered for this event with this loft" },
+        { status: 400 }
+      );
+    }
+
     // Use a transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
       // Bind loft to a real Team row (create if missing) for the Teams page
@@ -105,7 +132,7 @@ export async function POST(
       // Create EventInventory
       const eventInventory = await tx.eventInventory.create({
         data: {
-          eventId,
+          seasonId,
           breederId,
           teamId,
           loft: validatedData.loftName,
@@ -163,9 +190,9 @@ export async function POST(
         inventoryItems.push({ birdId: item.birdId!, id: item.id });
       }
 
-      // Add birds to any existing races for this event
+      // Add birds to any existing races for this season
       const existingRaces = await tx.race.findMany({
-        where: { eventId },
+        where: { seasonId },
         select: { id: true },
       });
       if (existingRaces.length > 0) {
@@ -179,15 +206,15 @@ export async function POST(
       }
 
       // Calculate fees and populate EventInventoryItem fee fields
-      if (event.feeScheme) {
+      if (season?.feeScheme) {
         const fees = calculateFees({
           numBirds: validatedData.reservedBirds,
           feeScheme: {
-            ...event.feeScheme,
-            birdFeeItems: event.feeScheme.birdFeeItems || [],
-            raceTypeFees: event.feeScheme.raceTypeFees || [],
+            ...season.feeScheme,
+            birdFeeItems: season.feeScheme.birdFeeItems || [],
+            raceTypeFees: season.feeScheme.raceTypeFees || [],
           },
-          races: event.races || [],
+          races: season?.races || [],
         });
 
         // Update each inventory item with per-bird fees

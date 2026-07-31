@@ -9,11 +9,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useGetEventInventory, useCreatePayment, useUpdatePayment, useDeletePayment, useAddPartner, useDeletePartner, useListBreeders } from "@/lib/api/payments";
-import { Download, Plus, Trash2, Edit, UserPlus } from "lucide-react";
+import { useAdminListBirds } from "@/lib/api/admin-birds";
+import { Download, Plus, Trash2, Edit, UserPlus, ArrowLeft } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import type { Event, EventInventory, EventInventoryItem } from "@/lib/types";
 import { EditBirdDialog } from "./edit-bird-dialog";
 import { CreateBirdDialog } from "./create-bird-dialog";
 import { ExportButton } from "./export-button";
+import { BirdDetailDialog } from "./bird-detail-dialog";
 
 const METHOD_LABELS: Record<number, string> = { 0: "Cash", 1: "Credit Card", 2: "PayPal", 3: "Bank Transfer" };
 const TYPE_LABELS: Record<number, string> = { 0: "Perch Fee", 1: "Per Bird Fee", 2: "Races Fee", 3: "Refund", 4: "Other" };
@@ -42,8 +45,8 @@ export function BreederDetailsDialog({
 }: BreederDetailsDialogProps) {
   const [isAddPaymentOpen, setIsAddPaymentOpen] = useState(false);
   const [editingBird, setEditingBird] = useState<EventInventoryItem | null>(null);
-  const [isBirdDialogOpen, setIsBirdDialogOpen] = useState(false);
-  const [isCreateBirdMode, setIsCreateBirdMode] = useState(false);
+  const [view, setView] = useState<"list" | "edit" | "create">("list");
+  const [birdDetailId, setBirdDetailId] = useState<number | null>(null);
   const [editingPayment, setEditingPayment] = useState<any>(null);
   const [addPartnerBreederId, setAddPartnerBreederId] = useState<string>("");
 
@@ -56,6 +59,10 @@ export function BreederDetailsDialog({
 
   const { data, isPending, error, refetch } = useGetEventInventory(eventInventoryId ? String(eventInventoryId) : "");
   const { data: breedersData } = useListBreeders();
+  const breederId = (data as any)?.eventInventory?.breederId;
+  const { data: allBirdsData } = useAdminListBirds(
+    breederId ? { breederId: String(breederId) } : {}
+  );
   const createPaymentMutation = useCreatePayment({
     onSuccess: () => {
       toast.success("Payment added successfully");
@@ -176,20 +183,18 @@ export function BreederDetailsDialog({
   };
 
   const handleBirdClick = (bird: EventInventoryItem) => {
-    setEditingBird(bird);
-    setIsCreateBirdMode(false);
-    setIsBirdDialogOpen(true);
+    setBirdDetailId(bird.birdId ?? bird.bird?.id ?? null);
   };
 
   const handleCreateBird = () => {
     setEditingBird(null);
-    setIsCreateBirdMode(true);
-    setIsBirdDialogOpen(true);
+    setView("create");
   };
 
   const handleBirdEditSuccess = () => {
     setEditingBird(null);
-    setIsCreateBirdMode(false);
+    setView("list");
+    refetch();
   };
 
   const handleAddPartner = async () => {
@@ -277,10 +282,34 @@ export function BreederDetailsDialog({
     );
   }
 
-  const items = eventInventory?.items ?? [];
+  const items: EventInventoryItem[] = eventInventory?.items ?? [];
   const payments = eventInventory?.payments ?? [];
   const partners = eventInventory?.partners ?? [];
   const allBreeders = breedersData?.breeders ?? [];
+
+  // Registered bird IDs for badge lookup
+  const registeredBirdIds = new Set(items.map((i) => i.birdId ?? i.bird?.id).filter(Boolean));
+  const itemByBirdId = new Map(items.map((i) => [i.birdId ?? i.bird?.id, i]));
+
+  // All breeder birds — registered ones get event item data, unregistered show blanks
+  const allBirds: Array<{ bird: any; item: EventInventoryItem | null }> = [];
+  const allBreederBirds: any[] = (allBirdsData as any)?.birds ?? [];
+  // Add all breeder birds
+  for (const b of allBreederBirds) {
+    allBirds.push({ bird: b, item: itemByBirdId.get(b.id) ?? null });
+  }
+  // Add any registered birds not in allBreederBirds (edge case)
+  for (const item of items) {
+    const bId = item.birdId ?? item.bird?.id;
+    if (bId && !allBreederBirds.find((b: any) => b.id === bId)) {
+      allBirds.push({ bird: item.bird, item });
+    }
+  }
+  // Sort: registered first, then by band
+  allBirds.sort((a, b) => {
+    if (!!a.item !== !!b.item) return a.item ? -1 : 1;
+    return (a.bird?.band ?? "").localeCompare(b.bird?.band ?? "");
+  });
 
   // Fee totals
   const totalPerchFee = items.reduce((s, i) => s + (i.entryFeeValue ?? 0), 0);
@@ -317,25 +346,64 @@ export function BreederDetailsDialog({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <div className="flex items-center justify-between">
-              <DialogTitle>Breeder Details</DialogTitle>
-              {eventInventoryId && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.open(`/api/admin/event/${event.id}/event-inventory/${eventInventoryId}/receipt`)}
-                >
-                  <Download className="h-4 w-4 mr-1" />
-                  Receipt
+    <BirdDetailDialog
+      open={birdDetailId !== null}
+      onOpenChange={(o) => { if (!o) setBirdDetailId(null); }}
+      birdId={birdDetailId}
+      eventId={event.id}
+    />
+    <Dialog open={open} onOpenChange={(o) => { if (!o) setView("list"); onOpenChange(o); }}>
+      <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {view !== "list" && (
+                <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => { setView("list"); setEditingBird(null); }}>
+                  <ArrowLeft className="h-4 w-4 mr-1" />Back
                 </Button>
               )}
+              <DialogTitle>
+                {view === "edit" ? "Edit Bird" : view === "create" ? "Add Bird" : "Breeder Details"}
+              </DialogTitle>
             </div>
-          </DialogHeader>
+            {view === "list" && eventInventoryId && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(`/api/admin/event/${event.id}/event-inventory/${eventInventoryId}/receipt`)}
+              >
+                <Download className="h-4 w-4 mr-1" />
+                Receipt
+              </Button>
+            )}
+          </div>
+        </DialogHeader>
 
-          <div className="space-y-6">
+        {view === "edit" && editingBird && (
+          <EditBirdDialog
+            open={false}
+            onOpenChange={() => {}}
+            eventInventoryItem={editingBird}
+            event={event}
+            eventId={event.id}
+            onSuccess={handleBirdEditSuccess}
+            inline
+          />
+        )}
+
+        {view === "create" && (
+          <CreateBirdDialog
+            open={false}
+            onOpenChange={() => {}}
+            eventInventoryId={eventInventoryId!}
+            breederId={eventInventory.breederId ?? 0}
+            event={event}
+            onSuccess={handleBirdEditSuccess}
+            inline
+          />
+        )}
+
+        {view === "list" && <div className="space-y-6">
             {/* Breeder + Partners row */}
             <div className="grid grid-cols-4 gap-4">
               {/* Breeder Info — 3/4 */}
@@ -344,7 +412,7 @@ export function BreederDetailsDialog({
                   ["Name", `${eventInventory?.breeder?.firstName ?? ""} ${eventInventory?.breeder?.lastName ?? ""}`.trim() || "-"],
                   ["Loft", eventInventory.loft || "-"],
                   ["Sign-in Date", fmtDate(eventInventory.signInDate)],
-                  ["Reserved Birds", String(eventInventory.reservedBirds ?? "-")],
+                  ["Reserved Birds", String(items.length)],
                   ["Email", eventInventory?.breeder?.email || "-"],
                   ["Phone", eventInventory?.breeder?.phone || "-"],
                   ["Country", eventInventory?.breeder?.country || "-"],
@@ -663,7 +731,12 @@ export function BreederDetailsDialog({
             {/* Birds Table */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-lg">Birds ({items.length})</h3>
+                <h3 className="font-semibold text-lg">
+                  Birds ({allBirds.length})
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    {items.length} registered
+                  </span>
+                </h3>
                 <Button size="sm" onClick={handleCreateBird}>
                   <Plus className="h-4 w-4 mr-2" />
                   Add Bird
@@ -673,6 +746,7 @@ export function BreederDetailsDialog({
                 <table className="w-full">
                   <thead className="bg-primary">
                     <tr>
+                      <th className="px-3 py-2 text-left text-sm font-medium">Status</th>
                       <th className="px-3 py-2 text-left text-sm font-medium">#</th>
                       <th className="px-3 py-2 text-left text-sm font-medium">Band</th>
                       <th className="px-3 py-2 text-left text-sm font-medium">Name</th>
@@ -680,47 +754,49 @@ export function BreederDetailsDialog({
                       <th className="px-3 py-2 text-left text-sm font-medium">Sex</th>
                       <th className="px-3 py-2 text-center text-sm font-medium">Active</th>
                       <th className="px-3 py-2 text-center text-sm font-medium">Lost</th>
-                      <th className="px-3 py-2 text-left text-sm font-medium">Lost Date</th>
                       <th className="px-3 py-2 text-right text-sm font-medium">Perch Fee</th>
                       <th className="px-3 py-2 text-right text-sm font-medium">Bird Fee</th>
                       <th className="px-3 py-2 text-right text-sm font-medium">Race Fee</th>
                       <th className="px-3 py-2 text-right text-sm font-medium">Hotspot Fee</th>
-                      <th className="px-3 py-2 text-right text-sm font-medium">Entry Refund</th>
                       <th className="px-3 py-2 text-left text-sm font-medium">Arrival</th>
                       <th className="px-3 py-2 text-left text-sm font-medium">Departure</th>
                       <th className="px-3 py-2 text-center text-sm font-medium">Backup</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {items.length === 0 ? (
+                    {allBirds.length === 0 ? (
                       <tr>
-                        <td colSpan={16} className="px-4 py-8 text-center text-muted-foreground">
+                        <td colSpan={15} className="px-4 py-8 text-center text-muted-foreground">
                           No birds found
                         </td>
                       </tr>
                     ) : (
-                      items.map((item) => (
+                      allBirds.map(({ bird, item }, idx) => (
                         <tr
-                          key={item.id}
-                          className="hover:bg-primary/10 cursor-pointer"
-                          onClick={() => handleBirdClick(item)}
+                          key={item?.id ?? `unregistered-${bird?.id ?? idx}`}
+                          className={`cursor-pointer ${item ? "hover:bg-primary/10" : "hover:bg-muted/50 opacity-70"}`}
+                          onClick={() => item ? handleBirdClick(item) : setBirdDetailId(bird?.id ?? null)}
                         >
+                          <td className="px-3 py-2">
+                            {item
+                              ? <Badge className="bg-green-600 text-white text-xs">Registered</Badge>
+                              : <Badge variant="outline" className="text-xs text-muted-foreground">Not registered</Badge>
+                            }
+                          </td>
                           <td className="px-3 py-2 text-sm">{item?.birdNo || "-"}</td>
-                          <td className="px-3 py-2 text-sm">{item?.bird?.band}</td>
-                          <td className="px-3 py-2 text-sm">{item?.bird?.birdName || "-"}</td>
-                          <td className="px-3 py-2 text-sm">{item?.bird?.color || "-"}</td>
-                          <td className="px-3 py-2 text-sm">{item?.bird?.sex != null ? (item.bird.sex === 0 ? "M" : "F") : "-"}</td>
-                          <td className="px-3 py-2 text-sm text-center">{item?.bird?.isActive ? "✓" : "✗"}</td>
-                          <td className="px-3 py-2 text-sm text-center">{item?.bird?.isLost ? "✓" : "-"}</td>
-                          <td className="px-3 py-2 text-sm">{fmtDate(item?.bird?.lostDate)}</td>
-                          <td className="px-3 py-2 text-sm text-right">{fmtMoney(item.entryFeeValue ?? 0)}</td>
-                          <td className="px-3 py-2 text-sm text-right">{fmtMoney(item.perchFeeValue ?? 0)}</td>
-                          <td className="px-3 py-2 text-sm text-right">{fmtMoney(item.raceFeeValue ?? 0)}</td>
-                          <td className="px-3 py-2 text-sm text-right">{fmtMoney(item.hotSpotFeeValue ?? 0)}</td>
-                          <td className="px-3 py-2 text-sm text-right">{fmtMoney(item.entryRefund ?? 0)}</td>
-                          <td className="px-3 py-2 text-sm">{fmtDate(item.arrivalDate)}</td>
-                          <td className="px-3 py-2 text-sm">{fmtDate(item.departureDate)}</td>
-                          <td className="px-3 py-2 text-center text-sm">{item.isBackup ? "✓" : "-"}</td>
+                          <td className="px-3 py-2 text-sm font-mono">{bird?.band || "-"}</td>
+                          <td className="px-3 py-2 text-sm">{bird?.birdName || "-"}</td>
+                          <td className="px-3 py-2 text-sm">{bird?.color || "-"}</td>
+                          <td className="px-3 py-2 text-sm">{bird?.sex != null ? (bird.sex === 0 ? "M" : "F") : "-"}</td>
+                          <td className="px-3 py-2 text-sm text-center">{bird?.isActive ? "✓" : "✗"}</td>
+                          <td className="px-3 py-2 text-sm text-center">{bird?.isLost ? "✓" : "-"}</td>
+                          <td className="px-3 py-2 text-sm text-right">{item ? fmtMoney(item.entryFeeValue ?? 0) : "-"}</td>
+                          <td className="px-3 py-2 text-sm text-right">{item ? fmtMoney(item.perchFeeValue ?? 0) : "-"}</td>
+                          <td className="px-3 py-2 text-sm text-right">{item ? fmtMoney(item.raceFeeValue ?? 0) : "-"}</td>
+                          <td className="px-3 py-2 text-sm text-right">{item ? fmtMoney(item.hotSpotFeeValue ?? 0) : "-"}</td>
+                          <td className="px-3 py-2 text-sm">{item ? fmtDate(item.arrivalDate) : "-"}</td>
+                          <td className="px-3 py-2 text-sm">{item ? fmtDate(item.departureDate) : "-"}</td>
+                          <td className="px-3 py-2 text-center text-sm">{item?.isBackup ? "✓" : "-"}</td>
                         </tr>
                       ))
                     )}
@@ -728,30 +804,9 @@ export function BreederDetailsDialog({
                 </table>
               </div>
             </div>
-          </div>
+          </div>}
         </DialogContent>
       </Dialog>
-
-      <EditBirdDialog
-        open={isBirdDialogOpen && !isCreateBirdMode}
-        onOpenChange={setIsBirdDialogOpen}
-        eventInventoryItem={editingBird}
-        event={event}
-        eventId={event.id}
-        onSuccess={handleBirdEditSuccess}
-      />
-
-      <CreateBirdDialog
-        open={isBirdDialogOpen && isCreateBirdMode}
-        onOpenChange={setIsBirdDialogOpen}
-        eventInventoryId={eventInventoryId!}
-        breederId={eventInventory.breederId ?? 0}
-        event={event}
-        onSuccess={() => {
-          handleBirdEditSuccess();
-          refetch();
-        }}
-      />
     </>
   );
 }

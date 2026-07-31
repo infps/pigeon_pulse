@@ -62,7 +62,7 @@ export async function GET(request: Request) {
           where: { breederId: breederIdInt, teamId: { in: teamIds } },
           select: {
             teamId: true,
-            event: { select: { id: true, name: true } },
+            season: { include: { event: { select: { id: true, name: true } } } },
             items: {
               select: {
                 birdId: true,
@@ -88,7 +88,7 @@ export async function GET(request: Request) {
                     status: true,
                     result: { select: { birdPosition: true } },
                     race: {
-                      select: { id: true, name: true, raceNumber: true, event: { select: { name: true } } },
+                      select: { id: true, name: true, raceNumber: true, seasonRel: { select: { event: { select: { name: true } } } } },
                     },
                   },
                 },
@@ -122,8 +122,8 @@ export async function GET(request: Request) {
           races: new Map<number, string>(),
           events: new Map<number, string>(),
         };
-      if (inv.event?.id != null) {
-        stat.events.set(inv.event.id, inv.event.name ?? `Event ${inv.event.id}`);
+      if (inv.season?.event?.id != null) {
+        stat.events.set(inv.season.event.id, inv.season.event.name ?? `Event ${inv.season.event.id}`);
       }
       for (const item of inv.items) {
         const b = item.bird;
@@ -144,7 +144,7 @@ export async function GET(request: Request) {
           const race = ri.race;
           if (race) {
             const label = race.name?.trim()
-              || (race.event?.name ? `${race.event.name}${race.raceNumber ? ` #${race.raceNumber}` : ""}` : `Race ${race.id}`);
+              || (race.seasonRel?.event?.name ? `${race.seasonRel.event.name}${race.raceNumber ? ` #${race.raceNumber}` : ""}` : `Race ${race.id}`);
             stat.races.set(race.id, label);
           }
         }

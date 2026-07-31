@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import Image from "next/image";
 import { ColumnDef } from "@tanstack/react-table";
 import { Bird as BirdIcon } from "lucide-react";
+import { BirdDetailDialog } from "@/components/bird-detail-dialog";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,6 +61,7 @@ export default function AdminBirdsPage() {
   const [color, setColor] = useState("");
   const [sex, setSex] = useState("");
   const [status, setStatus] = useState("active");
+  const [selectedBirdId, setSelectedBirdId] = useState<number | null>(null);
 
   const filters: AdminBirdsFilters = useMemo(
     () => ({ search, breederId, color, sex, status }),
@@ -132,12 +133,12 @@ export default function AdminBirdsPage() {
         accessorKey: "birdName",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Bird Name" />,
         cell: ({ row }) => (
-          <Link
-            href={`/admin/birds/${row.original.id}`}
-            className="text-primary hover:underline font-medium"
+          <button
+            onClick={() => setSelectedBirdId(row.original.id)}
+            className="text-primary hover:underline font-medium text-left"
           >
             {row.original.birdName || `#${row.original.id}`}
-          </Link>
+          </button>
         ),
       },
       {
@@ -182,7 +183,7 @@ export default function AdminBirdsPage() {
         },
       },
     ],
-    []
+    [setSelectedBirdId]
   );
 
   return (
@@ -289,6 +290,13 @@ export default function AdminBirdsPage() {
       ) : (
         <DataTable columns={columns} data={birds} />
       )}
+
+      <BirdDetailDialog
+        open={selectedBirdId !== null}
+        onOpenChange={(o) => { if (!o) setSelectedBirdId(null); }}
+        birdId={selectedBirdId}
+        eventId={null}
+      />
     </div>
   );
 }

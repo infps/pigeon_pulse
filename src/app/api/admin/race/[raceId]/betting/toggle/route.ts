@@ -32,10 +32,10 @@ export async function POST(
     const newValue = !race.bettingOpen;
 
     // Enforce one-at-a-time: if opening, ensure no other race in same event is open
-    if (newValue && race.eventId) {
+    if (newValue && race.seasonId) {
       const alreadyOpen = await prisma.race.findFirst({
         where: {
-          eventId: race.eventId,
+          seasonId: race.seasonId,
           bettingOpen: true,
           id: { not: raceIdInt },
         },

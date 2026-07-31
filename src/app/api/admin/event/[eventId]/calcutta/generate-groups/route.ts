@@ -2,8 +2,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
 export async function POST(
-  _req: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   const { eventId: eventIdParam } = await params;
@@ -15,11 +16,27 @@ export async function POST(
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const config = await prisma.calcuttaConfig.findUnique({ where: { eventId } });
+  const url = new URL(request.url);
+  const seasonIdParam = url.searchParams.get("seasonId");
+  let seasonId: number;
+  if (seasonIdParam) {
+    seasonId = parseInt(seasonIdParam);
+  } else {
+    const activeSeason = await prisma.season.findFirst({
+      where: { eventId, isActive: true },
+      orderBy: { startDate: "desc" },
+    });
+    if (!activeSeason) {
+      return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+    }
+    seasonId = activeSeason.id;
+  }
+
+  const config = await prisma.calcuttaConfig.findUnique({ where: { seasonId } });
   if (!config) return NextResponse.json({ message: "Config not found. Set up Calcutta config first." }, { status: 404 });
 
   const inventories = await prisma.eventInventory.findMany({
-    where: { eventId },
+    where: { seasonId },
     select: {
       id: true,
       breeder: { select: { firstName: true, lastName: true } },
@@ -71,14 +88,14 @@ export async function POST(
   const created = await prisma.$transaction(async (tx) => {
     // Delete only PENDING groups (preserve EARLY_BOUGHT/SOLD/HOUSE)
     await tx.calcuttaBetGroup.deleteMany({
-      where: { eventId, status: "PENDING" },
+      where: { seasonId, status: "PENDING" },
     });
 
     const newGroups = await Promise.all(
       groups.map((g, i) =>
         tx.calcuttaBetGroup.create({
           data: {
-            eventId,
+            seasonId,
             groupNumber: i + 1,
             birdCount: g.birdCount,
             calculatedPrice: pricePerBird * g.birdCount,

@@ -119,9 +119,6 @@ export const createBreedersColumns = (
     cell: ({ row }) => {
       const payments = row.original.payments ?? [];
       const items = row.original.items ?? [];
-      if (payments.length > 0) {
-        console.log(`[status] ${row.original.breeder?.firstName} | payments:`, payments.map(p => ({ type: p.paymentType, typeofType: typeof p.paymentType, val: p.paymentValue, desc: p.paymentDesc })));
-      }
       const status = computePaymentStatus(items, payments);
       switch (status) {
         case "PAID":

@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       },
       include: {
         eventInventory: {
-          include: { event: { select: { name: true } } },
+          include: { season: { include: { event: { select: { name: true } } } } },
         },
       },
     });
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     }
 
     // Create PayPal order
-    const eventNames = [...new Set(payments.map(p => p.eventInventory?.event?.name).filter(Boolean))];
+    const eventNames = [...new Set(payments.map(p => p.eventInventory?.season?.event?.name).filter(Boolean))];
     const description = `Payment for ${eventNames.join(", ") || "events"}`;
 
     const requestBody = new paypal.orders.OrdersCreateRequest();

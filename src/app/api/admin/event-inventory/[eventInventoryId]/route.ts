@@ -23,56 +23,42 @@ export async function GET(
     }
 
     const eventInventory = await prisma.eventInventory.findUnique({
-      where: {
-        id: eventInventoryId,
-      },
+      where: { id: eventInventoryId },
       include: {
         breeder: true,
-        event: {
+        season: {
           include: {
             bettingScheme: true,
-            feeScheme: {
-              include: {
-                birdFeeItems: true,
-              },
-            },
+            feeScheme: { include: { birdFeeItems: true } },
           },
         },
-        payments: {
-          orderBy: {
-            paymentDate: "desc",
-          },
-        },
-        partners: {
-          include: {
-            breeder: true,
-          },
-        },
-        items: {
-          include: {
-            bird: true,
-          },
-          orderBy: {
-            birdNo: "asc",
-          },
-        },
+        payments: { orderBy: { paymentDate: "desc" } },
+        partners: { include: { breeder: true } },
+        items: { include: { bird: true }, orderBy: { birdNo: "asc" } },
       },
     });
 
     if (!eventInventory) {
-      return NextResponse.json(
-        { message: "Event inventory not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ message: "Event inventory not found" }, { status: 404 });
     }
 
-    return NextResponse.json(
-      {
-        eventInventory,
-        message: "Event inventory fetched successfully",
-      },
-      { status: 200 }
-    );
+    // Merge items from sibling records (same breeder + event, different inventory ID)
+    if (eventInventory.breederId && eventInventory.seasonId) {
+      const siblings = await prisma.eventInventory.findMany({
+        where: {
+          breederId: eventInventory.breederId,
+          seasonId: eventInventory.seasonId,
+          id: { not: eventInventoryId },
+        },
+        include: { items: { include: { bird: true }, orderBy: { birdNo: "asc" } } },
+      });
+      if (siblings.length > 0) {
+        const extraItems = siblings.flatMap((s) => s.items);
+        (eventInventory as any).items = [...eventInventory.items, ...extraItems];
+      }
+    }
+
+    return NextResponse.json({ eventInventory, message: "Event inventory fetched successfully" }, { status: 200 });
   } catch (error) {
     console.error("Error fetching event inventory:", error);
     return NextResponse.json(

@@ -25,6 +25,7 @@ interface CreateBirdDialogProps {
   breederId: number;
   event: Event;
   onSuccess?: () => void;
+  inline?: boolean;
 }
 
 export function CreateBirdDialog({
@@ -34,6 +35,7 @@ export function CreateBirdDialog({
   breederId,
   event,
   onSuccess,
+  inline,
 }: CreateBirdDialogProps) {
   const createMutation = useCreateBird({
     onSuccess: () => {
@@ -169,12 +171,7 @@ export function CreateBirdDialog({
     await createMutation.mutateAsync(data);
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Create New Bird</DialogTitle>
-        </DialogHeader>
+  const form = (
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Band Information - 6 columns with separators */}
           <div className="space-y-4">
@@ -537,14 +534,27 @@ export function CreateBirdDialog({
 
           {/* Actions */}
           <div className="flex justify-end space-x-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
+            {!inline && (
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+            )}
             <Button type="submit" disabled={createMutation.isPending}>
               {createMutation.isPending ? "Creating..." : "Create Bird"}
             </Button>
           </div>
         </form>
+  );
+
+  if (inline) return form;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Create New Bird</DialogTitle>
+        </DialogHeader>
+        {form}
       </DialogContent>
     </Dialog>
   );

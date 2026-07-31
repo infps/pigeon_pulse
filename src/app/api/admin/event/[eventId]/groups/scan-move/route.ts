@@ -16,17 +16,33 @@ export async function POST(
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
+  const url = new URL(request.url);
+  const seasonIdParam = url.searchParams.get("seasonId");
+  let seasonId: number;
+  if (seasonIdParam) {
+    seasonId = parseInt(seasonIdParam);
+  } else {
+    const activeSeason = await prisma.season.findFirst({
+      where: { eventId, isActive: true },
+      orderBy: { startDate: "desc" },
+    });
+    if (!activeSeason) {
+      return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+    }
+    seasonId = activeSeason.id;
+  }
+
   const { rfid, targetGroupId } = await request.json();
   if (!rfid || !targetGroupId) return NextResponse.json({ message: "rfid and targetGroupId required" }, { status: 400 });
 
-  const targetGroup = await prisma.eventGroup.findFirst({ where: { id: targetGroupId, eventId } });
+  const targetGroup = await prisma.eventGroup.findFirst({ where: { id: targetGroupId, seasonId } });
   if (!targetGroup) return NextResponse.json({ message: "Target group not found" }, { status: 404 });
 
   const bird = await prisma.bird.findFirst({ where: { rfid: rfid.trim() } });
   if (!bird) return NextResponse.json({ message: `No bird with RFID ${rfid}`, notFound: true }, { status: 404 });
 
   const item = await prisma.eventInventoryItem.findFirst({
-    where: { birdId: bird.id, eventInventory: { eventId } },
+    where: { birdId: bird.id, eventInventory: { seasonId } },
     include: { currentGroup: { select: { id: true, name: true } } },
   });
   if (!item) return NextResponse.json({ message: "Bird not registered in this event", notFound: true }, { status: 404 });

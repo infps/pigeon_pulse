@@ -3,6 +3,20 @@ import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+async function resolveSeasonId(request: Request, eventId: number): Promise<number | NextResponse> {
+  const { searchParams } = new URL(request.url);
+  const seasonIdParam = searchParams.get("seasonId");
+  if (seasonIdParam) return parseInt(seasonIdParam);
+  const activeSeason = await prisma.season.findFirst({
+    where: { eventId, isActive: true },
+    orderBy: { startDate: "desc" },
+  });
+  if (!activeSeason) {
+    return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+  }
+  return activeSeason.id;
+}
+
 async function resolveEventId(params: Promise<{ eventId: string }>) {
   const { eventId: p } = await params;
   const id = parseInt(p);
@@ -10,7 +24,7 @@ async function resolveEventId(params: Promise<{ eventId: string }>) {
 }
 
 export async function GET(
-  _req: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   const eventId = await resolveEventId(params);
@@ -21,8 +35,11 @@ export async function GET(
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
+  const seasonId = await resolveSeasonId(request, eventId);
+  if (seasonId instanceof NextResponse) return seasonId;
+
   const groups = await prisma.eventGroup.findMany({
-    where: { eventId },
+    where: { seasonId },
     orderBy: { createdAt: "asc" },
     include: {
       statusCode: { select: { id: true, code: true, label: true, color: true } },
@@ -62,6 +79,9 @@ export async function POST(
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
+  const seasonId = await resolveSeasonId(request, eventId);
+  if (seasonId instanceof NextResponse) return seasonId;
+
   const body = await request.json().catch(() => ({}));
   const { name, type = "LOFT", color, statusCodeId, notes, hasCapacity = true, capacity } = body;
 
@@ -69,7 +89,7 @@ export async function POST(
 
   const group = await prisma.eventGroup.create({
     data: {
-      eventId,
+      seasonId,
       name,
       type,
       color: color || null,

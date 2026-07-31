@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { RouteConfig, RouteSample } from "@/lib/map/types";
+import type { RouteConfig, RouteSample, WindyOverlay } from "@/lib/map/types";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -36,49 +36,122 @@ function popupHtml(s: RouteSample): string {
     </div>`;
 }
 
-export default function WindyRaceMap({ config }: { config: RouteConfig | null }) {
-  const layerRef = useRef<any>(null);
+type Props = {
+  config: RouteConfig | null;
+  /** Active Windy weather overlay */
+  overlay?: WindyOverlay;
+};
 
-  // Boot Windy embed once per page lifetime (stored on window)
+/**
+ * Original route drawing (restored): default Leaflet panes, L.marker + circleMarkers,
+ * fitBounds padding [40,40]. No custom z-index panes that hid points under weather.
+ */
+export default function WindyRaceMap({ config, overlay = "wind" }: Props) {
+  const overlayRef = useRef(overlay);
+  overlayRef.current = overlay;
+  const configRef = useRef(config);
+  configRef.current = config;
+
+  // Boot Windy once; always paint latest config from ref
   useEffect(() => {
     const key = process.env.NEXT_PUBLIC_WINDY_MAP_KEY;
-    if (!key) { console.error("NEXT_PUBLIC_WINDY_MAP_KEY not set"); return; }
+    if (!key) {
+      console.error("NEXT_PUBLIC_WINDY_MAP_KEY not set");
+      return;
+    }
     const win = window as any;
 
     (async () => {
       await loadScript("https://unpkg.com/leaflet@1.4.0/dist/leaflet.js");
       await loadScript("https://api.windy.com/assets/map-forecast/libBoot.js");
 
+      const paint = (api: any) => {
+        applyOverlay(api, overlayRef.current, configRef.current?.meta?.startTimeMs ?? null);
+        drawRoute(api, configRef.current);
+      };
+
+      // Drop stale instance (HMR / remount left map on a detached #windy)
+      if (win.__windyApi) {
+        const container = win.__windyApi.map?.getContainer?.() as HTMLElement | undefined;
+        if (!container || !document.body.contains(container)) {
+          win.__windyApi = null;
+          win.__windyRouteLayer = null;
+        }
+      }
+
       if (!win.__windyApi) {
+        const cfg = configRef.current;
+        const lat = cfg?.release.lat ?? 27;
+        const lon = cfg?.release.lon ?? -81;
         win.windyInit?.(
-          { key, lat: 27, lon: -81, zoom: 5 },
+          {
+            key,
+            lat,
+            lon,
+            zoom: 7,
+            overlay: overlayRef.current,
+            hourFormat: "12h",
+          },
           (api: any) => {
             win.__windyApi = api;
-            drawRoute(api, config);
+            paint(api);
           }
         );
       } else {
-        drawRoute(win.__windyApi, config);
+        paint(win.__windyApi);
       }
     })().catch(console.error);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Redraw when config arrives
+  // Redraw when route data arrives / changes
   useEffect(() => {
     const win = window as any;
-    if (win.__windyApi && config) drawRoute(win.__windyApi, config);
+    if (win.__windyApi && config) {
+      applyOverlay(win.__windyApi, overlayRef.current, config.meta?.startTimeMs ?? null);
+      drawRoute(win.__windyApi, config);
+    }
   }, [config]);
+
+  // Switch Windy layer only (Wind / Gusts / Rain / Temp / Clouds / Pressure)
+  useEffect(() => {
+    const win = window as any;
+    if (!win.__windyApi?.store) return;
+    applyOverlay(win.__windyApi, overlay, configRef.current?.meta?.startTimeMs ?? null);
+  }, [overlay]);
 
   return <div id="windy" style={{ width: "100%", height: "100%" }} />;
 }
 
+function applyOverlay(api: any, overlay: WindyOverlay, startTimeMs: number | null) {
+  try {
+    const store = api.store;
+    if (!store) return;
+    store.set("overlay", overlay);
+    if (overlay === "wind" || overlay === "gust") {
+      store.set("particlesAnim", "on");
+    } else {
+      store.set("particlesAnim", "off");
+    }
+    if (startTimeMs && Number.isFinite(startTimeMs)) {
+      store.set("timestamp", startTimeMs);
+    }
+  } catch (e) {
+    console.warn("Windy overlay switch failed", e);
+  }
+}
+
+/** Original drawRoute — identical behavior to first implementation */
 function drawRoute(api: any, config: RouteConfig | null) {
-  if (!config) return;
+  if (!config?.samples?.length) return;
   const L = (window as any).L;
   const win = window as any;
   if (win.__windyRouteLayer) {
-    try { api.map.removeLayer(win.__windyRouteLayer); } catch (_) {}
+    try {
+      api.map.removeLayer(win.__windyRouteLayer);
+    } catch (_) {
+      /* ignore */
+    }
   }
 
   const group = L.layerGroup();
@@ -89,7 +162,7 @@ function drawRoute(api: any, config: RouteConfig | null) {
     { color: "#2563eb", weight: 3, opacity: 0.9 }
   ).addTo(group);
 
-  // Release + destination markers
+  // Release + destination markers (default Leaflet markers)
   L.marker([config.release.lat, config.release.lon])
     .bindTooltip(config.release.label || "Release", { permanent: false })
     .addTo(group);
@@ -97,7 +170,7 @@ function drawRoute(api: any, config: RouteConfig | null) {
     .bindTooltip(config.dest.label || "Destination", { permanent: false })
     .addTo(group);
 
-  // Clickable dots every ~N samples
+  // Clickable dots every ~N samples (wind-kind fill)
   const step = Math.max(1, Math.floor(config.samples.length / 60));
   config.samples.forEach((s, i) => {
     if (i % step !== 0) return;

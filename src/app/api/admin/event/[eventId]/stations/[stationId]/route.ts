@@ -27,6 +27,20 @@ async function requireAccess(eventId: number) {
   return { session };
 }
 
+async function resolveSeasonId(request: Request, eventId: number): Promise<number | NextResponse> {
+  const { searchParams } = new URL(request.url);
+  const seasonIdParam = searchParams.get("seasonId");
+  if (seasonIdParam) return parseInt(seasonIdParam);
+  const activeSeason = await prisma.season.findFirst({
+    where: { eventId, isActive: true },
+    orderBy: { startDate: "desc" },
+  });
+  if (!activeSeason) {
+    return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+  }
+  return activeSeason.id;
+}
+
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ eventId: string; stationId: string }> },
@@ -42,11 +56,14 @@ export async function PUT(
     const access = await requireAccess(eventId);
     if (access.error) return access.error;
 
+    const seasonId = await resolveSeasonId(req, eventId);
+    if (seasonId instanceof NextResponse) return seasonId;
+
     const body = await req.json();
     const { name, miles, km, latitude, longitude, isActive, raceTypeId } = body || {};
 
     const existing = await prisma.raceStation.findFirst({
-      where: { id: stationId, eventId },
+      where: { id: stationId, seasonId },
     });
     if (!existing) {
       return NextResponse.json({ message: "Station not found" }, { status: 404 });
@@ -91,7 +108,7 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ eventId: string; stationId: string }> },
 ) {
   try {
@@ -105,8 +122,11 @@ export async function DELETE(
     const access = await requireAccess(eventId);
     if (access.error) return access.error;
 
+    const seasonId = await resolveSeasonId(req, eventId);
+    if (seasonId instanceof NextResponse) return seasonId;
+
     const existing = await prisma.raceStation.findFirst({
-      where: { id: stationId, eventId },
+      where: { id: stationId, seasonId },
     });
     if (!existing) {
       return NextResponse.json({ message: "Station not found" }, { status: 404 });

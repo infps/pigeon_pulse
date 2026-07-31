@@ -69,7 +69,13 @@ export async function GET(
     where: { id: raceId },
     include: {
       raceStation: true,
-      event: { select: { name: true, latitude: true, longitude: true } },
+      raceType: { select: { name: true } },
+      seasonRel: {
+        select: {
+          name: true,
+          event: { select: { name: true, latitude: true, longitude: true } },
+        },
+      },
     },
   });
 
@@ -77,8 +83,8 @@ export async function GET(
 
   const stLat = race.raceStation?.latitude;
   const stLon = race.raceStation?.longitude;
-  const evLat = race.event?.latitude;
-  const evLon = race.event?.longitude;
+  const evLat = race.seasonRel?.event?.latitude;
+  const evLon = race.seasonRel?.event?.longitude;
 
   if (!stLat || !stLon || !evLat || !evLon) {
     return NextResponse.json(
@@ -127,8 +133,15 @@ export async function GET(
   const config: RouteConfig = {
     flightBearing,
     release: { lat: stLat, lon: stLon, label: race.raceStation?.name ?? "Release" },
-    dest: { lat: evLat, lon: evLon, label: race.event?.name ?? "Loft" },
+    dest: { lat: evLat, lon: evLon, label: race.seasonRel?.event?.name ?? "Loft" },
     samples,
+    meta: {
+      eventName: race.seasonRel?.event?.name?.trim() || "Event",
+      seasonName: race.seasonRel?.name?.trim() || "",
+      raceName: race.name?.trim() || `Race ${race.id}`,
+      raceTypeName: race.raceType?.name?.trim() || "",
+      startTimeMs: race.startTime ? new Date(race.startTime).getTime() : null,
+    },
   };
 
   return NextResponse.json(config);

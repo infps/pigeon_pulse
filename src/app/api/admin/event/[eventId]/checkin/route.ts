@@ -20,6 +20,22 @@ export async function POST(
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
+    const url = new URL(request.url);
+    const seasonIdParam = url.searchParams.get("seasonId");
+    let seasonId: number;
+    if (seasonIdParam) {
+      seasonId = parseInt(seasonIdParam);
+    } else {
+      const activeSeason = await prisma.season.findFirst({
+        where: { eventId, isActive: true },
+        orderBy: { startDate: "desc" },
+      });
+      if (!activeSeason) {
+        return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+      }
+      seasonId = activeSeason.id;
+    }
+
     const body = await request.json();
     const { eventInventoryItemId, rfid } = body;
 
@@ -30,11 +46,11 @@ export async function POST(
       );
     }
 
-    // Validate item belongs to this event
+    // Validate item belongs to this season
     const item = await prisma.eventInventoryItem.findFirst({
       where: {
         id: eventInventoryItemId,
-        eventInventory: { eventId },
+        eventInventory: { seasonId },
       },
       include: { bird: { select: { id: true } } },
     });
@@ -80,6 +96,22 @@ export async function DELETE(
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
+    const url = new URL(request.url);
+    const seasonIdParam = url.searchParams.get("seasonId");
+    let seasonId: number;
+    if (seasonIdParam) {
+      seasonId = parseInt(seasonIdParam);
+    } else {
+      const activeSeason = await prisma.season.findFirst({
+        where: { eventId, isActive: true },
+        orderBy: { startDate: "desc" },
+      });
+      if (!activeSeason) {
+        return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+      }
+      seasonId = activeSeason.id;
+    }
+
     const body = await request.json();
     const { eventInventoryItemId } = body;
 
@@ -93,7 +125,7 @@ export async function DELETE(
     const item = await prisma.eventInventoryItem.findFirst({
       where: {
         id: eventInventoryItemId,
-        eventInventory: { eventId },
+        eventInventory: { seasonId },
       },
       include: { bird: { select: { id: true } } },
     });

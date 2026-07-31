@@ -101,8 +101,7 @@ DO $$ BEGIN ALTER TABLE "BirdVaccinationRecord" ADD CONSTRAINT "BirdVaccinationR
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN ALTER TABLE "BirdVaccinationRecord" ADD CONSTRAINT "BirdVaccinationRecord_inventoryItemId_fkey" FOREIGN KEY ("inventoryItemId") REFERENCES "EventInventoryItem"("ID_EVENT_INVENTORY_ITEM") ON DELETE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN ALTER TABLE "BirdVaccinationRecord" ADD CONSTRAINT "BirdVaccinationRecord_uq" UNIQUE ("vaccinationRecordId", "inventoryItemId");
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS "BirdVaccinationRecord_uq" ON "BirdVaccinationRecord"("vaccinationRecordId", "inventoryItemId");
 
 -- === 5. EventInventoryItem: new group FK columns ===
 

@@ -16,7 +16,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 
 type Nullable<T> = T | null | undefined;
 
-type BetMeta = { bettorId: string; ownerUserId: string | null; category: string; tierIndex: number; stakePaymentId: number | null; stakePaid: boolean };
+type BetMeta = { bettorId: string; ownerUserId: string | null; category: string; tierIndex: number; amount: number; stakePaymentId: number | null; stakePaid: boolean };
 
 interface RaceItemView {
   id: number;
@@ -94,6 +94,8 @@ export interface InventoryItemView {
   raceItems?: Nullable<RaceItemView[]>;
   basketAssignments?: Nullable<BasketAssignmentView[]>;
   signInDateEvent?: Nullable<string>;
+  currentGroup?: Nullable<{ id: number; name: string; color: Nullable<string>; type: string }>;
+  tagColorGroup?: Nullable<{ id: number; name: string; color: Nullable<string>; type: string }>;
 }
 
 interface Props {

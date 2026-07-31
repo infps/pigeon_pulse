@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useMemo } from "react";
+import { useSeasonContext } from "@/lib/season-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,7 +44,8 @@ interface CheckinTabProps {
 
 export function CheckinTab({ eventId }: CheckinTabProps) {
   const qc = useQueryClient();
-  const { data, isPending, refetch } = useCheckinStatus(eventId);
+  const { selectedSeasonId } = useSeasonContext();
+  const { data, isPending, refetch } = useCheckinStatus(eventId, selectedSeasonId);
   const checkinMutation = useCheckinBird(eventId);
   const uncheckMutation = useUncheckBird(eventId);
   const scanLoftMutation = useScanLoftBasket(eventId);
@@ -52,15 +54,31 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
   const [selectedItem, setSelectedItem] = useState<CheckinStatusItem | null>(null);
   const [rfidInput, setRfidInput] = useState("");
   const [isPollActive, setIsPollActive] = useState(false);
+  const pollStartedAtRef = useRef<string | null>(null);
   const [breederFilter, setBreederFilter] = useState<string>("all");
   const [capacityWarningOpen, setCapacityWarningOpen] = useState(false);
-  const [capacityWarningInfo, setCapacityWarningInfo] = useState<{ groupNo: number; pct: number } | null>(null);
+  const [capacityWarningInfo, setCapacityWarningInfo] = useState<{ groupNo: string; pct: number } | null>(null);
 
-  const { data: groupsData } = useQuery<Array<{ id: number; groupNo: number; status: string; capacity: number; _count: { members: number } }>>({
-    queryKey: ["loft-groups", eventId],
-    queryFn: () => fetch(`/api/admin/event/${eventId}/loft-groups`).then((r) => r.json()),
+  type LoftGroup = { id: number; name: string; type: string; status: string; color: string | null; capacity: number | null; _count: { members: number } };
+  const { data: groupsRaw } = useQuery<{ groups: LoftGroup[] }>({
+    queryKey: ["groups", eventId, selectedSeasonId],
+    queryFn: () => {
+      const url = new URL(`/api/admin/event/${eventId}/groups`, window.location.origin);
+      if (selectedSeasonId) url.searchParams.set("seasonId", String(selectedSeasonId));
+      return fetch(url.toString()).then((r) => r.json());
+    },
   });
-  const activeGroup = groupsData?.find((g) => g.status === "OPEN");
+  const loftGroups = (groupsRaw?.groups ?? []).filter((g) => g.status === "OPEN" || g.type === "LOFT").filter((g: any) => g.type === "LOFT");
+  const activeGroup = loftGroups.find((g) => g.status === "OPEN") ?? null;
+
+  // group override in link dialog (defaults to active)
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  const targetGroup = loftGroups.find((g) => g.id === (selectedGroupId ?? activeGroup?.id)) ?? activeGroup;
+
+  // post-scan result
+  type ScanResult = { birdLabel: string; group: { name: string; color: string | null }; tagColorGroup?: { name: string } | null };
+  const [lastScanResult, setLastScanResult] = useState<ScanResult | null>(null);
+
   const lastScannedRfidRef = useRef<string | null>(null);
   const scannerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const selectedItemRef = useRef<CheckinStatusItem | null>(null);
@@ -137,18 +155,24 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
   const handleScanSuccess = useCallback(
     (result: any, birdLabel: string) => {
       if (result?.alreadyAssigned) {
-        toast.info(`Already in Group ${result.groupNo ?? ""}`);
+        toast.info(`Already in group "${result.groupName ?? result.groupId}"`);
         return;
       }
-      toast.success(`Scanned: ${birdLabel} → Group ${result?.loftGroup?.groupNo ?? ""}`);
-      if (result?.capacityWarning && result?.loftGroup) {
+      const grp = result?.group;
+      setLastScanResult({
+        birdLabel,
+        group: { name: grp?.name ?? "?", color: grp?.color ?? null },
+        tagColorGroup: result?.tagColorGroup ?? null,
+      });
+      toast.success(`Scanned: ${birdLabel} → ${grp?.name ?? "group"}`);
+      if (result?.capacityWarning && grp) {
         setCapacityWarningInfo({
-          groupNo: result.loftGroup.groupNo,
-          pct: Math.round((result.loftGroup.memberCount / result.loftGroup.capacity) * 100),
+          groupNo: grp.name,
+          pct: Math.round((grp.memberCount / grp.capacity) * 100),
         });
         setCapacityWarningOpen(true);
       }
-      qc.invalidateQueries({ queryKey: ["loft-groups", eventId] });
+      qc.invalidateQueries({ queryKey: ["groups", eventId] });
       refetch();
     },
     [qc, eventId, refetch]
@@ -159,19 +183,21 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
       toast.error("Enter an RFID tag");
       return;
     }
-    if (!activeGroup) {
-      toast.error("No active group. Create a group in the Groups tab first.");
+    if (!targetGroup) {
+      toast.error("No active group. Create a LOFT group in the Groups tab first.");
       return;
     }
     try {
       const result = await scanLoftMutation.mutateAsync({
         eventInventoryItemId: selectedItem.id,
         rfid: rfidInput.trim(),
+        groupId: targetGroup.id,
       });
       setLinkDialogOpen(false);
       setSelectedItem(null);
       setRfidInput("");
-      handleScanSuccess(result, selectedItem.bird?.birdName || "bird");
+      setSelectedGroupId(null);
+      handleScanSuccess(result, selectedItem.bird?.birdName || selectedItem.bird?.band || "bird");
     } catch (error: any) {
       toast.error(error?.message || "Failed to scan");
     }
@@ -185,23 +211,24 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
         toast.warning("Select a bird first (click a row)");
         return;
       }
-      if (!activeGroup) {
-        toast.error("No active group. Create a group in the Groups tab first.");
+      if (!targetGroup) {
+        toast.error("No active group. Create a LOFT group in the Groups tab first.");
         return;
       }
       try {
         const res = await scanLoftMutation.mutateAsync({
           eventInventoryItemId: current.id,
           rfid,
+          groupId: targetGroup.id,
         });
         setSelectedItem(null);
         setLinkDialogOpen(false);
-        handleScanSuccess(res as any, current.bird?.birdName || "bird");
+        handleScanSuccess(res as any, current.bird?.birdName || current.bird?.band || "bird");
       } catch (error: any) {
         toast.error(error?.message || "Scan failed");
       }
     },
-    [scanLoftMutation, activeGroup, handleScanSuccess]
+    [scanLoftMutation, targetGroup, handleScanSuccess]
   );
 
   // Direct from web serial
@@ -223,11 +250,16 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
     if (isSerialActive) disconnectSerial(); // mutually exclusive
     setIsPollActive(true);
     lastScannedRfidRef.current = null;
+    pollStartedAtRef.current = new Date().toISOString();
     toast.success("Poll scanner started — select a bird then scan");
 
     scannerIntervalRef.current = setInterval(async () => {
       try {
-        const res = await fetch("/api/scanner/poll", { method: "POST" });
+        const res = await fetch("/api/scanner/poll", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ startedAt: pollStartedAtRef.current }),
+        });
         const data = await res.json();
         if (data && data.length > 0 && data[0].el) {
           const rfid = data[0].el;
@@ -254,6 +286,7 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
     }
     setIsPollActive(false);
     lastScannedRfidRef.current = null;
+    pollStartedAtRef.current = null;
     toast.info("Poll scanner stopped");
   }, []);
 
@@ -290,24 +323,51 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
     <div className="space-y-4">
       {/* Active group status bar */}
       {activeGroup ? (
-        <div className={`flex items-center justify-between rounded-lg border px-4 py-2 ${activeGroup._count.members / activeGroup.capacity >= 0.85 ? "border-amber-400 bg-amber-50" : "border-green-300 bg-green-50"}`}>
+        <div className={`flex items-center justify-between rounded-lg border px-4 py-2 ${activeGroup.capacity && activeGroup._count.members / activeGroup.capacity >= 0.85 ? "border-amber-400 bg-amber-50" : "border-green-300 bg-green-50"}`}>
           <div className="flex items-center gap-3">
-            {activeGroup._count.members / activeGroup.capacity >= 0.85 && (
+            {activeGroup.capacity && activeGroup._count.members / activeGroup.capacity >= 0.85 && (
               <AlertTriangle className="h-4 w-4 text-amber-500" />
             )}
-            <span className="font-medium text-sm">Group {activeGroup.groupNo}</span>
+            {activeGroup.color && <div className="w-3 h-3 rounded-full border shrink-0" style={{ backgroundColor: activeGroup.color }} />}
+            <span className="font-medium text-sm">{activeGroup.name}</span>
             <Badge variant="default" className="text-xs">OPEN</Badge>
-            <span className="text-sm text-muted-foreground">
-              {activeGroup._count.members} / {activeGroup.capacity} birds
-              {" "}({Math.round((activeGroup._count.members / activeGroup.capacity) * 100)}%)
-            </span>
+            {activeGroup.capacity && (
+              <span className="text-sm text-muted-foreground">
+                {activeGroup._count.members} / {activeGroup.capacity} birds
+                {" "}({Math.round((activeGroup._count.members / activeGroup.capacity) * 100)}%)
+              </span>
+            )}
           </div>
           <span className="text-xs text-muted-foreground">Scan to add birds to this group</span>
         </div>
       ) : (
         <div className="flex items-center gap-2 rounded-lg border border-dashed px-4 py-2 text-sm text-muted-foreground">
           <AlertTriangle className="h-4 w-4" />
-          No active group — go to the <strong className="mx-1">Groups</strong> tab to create one before scanning
+          No active group — go to the <strong className="mx-1">Groups</strong> tab to open one before scanning
+        </div>
+      )}
+
+      {/* Post-scan result panel */}
+      {lastScanResult && (
+        <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="h-5 w-5 text-blue-600 shrink-0" />
+            <div>
+              <p className="text-sm font-medium">{lastScanResult.birdLabel}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-xs text-muted-foreground">Loft:</span>
+                {lastScanResult.group.color && <div className="w-2.5 h-2.5 rounded-full border" style={{ backgroundColor: lastScanResult.group.color }} />}
+                <span className="text-xs font-medium">{lastScanResult.group.name}</span>
+                {lastScanResult.tagColorGroup && (
+                  <>
+                    <span className="text-xs text-muted-foreground ml-2">Tag:</span>
+                    <span className="text-xs font-medium">{lastScanResult.tagColorGroup.name}</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+          <button onClick={() => setLastScanResult(null)} className="text-xs text-muted-foreground hover:text-foreground">✕</button>
         </div>
       )}
 
@@ -317,7 +377,7 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-amber-600">
               <AlertTriangle className="h-5 w-5" />
-              Group {capacityWarningInfo?.groupNo} is {capacityWarningInfo?.pct}% full
+              {capacityWarningInfo?.groupNo} is {capacityWarningInfo?.pct}% full
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm">
@@ -452,31 +512,44 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
       )}
 
       {/* Link RFID + Group Dialog */}
-      <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
+      <Dialog open={linkDialogOpen} onOpenChange={(o) => { setLinkDialogOpen(o); if (!o) setSelectedGroupId(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Scan Bird → Group {activeGroup?.groupNo ?? "?"}</DialogTitle>
+            <DialogTitle>Scan Bird → {targetGroup?.name ?? "No group"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="p-3 bg-muted rounded-lg text-sm">
-              <p>
-                <span className="font-medium">Bird:</span>{" "}
-                {selectedItem?.bird?.birdName || "N/A"}
-              </p>
-              <p>
-                <span className="font-medium">Band:</span>{" "}
-                <span className="font-mono">{selectedItem?.bird?.band || "N/A"}</span>
-              </p>
-              <p>
-                <span className="font-medium">Breeder:</span>{" "}
-                {[selectedItem?.breeder?.firstName, selectedItem?.breeder?.lastName]
-                  .filter(Boolean)
-                  .join(" ")}
-              </p>
-              {!selectedItem?.hasPaid && (
-                <Badge variant="destructive" className="mt-1">Unpaid</Badge>
-              )}
+              <p><span className="font-medium">Bird:</span> {selectedItem?.bird?.birdName || "N/A"}</p>
+              <p><span className="font-medium">Band:</span> <span className="font-mono">{selectedItem?.bird?.band || "N/A"}</span></p>
+              <p><span className="font-medium">Breeder:</span> {[selectedItem?.breeder?.firstName, selectedItem?.breeder?.lastName].filter(Boolean).join(" ")}</p>
+              {!selectedItem?.hasPaid && <Badge variant="destructive" className="mt-1">Unpaid</Badge>}
             </div>
+
+            {/* Group override */}
+            <div>
+              <Label>Assign to Group</Label>
+              <Select
+                value={String(selectedGroupId ?? activeGroup?.id ?? "")}
+                onValueChange={(v) => setSelectedGroupId(parseInt(v))}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select group…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {loftGroups.map((g) => (
+                    <SelectItem key={g.id} value={String(g.id)}>
+                      <div className="flex items-center gap-2">
+                        {g.color && <div className="w-2.5 h-2.5 rounded-full border shrink-0" style={{ backgroundColor: g.color }} />}
+                        {g.name}
+                        {g.status === "OPEN" && <Badge variant="default" className="text-[10px] px-1 py-0 ml-1">OPEN</Badge>}
+                        {g.capacity && <span className="text-xs text-muted-foreground ml-auto">{g._count.members}/{g.capacity}</span>}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div>
               <Label htmlFor="rfid">RFID Tag</Label>
               <Input
@@ -488,19 +561,15 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
                 autoFocus
               />
               {(isPollActive || isSerialActive) && (
-                <p className="text-xs text-muted-foreground mt-1 animate-pulse">
-                  Scanner active — scan a tag to auto-fill
-                </p>
+                <p className="text-xs text-muted-foreground mt-1 animate-pulse">Scanner active — scan a tag to auto-fill</p>
               )}
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setLinkDialogOpen(false)}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => { setLinkDialogOpen(false); setSelectedGroupId(null); }}>Cancel</Button>
             <Button
               onClick={handleConfirmLink}
-              disabled={scanLoftMutation.isPending || !rfidInput.trim() || !activeGroup}
+              disabled={scanLoftMutation.isPending || !rfidInput.trim() || !targetGroup}
             >
               {scanLoftMutation.isPending ? "Scanning..." : "Scan & Assign to Group"}
             </Button>

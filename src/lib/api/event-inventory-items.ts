@@ -11,12 +11,14 @@ export interface EventInventoryItemsFilters {
 export const useListEventInventoryItems = (
   eventId: number | string,
   endpoint?: string,
-  filters?: EventInventoryItemsFilters
+  filters?: EventInventoryItemsFilters,
+  seasonId?: number | null
 ) => {
   const params: Record<string, string> = {};
   if (filters?.paymentStatus && filters.paymentStatus !== "all") params.paymentStatus = filters.paymentStatus;
   if (filters?.arrivalFrom) params.arrivalFrom = filters.arrivalFrom;
   if (filters?.arrivalTo) params.arrivalTo = filters.arrivalTo;
+  if (seasonId) params.seasonId = String(seasonId);
   const queryKey = [
     "event-inventory-items",
     "list",
@@ -24,6 +26,7 @@ export const useListEventInventoryItems = (
     params.paymentStatus ?? "",
     params.arrivalFrom ?? "",
     params.arrivalTo ?? "",
+    String(seasonId ?? ""),
   ];
   return useApiQuery({
     queryKey,

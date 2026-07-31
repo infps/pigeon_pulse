@@ -13,7 +13,7 @@ export async function GET(request: Request) {
         where: { id: parseInt(raceId) },
         include: {
           raceType: true,
-          event: true,
+          seasonRel: { include: { event: true } },
         },
       });
 
@@ -30,17 +30,26 @@ export async function GET(request: Request) {
       );
     }
 
-    const whereClause = eventId ? { eventId: parseInt(eventId) } : {};
+    // ponytail: resolve eventId→seasonIds then filter; races no longer have eventId
+    const whereClause = eventId
+      ? {
+          seasonRel: { eventId: parseInt(eventId) },
+        }
+      : {};
 
     const races = await prisma.race.findMany({
       where: whereClause,
       include: {
         raceType: true,
-        event: {
-          select: {
-            id: true,
-            name: true,
-            shortName: true,
+        seasonRel: {
+          include: {
+            event: {
+              select: {
+                id: true,
+                name: true,
+                shortName: true,
+              },
+            },
           },
         },
       },

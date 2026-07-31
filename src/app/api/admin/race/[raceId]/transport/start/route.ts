@@ -17,7 +17,7 @@ async function requireRaceAccess(raceId: number) {
       return { error: NextResponse.json({ message: "Forbidden" }, { status: 403 }) };
     }
     const race = await prisma.race.findFirst({
-      where: { id: raceId, event: { createdById: organizer.id } },
+      where: { id: raceId, seasonRel: { event: { createdById: organizer.id } } },
       select: { id: true },
     });
     if (!race) {

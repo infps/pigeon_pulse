@@ -18,7 +18,9 @@ export async function GET() {
     const inventories = await prisma.eventInventory.findMany({
       where: { breederId: breeder.id },
       include: {
-        event: true,
+        season: {
+          include: { event: true },
+        },
         items: {
           include: {
             bird: true,

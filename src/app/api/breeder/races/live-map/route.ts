@@ -9,7 +9,7 @@ export async function GET() {
       where: {
         status: { in: ["STARTED", "REGISTERING"] },
         raceStation: { latitude: { not: null }, longitude: { not: null } },
-        event: { latitude: { not: null }, longitude: { not: null } },
+        seasonRel: { event: { latitude: { not: null }, longitude: { not: null } } },
       },
       select: {
         id: true,
@@ -21,8 +21,8 @@ export async function GET() {
         raceStation: {
           select: { name: true, latitude: true, longitude: true },
         },
-        event: {
-          select: { id: true, name: true, latitude: true, longitude: true },
+        seasonRel: {
+          select: { event: { select: { id: true, name: true, latitude: true, longitude: true } } },
         },
       },
       orderBy: { id: "desc" },
@@ -33,8 +33,8 @@ export async function GET() {
         (r) =>
           r.raceStation?.latitude != null &&
           r.raceStation?.longitude != null &&
-          r.event?.latitude != null &&
-          r.event?.longitude != null,
+          r.seasonRel?.event?.latitude != null &&
+          r.seasonRel?.event?.longitude != null,
       )
       .map((r) => ({
         id: r.id,
@@ -49,10 +49,10 @@ export async function GET() {
           lng: r.raceStation!.longitude as number,
         },
         loft: {
-          eventId: r.event!.id,
-          name: r.event!.name,
-          lat: r.event!.latitude as number,
-          lng: r.event!.longitude as number,
+          eventId: r.seasonRel!.event!.id,
+          name: r.seasonRel!.event!.name,
+          lat: r.seasonRel!.event!.latitude as number,
+          lng: r.seasonRel!.event!.longitude as number,
         },
       }));
 

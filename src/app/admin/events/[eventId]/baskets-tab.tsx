@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSeasonContext } from "@/lib/season-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -123,6 +124,7 @@ interface AssignSummary {
 }
 
 function LoftBasketPanel({ eventId }: { eventId: string }) {
+  const { selectedSeasonId } = useSeasonContext();
   const { data: racesData } = useListRaces({ params: { eventId } });
   const races: Race[] = (racesData as { races?: Race[] })?.races ?? [];
   const [selectedRaceId, setSelectedRaceId] = useState<string>("");
@@ -133,8 +135,8 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
     }
   }, [races, selectedRaceId]);
 
-  const { data, isPending, refetch } = useEventBaskets(eventId, "LOFT", selectedRaceId || undefined);
-  const { data: checkinData } = useCheckinStatus(eventId);
+  const { data, isPending, refetch } = useEventBaskets(eventId, "LOFT", selectedRaceId || undefined, selectedSeasonId);
+  const { data: checkinData } = useCheckinStatus(eventId, selectedSeasonId);
   const createMutation = useCreateBasket(eventId);
   const deleteMutation = useDeleteBasket(eventId);
   const updateMutation = useUpdateBasket(eventId);
@@ -598,6 +600,7 @@ interface RaceAssignSummary {
 }
 
 function RaceBasketPanel({ eventId }: { eventId: string }) {
+  const { selectedSeasonId } = useSeasonContext();
   const { data: racesData } = useListRaces({ params: { eventId } });
   const races: Race[] = (racesData as { races?: Race[] })?.races ?? [];
   const [selectedRaceId, setSelectedRaceId] = useState<string>("");
@@ -611,9 +614,10 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
   const { data, isPending, refetch } = useEventBaskets(
     eventId,
     "RACE",
-    selectedRaceId || undefined
+    selectedRaceId || undefined,
+    selectedSeasonId
   );
-  const { data: loftData } = useEventBaskets(eventId, "LOFT");
+  const { data: loftData } = useEventBaskets(eventId, "LOFT", undefined, selectedSeasonId);
   const createMutation = useCreateBasket(eventId);
   const deleteMutation = useDeleteBasket(eventId);
   const updateMutation = useUpdateBasket(eventId);

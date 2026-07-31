@@ -48,7 +48,7 @@ export async function GET(request: Request) {
         where: { id: parseInt(raceId) },
         include: {
           raceType: true,
-          event: true,
+          seasonRel: { include: { event: { select: { id: true, name: true, shortName: true } } } },
           raceStation: true,
         },
       });
@@ -66,19 +66,16 @@ export async function GET(request: Request) {
       );
     }
 
-    const whereClause = eventId ? { eventId: parseInt(eventId) } : {};
+    const season = eventId
+      ? await prisma.season.findFirst({ where: { eventId: parseInt(eventId), isActive: true }, orderBy: { startDate: "desc" } })
+      : null;
+    const whereClause = season ? { seasonId: season.id } : {};
 
     const races = await prisma.race.findMany({
       where: whereClause,
       include: {
         raceType: true,
-        event: {
-          select: {
-            id: true,
-            name: true,
-            shortName: true,
-          },
-        },
+        seasonRel: { include: { event: { select: { id: true, name: true, shortName: true } } } },
       },
       orderBy: {
         startTime: "desc",
@@ -141,8 +138,17 @@ export async function POST(request: Request) {
         { status: 404 }
       );
     }
+
+    const activeSeason = await prisma.season.findFirst({
+      where: { eventId: parseInt(eventId), isActive: true },
+      orderBy: { startDate: "desc" },
+    });
+    if (!activeSeason) {
+      return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+    }
+
     const eventInventoryItems = await prisma.eventInventoryItem.findMany({
-      where: { eventInventory: { eventId: parseInt(eventId) } },
+      where: { eventInventory: { seasonId: activeSeason.id } },
     });
 
     // Launch station selected → distance is derived (locked) from station→loft.
@@ -154,7 +160,7 @@ export async function POST(request: Request) {
       const created = await tx.race.create({
         data: {
           raceTypeId: raceTypeId ? parseInt(raceTypeId) : null,
-          eventId: parseInt(eventId),
+          seasonId: activeSeason.id,
           raceNumber: raceNumber ? parseInt(raceNumber) : null,
           name: name || "",
           description,
@@ -176,13 +182,7 @@ export async function POST(request: Request) {
         include: {
           raceType: true,
           raceStation: true,
-          event: {
-            select: {
-              id: true,
-              name: true,
-              shortName: true,
-            },
-          },
+          seasonRel: { include: { event: { select: { id: true, name: true, shortName: true } } } },
         },
       });
 
@@ -232,7 +232,6 @@ export async function PUT(request: Request) {
     const updateData: any = {};
 
     if (data.raceTypeId) updateData.raceTypeId = parseInt(data.raceTypeId);
-    if (data.eventId) updateData.eventId = parseInt(data.eventId);
     if (data.raceNumber !== undefined) updateData.raceNumber = data.raceNumber ? parseInt(data.raceNumber) : null;
     if (data.name !== undefined) updateData.name = data.name;
     if (data.description !== undefined) updateData.description = data.description;
@@ -245,9 +244,12 @@ export async function PUT(request: Request) {
       if (stationId != null) {
         const existing = await prisma.race.findUnique({
           where: { id: parseInt(raceId) },
-          select: { eventId: true },
+          select: { seasonId: true },
         });
-        const evId = data.eventId ? parseInt(data.eventId) : existing?.eventId;
+        const seasonForDist = existing?.seasonId
+          ? await prisma.season.findUnique({ where: { id: existing.seasonId }, select: { eventId: true } })
+          : null;
+        const evId = seasonForDist?.eventId ?? null;
         if (evId != null) {
           const derived = await deriveStationDistance(stationId, evId);
           if (derived != null) updateData.distance = derived;
@@ -300,13 +302,7 @@ export async function PUT(request: Request) {
       include: {
         raceType: true,
         raceStation: true,
-        event: {
-          select: {
-            id: true,
-            name: true,
-            shortName: true,
-          },
-        },
+        seasonRel: { include: { event: { select: { id: true, name: true, shortName: true } } } },
       },
     });
 

@@ -36,7 +36,7 @@ export async function POST(
       },
       include: {
         eventInventory: {
-          include: { event: { select: { name: true } } },
+          include: { season: { include: { event: { select: { name: true } } } } },
         },
       },
     });
@@ -64,7 +64,7 @@ export async function POST(
             currency_code: "USD",
             value: amount.toFixed(2),
           },
-          description: `Payment for ${payment.eventInventory?.event?.name || "Event"}`,
+          description: `Payment for ${payment.eventInventory?.season?.event?.name || "Event"}`,
           custom_id: `payment_${paymentId}`, // Store paymentId for webhook
         },
       ],

@@ -9,8 +9,16 @@ export async function GET(_req: Request, { params }: { params: Promise<{ eventId
       return NextResponse.json({ message: "Invalid event ID" }, { status: 400 });
     }
 
+    const activeSeason = await prisma.season.findFirst({
+      where: { eventId, isActive: true },
+      orderBy: { startDate: "desc" },
+    });
+    if (!activeSeason) {
+      return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+    }
+
     const races = await prisma.race.findMany({
-      where: { eventId },
+      where: { seasonId: activeSeason.id },
       include: {
         raceType: { select: { id: true, name: true } },
       },

@@ -63,12 +63,11 @@ export async function GET(
       include: {
         eventInventory: {
           include: {
-            event: {
-              select: {
-                id: true,
-                name: true,
-                bannerImage: true,
-                logoImage: true,
+            season: {
+              include: {
+                event: {
+                  select: { id: true, name: true, bannerImage: true, logoImage: true },
+                },
               },
             },
           },
@@ -80,7 +79,7 @@ export async function GET(
                 id: true,
                 name: true,
                 startTime: true,
-                eventId: true,
+                seasonId: true,
                 distance: true,
                 raceType: { select: { name: true } },
               },
@@ -91,7 +90,7 @@ export async function GET(
         basketAssignments: {
           include: {
             eventBasket: {
-              include: { event: { select: { id: true, name: true } } },
+              include: { season: { select: { id: true, name: true } } },
             },
           },
         },
@@ -134,7 +133,7 @@ export async function GET(
     const entries: HistoryEntry[] = [];
 
     for (const inv of inventoryItems) {
-      const ev = inv.eventInventory?.event;
+      const ev = inv.eventInventory?.season?.event;
       const eventBanner = ev?.bannerImage ?? ev?.logoImage ?? null;
       const signIn = inv.eventInventory?.signInDate ?? inv.arrivalDate;
       if (signIn && ev) {
@@ -155,7 +154,7 @@ export async function GET(
             entries.push({
               type: "RELEASED",
               date: ri.race.startTime.toISOString(),
-              eventId: ri.race.eventId ?? undefined,
+              eventId: ri.race.seasonId ?? undefined,
               eventName: ev?.name ?? undefined,
               raceId: ri.race.id,
               raceName: ri.race.name ?? undefined,
@@ -186,7 +185,7 @@ export async function GET(
             entries.push({
               type: "ARRIVED",
               date: t.toISOString(),
-              eventId: ri.race.eventId ?? undefined,
+              eventId: ri.race.seasonId ?? undefined,
               eventName: ev?.name ?? undefined,
               raceId: ri.race.id,
               raceName: ri.race.name ?? undefined,
@@ -207,7 +206,7 @@ export async function GET(
             entries.push({
               type: "FOREIGN_BIRD",
               date: t.toISOString(),
-              eventId: ri.race.eventId ?? undefined,
+              eventId: ri.race.seasonId ?? undefined,
               eventName: ev?.name ?? undefined,
               raceId: ri.race.id,
               raceName: ri.race.name ?? undefined,
@@ -221,8 +220,8 @@ export async function GET(
         entries.push({
           type: "BASKETED",
           date: ba.assignedAt.toISOString(),
-          eventId: ba.eventBasket.event?.id,
-          eventName: ba.eventBasket.event?.name ?? undefined,
+          eventId: ba.eventBasket.season?.id,
+          eventName: ba.eventBasket.season?.name ?? undefined,
           basketLabel:
             ba.eventBasket.label ?? `Basket #${ba.eventBasket.basketNo}`,
           phase: ba.eventBasket.phase,

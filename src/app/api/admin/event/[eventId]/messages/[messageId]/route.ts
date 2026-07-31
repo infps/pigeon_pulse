@@ -17,6 +17,20 @@ async function isEventCreator(eventId: number, sessionEmail: string, role: strin
   return !!event;
 }
 
+async function resolveSeasonId(request: Request, eventId: number): Promise<number | NextResponse> {
+  const { searchParams } = new URL(request.url);
+  const seasonIdParam = searchParams.get("seasonId");
+  if (seasonIdParam) return parseInt(seasonIdParam);
+  const activeSeason = await prisma.season.findFirst({
+    where: { eventId, isActive: true },
+    orderBy: { startDate: "desc" },
+  });
+  if (!activeSeason) {
+    return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+  }
+  return activeSeason.id;
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ eventId: string; messageId: string }> }
@@ -40,6 +54,9 @@ export async function PATCH(
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
+    const seasonId = await resolveSeasonId(request, eventId);
+    if (seasonId instanceof NextResponse) return seasonId;
+
     const body = await request.json();
     const data: { title?: string | null; body?: string; mediaUrls?: string[] } = {};
     if (body.title !== undefined) data.title = body.title?.trim() || null;
@@ -53,7 +70,7 @@ export async function PATCH(
     if (Array.isArray(body.mediaUrls)) data.mediaUrls = body.mediaUrls;
 
     const existing = await prisma.eventMessage.findFirst({
-      where: { id: messageId, eventId },
+      where: { id: messageId, seasonId },
       select: { id: true },
     });
     if (!existing) {
@@ -100,8 +117,11 @@ export async function DELETE(
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
+    const seasonId = await resolveSeasonId(request, eventId);
+    if (seasonId instanceof NextResponse) return seasonId;
+
     const existing = await prisma.eventMessage.findFirst({
-      where: { id: messageId, eventId },
+      where: { id: messageId, seasonId },
       select: { id: true },
     });
     if (!existing) {

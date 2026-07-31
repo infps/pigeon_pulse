@@ -13,8 +13,24 @@ export async function GET(
   }
 
   try {
+    const { searchParams } = new URL(request.url);
+    const seasonIdParam = searchParams.get("seasonId");
+    let seasonId: number;
+    if (seasonIdParam) {
+      seasonId = parseInt(seasonIdParam);
+    } else {
+      const activeSeason = await prisma.season.findFirst({
+        where: { eventId, isActive: true },
+        orderBy: { startDate: "desc" },
+      });
+      if (!activeSeason) {
+        return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+      }
+      seasonId = activeSeason.id;
+    }
+
     const messages = await prisma.eventMessage.findMany({
-      where: { eventId },
+      where: { seasonId },
       include: {
         author: {
           select: { id: true, name: true, lastName: true, image: true },

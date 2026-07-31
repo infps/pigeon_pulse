@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 import { computePaymentStatus } from "@/lib/paymentStatus";
 
 export async function GET(
-  _req: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   const { eventId: eventIdParam } = await params;
@@ -18,10 +18,26 @@ export async function GET(
   }
 
   try {
-    // Find earliest payment-required race in event
+    const { searchParams } = new URL(request.url);
+    const seasonIdParam = searchParams.get("seasonId");
+    let seasonId: number;
+    if (seasonIdParam) {
+      seasonId = parseInt(seasonIdParam);
+    } else {
+      const activeSeason = await prisma.season.findFirst({
+        where: { eventId, isActive: true },
+        orderBy: { startDate: "desc" },
+      });
+      if (!activeSeason) {
+        return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+      }
+      seasonId = activeSeason.id;
+    }
+
+    // Find earliest payment-required race in season
     const paymentRace = await prisma.race.findFirst({
       where: {
-        eventId,
+        seasonId,
         raceType: { isPaymentRequired: true },
         startTime: { not: null },
       },
@@ -36,7 +52,7 @@ export async function GET(
       : false;
 
     const inventories = await prisma.eventInventory.findMany({
-      where: { eventId },
+      where: { seasonId },
       include: {
         breeder: true,
         payments: true,

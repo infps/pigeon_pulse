@@ -32,7 +32,9 @@ export default function NewsPage() {
   const [limit, setLimit] = useState(20);
   const { data, isPending } = useListBreederMessages({ limit, offset: 0 });
 
-  const messages: NewsMessage[] = data?.messages ?? [];
+  const messages: NewsMessage[] = (data?.messages ?? []).filter(
+    (m: NewsMessage) => m?.event?.id
+  );
   const total: number = data?.total ?? 0;
 
   return (

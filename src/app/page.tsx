@@ -78,7 +78,9 @@ export default function Home() {
     );
   }
 
-  const newsMessages: NewsMessage[] = newsData?.messages ?? [];
+  const newsMessages: NewsMessage[] = (newsData?.messages ?? []).filter(
+    (m: NewsMessage) => m?.event?.id
+  );
   const newsTotal: number = newsData?.total ?? 0;
 
   return (

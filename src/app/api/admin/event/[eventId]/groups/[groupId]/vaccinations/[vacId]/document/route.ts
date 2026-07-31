@@ -6,9 +6,23 @@ import { NextResponse } from "next/server";
 
 type Params = { params: Promise<{ eventId: string; groupId: string; vacId: string }> };
 
-async function resolveRecord(eventId: number, groupId: number, vacId: number) {
+async function resolveSeasonId(request: Request, eventId: number): Promise<number | NextResponse> {
+  const { searchParams } = new URL(request.url);
+  const seasonIdParam = searchParams.get("seasonId");
+  if (seasonIdParam) return parseInt(seasonIdParam);
+  const activeSeason = await prisma.season.findFirst({
+    where: { eventId, isActive: true },
+    orderBy: { startDate: "desc" },
+  });
+  if (!activeSeason) {
+    return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+  }
+  return activeSeason.id;
+}
+
+async function resolveRecord(seasonId: number, groupId: number, vacId: number) {
   return prisma.vaccinationRecord.findFirst({
-    where: { id: vacId, eventGroupId: groupId, eventGroup: { eventId } },
+    where: { id: vacId, eventGroupId: groupId, eventGroup: { seasonId } },
   });
 }
 
@@ -24,7 +38,10 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const record = await resolveRecord(eventId, groupId, vacId);
+  const seasonId = await resolveSeasonId(request, eventId);
+  if (seasonId instanceof NextResponse) return seasonId;
+
+  const record = await resolveRecord(seasonId, groupId, vacId);
   if (!record) return NextResponse.json({ message: "Record not found" }, { status: 404 });
 
   const formData = await request.formData();
@@ -46,7 +63,7 @@ export async function POST(request: Request, { params }: Params) {
   return NextResponse.json({ documentUrl: updated.documentUrl, documentKey: updated.documentKey });
 }
 
-export async function DELETE(_req: Request, { params }: Params) {
+export async function DELETE(request: Request, { params }: Params) {
   const { eventId: ep, groupId: gp, vacId: vp } = await params;
   const eventId = parseInt(ep), groupId = parseInt(gp), vacId = parseInt(vp);
   if (isNaN(eventId) || isNaN(groupId) || isNaN(vacId)) {
@@ -58,7 +75,10 @@ export async function DELETE(_req: Request, { params }: Params) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const record = await resolveRecord(eventId, groupId, vacId);
+  const seasonId = await resolveSeasonId(request, eventId);
+  if (seasonId instanceof NextResponse) return seasonId;
+
+  const record = await resolveRecord(seasonId, groupId, vacId);
   if (!record) return NextResponse.json({ message: "Record not found" }, { status: 404 });
 
   if (record.documentKey) {

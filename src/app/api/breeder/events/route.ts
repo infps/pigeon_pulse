@@ -17,31 +17,32 @@ export async function GET(req: NextRequest) {
       where: whereClause,
       include: {
         eventType: true,
-        feeScheme: {
-          include: {
-            birdFeeItems: { orderBy: { birdNo: "asc" as const } },
-            raceTypeFees: true,
-          },
-        },
-        finalPrize: true,
-        bettingScheme: true,
         createdBy: true,
-        races: {
-          select: {
-            id: true,
-            description: true,
-            isClosed: true,
-            startTime: true,
-            raceTypeId: true,
-          },
-          orderBy: {
-            startTime: "asc",
+        seasons: {
+          include: {
+            feeScheme: {
+              include: {
+                birdFeeItems: { orderBy: { birdNo: "asc" as const } },
+                raceTypeFees: true,
+              },
+            },
+            finalPrize: true,
+            bettingScheme: true,
+            races: {
+              select: {
+                id: true,
+                description: true,
+                isClosed: true,
+                startTime: true,
+                raceTypeId: true,
+              },
+              orderBy: { startTime: "asc" },
+            },
           },
         },
         _count: {
           select: {
-            races: true,
-            eventInventories: true,
+            seasons: true,
           },
         },
       },

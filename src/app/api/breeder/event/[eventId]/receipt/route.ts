@@ -9,17 +9,32 @@ import { ReceiptDocument } from "@/components/receipt-pdf";
 import { buildReceiptData } from "@/lib/build-receipt-data";
 
 export async function GET(
-  _req: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
   const { eventId } = await params;
+  const eventIdInt = parseInt(eventId);
   const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
 
+  const { searchParams } = new URL(request.url);
+  const seasonIdParam = searchParams.get("seasonId");
+  let seasonId: number;
+  if (seasonIdParam) {
+    seasonId = parseInt(seasonIdParam);
+  } else {
+    const activeSeason = await prisma.season.findFirst({
+      where: { eventId: eventIdInt, isActive: true },
+      orderBy: { startDate: "desc" },
+    });
+    if (!activeSeason) return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+    seasonId = activeSeason.id;
+  }
+
   const inv = await prisma.eventInventory.findFirst({
-    where: { eventId: parseInt(eventId), breederId: breeder.id },
+    where: { seasonId, breederId: breeder.id },
     select: { id: true },
   });
   if (!inv) return NextResponse.json({ message: "Registration not found" }, { status: 404 });

@@ -46,7 +46,7 @@ export async function POST(
       },
       include: {
         raceType: true,
-        event: true,
+        seasonRel: { include: { event: true } },
       },
     });
 

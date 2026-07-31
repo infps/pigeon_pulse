@@ -44,7 +44,7 @@ export async function POST(
         data: { startTime: new Date(), status: "STARTED" },
         include: {
           raceType: true,
-          event: true,
+          seasonRel: { include: { event: { select: { id: true, name: true, shortName: true } } } },
         },
       }),
       prisma.raceItem.updateMany({

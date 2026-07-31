@@ -71,6 +71,22 @@ export async function POST(
       return NextResponse.json({ message: "Invalid event ID" }, { status: 400 });
     }
 
+    const url = new URL(request.url);
+    const seasonIdParam = url.searchParams.get("seasonId");
+    let seasonId: number;
+    if (seasonIdParam) {
+      seasonId = parseInt(seasonIdParam);
+    } else {
+      const activeSeason = await prisma.season.findFirst({
+        where: { eventId, isActive: true },
+        orderBy: { startDate: "desc" },
+      });
+      if (!activeSeason) {
+        return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+      }
+      seasonId = activeSeason.id;
+    }
+
     // Parse and validate request body
     const body = await request.json();
     const validatedData = registrationSchema.parse(body);
@@ -78,16 +94,16 @@ export async function POST(
     // Check if event exists and is open
     const event = await prisma.event.findUnique({
       where: { id: eventId },
+    });
+
+    const season = await prisma.season.findFirst({
+      where: { eventId, isActive: true },
       include: {
-        feeScheme: {
-          include: {
-            birdFeeItems: { orderBy: { birdNo: "asc" } },
-            raceTypeFees: true,
-          },
-        },
+        feeScheme: { include: { birdFeeItems: { orderBy: { birdNo: "asc" } }, raceTypeFees: true } },
         bettingScheme: true,
-        races: true,
+        races: { select: { id: true, raceTypeId: true } },
       },
+      orderBy: { startDate: "desc" },
     });
 
     if (!event) {
@@ -104,10 +120,10 @@ export async function POST(
       );
     }
 
-    // Check if breeder has already registered for this event with same loft
+    // Check if breeder has already registered for this season with same loft
     const existingRegistration = await prisma.eventInventory.findFirst({
       where: {
-        eventId,
+        seasonId,
         breederId,
         loft: validatedData.loftName,
       },
@@ -128,7 +144,7 @@ export async function POST(
       // Create EventInventory
       const eventInventory = await tx.eventInventory.create({
         data: {
-          eventId,
+          seasonId,
           breederId,
           teamId,
           loft: validatedData.loftName,
@@ -188,7 +204,7 @@ export async function POST(
       // Add birds to races still accepting registrations.
       // Track created RaceItem ids so we can attach owner bets to each one.
       const existingRaces = await tx.race.findMany({
-        where: { eventId, status: "REGISTERING" },
+        where: { seasonId, status: "REGISTERING" },
         select: { id: true },
       });
       // raceItems per inventory item id (one bird → one RaceItem per race)
@@ -213,8 +229,8 @@ export async function POST(
         tierIndex: number;
         amount: number;
       }[] = [];
-      if (validatedData.bets.length > 0 && event.bettingScheme) {
-        const scheme = event.bettingScheme as unknown as Record<string, unknown>;
+      if (validatedData.bets.length > 0 && season?.bettingScheme) {
+        const scheme = season.bettingScheme as unknown as Record<string, unknown>;
         for (const sel of validatedData.bets) {
           const invItem = inventoryItems.find((it) => it.birdId === sel.birdId);
           if (!invItem) continue; // bird not part of this registration
@@ -240,15 +256,15 @@ export async function POST(
 
       // Calculate fees and populate EventInventoryItem fee fields
       let feeTotal = 0;
-      if (event.feeScheme) {
+      if (season?.feeScheme) {
         const fees = calculateFees({
           numBirds: validatedData.reservedBirds,
           feeScheme: {
-            ...event.feeScheme,
-            birdFeeItems: event.feeScheme.birdFeeItems || [],
-            raceTypeFees: event.feeScheme.raceTypeFees || [],
+            ...season.feeScheme,
+            birdFeeItems: season.feeScheme.birdFeeItems || [],
+            raceTypeFees: season.feeScheme.raceTypeFees || [],
           },
-          races: event.races || [],
+          races: season?.races || [],
         });
         feeTotal = fees.total;
 

@@ -16,13 +16,29 @@ export async function POST(
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
+  const url = new URL(request.url);
+  const seasonIdParam = url.searchParams.get("seasonId");
+  let seasonId: number;
+  if (seasonIdParam) {
+    seasonId = parseInt(seasonIdParam);
+  } else {
+    const activeSeason = await prisma.season.findFirst({
+      where: { eventId, isActive: true },
+      orderBy: { startDate: "desc" },
+    });
+    if (!activeSeason) {
+      return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+    }
+    seasonId = activeSeason.id;
+  }
+
   const { eventInventoryItemId, toGroupId } = await request.json();
   if (!eventInventoryItemId || !toGroupId) {
     return NextResponse.json({ message: "eventInventoryItemId and toGroupId required" }, { status: 400 });
   }
 
   const item = await prisma.eventInventoryItem.findFirst({
-    where: { id: eventInventoryItemId, eventInventory: { eventId } },
+    where: { id: eventInventoryItemId, eventInventory: { seasonId } },
     include: {
       currentGroup: { select: { name: true } },
       eventInventory: {
@@ -33,7 +49,7 @@ export async function POST(
   if (!item) return NextResponse.json({ message: "Item not found" }, { status: 404 });
 
   const toGroup = await prisma.eventGroup.findFirst({
-    where: { id: toGroupId, eventId },
+    where: { id: toGroupId, seasonId },
   });
   if (!toGroup) return NextResponse.json({ message: "Target group not found" }, { status: 404 });
 

@@ -17,6 +17,20 @@ async function isEventCreator(eventId: number, sessionEmail: string, role: strin
   return !!event;
 }
 
+async function resolveSeasonId(request: Request, eventId: number): Promise<number | NextResponse> {
+  const { searchParams } = new URL(request.url);
+  const seasonIdParam = searchParams.get("seasonId");
+  if (seasonIdParam) return parseInt(seasonIdParam);
+  const activeSeason = await prisma.season.findFirst({
+    where: { eventId, isActive: true },
+    orderBy: { startDate: "desc" },
+  });
+  if (!activeSeason) {
+    return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+  }
+  return activeSeason.id;
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
@@ -34,8 +48,11 @@ export async function GET(
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
+    const seasonId = await resolveSeasonId(request, eventId);
+    if (seasonId instanceof NextResponse) return seasonId;
+
     const messages = await prisma.eventMessage.findMany({
-      where: { eventId },
+      where: { seasonId },
       include: {
         author: {
           select: { id: true, name: true, lastName: true, image: true },
@@ -82,6 +99,9 @@ export async function POST(
       );
     }
 
+    const seasonId = await resolveSeasonId(request, eventId);
+    if (seasonId instanceof NextResponse) return seasonId;
+
     const body = await request.json();
     const title: string | null = body.title?.trim() || null;
     const messageBody: string = (body.body ?? "").trim();
@@ -93,7 +113,7 @@ export async function POST(
 
     const created = await prisma.eventMessage.create({
       data: {
-        eventId,
+        seasonId,
         authorId: session.user.id,
         title,
         body: messageBody,

@@ -2,7 +2,6 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { MoreHorizontal } from "lucide-react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,6 +15,7 @@ import type { EventInventoryItem } from "@/lib/types";
 
 export const createBirdsColumns = (
   onEdit: (item: EventInventoryItem) => void,
+  onOpenBird: (id: number) => void,
   eventId?: string | number
 ): ColumnDef<EventInventoryItem>[] => [
   {
@@ -39,16 +39,13 @@ export const createBirdsColumns = (
       const bird = row.original.bird;
       const name = bird?.birdName ?? "N/A";
       if (!bird?.id) return <span>{name}</span>;
-      const href = eventId
-        ? `/admin/birds/${bird.id}?eventId=${eventId}`
-        : `/admin/birds/${bird.id}`;
       return (
-        <Link
-          href={href}
-          className="text-blue-600 hover:underline cursor-pointer"
+        <button
+          onClick={() => onOpenBird(bird.id)}
+          className="text-blue-600 hover:underline cursor-pointer text-left"
         >
           {name}
-        </Link>
+        </button>
       );
     },
   },

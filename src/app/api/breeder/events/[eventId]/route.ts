@@ -17,43 +17,30 @@ export async function GET(
       where: { id: eventId },
       include: {
         eventType: true,
-        feeScheme: {
-          include: {
-            birdFeeItems: {
-              orderBy: {
-                birdNo: "asc",
-              },
-            },
-            raceTypeFees: {
-              include: {
-                raceType: true,
-              },
-            },
-          },
-        },
-        finalPrize: {
-          include: {
-            prizeSchemeItems: {
-              orderBy: [
-                { fromPosition: "asc" },
-              ],
-            },
-          },
-        },
-        bettingScheme: true,
         createdBy: true,
-        races: {
+        seasons: {
           include: {
-            raceType: true,
-          },
-          orderBy: {
-            startTime: "asc",
+            feeScheme: {
+              include: {
+                birdFeeItems: { orderBy: { birdNo: "asc" } },
+                raceTypeFees: { include: { raceType: true } },
+              },
+            },
+            finalPrize: {
+              include: {
+                prizeSchemeItems: { orderBy: [{ fromPosition: "asc" }] },
+              },
+            },
+            bettingScheme: true,
+            races: {
+              include: { raceType: true },
+              orderBy: { startTime: "asc" },
+            },
           },
         },
         _count: {
           select: {
-            races: true,
-            eventInventories: true,
+            seasons: true,
           },
         },
       },
@@ -66,16 +53,22 @@ export async function GET(
       );
     }
 
-    const birdCount = await prisma.eventInventoryItem.count({
-      where: { eventInventory: { eventId } },
-    });
+    // find active season to count birds via seasonId
+    const activeSeason = event.seasons.find((s: any) => s.isActive) ?? event.seasons[0];
+    const birdCount = activeSeason
+      ? await prisma.eventInventoryItem.count({
+          where: { eventInventory: { seasonId: activeSeason.id } },
+        })
+      : 0;
+
+    const raceCount = event.seasons.reduce((acc: number, s: any) => acc + (s.races?.length ?? 0), 0);
 
     return NextResponse.json({
       event,
       stats: {
-        breeders: event._count.eventInventories,
+        breeders: event._count.seasons,
         birds: birdCount,
-        races: event._count.races,
+        races: raceCount,
       },
     });
   } catch (error) {

@@ -25,7 +25,7 @@ export async function GET(request: Request) {
       include: {
         eventInventory: {
           include: {
-            event: { select: { id: true, name: true, eventDate: true } },
+            season: { include: { event: { select: { id: true, name: true, eventDate: true } } } },
           },
         },
       },

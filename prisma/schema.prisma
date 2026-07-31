@@ -327,7 +327,7 @@ model FeeScheme {
 
   createdBy    OrganizerData? @relation(fields: [createdById], references: [id])
   birdFeeItems BirdFeeItem[]
-  events       Event[]
+  seasons      Season[]
   raceTypeFees RaceTypeFeeScheme[]
 }
 
@@ -360,11 +360,11 @@ model PrizeScheme {
 
   createdBy       OrganizerData?   @relation(fields: [createdById], references: [id])
   prizeSchemeItems PrizeSchemeItem[]
-  events          Event[]          @relation("EventFinalPrize")
-  hotSpot1Events  Event[]          @relation("EventHotSpot1Prize")
-  hotSpot2Events  Event[]          @relation("EventHotSpot2Prize")
-  hotSpot3Events  Event[]          @relation("EventHotSpot3Prize")
-  hotSpotAvgEvents Event[]         @relation("EventHotSpotAvgPrize")
+  finalPrizeSeasons Season[]         @relation("SeasonFinalPrize")
+  hotSpot1Seasons  Season[]          @relation("SeasonHotSpot1Prize")
+  hotSpot2Seasons  Season[]          @relation("SeasonHotSpot2Prize")
+  hotSpot3Seasons  Season[]          @relation("SeasonHotSpot3Prize")
+  hotSpotAvgSeasons Season[]         @relation("SeasonHotSpotAvgPrize")
 }
 
 model PrizeSchemeItem {
@@ -405,7 +405,7 @@ model BettingScheme {
 
   createdBy               OrganizerData?          @relation(fields: [createdById], references: [id])
   standardShowPercentages StandardShowPercentage[]
-  events                  Event[]
+  seasons      Season[]
 }
 
 model StandardShowPercentage {
@@ -443,21 +443,21 @@ model RaceType {
 }
 
 model EventRaceNumber {
-  eventId        Int @map("ID_EVENT")
+  seasonId       Int @map("SEASON_ID")
   numberGroupId  Int @map("ID_NUMBER_GROUP")
   numberRangeFrom Int? @map("NUMBER_RANGE_FROM")
   numberRangeTo   Int? @map("NUMBER_RANGE_TO")
 
-  event       Event           @relation(fields: [eventId], references: [id])
+  season      Season          @relation(fields: [seasonId], references: [id])
   numberGroup RaceNumberGroup @relation(fields: [numberGroupId], references: [id])
 
-  @@id([eventId, numberGroupId])
+  @@id([seasonId, numberGroupId])
 }
 
 model Race {
   id                 Int       @id @default(autoincrement()) @map("ID_RACE")
   raceTypeId         Int?      @map("ID_RACE_TYPE")
-  eventId            Int?      @map("ID_EVENT")
+  seasonId           Int?      @map("SEASON_ID")
   raceNumber         Int?      @map("RACE_NUMBER")
   description        String?   @map("DESCRIPTION")
   distance           Int?      @map("DISTANCE")
@@ -483,7 +483,7 @@ model Race {
   transportEndedAt   DateTime?       @map("TRANSPORT_ENDED_AT")
   bettingOpen        Boolean         @default(false) @map("BETTING_OPEN")
 
-  event       Event?       @relation(fields: [eventId], references: [id])
+  seasonRel   Season?      @relation(fields: [seasonId], references: [id])
   raceType    RaceType?    @relation(fields: [raceTypeId], references: [id])
   raceStation RaceStation? @relation(fields: [raceStationId], references: [id])
   truckPings  TruckPing[]
@@ -603,25 +603,12 @@ model EventType {
 }
 
 model Season {
-  id        Int       @id @default(autoincrement())
-  name      String
-  startDate DateTime
-  endDate   DateTime
-  isActive  Boolean   @default(false)
-
-  events    Event[]
-
-  @@map("Seasons")
-}
-
-model Event {
-  id                      Int  @id @default(autoincrement()) @map("ID_EVENT")
-  name                    String?   @map("EVENT_NAME")
-  shortName               String?   @map("EVENT_SHORT_NAME")
-  eventDate               DateTime? @map("EVENT_DATE")
-  eventTypeId             Int?      @map("EVENT_TYPE")
-  seasonId                Int?      @map("SEASON_ID")
-  isOpen                  Int?      @map("IS_OPEN")
+  id                      Int       @id @default(autoincrement())
+  name                    String
+  startDate               DateTime
+  endDate                 DateTime
+  isActive                Boolean   @default(false)
+  eventId                 Int       @map("EVENT_ID")
   feeSchemeId             Int?      @map("ID_FEE_SCHEME")
   bettingSchemeId         Int?      @map("ID_BETTING_SCHEME")
   finalPrizeSchemeId      Int?      @map("ID_FINAL_PRIZE_SCHEME")
@@ -629,6 +616,40 @@ model Event {
   hotSpot2PrizeSchemeId   Int?      @map("ID_HOT_SPOT2_PRIZE_SCHEME")
   hotSpot3PrizeSchemeId   Int?      @map("ID_HOT_SPOT3_PRIZE_SCHEME")
   hotSpotAvgPrizeSchemeId Int?      @map("ID_HOT_SPOT_AVG_PRIZE_SCHEME")
+
+  event            Event          @relation(fields: [eventId], references: [id])
+  feeScheme        FeeScheme?     @relation(fields: [feeSchemeId], references: [id])
+  bettingScheme    BettingScheme? @relation(fields: [bettingSchemeId], references: [id])
+  finalPrize       PrizeScheme?   @relation("SeasonFinalPrize", fields: [finalPrizeSchemeId], references: [id])
+  hotSpot1Prize    PrizeScheme?   @relation("SeasonHotSpot1Prize", fields: [hotSpot1PrizeSchemeId], references: [id])
+  hotSpot2Prize    PrizeScheme?   @relation("SeasonHotSpot2Prize", fields: [hotSpot2PrizeSchemeId], references: [id])
+  hotSpot3Prize    PrizeScheme?   @relation("SeasonHotSpot3Prize", fields: [hotSpot3PrizeSchemeId], references: [id])
+  hotSpotAvgPrize  PrizeScheme?   @relation("SeasonHotSpotAvgPrize", fields: [hotSpotAvgPrizeSchemeId], references: [id])
+
+  races            Race[]
+  eventInventories EventInventory[]
+  eventBaskets     EventBasket[]
+  eventRaceNumbers EventRaceNumber[]
+  avgWinnerPrizes  AvgWinnerPrizes[]
+  prizeValues      PrizeValue[]
+  messages         EventMessage[]
+  raceStations     RaceStation[]
+  storeListings    EventStoreListing[]
+  groups           EventGroup[]
+  calcuttaConfig   CalcuttaConfig?
+  calcuttaBetGroups CalcuttaBetGroup[]
+
+  @@index([eventId])
+  @@map("Seasons")
+}
+
+model Event {
+  id                      Int       @id @default(autoincrement()) @map("ID_EVENT")
+  name                    String?   @map("EVENT_NAME")
+  shortName               String?   @map("EVENT_SHORT_NAME")
+  eventDate               DateTime? @map("EVENT_DATE")
+  eventTypeId             Int?      @map("EVENT_TYPE")
+  isOpen                  Int?      @map("IS_OPEN")
   createdById             Int?      @map("CREATOR_ID")
   latitude                Float?    @map("LATITUDE")
   longitude               Float?    @map("LONGITUDE")
@@ -650,37 +671,18 @@ model Event {
   bannerImageKey          String?   @map("BANNER_IMAGE_KEY")
   raceFormat              RaceFormat @default(STANDARD)
 
-  season           Season?        @relation(fields: [seasonId], references: [id])
   eventType        EventType?     @relation(fields: [eventTypeId], references: [id])
   createdBy        OrganizerData? @relation(fields: [createdById], references: [id])
-  feeScheme        FeeScheme?     @relation(fields: [feeSchemeId], references: [id])
-  bettingScheme    BettingScheme? @relation(fields: [bettingSchemeId], references: [id])
-  finalPrize       PrizeScheme?   @relation("EventFinalPrize", fields: [finalPrizeSchemeId], references: [id])
-  hotSpot1Prize    PrizeScheme?   @relation("EventHotSpot1Prize", fields: [hotSpot1PrizeSchemeId], references: [id])
-  hotSpot2Prize    PrizeScheme?   @relation("EventHotSpot2Prize", fields: [hotSpot2PrizeSchemeId], references: [id])
-  hotSpot3Prize    PrizeScheme?   @relation("EventHotSpot3Prize", fields: [hotSpot3PrizeSchemeId], references: [id])
-  hotSpotAvgPrize  PrizeScheme?   @relation("EventHotSpotAvgPrize", fields: [hotSpotAvgPrizeSchemeId], references: [id])
-
-  races            Race[]
-  eventInventories EventInventory[]
-  eventBaskets     EventBasket[]
-  eventRaceNumbers EventRaceNumber[]
-  avgWinnerPrizes  AvgWinnerPrizes[]
-  prizeValues      PrizeValue[]
   phantomBirds     RacePhantomBird[]
-  messages         EventMessage[]
-  raceStations     RaceStation[]
-  storeListings    EventStoreListing[]
-  groups           EventGroup[]
-  calcuttaConfig   CalcuttaConfig?
-  calcuttaBetGroups CalcuttaBetGroup[]
+
+  seasons          Season[]
 
   @@map("Events")
 }
 
 model RaceStation {
   id        Int      @id @default(autoincrement())
-  eventId   Int
+  seasonId  Int
   name      String
   miles     Float?
   km        Float?
@@ -691,16 +693,16 @@ model RaceStation {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  event    Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  season   Season    @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   raceType RaceType? @relation(fields: [raceTypeId], references: [id])
   races    Race[]
 
-  @@index([eventId])
+  @@index([seasonId])
 }
 
 model EventMessage {
   id        Int      @id @default(autoincrement()) @map("ID_EVENT_MESSAGE")
-  eventId   Int      @map("ID_EVENT")
+  seasonId  Int      @map("SEASON_ID")
   authorId  String   @map("AUTHOR_ID")
   title     String?  @map("TITLE")
   body      String   @map("BODY")
@@ -708,16 +710,16 @@ model EventMessage {
   createdAt DateTime @default(now()) @map("CREATED_AT")
   updatedAt DateTime @updatedAt @map("UPDATED_AT")
 
-  event  Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   author User  @relation(fields: [authorId], references: [id])
 
-  @@index([eventId, createdAt])
+  @@index([seasonId, createdAt])
   @@map("EventMessages")
 }
 
 model EventInventory {
   id             Int       @id @default(autoincrement()) @map("ID_EVENT_INVENTORY")
-  eventId        Int?      @map("ID_EVENT")
+  seasonId       Int?      @map("SEASON_ID")
   breederId      Int?      @map("ID_BREEDER")
   teamId         Int?      @map("ID_TEAM")
   reservedBirds  Int?      @map("RESERVED_BIRDS")
@@ -728,7 +730,7 @@ model EventInventory {
   waitingDate    DateTime? @map("WAITING_DATE")
   cashPromised   Boolean   @default(false) @map("CASH_PROMISED")
 
-  event   Event?   @relation(fields: [eventId], references: [id])
+  season  Season?  @relation(fields: [seasonId], references: [id])
   breeder Breeder? @relation(fields: [breederId], references: [id])
   team    Team?    @relation(fields: [teamId], references: [id])
 
@@ -812,21 +814,21 @@ model Partner {
 
 model AvgWinnerPrizes {
   inventoryItemId Int  @id @map("ID_EVENT_INVENTORY_ITEM")
-  eventId         Int? @map("ID_EVENT")
+  seasonId        Int? @map("SEASON_ID")
   prizeValue      Int? @map("PRIZE_VALUE")
 
-  event         Event?              @relation(fields: [eventId], references: [id])
+  season        Season?             @relation(fields: [seasonId], references: [id])
   inventoryItem EventInventoryItem  @relation(fields: [inventoryItemId], references: [id])
 }
 
 model PrizeValue {
   id               Int    @id @default(autoincrement()) @map("ID_PRIZE_VALUE")
-  eventId          Int?   @map("ID_EVENT")
+  seasonId         Int?   @map("SEASON_ID")
   prizeSchemeItemId Int?  @map("ID_PRIZE_SCHEME_ITEM")
   raceTypeId       Int?   @map("ID_RACE_TYPE")
   prizeValue       Float? @map("PRIZE_VALUE")
 
-  event           Event?           @relation(fields: [eventId], references: [id])
+  season          Season?          @relation(fields: [seasonId], references: [id])
   prizeSchemeItem PrizeSchemeItem? @relation(fields: [prizeSchemeItemId], references: [id])
   raceType        RaceType?        @relation(fields: [raceTypeId], references: [id])
 }
@@ -920,6 +922,7 @@ model RfidScan {
   id        Int      @id @default(autoincrement()) @map("ID_RFID_SCAN")
   rfidTag   String   @map("RFID_TAG")
   scannerId String   @map("SCANNER_ID")
+  deviceIp  String?  @map("DEVICE_IP")
   timestamp DateTime @default(now()) @map("TIMESTAMP")
   processed Boolean  @default(false) @map("PROCESSED")
   birdId    Int?     @map("ID_BIRD")
@@ -932,6 +935,7 @@ model RfidScan {
 
   @@index([rfidTag])
   @@index([scannerId])
+  @@index([deviceIp])
   @@index([timestamp])
   @@index([processed])
   @@map("RfidScans")
@@ -943,19 +947,19 @@ model RfidScan {
 
 model EventBasket {
   id        Int         @id @default(autoincrement()) @map("ID_EVENT_BASKET")
-  eventId   Int         @map("ID_EVENT")
+  seasonId  Int         @map("SEASON_ID")
   basketNo  Int         @map("BASKET_NO")
   capacity  Int         @map("CAPACITY")
   phase     BasketPhase @map("PHASE")
   label     String?     @map("LABEL")
   raceId    Int?        @map("ID_RACE")
 
-  event       Event              @relation(fields: [eventId], references: [id])
+  season      Season             @relation(fields: [seasonId], references: [id])
   race        Race?              @relation(fields: [raceId], references: [id])
   assignments BasketAssignment[]
 
-  @@unique([eventId, basketNo, phase, raceId])
-  @@index([eventId, phase, raceId])
+  @@unique([seasonId, basketNo, phase, raceId])
+  @@index([seasonId, phase, raceId])
   @@map("EventBaskets")
 }
 
@@ -991,7 +995,7 @@ model VaccinationRecord {
 
 model EventGroup {
   id           Int              @id @default(autoincrement())
-  eventId      Int
+  seasonId     Int
   name         String
   type         EventGroupType   @default(LOFT)
   status       EventGroupStatus @default(OPEN)
@@ -1004,16 +1008,16 @@ model EventGroup {
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 
-  event             Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  season            Season               @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   statusCode        BirdStatusCode?      @relation(fields: [statusCodeId], references: [id])
   members           EventInventoryItem[] @relation("LoftGroupMembers")
   tagColorMembers   EventInventoryItem[] @relation("TagColorGroupMembers")
   statusGroupMems   EventInventoryItem[] @relation("StatusGroupMembers")
   vaccinations      VaccinationRecord[]
 
-  @@index([eventId, type])
-  @@index([eventId, status])
-  @@index([eventId, type, isActive])
+  @@index([seasonId, type])
+  @@index([seasonId, status])
+  @@index([seasonId, type, isActive])
 }
 
 model BirdGroupHistory {
@@ -1091,7 +1095,7 @@ model Bet {
 
 model EventStoreListing {
   id                   Int                      @id @default(autoincrement()) @map("ID_EVENT_STORE_LISTING")
-  eventId              Int                      @map("ID_EVENT")
+  seasonId             Int                      @map("SEASON_ID")
   originalBreederId    Int                      @map("ID_ORIGINAL_BREEDER")
   listingPrice         Float                    @map("LISTING_PRICE")
   status               EventStoreListingStatus  @default(AVAILABLE) @map("STATUS")
@@ -1099,7 +1103,7 @@ model EventStoreListing {
   purchasedAt          DateTime?                @map("PURCHASED_AT")
   createdAt            DateTime                 @default(now()) @map("CREATED_AT")
 
-  event           Event   @relation(fields: [eventId], references: [id])
+  season          Season  @relation(fields: [seasonId], references: [id])
   originalBreeder Breeder @relation("OriginalBreeder", fields: [originalBreederId], references: [id])
   purchasedBy     Breeder? @relation("PurchasedByBreeder", fields: [purchasedByBreederId], references: [id])
   items           EventStoreListingItem[]
@@ -1141,7 +1145,7 @@ model BirdStatusCode {
 
 model CalcuttaConfig {
   id                Int           @id @default(autoincrement())
-  eventId           Int           @unique
+  seasonId          Int           @unique
   pricePerBird      Decimal
   targetGroupSize   Int           @default(15)
   biddingDuration   Int           @default(120)
@@ -1151,12 +1155,12 @@ model CalcuttaConfig {
   phase             CalcuttaPhase @default(SETUP)
   activeGroupId     Int?
 
-  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
 }
 
 model CalcuttaBetGroup {
   id              Int                 @id @default(autoincrement())
-  eventId         Int
+  seasonId        Int
   groupNumber     Int
   birdCount       Int
   calculatedPrice Decimal
@@ -1168,12 +1172,12 @@ model CalcuttaBetGroup {
   lastBidAt       DateTime?
   createdAt       DateTime            @default(now())
 
-  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  season  Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   owner   User?  @relation(fields: [ownerId], references: [id])
   members CalcuttaBetGroupMember[]
   bids    CalcuttaBid[]
 
-  @@index([eventId, status])
+  @@index([seasonId, status])
 }
 
 model CalcuttaBetGroupMember {

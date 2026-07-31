@@ -20,8 +20,24 @@ export async function POST(
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
+    const url = new URL(request.url);
+    const seasonIdParam = url.searchParams.get("seasonId");
+    let seasonId: number;
+    if (seasonIdParam) {
+      seasonId = parseInt(seasonIdParam);
+    } else {
+      const activeSeason = await prisma.season.findFirst({
+        where: { eventId, isActive: true },
+        orderBy: { startDate: "desc" },
+      });
+      if (!activeSeason) {
+        return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+      }
+      seasonId = activeSeason.id;
+    }
+
     const body = await request.json();
-    const { eventInventoryItemId, rfid } = body;
+    const { eventInventoryItemId, rfid, groupId: groupIdOverride } = body;
 
     if (!eventInventoryItemId || !rfid || typeof rfid !== "string" || rfid.trim() === "") {
       return NextResponse.json(
@@ -30,10 +46,10 @@ export async function POST(
       );
     }
 
-    // Must have an open LOFT group
-    const activeGroup = await prisma.eventGroup.findFirst({
-      where: { eventId, type: "LOFT", status: "OPEN" },
-    });
+    // Use override group if provided, else find OPEN loft group for season
+    const activeGroup = groupIdOverride
+      ? await prisma.eventGroup.findFirst({ where: { id: groupIdOverride, seasonId, type: "LOFT" } })
+      : await prisma.eventGroup.findFirst({ where: { seasonId, type: "LOFT", status: "OPEN" } });
     if (!activeGroup) {
       return NextResponse.json(
         { message: "No active loft group. Create a LOFT group before scanning." },
@@ -41,11 +57,11 @@ export async function POST(
       );
     }
 
-    // Validate item belongs to event
+    // Validate item belongs to this season
     const item = await prisma.eventInventoryItem.findFirst({
       where: {
         id: eventInventoryItemId,
-        eventInventory: { eventId },
+        eventInventory: { seasonId },
       },
       include: {
         bird: { select: { id: true, band: true, birdName: true, rfid: true } },
@@ -93,7 +109,7 @@ export async function POST(
 
       // 2b. If active TAG_COLOR group exists → assign bird there too
       const activeTagGroup = await tx.eventGroup.findFirst({
-        where: { eventId, type: "TAG_COLOR", isActive: true },
+        where: { seasonId, type: "TAG_COLOR", isActive: true },
       });
       if (activeTagGroup) {
         await tx.eventInventoryItem.update({

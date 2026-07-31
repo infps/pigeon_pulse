@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useListEventInventory } from "@/lib/api/event-inventory";
+import { useSeasonContext } from "@/lib/season-context";
 import type { EventInventory } from "@/lib/types";
 
 interface EventStoreTabProps {
@@ -30,16 +31,19 @@ interface EventStoreTabProps {
 
 export function EventStoreTab({ eventId }: EventStoreTabProps) {
   const qc = useQueryClient();
+  const { selectedSeasonId } = useSeasonContext();
   const [purchaseDialogListing, setPurchaseDialogListing] = useState<EventStoreListing | null>(null);
   const [selectedBuyerId, setSelectedBuyerId] = useState<string>("");
 
   const { data, isPending, isError } = useQuery<{ listings: EventStoreListing[] }>({
-    queryKey: ["event-store", eventId],
-    queryFn: () =>
-      fetch(`/api/admin/event/${eventId}/store`).then((r) => r.json()),
+    queryKey: ["event-store", eventId, String(selectedSeasonId ?? "")],
+    queryFn: () => {
+      const params = selectedSeasonId ? `?seasonId=${selectedSeasonId}` : "";
+      return fetch(`/api/admin/event/${eventId}/store${params}`).then((r) => r.json());
+    },
   });
 
-  const { data: inventoryData } = useListEventInventory(eventId, {});
+  const { data: inventoryData } = useListEventInventory(eventId, {}, selectedSeasonId);
 
   const purchaseMutation = useMutation({
     mutationFn: ({ listingId, buyerBreederId }: { listingId: number; buyerBreederId: number }) =>

@@ -24,14 +24,29 @@ export async function GET(
     }
 
     const url = new URL(request.url);
+    const seasonIdParam = url.searchParams.get("seasonId");
     const inventoryIdParam = url.searchParams.get("inventoryId");
     const inventoryId = inventoryIdParam ? parseInt(inventoryIdParam) : null;
 
+    let seasonId: number;
+    if (seasonIdParam) {
+      seasonId = parseInt(seasonIdParam);
+    } else {
+      const activeSeason = await prisma.season.findFirst({
+        where: { eventId, isActive: true },
+        orderBy: { startDate: "desc" },
+      });
+      if (!activeSeason) {
+        return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+      }
+      seasonId = activeSeason.id;
+    }
+
     // Target a specific inventory when provided; otherwise use the most recent
-    // registration for this breeder+event (avoids returning a stale older one).
+    // registration for this breeder+season (avoids returning a stale older one).
     const eventInventory = await prisma.eventInventory.findFirst({
       where: {
-        eventId,
+        seasonId,
         breederId: breeder.id,
         ...(inventoryId ? { id: inventoryId } : {}),
       },

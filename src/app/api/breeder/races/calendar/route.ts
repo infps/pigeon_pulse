@@ -27,17 +27,16 @@ export async function GET(req: NextRequest) {
         description: true,
         startTime: true,
         distance: true,
-        season: true,
         status: true,
-        event: { select: { id: true, name: true } },
+        seasonRel: { select: { event: { select: { id: true, name: true } } } },
       },
       orderBy: { startTime: "asc" },
     });
 
-    const out = races.map(({ event, ...r }) => ({
+    const out = races.map(({ seasonRel, ...r }) => ({
       ...r,
-      eventId: event?.id ?? null,
-      eventName: event?.name ?? null,
+      eventId: seasonRel?.event?.id ?? null,
+      eventName: seasonRel?.event?.name ?? null,
     }));
 
     return NextResponse.json({ races: out, count: out.length });

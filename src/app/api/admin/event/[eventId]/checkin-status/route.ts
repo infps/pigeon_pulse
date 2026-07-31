@@ -20,8 +20,24 @@ export async function GET(
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const seasonIdParam = searchParams.get("seasonId");
+    let seasonId: number;
+    if (seasonIdParam) {
+      seasonId = parseInt(seasonIdParam);
+    } else {
+      const activeSeason = await prisma.season.findFirst({
+        where: { eventId, isActive: true },
+        orderBy: { startDate: "desc" },
+      });
+      if (!activeSeason) {
+        return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+      }
+      seasonId = activeSeason.id;
+    }
+
     const items = await prisma.eventInventoryItem.findMany({
-      where: { eventInventory: { eventId } },
+      where: { eventInventory: { seasonId } },
       include: {
         bird: { select: { id: true, band: true, birdName: true, rfid: true, color: true, sex: true } },
         eventInventory: {

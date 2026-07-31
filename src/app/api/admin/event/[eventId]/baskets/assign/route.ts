@@ -22,15 +22,31 @@ export async function POST(
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
+    const url = new URL(request.url);
+    const seasonIdParam = url.searchParams.get("seasonId");
+    let seasonId: number;
+    if (seasonIdParam) {
+      seasonId = parseInt(seasonIdParam);
+    } else {
+      const activeSeason = await prisma.season.findFirst({
+        where: { eventId, isActive: true },
+        orderBy: { startDate: "desc" },
+      });
+      if (!activeSeason) {
+        return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+      }
+      seasonId = activeSeason.id;
+    }
+
     const body = await request.json();
     const preview = body.preview === true;
     const mode: "shuffle" | "assign" = body.mode === "assign" ? "assign" : "shuffle";
     const raceId = body.raceId ? parseInt(body.raceId) : undefined;
 
-    // 1. Fetch birds for this event
+    // 1. Fetch birds for this season
     const inventoryItems = await prisma.eventInventoryItem.findMany({
       where: {
-        eventInventory: { eventId },
+        eventInventory: { seasonId },
         ...(mode === "assign" ? { basketAssignments: { none: {} } } : {}),
       },
       select: {
@@ -46,7 +62,7 @@ export async function POST(
 
     if (inventoryItems.length === 0) {
       return NextResponse.json(
-        { message: "No registered birds found for this event" },
+        { message: "No registered birds found for this season" },
         { status: 200 }
       );
     }
@@ -88,10 +104,10 @@ export async function POST(
     }
     const groups: BreederGroup[] = [...groupMap.values()];
 
-    // 4. Fetch LOFT baskets scoped to raceId (if provided)
+    // 4. Fetch LOFT baskets scoped to season (+ raceId if provided)
     const eventBaskets = await prisma.eventBasket.findMany({
       where: {
-        eventId,
+        seasonId,
         phase: "LOFT",
         ...(raceId ? { raceId } : {}),
       },

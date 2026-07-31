@@ -28,17 +28,22 @@ export async function GET(request: Request) {
         where: { id: eventId },
         include: {
           eventType: true,
-          feeScheme: {
+          createdBy: true,
+          seasons: {
             include: {
-              birdFeeItems: { orderBy: { birdNo: "asc" } },
-              raceTypeFees: { include: { raceType: true } },
+              feeScheme: {
+                include: {
+                  birdFeeItems: { orderBy: { birdNo: "asc" } },
+                  raceTypeFees: { include: { raceType: true } },
+                },
+              },
+              bettingScheme: true,
+              finalPrize: true,
+              races: { include: { raceType: true }, orderBy: { startTime: "asc" } },
+              _count: { select: { races: true, eventInventories: true } },
             },
           },
-          finalPrize: true,
-          bettingScheme: true,
-          createdBy: true,
-          races: { include: { raceType: true }, orderBy: { startTime: "asc" } },
-          _count: { select: { races: true, eventInventories: true } },
+          _count: { select: { seasons: true } },
         },
       });
       if (!event) {
@@ -47,16 +52,17 @@ export async function GET(request: Request) {
           { status: 404 }
         );
       }
+      const activeSeason = event.seasons.find(s => s.isActive) ?? event.seasons[0];
       const birdCount = await prisma.eventInventoryItem.count({
-        where: { eventInventory: { eventId } },
+        where: { eventInventory: { seasonId: activeSeason?.id } },
       });
       return NextResponse.json(
         {
           event,
           stats: {
-            breeders: event._count.eventInventories,
+            breeders: activeSeason?._count.eventInventories ?? 0,
             birds: birdCount,
-            races: event._count.races,
+            races: activeSeason?._count.races ?? 0,
           },
           message: "Event fetched successfully",
         },
@@ -67,9 +73,6 @@ export async function GET(request: Request) {
     const events = await prisma.event.findMany({
       include: {
         eventType: true,
-        feeScheme: true,
-        finalPrize: true,
-        bettingScheme: true,
         createdBy: true,
       },
       orderBy: {
@@ -151,9 +154,6 @@ export async function POST(request: Request) {
         eventDate: new Date(validatedData.eventDate),
         isOpen: validatedData.isOpen ?? 1,
         eventTypeId: validatedData.eventTypeId ?? null,
-        feeSchemeId: validatedData.feeSchemeId ?? null,
-        finalPrizeSchemeId: validatedData.finalPrizeSchemeId ?? null,
-        bettingSchemeId: validatedData.bettingSchemeId ?? null,
         latitude: validatedData.latitude ?? null,
         longitude: validatedData.longitude ?? null,
         createdById: organizer?.id ?? null,
@@ -164,9 +164,6 @@ export async function POST(request: Request) {
       },
       include: {
         eventType: true,
-        feeScheme: true,
-        finalPrize: true,
-        bettingScheme: true,
         createdBy: true,
       },
     });
@@ -283,15 +280,6 @@ export async function PUT(request: Request) {
           isOpen: validatedData.isOpen,
         }),
         ...(validatedData.eventTypeId !== undefined && { eventTypeId: validatedData.eventTypeId }),
-        ...(validatedData.feeSchemeId !== undefined && {
-          feeSchemeId: validatedData.feeSchemeId,
-        }),
-        ...(validatedData.finalPrizeSchemeId !== undefined && {
-          finalPrizeSchemeId: validatedData.finalPrizeSchemeId,
-        }),
-        ...(validatedData.bettingSchemeId !== undefined && {
-          bettingSchemeId: validatedData.bettingSchemeId,
-        }),
         ...(validatedData.latitude !== undefined && { latitude: validatedData.latitude }),
         ...(validatedData.longitude !== undefined && { longitude: validatedData.longitude }),
         ...(validatedData.locationAddress !== undefined && { locationAddress: validatedData.locationAddress }),
@@ -313,9 +301,6 @@ export async function PUT(request: Request) {
       },
       include: {
         eventType: true,
-        feeScheme: true,
-        finalPrize: true,
-        bettingScheme: true,
         createdBy: true,
       },
     });

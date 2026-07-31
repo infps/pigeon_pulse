@@ -3,6 +3,7 @@
 import type { Event, EventInventory } from "@/lib/types";
 import { useMemo, useState } from "react";
 import { useListEventInventory } from "@/lib/api/event-inventory";
+import { useSeasonContext } from "@/lib/season-context";
 import { DataTable } from "@/components/ui/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ interface BreedersTabProps {
 }
 
 export function BreedersTab({ event, eventId }: BreedersTabProps) {
+  const { selectedSeasonId } = useSeasonContext();
   const [selectedEventInventoryId, setSelectedEventInventoryId] = useState<number | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
 
@@ -44,7 +46,7 @@ export function BreedersTab({ event, eventId }: BreedersTabProps) {
     };
   }, [paymentStatus, arrivalFrom, arrivalTo]);
 
-  const { data, isPending, error } = useListEventInventory(eventId, filters);
+  const { data, isPending, error } = useListEventInventory(eventId, filters, selectedSeasonId);
 
   const clearFilters = () => {
     setPaymentStatus("all");
@@ -126,7 +128,22 @@ export function BreedersTab({ event, eventId }: BreedersTabProps) {
     );
   }
 
-  const eventInventory: EventInventory[] = data?.eventInventory || [];
+  const rawInventory: EventInventory[] = data?.eventInventory || [];
+
+  // Group by (breederId, loft) — merge items/payments, keep first row's id for dialog
+  const eventInventory: EventInventory[] = Object.values(
+    rawInventory.reduce<Record<string, EventInventory>>((acc, inv) => {
+      const key = `${inv.breederId}__${inv.loft ?? ""}`;
+      if (!acc[key]) {
+        acc[key] = { ...inv, items: [...(inv.items ?? [])], payments: [...(inv.payments ?? [])] };
+      } else {
+        acc[key].items = [...(acc[key].items ?? []), ...(inv.items ?? [])];
+        acc[key].payments = [...(acc[key].payments ?? []), ...(inv.payments ?? [])];
+        acc[key].reservedBirds = (acc[key].reservedBirds ?? 0) + (inv.reservedBirds ?? 0);
+      }
+      return acc;
+    }, {})
+  );
 
   return (
     <div className="space-y-4">

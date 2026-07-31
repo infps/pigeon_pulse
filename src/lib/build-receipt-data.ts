@@ -47,7 +47,7 @@ export async function buildReceiptData(inventoryId: number): Promise<ReceiptData
     where: { id: inventoryId },
     include: {
       breeder: true,
-      event: { include: { bettingScheme: true } },
+      season: { include: { event: true, bettingScheme: true } },
       items: {
         include: {
           bird: true,
@@ -69,7 +69,7 @@ export async function buildReceiptData(inventoryId: number): Promise<ReceiptData
   const breederNumber = inv.breeder?.number ?? inv.breeder?.id ?? "";
   const breederName = `${breederLast},${breederFirst} (${breederNumber})`;
 
-  const scheme = inv.event?.bettingScheme as Record<string, unknown> | null | undefined;
+  const scheme = inv.season?.bettingScheme as Record<string, unknown> | null | undefined;
   const classFeeLabels = BET_FIELDS.map((f, i) => {
     const raw = scheme ? (scheme[SCHEME_FIELD_MAP[f]] as number | null | undefined) : 0;
     return { letter: CLASS_LETTERS[i], fee: Number(raw ?? 0) };

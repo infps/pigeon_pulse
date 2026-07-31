@@ -8,6 +8,9 @@ import { useListFeeSchemes } from "@/lib/api/fee-schemes";
 import { useListPrizeSchemes } from "@/lib/api/prize-schemes";
 import { useListBettingSchemes } from "@/lib/api/betting-schemes";
 import { Skeleton } from "@/components/ui/skeleton";
+import { authClient } from "@/lib/auth-client";
+import { SeasonProvider } from "@/lib/season-context";
+import { SeasonSelector } from "@/components/season-selector";
 import {
   Tabs,
   TabsContent,
@@ -36,6 +39,8 @@ import { CalcuttaTab } from "./calcutta-tab";
 export default function EventDetailsPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = use(params);
   const router = useRouter();
+  const { data: session } = authClient.useSession();
+  const isSuperAdmin = session?.user?.role === "SUPERADMIN";
 
   const { data: eventData, isPending, isError } = useListEvents({ params: { eventId } });
   const { data: feeSchemesData } = useListFeeSchemes({});
@@ -75,8 +80,9 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
   }
 
   return (
+    <SeasonProvider eventId={eventId}>
     <div className="p-8 w-full mx-auto">
-      <div className="mb-6">
+      <div className="mb-6 flex items-center justify-between">
         <Button
           variant="ghost"
           onClick={() => router.push("/admin/events")}
@@ -85,6 +91,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Events
         </Button>
+        <SeasonSelector eventId={eventId} isSuperAdmin={isSuperAdmin} />
       </div>
 
       <Tabs defaultValue="edit" className="w-full">
@@ -173,5 +180,6 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
         </TabsContent>
       </Tabs>
     </div>
+    </SeasonProvider>
   );
 }

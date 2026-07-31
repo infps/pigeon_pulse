@@ -2,8 +2,23 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+
+async function resolveSeasonId(request: Request, eventId: number): Promise<number | NextResponse> {
+  const { searchParams } = new URL(request.url);
+  const seasonIdParam = searchParams.get("seasonId");
+  if (seasonIdParam) return parseInt(seasonIdParam);
+  const activeSeason = await prisma.season.findFirst({
+    where: { eventId, isActive: true },
+    orderBy: { startDate: "desc" },
+  });
+  if (!activeSeason) {
+    return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+  }
+  return activeSeason.id;
+}
+
 export async function GET(
-  _req: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   const { eventId: eventIdParam } = await params;
@@ -15,8 +30,11 @@ export async function GET(
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
+  const seasonId = await resolveSeasonId(request, eventId);
+  if (seasonId instanceof NextResponse) return seasonId;
+
   const [config, event] = await Promise.all([
-    prisma.calcuttaConfig.findUnique({ where: { eventId } }),
+    prisma.calcuttaConfig.findUnique({ where: { seasonId } }),
     prisma.event.findUnique({ where: { id: eventId }, select: { raceFormat: true } }),
   ]);
 
@@ -41,6 +59,9 @@ export async function POST(
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
+  const seasonId = await resolveSeasonId(request, eventId);
+  if (seasonId instanceof NextResponse) return seasonId;
+
   const body = await request.json();
   const {
     pricePerBird,
@@ -57,9 +78,9 @@ export async function POST(
 
   const [config] = await prisma.$transaction([
     prisma.calcuttaConfig.upsert({
-      where: { eventId },
+      where: { seasonId },
       create: {
-        eventId,
+        seasonId,
         pricePerBird: Number(pricePerBird),
         targetGroupSize,
         biddingDuration,

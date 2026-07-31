@@ -27,7 +27,21 @@ async function requireAccess(eventId: number) {
   return { session };
 }
 
-export async function GET(_req: Request, { params }: { params: Promise<{ eventId: string }> }) {
+async function resolveSeasonId(request: Request, eventId: number): Promise<number | NextResponse> {
+  const { searchParams } = new URL(request.url);
+  const seasonIdParam = searchParams.get("seasonId");
+  if (seasonIdParam) return parseInt(seasonIdParam);
+  const activeSeason = await prisma.season.findFirst({
+    where: { eventId, isActive: true },
+    orderBy: { startDate: "desc" },
+  });
+  if (!activeSeason) {
+    return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+  }
+  return activeSeason.id;
+}
+
+export async function GET(request: Request, { params }: { params: Promise<{ eventId: string }> }) {
   try {
     const { eventId: eventIdParam } = await params;
     const eventId = parseInt(eventIdParam);
@@ -38,8 +52,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ eventId
     const access = await requireAccess(eventId);
     if (access.error) return access.error;
 
+    const seasonId = await resolveSeasonId(request, eventId);
+    if (seasonId instanceof NextResponse) return seasonId;
+
     const stations = await prisma.raceStation.findMany({
-      where: { eventId },
+      where: { seasonId },
       orderBy: { miles: "asc" },
       include: { raceType: true },
     });
@@ -60,6 +77,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
     const access = await requireAccess(eventId);
     if (access.error) return access.error;
+
+    const seasonId = await resolveSeasonId(req, eventId);
+    if (seasonId instanceof NextResponse) return seasonId;
 
     const body = await req.json();
     const { name, miles, km, latitude, longitude, isActive, raceTypeId } = body || {};
@@ -88,7 +108,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
 
     const station = await prisma.raceStation.create({
       data: {
-        eventId,
+        seasonId,
         name: name.trim(),
         miles: milesVal,
         km: kmVal,

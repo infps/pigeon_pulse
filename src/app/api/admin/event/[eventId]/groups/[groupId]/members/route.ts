@@ -13,6 +13,20 @@ async function resolveParams(params: Promise<{ eventId: string; groupId: string 
   return { eventId, groupId };
 }
 
+async function resolveSeasonId(request: Request, eventId: number): Promise<number | NextResponse> {
+  const { searchParams } = new URL(request.url);
+  const seasonIdParam = searchParams.get("seasonId");
+  if (seasonIdParam) return parseInt(seasonIdParam);
+  const activeSeason = await prisma.season.findFirst({
+    where: { eventId, isActive: true },
+    orderBy: { startDate: "desc" },
+  });
+  if (!activeSeason) {
+    return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+  }
+  return activeSeason.id;
+}
+
 // Bulk-add birds to group
 export async function POST(request: Request, { params }: Params) {
   const p = await resolveParams(params);
@@ -23,7 +37,10 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const group = await prisma.eventGroup.findFirst({ where: { id: p.groupId, eventId: p.eventId } });
+  const seasonId = await resolveSeasonId(request, p.eventId);
+  if (seasonId instanceof NextResponse) return seasonId;
+
+  const group = await prisma.eventGroup.findFirst({ where: { id: p.groupId, seasonId } });
   if (!group) return NextResponse.json({ message: "Group not found" }, { status: 404 });
 
   const body = await request.json().catch(() => ({}));
@@ -34,7 +51,7 @@ export async function POST(request: Request, { params }: Params) {
   if (itemIds.length === 0) return NextResponse.json({ message: "No item IDs provided" }, { status: 400 });
 
   const items = await prisma.eventInventoryItem.findMany({
-    where: { id: { in: itemIds }, eventInventory: { eventId: p.eventId } },
+    where: { id: { in: itemIds }, eventInventory: { seasonId } },
     select: { id: true, currentGroupId: true },
   });
 
@@ -82,12 +99,15 @@ export async function DELETE(request: Request, { params }: Params) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
+  const seasonId = await resolveSeasonId(request, p.eventId);
+  if (seasonId instanceof NextResponse) return seasonId;
+
   const body = await request.json().catch(() => ({}));
   const itemId = parseInt(body.eventInventoryItemId);
   if (isNaN(itemId)) return NextResponse.json({ message: "Invalid item ID" }, { status: 400 });
 
   const item = await prisma.eventInventoryItem.findFirst({
-    where: { id: itemId, currentGroupId: p.groupId, eventInventory: { eventId: p.eventId } },
+    where: { id: itemId, currentGroupId: p.groupId, eventInventory: { seasonId } },
   });
   if (!item) return NextResponse.json({ message: "Item not found in group" }, { status: 404 });
 

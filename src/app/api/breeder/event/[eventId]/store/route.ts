@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 export async function GET(
-  _req: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   const { eventId: eventIdParam } = await params;
@@ -14,9 +14,25 @@ export async function GET(
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
+  const { searchParams } = new URL(request.url);
+  const seasonIdParam = searchParams.get("seasonId");
+  let seasonId: number;
+  if (seasonIdParam) {
+    seasonId = parseInt(seasonIdParam);
+  } else {
+    const activeSeason = await prisma.season.findFirst({
+      where: { eventId, isActive: true },
+      orderBy: { startDate: "desc" },
+    });
+    if (!activeSeason) {
+      return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+    }
+    seasonId = activeSeason.id;
+  }
+
   try {
     const listings = await prisma.eventStoreListing.findMany({
-      where: { eventId, status: "AVAILABLE" },
+      where: { seasonId, status: "AVAILABLE" },
       include: {
         originalBreeder: true,
         items: { include: { inventoryItem: { include: { bird: true } } } },

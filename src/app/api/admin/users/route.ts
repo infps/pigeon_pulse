@@ -93,8 +93,12 @@ export async function GET(request: Request) {
 
     if (eventId) {
       const eventIdInt = parseInt(eventId);
+      const activeSeason = await prisma.season.findFirst({
+        where: { eventId: eventIdInt, isActive: true },
+        orderBy: { startDate: "desc" },
+      });
       const inventories = await prisma.eventInventory.findMany({
-        where: { eventId: eventIdInt },
+        where: { seasonId: activeSeason?.id },
         include: { breeder: true },
       });
 

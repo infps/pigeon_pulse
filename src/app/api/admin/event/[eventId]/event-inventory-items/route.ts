@@ -53,9 +53,24 @@ export async function GET(
     }
 
     const { searchParams } = new URL(request.url);
+    const seasonIdParam = searchParams.get("seasonId");
     const paymentStatusParam = searchParams.get("paymentStatus");
     const arrivalFromParam = searchParams.get("arrivalFrom");
     const arrivalToParam = searchParams.get("arrivalTo");
+
+    let seasonId: number;
+    if (seasonIdParam) {
+      seasonId = parseInt(seasonIdParam);
+    } else {
+      const activeSeason = await prisma.season.findFirst({
+        where: { eventId, isActive: true },
+        orderBy: { startDate: "desc" },
+      });
+      if (!activeSeason) {
+        return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+      }
+      seasonId = activeSeason.id;
+    }
 
     const paymentStatusFilter: HybridStatus | null =
       paymentStatusParam && paymentStatusParam !== "all" && (VALID_STATUS as ReadonlyArray<string>).includes(paymentStatusParam)
@@ -68,7 +83,7 @@ export async function GET(
     const eventInventoryItems = await prisma.eventInventoryItem.findMany({
       where: {
         eventInventory: {
-          eventId: eventId,
+          seasonId,
         },
       },
       include: {

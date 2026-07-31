@@ -38,13 +38,13 @@ export async function getRegistrationRows(
   breederId: number,
   eventId?: number,
 ): Promise<ExportData> {
-  const where: { breederId: number; eventId?: number } = { breederId };
-  if (eventId) where.eventId = eventId;
+  const where: { breederId: number; season?: { eventId: number } } = { breederId };
+  if (eventId) where.season = { eventId };
 
   const inventories = await prisma.eventInventory.findMany({
     where,
     include: {
-      event: true,
+      season: { include: { event: true } },
       items: { include: { bird: true } },
       payments: true,
     },
@@ -77,8 +77,8 @@ export async function getRegistrationRows(
       0,
     );
     return [
-      inv.event?.name ?? "",
-      fmtDate(inv.event?.eventDate ?? null),
+      inv.season?.event?.name ?? "",
+      fmtDate(inv.season?.event?.eventDate ?? null),
       inv.loft ?? "",
       fmtDate(inv.signInDate ?? null),
       String(inv.items?.length ?? 0),
@@ -92,7 +92,7 @@ export async function getRegistrationRows(
     columns,
     rows,
     title: eventId
-      ? `Registrations - ${inventories[0]?.event?.name ?? `Event ${eventId}`}`
+      ? `Registrations - ${inventories[0]?.season?.event?.name ?? `Event ${eventId}`}`
       : "My Registrations",
   };
 }
@@ -108,12 +108,12 @@ export async function getResultsRows(
       inventoryItem: {
         eventInventory: {
           breederId,
-          ...(eventId ? { eventId } : {}),
+          ...(eventId ? { season: { eventId } } : {}),
         },
       },
     },
     include: {
-      race: { include: { event: true } },
+      race: { include: { seasonRel: { include: { event: true } } } },
       result: true,
       inventoryItem: { include: { bird: true } },
     },
@@ -133,7 +133,7 @@ export async function getResultsRows(
   ];
 
   const rows: string[][] = raceItems.map((ri) => [
-    ri.race?.event?.name ?? "",
+    ri.race?.seasonRel?.event?.name ?? "",
     ri.race?.name || ri.race?.description || `Race ${ri.race?.id ?? ""}`,
     fmtDate(ri.race?.startTime ?? null),
     ri.inventoryItem?.bird?.band ?? "",
@@ -153,9 +153,9 @@ export async function getBasketsRows(
 ): Promise<ExportData> {
   const assignments = await prisma.basketAssignment.findMany({
     where: {
-      eventBasket: { eventId },
+      eventBasket: { season: { eventId } },
       inventoryItem: {
-        eventInventory: { breederId, eventId },
+        eventInventory: { breederId, season: { eventId } },
       },
     },
     include: {
@@ -202,11 +202,11 @@ export async function getPaymentsRows(
     where: {
       eventInventory: {
         breederId,
-        ...(eventId ? { eventId } : {}),
+        ...(eventId ? { season: { eventId } } : {}),
       },
     },
     include: {
-      eventInventory: { include: { event: true } },
+      eventInventory: { include: { season: { include: { event: true } } } },
     },
     orderBy: { paymentDate: "desc" },
   });
@@ -223,7 +223,7 @@ export async function getPaymentsRows(
   ];
 
   const rows: string[][] = payments.map((p) => [
-    p.eventInventory?.event?.name ?? "",
+    p.eventInventory?.season?.event?.name ?? "",
     fmtDateTime(p.paymentDate ?? null),
     p.paymentType != null ? PAYMENT_TYPE_LABEL[p.paymentType] ?? String(p.paymentType) : "",
     p.paymentMethod != null ? PAYMENT_METHOD_LABEL[p.paymentMethod] ?? String(p.paymentMethod) : "",
@@ -235,7 +235,7 @@ export async function getPaymentsRows(
 
   let title = "My Payments";
   if (eventId) {
-    const evName = payments[0]?.eventInventory?.event?.name;
+    const evName = payments[0]?.eventInventory?.season?.event?.name;
     title = `Payments - ${evName ?? `Event ${eventId}`}`;
   }
 

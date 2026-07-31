@@ -1,0 +1,538 @@
+import { NextResponse } from "next/server";
+
+// Demo data for 10 birds — used by /test preview pages only
+const DEMO_BIRDS = [
+  {
+    id: 1,
+    birdName: "Blue Thunder",
+    band1: "AU", band2: "2024", band3: "ABC", band4: "1001",
+    color: "Blue Bar", sex: 1, rfid: "RF001122334455",
+    isActive: 1, isLost: 0, lostDate: null, lostRaceId: null,
+    codeMasked: "BT-001", attention: true, note: "Strong performer in long distance",
+    isPublic: 1, image: null,
+    breeder: {
+      id: 10, firstName: "John", lastName: "Smith",
+      country: "AU",
+      user: { loftName: "Smith Loft" },
+    },
+    vaccinations: [
+      {
+        id: 1, vaccineName: "PMV-1", vaccinationDate: "2024-02-15",
+        vet: "Dr. Adams", batchNo: "B2024-01", notes: "Annual",
+        documentUrl: null, groupName: "Group A - Spring 2024",
+      },
+      {
+        id: 2, vaccineName: "Salmonella", vaccinationDate: "2024-03-10",
+        vet: "Dr. Adams", batchNo: "S2024-03", notes: null,
+        documentUrl: null, groupName: "Group A - Spring 2024",
+      },
+    ],
+    inventoryItems: [
+      {
+        id: 100,
+        signInDate: "2024-04-01", arrivalDate: "2024-04-02", departureDate: "2024-04-10",
+        entryFeeValue: 50, perchFeeValue: 10, raceFeeValue: 25, hotSpotFeeValue: 15,
+        entryRefund: 0, hotSpotRefund: 0, betsRefund: 0,
+        isBackup: 0, isBetActive: 1,
+        belgianShowBet1: 100, belgianShowBet2: 80, belgianShowBet3: 0,
+        belgianShowBet4: 0, belgianShowBet5: 0, belgianShowBet6: 0, belgianShowBet7: 0,
+        standardShowBet1: 200, standardShowBet2: 150, standardShowBet3: 0,
+        standardShowBet4: 0, standardShowBet5: 0, standardShowBet6: 0,
+        wtaBet1: 500, wtaBet2: 0, wtaBet3: 0, wtaBet4: 0, wtaBet5: 0,
+        eventInventory: {
+          event: { id: 1, name: "Spring Classic 2024", signInDate: "2024-04-01" },
+        },
+        raceItems: [
+          {
+            id: 201, status: "ARRIVED",
+            race: { id: 1, name: "Race 1 - 200km" },
+            result: { birdPosition: 3, prizeValue: 150, arrivalTime: "2024-04-05T14:32:00Z" },
+            bets: [{ bettorId: "u1", ownerUserId: "u1", category: "BELGIAN", tierIndex: 1, stakePaymentId: 1, stakePaid: true }],
+          },
+          {
+            id: 202, status: "ARRIVED",
+            race: { id: 2, name: "Race 2 - 400km" },
+            result: { birdPosition: 1, prizeValue: 500, arrivalTime: "2024-04-08T09:15:00Z" },
+            bets: [],
+          },
+        ],
+        basketAssignments: [
+          { id: 301, eventBasket: { label: "LB-SMITH-1", phase: "LOFT", race: null } },
+          { id: 302, eventBasket: { label: "RB-05", phase: "RACE", race: { name: "Race 1 - 200km" } } },
+        ],
+      },
+    ],
+    loftGroup: { id: 1, name: "Group A - Spring 2024", color: "#3B82F6" },
+    currentLocation: { status: "ARRIVED", label: "Race 2 - 400km", eventName: "Spring Classic 2024", raceName: "Race 2 - 400km", basketLabel: null, since: "2024-04-08T09:15:00Z" },
+  },
+  {
+    id: 2,
+    birdName: "Red Rocket",
+    band1: "AU", band2: "2023", band3: "XYZ", band4: "2002",
+    color: "Red", sex: 2, rfid: "RF002233445566",
+    isActive: 1, isLost: 0, lostDate: null, lostRaceId: null,
+    codeMasked: null, attention: false, note: null,
+    isPublic: 1, image: null,
+    breeder: {
+      id: 11, firstName: "Mary", lastName: "Jones",
+      country: "AU",
+      user: { loftName: "Jones Racing" },
+    },
+    vaccinations: [
+      {
+        id: 3, vaccineName: "PMV-1", vaccinationDate: "2024-01-20",
+        vet: "Dr. Lee", batchNo: "B2024-02", notes: null,
+        documentUrl: null, groupName: "Group B - Winter 2024",
+      },
+    ],
+    inventoryItems: [
+      {
+        id: 101,
+        signInDate: "2024-04-01", arrivalDate: "2024-04-02", departureDate: null,
+        entryFeeValue: 50, perchFeeValue: 10, raceFeeValue: 25, hotSpotFeeValue: 0,
+        entryRefund: 0, hotSpotRefund: 0, betsRefund: 0,
+        isBackup: 0, isBetActive: 0,
+        belgianShowBet1: 0, belgianShowBet2: 0, belgianShowBet3: 0,
+        belgianShowBet4: 0, belgianShowBet5: 0, belgianShowBet6: 0, belgianShowBet7: 0,
+        standardShowBet1: 0, standardShowBet2: 0, standardShowBet3: 0,
+        standardShowBet4: 0, standardShowBet5: 0, standardShowBet6: 0,
+        wtaBet1: 0, wtaBet2: 0, wtaBet3: 0, wtaBet4: 0, wtaBet5: 0,
+        eventInventory: {
+          event: { id: 1, name: "Spring Classic 2024", signInDate: "2024-04-01" },
+        },
+        raceItems: [
+          {
+            id: 203, status: "ARRIVED",
+            race: { id: 1, name: "Race 1 - 200km" },
+            result: { birdPosition: 7, prizeValue: 50, arrivalTime: "2024-04-05T15:10:00Z" },
+            bets: [],
+          },
+          {
+            id: 204, status: "FOREIGN_BIRD",
+            race: { id: 2, name: "Race 2 - 400km" },
+            result: null,
+            bets: [],
+          },
+        ],
+        basketAssignments: [
+          { id: 303, eventBasket: { label: "LB-JONES-1", phase: "LOFT", race: null } },
+        ],
+      },
+    ],
+    loftGroup: { id: 2, name: "Group B - Winter 2024", color: "#EF4444" },
+    currentLocation: { status: "BASKETED", label: "Loft Basket", eventName: "Spring Classic 2024", raceName: null, basketLabel: "LB-JONES-1", since: "2024-04-02T10:00:00Z" },
+  },
+  {
+    id: 3,
+    birdName: "Silver Arrow",
+    band1: "IF", band2: "2022", band3: "DEF", band4: "3003",
+    color: "Silver", sex: 1, rfid: null,
+    isActive: 1, isLost: 0, lostDate: null, lostRaceId: null,
+    codeMasked: "SA-003", attention: false, note: "Young bird, first season",
+    isPublic: 1, image: null,
+    breeder: {
+      id: 12, firstName: "Bob", lastName: "Williams",
+      country: "AU",
+      user: { loftName: "Williams Pigeons" },
+    },
+    vaccinations: [],
+    inventoryItems: [
+      {
+        id: 102,
+        signInDate: "2024-04-01", arrivalDate: null, departureDate: null,
+        entryFeeValue: 50, perchFeeValue: 10, raceFeeValue: 25, hotSpotFeeValue: 15,
+        entryRefund: 0, hotSpotRefund: 0, betsRefund: 0,
+        isBackup: 1, isBetActive: 0,
+        belgianShowBet1: 0, belgianShowBet2: 0, belgianShowBet3: 0,
+        belgianShowBet4: 0, belgianShowBet5: 0, belgianShowBet6: 0, belgianShowBet7: 0,
+        standardShowBet1: 0, standardShowBet2: 0, standardShowBet3: 0,
+        standardShowBet4: 0, standardShowBet5: 0, standardShowBet6: 0,
+        wtaBet1: 0, wtaBet2: 0, wtaBet3: 0, wtaBet4: 0, wtaBet5: 0,
+        eventInventory: {
+          event: { id: 1, name: "Spring Classic 2024", signInDate: "2024-04-01" },
+        },
+        raceItems: [
+          {
+            id: 205, status: "REGISTERED",
+            race: { id: 1, name: "Race 1 - 200km" },
+            result: null,
+            bets: [],
+          },
+        ],
+        basketAssignments: [],
+      },
+    ],
+    loftGroup: null,
+    currentLocation: null,
+  },
+  {
+    id: 4,
+    birdName: "Dark Storm",
+    band1: "NPA", band2: "2021", band3: "GHI", band4: "4004",
+    color: "Dark Checker", sex: 1, rfid: "RF003344556677",
+    isActive: 0, isLost: 1, lostDate: "2023-09-15", lostRaceId: 99,
+    codeMasked: null, attention: false, note: "Lost during race, not recovered",
+    isPublic: 0, image: null,
+    breeder: {
+      id: 10, firstName: "John", lastName: "Smith",
+      country: "AU",
+      user: { loftName: "Smith Loft" },
+    },
+    vaccinations: [
+      {
+        id: 4, vaccineName: "PMV-1", vaccinationDate: "2023-02-01",
+        vet: "Dr. Adams", batchNo: "B2023-01", notes: null,
+        documentUrl: null, groupName: "Group A - Spring 2023",
+      },
+    ],
+    inventoryItems: [
+      {
+        id: 108,
+        signInDate: "2023-09-01", arrivalDate: "2023-09-02", departureDate: null,
+        entryFeeValue: 50, perchFeeValue: 10, raceFeeValue: 25, hotSpotFeeValue: 0,
+        entryRefund: 0, hotSpotRefund: 0, betsRefund: 0,
+        isBackup: 0, isBetActive: 0,
+        belgianShowBet1: 0, belgianShowBet2: 0, belgianShowBet3: 0,
+        belgianShowBet4: 0, belgianShowBet5: 0, belgianShowBet6: 0, belgianShowBet7: 0,
+        standardShowBet1: 0, standardShowBet2: 0, standardShowBet3: 0,
+        standardShowBet4: 0, standardShowBet5: 0, standardShowBet6: 0,
+        wtaBet1: 0, wtaBet2: 0, wtaBet3: 0, wtaBet4: 0, wtaBet5: 0,
+        eventInventory: {
+          event: { id: 3, name: "Autumn Classic 2023", signInDate: "2023-09-01" },
+        },
+        raceItems: [
+          {
+            id: 214, status: "ARRIVED",
+            race: { id: 10, name: "Race 1 - 200km" },
+            result: { birdPosition: 2, prizeValue: 250, arrivalTime: "2023-09-05T13:00:00Z" },
+            bets: [],
+          },
+          {
+            id: 215, status: "ARRIVED",
+            race: { id: 11, name: "Race 2 - 400km" },
+            result: { birdPosition: 5, prizeValue: 80, arrivalTime: "2023-09-10T15:30:00Z" },
+            bets: [],
+          },
+          {
+            id: 216, status: "FOREIGN_BIRD",
+            race: { id: 99, name: "Race 3 - 600km" },
+            result: null,
+            bets: [],
+            lastKnownStatus: "RELEASED",
+            releasedAt: "2023-09-15T07:00:00Z",
+            note: "Bird released but never scanned on arrival. Marked as lost after 7 days.",
+          },
+        ],
+        basketAssignments: [
+          { id: 313, eventBasket: { label: "LB-SMITH-2", phase: "LOFT", race: null } },
+          { id: 314, eventBasket: { label: "RB-11", phase: "RACE", race: { name: "Race 3 - 600km" } } },
+        ],
+      },
+    ],
+    loftGroup: null,
+    currentLocation: { status: "LOST", label: "Lost at Race 3", eventName: "Autumn Classic 2023", raceName: "Race 3 - 600km", basketLabel: null, since: "2023-09-15" },
+  },
+  {
+    id: 5,
+    birdName: "Golden Wing",
+    band1: "AU", band2: "2024", band3: "JKL", band4: "5005",
+    color: "Yellow", sex: 2, rfid: "RF004455667788",
+    isActive: 1, isLost: 0, lostDate: null, lostRaceId: null,
+    codeMasked: "GW-005", attention: true, note: "Top breeder, exceptional bloodline",
+    isPublic: 1, image: null,
+    breeder: {
+      id: 13, firstName: "Alice", lastName: "Brown",
+      country: "AU",
+      user: { loftName: "Brown Loft" },
+    },
+    vaccinations: [
+      {
+        id: 5, vaccineName: "PMV-1", vaccinationDate: "2024-02-15",
+        vet: "Dr. Lee", batchNo: "B2024-03", notes: "Annual booster",
+        documentUrl: null, groupName: "Group C - Spring 2024",
+      },
+      {
+        id: 6, vaccineName: "Paratyphoid", vaccinationDate: "2024-03-01",
+        vet: "Dr. Lee", batchNo: "P2024-01", notes: null,
+        documentUrl: "https://example.com/doc.pdf", groupName: "Group C - Spring 2024",
+      },
+    ],
+    inventoryItems: [
+      {
+        id: 103,
+        signInDate: "2024-04-01", arrivalDate: "2024-04-02", departureDate: "2024-04-10",
+        entryFeeValue: 50, perchFeeValue: 10, raceFeeValue: 25, hotSpotFeeValue: 15,
+        entryRefund: 0, hotSpotRefund: 0, betsRefund: 0,
+        isBackup: 0, isBetActive: 1,
+        belgianShowBet1: 300, belgianShowBet2: 250, belgianShowBet3: 200,
+        belgianShowBet4: 0, belgianShowBet5: 0, belgianShowBet6: 0, belgianShowBet7: 0,
+        standardShowBet1: 400, standardShowBet2: 300, standardShowBet3: 200,
+        standardShowBet4: 100, standardShowBet5: 0, standardShowBet6: 0,
+        wtaBet1: 1000, wtaBet2: 800, wtaBet3: 0, wtaBet4: 0, wtaBet5: 0,
+        eventInventory: {
+          event: { id: 1, name: "Spring Classic 2024", signInDate: "2024-04-01" },
+        },
+        raceItems: [
+          {
+            id: 206, status: "ARRIVED",
+            race: { id: 1, name: "Race 1 - 200km" },
+            result: { birdPosition: 1, prizeValue: 600, arrivalTime: "2024-04-05T13:45:00Z" },
+            bets: [{ bettorId: "u2", ownerUserId: "u13", category: "BELGIAN", tierIndex: 1, stakePaymentId: 2, stakePaid: true }],
+          },
+          {
+            id: 207, status: "ARRIVED",
+            race: { id: 2, name: "Race 2 - 400km" },
+            result: { birdPosition: 2, prizeValue: 300, arrivalTime: "2024-04-08T08:55:00Z" },
+            bets: [{ bettorId: "u3", ownerUserId: "u13", category: "WTA", tierIndex: 1, stakePaymentId: 3, stakePaid: false }],
+          },
+        ],
+        basketAssignments: [
+          { id: 304, eventBasket: { label: "LB-BROWN-1", phase: "LOFT", race: null } },
+          { id: 305, eventBasket: { label: "RB-02", phase: "RACE", race: { name: "Race 1 - 200km" } } },
+        ],
+      },
+    ],
+    loftGroup: { id: 3, name: "Group C - Spring 2024", color: "#F59E0B" },
+    currentLocation: { status: "ARRIVED", label: "Race 2 - 400km", eventName: "Spring Classic 2024", raceName: "Race 2 - 400km", basketLabel: null, since: "2024-04-08T08:55:00Z" },
+  },
+  {
+    id: 6,
+    birdName: "Iron Fist",
+    band1: "CU", band2: "2023", band3: "MNO", band4: "6006",
+    color: "Blue Checker", sex: 1, rfid: "RF005566778899",
+    isActive: 1, isLost: 0, lostDate: null, lostRaceId: null,
+    codeMasked: null, attention: false, note: null,
+    isPublic: 1, image: null,
+    breeder: {
+      id: 14, firstName: "Tom", lastName: "Davis",
+      country: "AU",
+      user: { loftName: "Davis Champions" },
+    },
+    vaccinations: [],
+    inventoryItems: [
+      {
+        id: 104,
+        signInDate: "2024-04-01", arrivalDate: "2024-04-02", departureDate: null,
+        entryFeeValue: 50, perchFeeValue: 10, raceFeeValue: 25, hotSpotFeeValue: 0,
+        entryRefund: 0, hotSpotRefund: 0, betsRefund: 0,
+        isBackup: 0, isBetActive: 0,
+        belgianShowBet1: 0, belgianShowBet2: 0, belgianShowBet3: 0,
+        belgianShowBet4: 0, belgianShowBet5: 0, belgianShowBet6: 0, belgianShowBet7: 0,
+        standardShowBet1: 0, standardShowBet2: 0, standardShowBet3: 0,
+        standardShowBet4: 0, standardShowBet5: 0, standardShowBet6: 0,
+        wtaBet1: 0, wtaBet2: 0, wtaBet3: 0, wtaBet4: 0, wtaBet5: 0,
+        eventInventory: {
+          event: { id: 1, name: "Spring Classic 2024", signInDate: "2024-04-01" },
+        },
+        raceItems: [
+          {
+            id: 208, status: "RELEASED",
+            race: { id: 2, name: "Race 2 - 400km" },
+            result: null,
+            bets: [],
+          },
+        ],
+        basketAssignments: [
+          { id: 306, eventBasket: { label: "LB-DAVIS-1", phase: "LOFT", race: null } },
+        ],
+      },
+    ],
+    loftGroup: { id: 1, name: "Group A - Spring 2024", color: "#3B82F6" },
+    currentLocation: { status: "BASKETED", label: "Loft Basket", eventName: "Spring Classic 2024", raceName: null, basketLabel: "LB-DAVIS-1", since: "2024-04-02T11:00:00Z" },
+  },
+  {
+    id: 7,
+    birdName: "Midnight Star",
+    band1: "BB", band2: "2024", band3: "PQR", band4: "7007",
+    color: "Black", sex: 2, rfid: "RF006677889900",
+    isActive: 1, isLost: 0, lostDate: null, lostRaceId: null,
+    codeMasked: "MS-007", attention: false, note: "Fast sprinter",
+    isPublic: 1, image: null,
+    breeder: {
+      id: 15, firstName: "Sarah", lastName: "Taylor",
+      country: "AU",
+      user: { loftName: "Taylor Wings" },
+    },
+    vaccinations: [
+      {
+        id: 7, vaccineName: "PMV-1", vaccinationDate: "2024-01-10",
+        vet: "Dr. Chen", batchNo: "B2024-04", notes: null,
+        documentUrl: null, groupName: "Group D - Winter 2024",
+      },
+    ],
+    inventoryItems: [
+      {
+        id: 105,
+        signInDate: "2024-04-01", arrivalDate: "2024-04-02", departureDate: "2024-04-10",
+        entryFeeValue: 50, perchFeeValue: 10, raceFeeValue: 25, hotSpotFeeValue: 15,
+        entryRefund: 50, hotSpotRefund: 15, betsRefund: 0,
+        isBackup: 0, isBetActive: 0,
+        belgianShowBet1: 0, belgianShowBet2: 0, belgianShowBet3: 0,
+        belgianShowBet4: 0, belgianShowBet5: 0, belgianShowBet6: 0, belgianShowBet7: 0,
+        standardShowBet1: 0, standardShowBet2: 0, standardShowBet3: 0,
+        standardShowBet4: 0, standardShowBet5: 0, standardShowBet6: 0,
+        wtaBet1: 0, wtaBet2: 0, wtaBet3: 0, wtaBet4: 0, wtaBet5: 0,
+        eventInventory: {
+          event: { id: 1, name: "Spring Classic 2024", signInDate: "2024-04-01" },
+        },
+        raceItems: [
+          {
+            id: 209, status: "ARRIVED",
+            race: { id: 1, name: "Race 1 - 200km" },
+            result: { birdPosition: 5, prizeValue: 80, arrivalTime: "2024-04-05T14:50:00Z" },
+            bets: [],
+          },
+          {
+            id: 210, status: "ARRIVED",
+            race: { id: 2, name: "Race 2 - 400km" },
+            result: { birdPosition: 4, prizeValue: 120, arrivalTime: "2024-04-08T09:40:00Z" },
+            bets: [],
+          },
+        ],
+        basketAssignments: [
+          { id: 307, eventBasket: { label: "LB-TAYLOR-1", phase: "LOFT", race: null } },
+          { id: 308, eventBasket: { label: "RB-08", phase: "RACE", race: { name: "Race 1 - 200km" } } },
+        ],
+      },
+    ],
+    loftGroup: { id: 4, name: "Group D - Winter 2024", color: "#8B5CF6" },
+    currentLocation: { status: "ARRIVED", label: "Race 2 - 400km", eventName: "Spring Classic 2024", raceName: "Race 2 - 400km", basketLabel: null, since: "2024-04-08T09:40:00Z" },
+  },
+  {
+    id: 8,
+    birdName: "Copper King",
+    band1: "ARPU", band2: "2022", band3: "STU", band4: "8008",
+    color: "Copper", sex: 1, rfid: null,
+    isActive: 1, isLost: 0, lostDate: null, lostRaceId: null,
+    codeMasked: null, attention: false, note: null,
+    isPublic: 1, image: null,
+    breeder: {
+      id: 16, firstName: "Mike", lastName: "Wilson",
+      country: "AU",
+      user: { loftName: "Wilson Loft" },
+    },
+    vaccinations: [],
+    inventoryItems: [],
+    loftGroup: null,
+    currentLocation: null,
+  },
+  {
+    id: 9,
+    birdName: "White Flash",
+    band1: "IPB", band2: "2023", band3: "VWX", band4: "9009",
+    color: "White", sex: 2, rfid: "RF007788990011",
+    isActive: 1, isLost: 0, lostDate: null, lostRaceId: null,
+    codeMasked: "WF-009", attention: true, note: "Watch for aggressive behavior in loft",
+    isPublic: 1, image: null,
+    breeder: {
+      id: 17, firstName: "Linda", lastName: "Moore",
+      country: "AU",
+      user: { loftName: "Moore Racing" },
+    },
+    vaccinations: [
+      {
+        id: 8, vaccineName: "Coccidiosis", vaccinationDate: "2024-02-20",
+        vet: "Dr. Adams", batchNo: "C2024-01", notes: "Preventive treatment",
+        documentUrl: null, groupName: "Group E - Spring 2024",
+      },
+    ],
+    inventoryItems: [
+      {
+        id: 106,
+        signInDate: "2024-04-01", arrivalDate: "2024-04-02", departureDate: null,
+        entryFeeValue: 50, perchFeeValue: 10, raceFeeValue: 25, hotSpotFeeValue: 15,
+        entryRefund: 0, hotSpotRefund: 0, betsRefund: 0,
+        isBackup: 0, isBetActive: 1,
+        belgianShowBet1: 150, belgianShowBet2: 0, belgianShowBet3: 0,
+        belgianShowBet4: 0, belgianShowBet5: 0, belgianShowBet6: 0, belgianShowBet7: 0,
+        standardShowBet1: 0, standardShowBet2: 0, standardShowBet3: 0,
+        standardShowBet4: 0, standardShowBet5: 0, standardShowBet6: 0,
+        wtaBet1: 0, wtaBet2: 0, wtaBet3: 0, wtaBet4: 0, wtaBet5: 0,
+        eventInventory: {
+          event: { id: 1, name: "Spring Classic 2024", signInDate: "2024-04-01" },
+        },
+        raceItems: [
+          {
+            id: 211, status: "ARRIVED",
+            race: { id: 1, name: "Race 1 - 200km" },
+            result: { birdPosition: 2, prizeValue: 300, arrivalTime: "2024-04-05T13:55:00Z" },
+            bets: [{ bettorId: "u4", ownerUserId: "u17", category: "BELGIAN", tierIndex: 1, stakePaymentId: 4, stakePaid: false }],
+          },
+        ],
+        basketAssignments: [
+          { id: 309, eventBasket: { label: "LB-MOORE-1", phase: "LOFT", race: null } },
+        ],
+      },
+    ],
+    loftGroup: { id: 5, name: "Group E - Spring 2024", color: "#10B981" },
+    currentLocation: { status: "BASKETED", label: "Loft Basket", eventName: "Spring Classic 2024", raceName: null, basketLabel: "LB-MOORE-1", since: "2024-04-02T09:30:00Z" },
+  },
+  {
+    id: 10,
+    birdName: "Amber Dusk",
+    band1: "AU", band2: "2024", band3: "YZA", band4: "1010",
+    color: "Mealy", sex: 1, rfid: "RF008899001122",
+    isActive: 1, isLost: 0, lostDate: null, lostRaceId: null,
+    codeMasked: null, attention: false, note: null,
+    isPublic: 1, image: null,
+    breeder: {
+      id: 18, firstName: "Carlos", lastName: "Garcia",
+      country: "AU",
+      user: { loftName: "Garcia Flyers" },
+    },
+    vaccinations: [
+      {
+        id: 9, vaccineName: "PMV-1", vaccinationDate: "2024-02-15",
+        vet: "Dr. Lee", batchNo: "B2024-05", notes: null,
+        documentUrl: null, groupName: "Group F - Spring 2024",
+      },
+      {
+        id: 10, vaccineName: "Herpesvirus", vaccinationDate: "2024-03-05",
+        vet: "Dr. Lee", batchNo: "H2024-01", notes: "First time vaccination",
+        documentUrl: "https://example.com/herpes-doc.pdf", groupName: "Group F - Spring 2024",
+      },
+    ],
+    inventoryItems: [
+      {
+        id: 107,
+        signInDate: "2024-04-01", arrivalDate: "2024-04-02", departureDate: "2024-04-10",
+        entryFeeValue: 50, perchFeeValue: 10, raceFeeValue: 25, hotSpotFeeValue: 15,
+        entryRefund: 0, hotSpotRefund: 0, betsRefund: 0,
+        isBackup: 0, isBetActive: 1,
+        belgianShowBet1: 200, belgianShowBet2: 150, belgianShowBet3: 100,
+        belgianShowBet4: 0, belgianShowBet5: 0, belgianShowBet6: 0, belgianShowBet7: 0,
+        standardShowBet1: 300, standardShowBet2: 200, standardShowBet3: 0,
+        standardShowBet4: 0, standardShowBet5: 0, standardShowBet6: 0,
+        wtaBet1: 700, wtaBet2: 500, wtaBet3: 300, wtaBet4: 0, wtaBet5: 0,
+        eventInventory: {
+          event: { id: 1, name: "Spring Classic 2024", signInDate: "2024-04-01" },
+        },
+        raceItems: [
+          {
+            id: 212, status: "ARRIVED",
+            race: { id: 1, name: "Race 1 - 200km" },
+            result: { birdPosition: 4, prizeValue: 100, arrivalTime: "2024-04-05T14:20:00Z" },
+            bets: [{ bettorId: "u5", ownerUserId: "u18", category: "WTA", tierIndex: 1, stakePaymentId: 5, stakePaid: true }],
+          },
+          {
+            id: 213, status: "ARRIVED",
+            race: { id: 2, name: "Race 2 - 400km" },
+            result: { birdPosition: 3, prizeValue: 200, arrivalTime: "2024-04-08T09:05:00Z" },
+            bets: [{ bettorId: "u5", ownerUserId: "u18", category: "WTA", tierIndex: 1, stakePaymentId: 5, stakePaid: true }],
+          },
+        ],
+        basketAssignments: [
+          { id: 310, eventBasket: { label: "LB-GARCIA-1", phase: "LOFT", race: null } },
+          { id: 311, eventBasket: { label: "RB-03", phase: "RACE", race: { name: "Race 1 - 200km" } } },
+          { id: 312, eventBasket: { label: "RB-07", phase: "RACE", race: { name: "Race 2 - 400km" } } },
+        ],
+      },
+    ],
+    loftGroup: { id: 6, name: "Group F - Spring 2024", color: "#F97316" },
+    currentLocation: { status: "ARRIVED", label: "Race 2 - 400km", eventName: "Spring Classic 2024", raceName: "Race 2 - 400km", basketLabel: null, since: "2024-04-08T09:05:00Z" },
+  },
+];
+
+export async function GET() {
+  return NextResponse.json(DEMO_BIRDS);
+}

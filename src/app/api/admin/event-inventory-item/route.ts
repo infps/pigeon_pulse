@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     const eventInventory = await prisma.eventInventory.findUnique({
       where: { id: eventInventoryId },
       include: {
-        event: {
+        season: {
           include: {
             feeScheme: true,
           },

@@ -36,7 +36,7 @@ export async function POST(
     const [race, raceItem] = await Promise.all([
       prisma.race.findUnique({
         where: { id: raceIdInt },
-        include: { event: { include: { bettingScheme: true } } },
+        include: { seasonRel: { include: { bettingScheme: true } } },
       }),
       prisma.raceItem.findUnique({
         where: { id: raceItemId },
@@ -69,7 +69,7 @@ export async function POST(
       );
     }
 
-    const scheme = race.event?.bettingScheme;
+    const scheme = race.seasonRel?.bettingScheme;
     if (!scheme) {
       return NextResponse.json({ message: "No betting scheme assigned to this event" }, { status: 400 });
     }
@@ -160,7 +160,7 @@ export async function GET(
     const [race, raceItems] = await Promise.all([
       prisma.race.findUnique({
         where: { id: raceIdInt },
-        include: { event: { include: { bettingScheme: true } } },
+        include: { seasonRel: { include: { bettingScheme: true } } },
       }),
       prisma.raceItem.findMany({
         where: { raceId: raceIdInt },
@@ -181,7 +181,7 @@ export async function GET(
 
     // Derive available pools from the event's betting scheme: each non-null tier
     // amount = one pool the breeder can enter a bird into.
-    const scheme = race.event?.bettingScheme as Record<string, unknown> | undefined;
+    const scheme = race.seasonRel?.bettingScheme as Record<string, unknown> | undefined;
     const pools: { category: string; tierIndex: number; amount: number }[] = [];
     if (scheme) {
       const tiers: [string, number, string][] = [];

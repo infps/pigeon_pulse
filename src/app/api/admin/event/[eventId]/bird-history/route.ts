@@ -20,9 +20,25 @@ export async function GET(
   const itemId = parseInt(searchParams.get("itemId") ?? "");
   if (isNaN(itemId)) return NextResponse.json({ message: "itemId required" }, { status: 400 });
 
-  // Validate item belongs to this event
+  // Resolve seasonId
+  const seasonIdParam = searchParams.get("seasonId");
+  let seasonId: number;
+  if (seasonIdParam && !isNaN(parseInt(seasonIdParam))) {
+    seasonId = parseInt(seasonIdParam);
+  } else {
+    const activeSeason = await prisma.season.findFirst({
+      where: { eventId, isActive: true },
+      orderBy: { startDate: "desc" },
+    });
+    if (!activeSeason) {
+      return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+    }
+    seasonId = activeSeason.id;
+  }
+
+  // Validate item belongs to this season
   const item = await prisma.eventInventoryItem.findFirst({
-    where: { id: itemId, eventInventory: { eventId } },
+    where: { id: itemId, eventInventory: { seasonId } },
     select: { id: true },
   });
   if (!item) return NextResponse.json({ message: "Item not found in this event" }, { status: 404 });

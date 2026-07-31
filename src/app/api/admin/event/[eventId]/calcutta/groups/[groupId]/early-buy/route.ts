@@ -18,11 +18,27 @@ export async function POST(
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
+  const url = new URL(request.url);
+  const seasonIdParam = url.searchParams.get("seasonId");
+  let seasonId: number;
+  if (seasonIdParam) {
+    seasonId = parseInt(seasonIdParam);
+  } else {
+    const activeSeason = await prisma.season.findFirst({
+      where: { eventId, isActive: true },
+      orderBy: { startDate: "desc" },
+    });
+    if (!activeSeason) {
+      return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+    }
+    seasonId = activeSeason.id;
+  }
+
   const { buyerId } = await request.json();
   if (!buyerId) return NextResponse.json({ message: "buyerId required" }, { status: 400 });
 
   const group = await prisma.calcuttaBetGroup.findFirst({
-    where: { id: groupId, eventId },
+    where: { id: groupId, seasonId },
   });
   if (!group) return NextResponse.json({ message: "Group not found" }, { status: 404 });
   if (group.status !== "PENDING") return NextResponse.json({ message: "Group not available for early buy" }, { status: 409 });

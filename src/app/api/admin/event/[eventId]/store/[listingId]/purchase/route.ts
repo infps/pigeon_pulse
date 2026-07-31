@@ -20,25 +20,41 @@ export async function POST(
   if (!session || !["ADMIN", "SUPERADMIN"].includes(session.user.role))
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
+  const url = new URL(req.url);
+  const seasonIdParam = url.searchParams.get("seasonId");
+  let seasonId: number;
+  if (seasonIdParam) {
+    seasonId = parseInt(seasonIdParam);
+  } else {
+    const activeSeason = await prisma.season.findFirst({
+      where: { eventId, isActive: true },
+      orderBy: { startDate: "desc" },
+    });
+    if (!activeSeason) {
+      return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+    }
+    seasonId = activeSeason.id;
+  }
+
   try {
     const body = await req.json();
     const { buyerBreederId } = schema.parse(body);
 
     const listing = await prisma.eventStoreListing.findFirst({
-      where: { id: listingId, eventId },
+      where: { id: listingId, seasonId },
       include: { items: true },
     });
     if (!listing) return NextResponse.json({ message: "Listing not found" }, { status: 404 });
     if (listing.status === "SOLD")
       return NextResponse.json({ message: "Already sold" }, { status: 400 });
 
-    // Find or create buyer's EventInventory for this event
+    // Find or create buyer's EventInventory for this season
     let buyerInventory = await prisma.eventInventory.findFirst({
-      where: { eventId, breederId: buyerBreederId },
+      where: { seasonId, breederId: buyerBreederId },
     });
     if (!buyerInventory) {
       buyerInventory = await prisma.eventInventory.create({
-        data: { eventId, breederId: buyerBreederId },
+        data: { seasonId, breederId: buyerBreederId },
       });
     }
 

@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 export async function POST(
-  _req: Request,
+  request: Request,
   { params }: { params: Promise<{ eventId: string; groupId: string }> }
 ) {
   const { eventId: eventIdParam, groupId: groupIdParam } = await params;
@@ -18,13 +18,29 @@ export async function POST(
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  const group = await prisma.calcuttaBetGroup.findFirst({ where: { id: groupId, eventId } });
+  const url = new URL(request.url);
+  const seasonIdParam = url.searchParams.get("seasonId");
+  let seasonId: number;
+  if (seasonIdParam) {
+    seasonId = parseInt(seasonIdParam);
+  } else {
+    const activeSeason = await prisma.season.findFirst({
+      where: { eventId, isActive: true },
+      orderBy: { startDate: "desc" },
+    });
+    if (!activeSeason) {
+      return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+    }
+    seasonId = activeSeason.id;
+  }
+
+  const group = await prisma.calcuttaBetGroup.findFirst({ where: { id: groupId, seasonId } });
   if (!group) return NextResponse.json({ message: "Group not found" }, { status: 404 });
 
   await prisma.$transaction([
     prisma.calcuttaBetGroup.update({ where: { id: groupId }, data: { status: "HOUSE", isHouse: true } }),
     // Clear activeGroupId if this was the active group
-    prisma.calcuttaConfig.updateMany({ where: { eventId, activeGroupId: groupId }, data: { activeGroupId: null } }),
+    prisma.calcuttaConfig.updateMany({ where: { seasonId, activeGroupId: groupId }, data: { activeGroupId: null } }),
   ]);
 
   await pusher.trigger(`calcutta-${eventId}`, "group-closed", {

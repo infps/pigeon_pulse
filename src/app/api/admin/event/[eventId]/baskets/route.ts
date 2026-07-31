@@ -3,6 +3,20 @@ import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+async function resolveSeasonId(request: Request, eventId: number): Promise<{ seasonId: number } | NextResponse> {
+  const { searchParams } = new URL(request.url);
+  const seasonIdParam = searchParams.get("seasonId");
+  if (seasonIdParam) return { seasonId: parseInt(seasonIdParam) };
+  const activeSeason = await prisma.season.findFirst({
+    where: { eventId, isActive: true },
+    orderBy: { startDate: "desc" },
+  });
+  if (!activeSeason) {
+    return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+  }
+  return { seasonId: activeSeason.id };
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
@@ -21,10 +35,25 @@ export async function GET(
     }
 
     const { searchParams } = new URL(request.url);
+    const seasonIdParam = searchParams.get("seasonId");
     const phase = searchParams.get("phase"); // "LOFT" | "RACE" | null
     const raceIdParam = searchParams.get("raceId");
 
-    const where: { eventId: number; phase?: "LOFT" | "RACE"; raceId?: number } = { eventId };
+    let seasonId: number;
+    if (seasonIdParam) {
+      seasonId = parseInt(seasonIdParam);
+    } else {
+      const activeSeason = await prisma.season.findFirst({
+        where: { eventId, isActive: true },
+        orderBy: { startDate: "desc" },
+      });
+      if (!activeSeason) {
+        return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+      }
+      seasonId = activeSeason.id;
+    }
+
+    const where: { seasonId: number; phase?: "LOFT" | "RACE"; raceId?: number } = { seasonId };
     if (phase === "LOFT" || phase === "RACE") {
       where.phase = phase;
     }
@@ -79,6 +108,10 @@ export async function POST(
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
+    const seasonResult = await resolveSeasonId(request, eventId);
+    if (seasonResult instanceof NextResponse) return seasonResult;
+    const { seasonId } = seasonResult;
+
     const body = await request.json();
     const capacity = parseInt(body.capacity);
     const phase: "LOFT" | "RACE" = body.phase === "RACE" ? "RACE" : "LOFT";
@@ -101,10 +134,10 @@ export async function POST(
       }
     }
 
-    // basketNo is unique per (eventId, phase) due to schema constraint —
+    // basketNo is unique per (seasonId, phase) due to schema constraint —
     // compute globally across all races within the phase.
     const maxBasket = await prisma.eventBasket.findFirst({
-      where: { eventId, phase },
+      where: { seasonId, phase },
       orderBy: { basketNo: "desc" },
       select: { basketNo: true },
     });
@@ -112,7 +145,7 @@ export async function POST(
 
     const basket = await prisma.eventBasket.create({
       data: {
-        eventId,
+        seasonId,
         basketNo,
         capacity,
         phase,
@@ -146,6 +179,10 @@ export async function PATCH(
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
+    const seasonResult = await resolveSeasonId(request, eventId);
+    if (seasonResult instanceof NextResponse) return seasonResult;
+    const { seasonId } = seasonResult;
+
     const body = await request.json();
     const basketId = parseInt(body.basketId);
     if (isNaN(basketId)) {
@@ -153,7 +190,7 @@ export async function PATCH(
     }
 
     const basket = await prisma.eventBasket.findFirst({
-      where: { id: basketId, eventId },
+      where: { id: basketId, seasonId },
       include: {
         _count: { select: { assignments: true } },
         assignments: { select: { eventInventoryItemId: true } },
@@ -227,6 +264,10 @@ export async function DELETE(
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
+    const seasonResult = await resolveSeasonId(request, eventId);
+    if (seasonResult instanceof NextResponse) return seasonResult;
+    const { seasonId } = seasonResult;
+
     const body = await request.json();
     const basketId = parseInt(body.basketId);
 
@@ -235,7 +276,7 @@ export async function DELETE(
     }
 
     const basket = await prisma.eventBasket.findFirst({
-      where: { id: basketId, eventId },
+      where: { id: basketId, seasonId },
       include: { assignments: { select: { eventInventoryItemId: true } } },
     });
 

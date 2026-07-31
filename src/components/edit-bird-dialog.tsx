@@ -30,6 +30,7 @@ interface EditBirdDialogProps {
   event: Event;
   eventId: number;
   onSuccess?: () => void;
+  inline?: boolean;
 }
 
 export function EditBirdDialog({
@@ -39,6 +40,7 @@ export function EditBirdDialog({
   event,
   eventId,
   onSuccess,
+  inline,
 }: EditBirdDialogProps) {
   const updateMutation = useUpdateEventInventoryItem({
     onSuccess: () => {
@@ -196,12 +198,16 @@ export function EditBirdDialog({
     handleRfidScanned(rfid);
   };
 
+  const pollStartedAtRef = useRef<string | null>(null);
+
   // Polling management — scans RFID + assigns loft basket in one step
   const pollScanner = async () => {
     if (!eventInventoryItem) return;
     try {
       const response = await fetch('/api/scanner/poll', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ startedAt: pollStartedAtRef.current }),
       });
 
       if (response.ok) {
@@ -227,6 +233,7 @@ export function EditBirdDialog({
 
     setIsPolling(true);
     lastScannedRfidRef.current = null;
+    pollStartedAtRef.current = new Date().toISOString();
     toast.success('Scanner connected - polling started');
     
     // Poll immediately
@@ -346,12 +353,7 @@ export function EditBirdDialog({
     );
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Edit Bird</DialogTitle>
-        </DialogHeader>
+  const form = (
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Band Information - 6 columns with separators */}
           <div className="space-y-4">
@@ -783,14 +785,27 @@ export function EditBirdDialog({
 
           {/* Actions */}
           <div className="flex justify-end space-x-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
+            {!inline && (
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+            )}
             <Button type="submit" disabled={updateMutation.isPending}>
               {updateMutation.isPending ? "Saving..." : "Save Changes"}
             </Button>
           </div>
         </form>
+  );
+
+  if (inline) return form;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Bird</DialogTitle>
+        </DialogHeader>
+        {form}
       </DialogContent>
     </Dialog>
   );

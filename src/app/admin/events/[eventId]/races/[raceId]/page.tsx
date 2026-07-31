@@ -46,6 +46,7 @@ export default function RaceDetailsPage() {
   const [arrivalTo, setArrivalTo] = useState<string>("");
   const lastScannedRfidRef = useRef<string | null>(null);
   const scannerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollStartedAtRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
 
   // Fetch race details
@@ -139,17 +140,23 @@ export default function RaceDetailsPage() {
     }
     setIsScanning(false);
     lastScannedRfidRef.current = null;
+    pollStartedAtRef.current = null;
     toast.info('Scanner stopped');
   }, []);
 
   const startScanner = useCallback(() => {
     setIsScanning(true);
     lastScannedRfidRef.current = null;
+    pollStartedAtRef.current = new Date().toISOString();
     toast.success('Scanner started');
 
     scannerIntervalRef.current = setInterval(async () => {
       try {
-        const res = await fetch('/api/scanner/poll', { method: 'POST' });
+        const res = await fetch('/api/scanner/poll', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ startedAt: pollStartedAtRef.current }),
+        });
         const data = await res.json();
 
         if (data && data.length > 0 && data[0].el) {
@@ -239,7 +246,7 @@ export default function RaceDetailsPage() {
                     className="object-cover w-full h-full"
                   />
                 ) : (
-                  <span className="text-2xl md:text-3xl font-bold text-gray-600">
+                  <span className="text-2xl md:text-3xl font-bold text-muted-foreground">
                     {(race.description ?? "").substring(0, 3).toUpperCase()}
                   </span>
                 )}
@@ -251,7 +258,7 @@ export default function RaceDetailsPage() {
               <div className="space-y-3">
                 <div>
                   <div className="flex items-center gap-3 flex-wrap">
-                    <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{race.description}</h1>
+                    <h1 className="text-2xl md:text-3xl font-bold text-foreground">{race.description}</h1>
                     {race.status === "REGISTERING" && (
                       <Badge variant="default" className="text-sm bg-blue-600">Registering</Badge>
                     )}
@@ -263,7 +270,7 @@ export default function RaceDetailsPage() {
                     )}
                   </div>
                   <div className="flex flex-wrap items-center gap-2 mt-2">
-                    <span className="text-sm md:text-base text-gray-600 font-medium">{event.name}</span>
+                    <span className="text-sm md:text-base text-muted-foreground font-medium">{event.name}</span>
                     <Badge variant={race.status === "ENDED" ? "secondary" : "default"}>
                       {race.raceType?.name || "Race"}
                     </Badge>
@@ -316,11 +323,11 @@ export default function RaceDetailsPage() {
                 </div>
 
                 {/* Weather & Conditions - Compact Layout */}
-                <div className="border rounded-lg p-3 bg-transparent space-y-2">
+                <div className="border border-border rounded-lg p-3 bg-card text-card-foreground space-y-2">
                   {/* Release Conditions */}
                   <div className="flex flex-wrap items-center gap-3 text-sm md:text-base">
                     <div className="flex items-center gap-1.5">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 md:w-5 md:h-5 text-gray-600">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 md:w-5 md:h-5 text-muted-foreground">
                         <path d="M14 18V6a4 4 0 0 0-8 0v12"/>
                         <path d="M10 2v4"/>
                         <path d="M10 18h4"/>
@@ -331,7 +338,7 @@ export default function RaceDetailsPage() {
                     {race.weather && (
                       <div className="flex items-center gap-1.5">
                         {getWeatherIcon(race.weather)}
-                        <span className="text-gray-700">{race.weather}</span>
+                        <span className="text-foreground">{race.weather}</span>
                       </div>
                     )}
                     {race.temperature && (
@@ -339,7 +346,7 @@ export default function RaceDetailsPage() {
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-orange-500">
                           <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>
                         </svg>
-                        <span className="font-medium text-gray-900">{race.temperature}°F</span>
+                        <span className="font-medium text-foreground">{race.temperature}°F</span>
                       </div>
                     )}
                     {race.wind && (
@@ -349,10 +356,10 @@ export default function RaceDetailsPage() {
                           <path d="M9.6 4.6A2 2 0 1 1 11 8H2"/>
                           <path d="M12.6 19.4A2 2 0 1 0 14 16H2"/>
                         </svg>
-                        <span className="text-gray-700">{race.wind}</span>
+                        <span className="text-foreground">{race.wind}</span>
                       </div>
                     )}
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-blue-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-blue-600 dark:text-blue-400">
                       <path d="m3 8 4-4 4 4"/>
                       <path d="M7 4v16"/>
                       <path d="M11 12h4"/>
@@ -364,7 +371,7 @@ export default function RaceDetailsPage() {
                   {/* Arrival Conditions */}
                   <div className="flex flex-wrap items-center gap-3 text-sm md:text-base">
                     <div className="flex items-center gap-1.5">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 md:w-5 md:h-5 text-gray-600">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 md:w-5 md:h-5 text-muted-foreground">
                         <path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/>
                         <path d="M3 9V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4"/>
                         <path d="M9 21v-6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v6"/>
@@ -373,7 +380,7 @@ export default function RaceDetailsPage() {
                     {race.arrivalWeather && (
                       <div className="flex items-center gap-1.5">
                         {getWeatherIcon(race.arrivalWeather)}
-                        <span className="text-gray-700">{race.arrivalWeather}</span>
+                        <span className="text-foreground">{race.arrivalWeather}</span>
                       </div>
                     )}
                     {race.arrivalTemperature && (
@@ -381,7 +388,7 @@ export default function RaceDetailsPage() {
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-orange-500">
                           <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>
                         </svg>
-                        <span className="font-medium text-gray-900">{race.arrivalTemperature}°F</span>
+                        <span className="font-medium text-foreground">{race.arrivalTemperature}°F</span>
                       </div>
                     )}
                     {race.arrivalWind && (
@@ -391,10 +398,10 @@ export default function RaceDetailsPage() {
                           <path d="M9.6 4.6A2 2 0 1 1 11 8H2"/>
                           <path d="M12.6 19.4A2 2 0 1 0 14 16H2"/>
                         </svg>
-                        <span className="text-gray-700">{race.arrivalWind}</span>
+                        <span className="text-foreground">{race.arrivalWind}</span>
                       </div>
                     )}
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-blue-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-blue-600 dark:text-blue-400">
                       <path d="m3 8 4-4 4 4"/>
                       <path d="M7 4v16"/>
                       <path d="M11 12h4"/>
@@ -406,37 +413,37 @@ export default function RaceDetailsPage() {
 
                 {/* Stats Row */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4">
-                  <div className="border rounded-lg p-2 md:p-3 bg-transparent text-center">
-                    <div className="text-lg md:text-xl font-bold text-gray-900">
+                  <div className="border border-border rounded-lg p-2 md:p-3 bg-card text-card-foreground text-center">
+                    <div className="text-lg md:text-xl font-bold text-foreground">
                       {race.startTime ? new Date(race.startTime).toLocaleDateString() : "-"}
                     </div>
-                    <div className="text-xs md:text-sm text-gray-600">
+                    <div className="text-xs md:text-sm text-muted-foreground">
                       {race.startTime ? new Date(race.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-"}
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">Start Time</div>
+                    <div className="text-xs text-muted-foreground mt-1">Start Time</div>
                   </div>
                   <button
                     type="button"
                     disabled={!hasPath}
                     onClick={() => hasPath && setPathOpen(true)}
-                    className={`border rounded-lg p-2 md:p-3 bg-transparent text-center ${
-                      hasPath ? "cursor-pointer hover:border-gray-400 hover:bg-gray-50" : ""
+                    className={`border border-border rounded-lg p-2 md:p-3 bg-card text-card-foreground text-center ${
+                      hasPath ? "cursor-pointer hover:border-muted-foreground hover:bg-muted" : ""
                     }`}
                   >
-                    <div className="text-lg md:text-xl font-bold text-gray-900">{race.distance}</div>
-                    <div className="text-xs md:text-sm text-gray-600">Mi</div>
-                    <div className="text-xs text-gray-500 mt-1">
+                    <div className="text-lg md:text-xl font-bold text-foreground">{race.distance}</div>
+                    <div className="text-xs md:text-sm text-muted-foreground">Mi</div>
+                    <div className="text-xs text-muted-foreground mt-1">
                       Distance{hasPath ? " · View path" : ""}
                     </div>
                   </button>
-                  <div className="border rounded-lg p-2 md:p-3 bg-transparent text-center">
-                    <div className="text-lg md:text-xl font-bold text-gray-900">
+                  <div className="border border-border rounded-lg p-2 md:p-3 bg-card text-card-foreground text-center">
+                    <div className="text-lg md:text-xl font-bold text-foreground">
                       {race.sunrise ? new Date(race.sunrise).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-"}
                     </div>
-                    <div className="text-xs md:text-sm text-gray-600">
+                    <div className="text-xs md:text-sm text-muted-foreground">
                       {race.sunset ? new Date(race.sunset).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-"}
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">Sunrise / Sunset</div>
+                    <div className="text-xs text-muted-foreground mt-1">Sunrise / Sunset</div>
                   </div>
                 </div>
               </div>
@@ -444,7 +451,7 @@ export default function RaceDetailsPage() {
 
             {/* Side panel — map */}
             <div className="flex flex-col items-end gap-2 shrink-0">
-              <span className="text-xs text-gray-500">Tools</span>
+              <span className="text-xs text-muted-foreground">Tools</span>
               <RaceWindButton raceId={race.id} />
             </div>
           </div>

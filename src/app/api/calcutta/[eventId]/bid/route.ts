@@ -17,13 +17,29 @@ export async function POST(
   const { groupId, amount } = await request.json();
   if (!groupId || amount == null) return NextResponse.json({ message: "groupId and amount required" }, { status: 400 });
 
-  const config = await prisma.calcuttaConfig.findUnique({ where: { eventId } });
+  const url = new URL(request.url);
+  const seasonIdParam = url.searchParams.get("seasonId");
+  let seasonId: number;
+  if (seasonIdParam && !isNaN(parseInt(seasonIdParam))) {
+    seasonId = parseInt(seasonIdParam);
+  } else {
+    const activeSeason = await prisma.season.findFirst({
+      where: { eventId, isActive: true },
+      orderBy: { startDate: "desc" },
+    });
+    if (!activeSeason) {
+      return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
+    }
+    seasonId = activeSeason.id;
+  }
+
+  const config = await prisma.calcuttaConfig.findUnique({ where: { seasonId } });
   if (!config || config.activeGroupId !== groupId) {
     return NextResponse.json({ message: "Group is not currently active" }, { status: 409 });
   }
 
   const group = await prisma.calcuttaBetGroup.findFirst({
-    where: { id: groupId, eventId },
+    where: { id: groupId, seasonId },
     include: {
       bids: { orderBy: { amount: "desc" }, take: 1 },
     },

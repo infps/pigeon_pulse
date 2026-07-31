@@ -61,11 +61,11 @@ export async function POST(request: Request) {
 
     const race = await prisma.race.findUnique({
       where: { id: raceId },
-      include: { event: { include: { bettingScheme: true } } },
+      include: { seasonRel: { include: { bettingScheme: true } } },
     });
     if (!race) return NextResponse.json({ message: "Race not found" }, { status: 404 });
 
-    const scheme = race.event?.bettingScheme as Record<string, unknown> | null;
+    const scheme = race.seasonRel?.bettingScheme as Record<string, unknown> | null;
     if (!scheme) return NextResponse.json({ message: "No betting scheme" }, { status: 400 });
 
     // Get owner info for each selection

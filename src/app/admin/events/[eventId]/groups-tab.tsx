@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSeasonContext } from "@/lib/season-context";
+import { BirdDetailDialog } from "@/components/bird-detail-dialog";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -375,12 +376,13 @@ function BirdEventHistorySheet({
 
 // ─── BirdRow ──────────────────────────────────────────────────────────────────
 
-function BirdRow({ member, eventId, groupId, otherGroups, onMutated }: {
+function BirdRow({ member, eventId, groupId, otherGroups, onMutated, onOpenBird }: {
   member: GroupMember;
   eventId: string;
   groupId: number;
   otherGroups: EventGroup[];
   onMutated: () => void;
+  onOpenBird: (id: number) => void;
 }) {
   const [showHistory, setShowHistory] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -413,9 +415,9 @@ function BirdRow({ member, eventId, groupId, otherGroups, onMutated }: {
     <div className="rounded border bg-muted/30 text-sm">
       <div className="flex items-center gap-2 px-2 py-1.5">
         {member.bird?.id ? (
-          <Link href={`/admin/birds/${member.bird.id}`} className="font-mono text-xs hover:underline">
+          <button onClick={() => onOpenBird(member.bird!.id)} className="font-mono text-xs hover:underline text-left">
             {getBandLabel(member.bird)}
-          </Link>
+          </button>
         ) : (
           <span className="font-mono text-xs">{getBandLabel(member.bird)}</span>
         )}
@@ -479,6 +481,7 @@ function GroupCard({
   inventoryItems,
   statusCodes,
   onMutated,
+  onOpenBird,
 }: {
   group: EventGroup;
   eventId: string;
@@ -486,6 +489,7 @@ function GroupCard({
   inventoryItems: { id: number; label: string }[];
   statusCodes: BirdStatusCode[];
   onMutated: () => void;
+  onOpenBird: (id: number) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [showVacForm, setShowVacForm] = useState(false);
@@ -634,6 +638,7 @@ function GroupCard({
                     groupId={group.id}
                     otherGroups={otherGroups}
                     onMutated={onMutated}
+                    onOpenBird={onOpenBird}
                   />
                 ))}
               </div>
@@ -774,21 +779,25 @@ type ScanResult = {
 };
 
 export function GroupsTab({ eventId }: { eventId: string }) {
+  const { selectedSeasonId } = useSeasonContext();
   const qc = useQueryClient();
   const [newGroupOpen, setNewGroupOpen] = useState(false);
+  const [detailBirdId, setDetailBirdId] = useState<number | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
   const [scanTargetId, setScanTargetId] = useState<string>("");
   const [scanning, setScanning] = useState(false);
   const [scanResults, setScanResults] = useState<ScanResult[]>([]);
   const lastRfidRef = useRef<string | null>(null);
+  const pollStartedAtRef = useRef<string | null>(null);
   const [newForm, setNewForm] = useState<{
     name: string; type: GroupType; color: string; statusCodeId: string; notes: string; hasCapacity: boolean; capacity: string;
   }>({ name: "", type: "LOFT", color: "", statusCodeId: "", notes: "", hasCapacity: true, capacity: "150" });
   const [creating, setCreating] = useState(false);
 
+  const seasonParam = selectedSeasonId != null ? `?seasonId=${selectedSeasonId}` : "";
   const { data: groupsData, isPending, isError } = useQuery<{ groups: EventGroup[] }>({
-    queryKey: ["groups", eventId],
-    queryFn: () => fetch(apiEndpoints.groups.base(eventId)).then((r) => r.json()),
+    queryKey: ["groups", eventId, selectedSeasonId],
+    queryFn: () => fetch(`${apiEndpoints.groups.base(eventId)}${seasonParam}`).then((r) => r.json()),
   });
 
   const { data: statusCodesData } = useQuery<{ codes: BirdStatusCode[] }>({
@@ -797,12 +806,12 @@ export function GroupsTab({ eventId }: { eventId: string }) {
   });
 
   const { data: inventoryData } = useQuery<{ eventInventory: EventInventory[] }>({
-    queryKey: ["event-inventory", eventId],
-    queryFn: () => fetch(apiEndpoints.eventInventory.byEvent(eventId)).then((r) => r.json()),
+    queryKey: ["event-inventory", eventId, selectedSeasonId],
+    queryFn: () => fetch(`${apiEndpoints.eventInventory.byEvent(eventId)}${seasonParam}`).then((r) => r.json()),
   });
 
   function refetch() {
-    qc.invalidateQueries({ queryKey: ["groups", eventId] });
+    qc.invalidateQueries({ queryKey: ["groups", eventId, selectedSeasonId] });
   }
 
   const processScan = useCallback(async (rfid: string) => {
@@ -832,7 +841,11 @@ export function GroupsTab({ eventId }: { eventId: string }) {
     if (!scanning || !scanTargetId) return;
     const interval = setInterval(async () => {
       try {
-        const res = await fetch("/api/scanner/poll", { method: "POST" });
+        const res = await fetch("/api/scanner/poll", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ startedAt: pollStartedAtRef.current }),
+        });
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
           const rfid = data[0].el;
@@ -940,6 +953,7 @@ export function GroupsTab({ eventId }: { eventId: string }) {
               inventoryItems={inventoryItems}
               statusCodes={statusCodes}
               onMutated={refetch}
+              onOpenBird={setDetailBirdId}
             />
           ))}
         </div>
@@ -1035,7 +1049,7 @@ export function GroupsTab({ eventId }: { eventId: string }) {
                     <StopCircle className="h-4 w-4 mr-1" />Stop
                   </Button>
                 ) : (
-                  <Button onClick={() => { lastRfidRef.current = null; setScanning(true); }} disabled={!scanTargetId}>
+                  <Button onClick={() => { lastRfidRef.current = null; pollStartedAtRef.current = new Date().toISOString(); setScanning(true); }} disabled={!scanTargetId}>
                     <ScanLine className="h-4 w-4 mr-1" />Start Scanner
                   </Button>
                 )}
@@ -1089,6 +1103,13 @@ export function GroupsTab({ eventId }: { eventId: string }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <BirdDetailDialog
+        open={detailBirdId !== null}
+        onOpenChange={(o) => { if (!o) setDetailBirdId(null); }}
+        birdId={detailBirdId}
+        eventId={eventId ? parseInt(eventId) : null}
+      />
     </div>
   );
 }
