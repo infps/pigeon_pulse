@@ -29,6 +29,7 @@ const SeasonContext = createContext<SeasonContextValue>({
 
 export function SeasonProvider({ eventId, children }: { eventId: string; children: ReactNode }) {
   const [selectedSeasonId, setSelectedSeasonId] = useState<number | null>(null);
+  const [initializedForEvent, setInitializedForEvent] = useState<string | null>(null);
 
   const { data, refetch } = useQuery({
     queryKey: ["seasons", eventId],
@@ -42,10 +43,11 @@ export function SeasonProvider({ eventId, children }: { eventId: string; childre
   });
 
   useEffect(() => {
-    if (data && selectedSeasonId === null) {
+    if (data && initializedForEvent !== eventId) {
       setSelectedSeasonId(data.activeSeasonId ?? data.seasons[0]?.id ?? null);
+      setInitializedForEvent(eventId);
     }
-  }, [data, selectedSeasonId]);
+  }, [data, eventId, initializedForEvent]);
 
   const seasons = data?.seasons ?? [];
   const activeSeason = seasons.find((s) => s.id === selectedSeasonId) ?? null;

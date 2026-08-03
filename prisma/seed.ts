@@ -69,7 +69,7 @@ async function main() {
   // Event
   const event = await prisma.event.upsert({
     where: { id: 1 },
-    update: {},
+    update: { name: "2026 One Loft Center Race", shortName: "OLCR 2026" },
     create: {
       id: 1,
       name: "2026 One Loft Center Race",
@@ -81,7 +81,7 @@ async function main() {
   // Season
   const season = await prisma.season.upsert({
     where: { id: 1 },
-    update: {},
+    update: { name: "2026 Season", startDate: new Date("2026-03-01T00:00:00Z"), endDate: new Date("2026-12-31T00:00:00Z") },
     create: {
       id: 1,
       name: "2026 Season",
@@ -91,18 +91,20 @@ async function main() {
     },
   });
 
-  // Races
+  // Races — baseStart May 11 2026; race id=10 is a currently-live race (not closed)
   const baseStart = new Date("2026-05-11T08:00:00Z");
+  const now = new Date();
+  const liveStart = new Date(now.getTime() - 2 * 60 * 60 * 1000); // started 2h ago
   const raceConfigs = [
-    { name: "Race # 1", desc: "Race # 1", dist: 150, daysOffset: 0, typeId: rtRace.id },
-    { name: "Sprint Series # 1", desc: "Sprint Series # 1", dist: 57, daysOffset: 4, typeId: rtRace.id },
-    { name: "Sprint Series # 2", desc: "Sprint Series # 2", dist: 75, daysOffset: 5, typeId: rtRace.id },
-    { name: "Sprint Series # 3", desc: "Sprint Series # 3", dist: 75, daysOffset: 7, typeId: rtRace.id },
-    { name: "Sprint Series Final", desc: "Sprint Series Final", dist: 103, daysOffset: 11, typeId: rtRace.id },
-    { name: "Race # 2", desc: "Race # 2", dist: 185, daysOffset: 15, typeId: rtRace.id },
-    { name: "Training # 1", desc: "Training # 1", dist: 71, daysOffset: -8, typeId: rtTraining.id },
-    { name: "Training # 2", desc: "Training # 2", dist: 80, daysOffset: -6, typeId: rtTraining.id },
-    { name: "Loft Fly", desc: "Loft Fly", dist: 1, daysOffset: -15, typeId: rtTraining.id },
+    { name: "Race # 1", desc: "Race # 1", dist: 150, daysOffset: 0, typeId: rtRace.id, ended: true },
+    { name: "Sprint Series # 1", desc: "Sprint Series # 1", dist: 57, daysOffset: 4, typeId: rtRace.id, ended: true },
+    { name: "Sprint Series # 2", desc: "Sprint Series # 2", dist: 75, daysOffset: 5, typeId: rtRace.id, ended: true },
+    { name: "Sprint Series # 3", desc: "Sprint Series # 3", dist: 75, daysOffset: 7, typeId: rtRace.id, ended: true },
+    { name: "Sprint Series Final", desc: "Sprint Series Final", dist: 103, daysOffset: 11, typeId: rtRace.id, ended: true },
+    { name: "Race # 2", desc: "Race # 2", dist: 185, daysOffset: 15, typeId: rtRace.id, ended: true },
+    { name: "Training # 1", desc: "Training # 1", dist: 71, daysOffset: -8, typeId: rtTraining.id, ended: true },
+    { name: "Training # 2", desc: "Training # 2", dist: 80, daysOffset: -6, typeId: rtTraining.id, ended: true },
+    { name: "Loft Fly", desc: "Loft Fly", dist: 1, daysOffset: -15, typeId: rtTraining.id, ended: true },
   ];
 
   const races = [];
@@ -115,7 +117,7 @@ async function main() {
 
     const r = await prisma.race.upsert({
       where: { id: i + 1 },
-      update: {},
+      update: { name: cfg.name, status: RaceStatus.ENDED, isClosed: 1 },
       create: {
         id: i + 1,
         seasonId: season.id,
@@ -126,6 +128,7 @@ async function main() {
         startTime,
         endTime,
         status: RaceStatus.ENDED,
+        isClosed: 1,
         location: "Bakersfield, CA",
         weather: "Sunny",
         temperature: "72",
@@ -134,6 +137,28 @@ async function main() {
     });
     races.push(r);
   }
+
+  // Live race — started 2h ago, not closed
+  const liveRace = await prisma.race.upsert({
+    where: { id: 10 },
+    update: { startTime: liveStart, isClosed: 0, status: RaceStatus.STARTED },
+    create: {
+      id: 10,
+      seasonId: season.id,
+      name: "Championship Race 2026",
+      description: "Championship Race 2026",
+      distance: 250,
+      raceTypeId: rtRace.id,
+      startTime: liveStart,
+      status: RaceStatus.STARTED,
+      isClosed: 0,
+      location: "Fresno, CA",
+      weather: "Partly Cloudy",
+      temperature: "68",
+      wind: "NW 8mph",
+    },
+  });
+  races.push(liveRace);
 
   // EventInventories + Birds + Items + RaceItems
   const colors = ["BC", "BB", "WF", "CH", "GRZ"];
@@ -198,10 +223,10 @@ async function main() {
   let raceItemId = 1;
   for (let ri = 0; ri < races.length; ri++) {
     const race = races[ri];
+    const isLive = race.id === 10;
     const startMs = race.startTime!.getTime();
     const distYards = (race.distance ?? 1) * 1760;
 
-    // Sort birds by simulated speed (varies per race/bird)
     const birdData = allBirds.map((b, idx) => {
       const baseSpeed = 1200 + (idx * 37 + ri * 83) % 700; // 1200-1900 YPM
       const flightMins = distYards / baseSpeed;
@@ -214,25 +239,27 @@ async function main() {
     for (const bd of birdData) {
       const raceItem = await prisma.raceItem.upsert({
         where: { id: raceItemId },
-        update: {},
+        update: { status: isLive ? RaceItemStatus.RELEASED : RaceItemStatus.ARRIVED },
         create: {
           id: raceItemId,
           raceId: race.id,
           inventoryItemId: bd.invItem.id,
-          status: RaceItemStatus.ARRIVED,
+          status: isLive ? RaceItemStatus.RELEASED : RaceItemStatus.ARRIVED,
         },
       });
 
-      await prisma.raceItemResult.upsert({
-        where: { raceItemId: raceItem.id },
-        update: {},
-        create: {
-          raceItemId: raceItem.id,
-          arrivalTime: new Date(bd.arrivalMs),
-          birdPosition: bd.rank,
-          prizeValue: bd.rank <= 5 ? (6 - bd.rank) * 100 : 0,
-        },
-      });
+      if (!isLive) {
+        await prisma.raceItemResult.upsert({
+          where: { raceItemId: raceItem.id },
+          update: {},
+          create: {
+            raceItemId: raceItem.id,
+            arrivalTime: new Date(bd.arrivalMs),
+            birdPosition: bd.rank,
+            prizeValue: bd.rank <= 5 ? (6 - bd.rank) * 100 : 0,
+          },
+        });
+      }
 
       raceItemId++;
     }

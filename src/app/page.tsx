@@ -142,15 +142,16 @@ export default function Home() {
       )}
 
       {/* Live Races + News 2-column */}
-      {(liveRaces.length > 0 || newsLoading || newsMessages.length > 0) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Live Races (left) */}
-          {liveRaces.length > 0 && (
-            <section className="min-w-0">
-              <div className="flex items-center gap-2 mb-4">
-                <Radio className="h-5 w-5 text-red-500 animate-pulse" />
-                <h2 className="text-xl font-bold">Live Races</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Live Races (left) — always shown */}
+          <section className="min-w-0">
+            <div className="flex items-center gap-2 mb-4">
+              <Radio className={`h-5 w-5 ${liveRaces.length > 0 ? "text-red-500 animate-pulse" : "text-muted-foreground"}`} />
+              <h2 className="text-xl font-bold">Live Races</h2>
+              {liveRaces.length > 0 && (
                 <Badge variant="destructive" className="text-xs">{liveRaces.length}</Badge>
+              )}
+              {liveRaces.length > 0 && (
                 <div className="ml-auto flex items-center gap-2">
                   <Select value={raceSort} onValueChange={(v) => setRaceSort(v as RaceSortKey)}>
                     <SelectTrigger className="h-8 w-42.5 text-xs">
@@ -170,14 +171,22 @@ export default function Home() {
                     </Link>
                   )}
                 </div>
+              )}
+            </div>
+            {liveRaces.length === 0 ? (
+              <div className="rounded-xl border border-dashed p-10 text-center text-muted-foreground">
+                <Radio className="h-8 w-8 mx-auto mb-3 opacity-30" />
+                <p className="text-sm font-medium">No active races</p>
+                <p className="text-xs mt-1">Check back when a race is in progress</p>
               </div>
+            ) : (
               <div className="space-y-4">
                 {sortedLiveRaces.slice(0, 6).map((race) => (
                   <LiveRaceCard key={race.id} race={race} />
                 ))}
               </div>
-            </section>
-          )}
+            )}
+          </section>
 
           {/* News & Updates (right) */}
           {newsLoading ? (
@@ -237,8 +246,7 @@ export default function Home() {
               </div>
             </section>
           ) : null}
-        </div>
-      )}
+      </div>
 
       {/* Events Table */}
       {/* <section>

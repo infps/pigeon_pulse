@@ -58,7 +58,7 @@ export function SeasonSelector({ eventId, isSuperAdmin }: { eventId: string; isS
       <Select
         value={selectedSeasonId?.toString() ?? ""}
         onValueChange={(v) => setSelectedSeasonId(parseInt(v))}
-        disabled={seasons.length <= 1}
+        disabled={seasons.length === 0}
       >
         <SelectTrigger className="w-48">
           <SelectValue placeholder="No season" />

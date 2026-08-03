@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,28 +10,15 @@ import { Plus, Bird as BirdIcon } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useApiQuery } from "@/hooks/useApi";
 import { apiEndpoints } from "@/lib/endpoints";
-import { createBirdColumns } from "./columns";
+import { createBirdColumns, type Bird } from "./columns";
 import { BirdDialog } from "./bird-dialog";
-import { BreederBirdDialog } from "@/components/breeder-bird-dialog";
 import { ExportButton } from "@/components/export-button";
 
-interface Bird {
-  id: number;
-  band: string;
-  band1?: string;
-  band2?: string;
-  band3?: string;
-  band4?: string;
-  birdName: string;
-  color: string;
-  sex: number;
-}
-
 export default function BirdsPage() {
+  const router = useRouter();
   const { data: session, isPending: sessionLoading } = authClient.useSession();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBird, setEditingBird] = useState<Bird | null>(null);
-  const [viewBirdId, setViewBirdId] = useState<number | null>(null);
 
   const { data, isPending, refetch } = useApiQuery({
     endpoint: apiEndpoints.breeder.birds,
@@ -108,7 +96,7 @@ export default function BirdsPage() {
                 { id: "band", title: "Band" },
                 { id: "birdName", title: "Bird Name" },
               ]}
-              onRowClick={(bird) => setViewBirdId(bird.id)}
+              onRowClick={(bird) => router.push(`/birds/${bird.id}`)}
             />
           </CardContent>
         </Card>
@@ -119,12 +107,6 @@ export default function BirdsPage() {
         onOpenChange={setDialogOpen}
         bird={editingBird}
         onSuccess={() => refetch()}
-      />
-
-      <BreederBirdDialog
-        birdId={viewBirdId}
-        open={viewBirdId !== null}
-        onOpenChange={(o) => !o && setViewBirdId(null)}
       />
     </div>
   );

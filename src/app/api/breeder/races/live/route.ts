@@ -42,8 +42,10 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    const races = liveRaces.map(({ raceItems, ...r }) => ({
+    const races = liveRaces.map(({ raceItems, seasonRel, ...r }) => ({
       ...r,
+      seasonRel,
+      event: seasonRel?.event ?? null,
       arrivedCount: raceItems.length,
     }));
 

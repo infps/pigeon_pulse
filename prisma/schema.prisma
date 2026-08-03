@@ -59,6 +59,19 @@ enum BirdHistoryAction {
   ARRIVED
 }
 
+enum BirdImageType {
+  ARRIVAL
+  RACE
+  FINAL
+}
+
+enum AverageFilterMode {
+  ALL
+  BY_TYPE
+  MANUAL
+  COMBINATION
+}
+
 enum EventGroupType {
   LOFT
   TAG_COLOR
@@ -440,6 +453,7 @@ model RaceType {
   prizeValues      PrizeValue[]
   raceTypeFees     RaceTypeFeeScheme[]
   raceStations     RaceStation[]
+  averageConfigRaceTypes AverageConfigRaceType[]
 }
 
 model EventRaceNumber {
@@ -497,6 +511,7 @@ model Race {
   ignoreBirds    RaceIgnoreBird[]
   arrivalGroups  ArrivalGroup[]
   eventBaskets   EventBasket[]
+  averageConfigRaces AverageConfigRace[]
 }
 
 model TruckPing {
@@ -638,6 +653,8 @@ model Season {
   groups           EventGroup[]
   calcuttaConfig   CalcuttaConfig?
   calcuttaBetGroups CalcuttaBetGroup[]
+  birdImages       BirdImage[]
+  averageConfigs   AverageConfig[]
 
   @@index([eventId])
   @@map("Seasons")
@@ -902,8 +919,64 @@ model Bird {
   lostHistory    LostHistory[]
   rfidScans      RfidScan[]
   phantomBirds   RacePhantomBird[]
+  birdImages     BirdImage[]
 
   @@map("Birds")
+}
+
+model BirdImage {
+  id       Int           @id @default(autoincrement())
+  birdId   Int           @map("BIRD_ID")
+  seasonId Int           @map("SEASON_ID")
+  type     BirdImageType @map("TYPE")
+  url      String        @map("URL")
+  s3Key    String        @map("S3_KEY")
+  takenAt  DateTime      @default(now()) @map("TAKEN_AT")
+
+  bird   Bird   @relation(fields: [birdId], references: [id], onDelete: Cascade)
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@index([birdId, seasonId, type])
+  @@map("BirdImages")
+}
+
+model AverageConfig {
+  id         Int               @id @default(autoincrement())
+  seasonId   Int
+  name       String
+  isPublic   Boolean           @default(false)
+  filterMode AverageFilterMode @default(ALL)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  season            Season                  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  selectedRaceTypes AverageConfigRaceType[]
+  selectedRaces     AverageConfigRace[]
+
+  @@index([seasonId])
+  @@map("AverageConfigs")
+}
+
+model AverageConfigRaceType {
+  configId   Int
+  raceTypeId Int
+
+  config   AverageConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  raceType RaceType      @relation(fields: [raceTypeId], references: [id], onDelete: Cascade)
+
+  @@id([configId, raceTypeId])
+  @@map("AverageConfigRaceTypes")
+}
+
+model AverageConfigRace {
+  configId Int
+  raceId   Int
+
+  config AverageConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  race   Race          @relation(fields: [raceId], references: [id], onDelete: Cascade)
+
+  @@id([configId, raceId])
+  @@map("AverageConfigRaces")
 }
 
 

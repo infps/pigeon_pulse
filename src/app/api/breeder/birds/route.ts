@@ -31,10 +31,35 @@ export async function GET() {
     const birds = await prisma.bird.findMany({
       where: { breederId: breeder.id },
       orderBy: { birdName: "asc" },
+      include: {
+        inventoryItems: {
+          include: {
+            raceItems: {
+              select: { status: true, result: { select: { birdPosition: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    const enriched = birds.map((bird) => {
+      const raceItems = bird.inventoryItems.flatMap((i: any) => i.raceItems);
+      const arrived = raceItems.filter((r: any) => r.status === "ARRIVED");
+      const positions = arrived.map((r: any) => r.result?.birdPosition).filter((p: any): p is number => p != null);
+      const activeStatuses = ["LOFT_BASKETED", "RELEASED", "ARRIVED", "FOREIGN_BIRD"];
+      const currentStatus = raceItems.find((r: any) => activeStatuses.includes(r.status))?.status ?? null;
+      const { inventoryItems: _drop, ...rest } = bird;
+      return {
+        ...rest,
+        totalRaces: arrived.length,
+        wins: positions.filter((p: number) => p === 1).length,
+        bestPosition: positions.length > 0 ? Math.min(...positions) : null,
+        currentStatus,
+      };
     });
 
     return NextResponse.json(
-      { birds, message: "Birds fetched successfully" },
+      { birds: enriched, message: "Birds fetched successfully" },
       { status: 200 }
     );
   } catch (error) {
