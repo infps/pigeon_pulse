@@ -139,6 +139,12 @@ const birdHistory = {
   byItem: (eventId: number | string) => `/api/admin/event/${eventId}/bird-history`,
 };
 
+const averages = {
+  list: (eventId: number | string) => `/api/admin/event/${eventId}/averages`,
+  byId: (eventId: number | string, avgId: number | string) => `/api/admin/event/${eventId}/averages/${avgId}`,
+  results: (eventId: number | string, avgId: number | string) => `/api/admin/event/${eventId}/averages/${avgId}/results`,
+};
+
 const calcutta = {
   config: (eventId: number | string) => `/api/admin/event/${eventId}/calcutta/config`,
   generateGroups: (eventId: number | string) => `/api/admin/event/${eventId}/calcutta/generate-groups`,
@@ -153,6 +159,7 @@ const calcutta = {
 };
 
 export const apiEndpoints = {
+  averages,
   birdHistory,
   birdStatusCodes,
   birdGroups,

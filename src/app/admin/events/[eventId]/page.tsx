@@ -35,6 +35,7 @@ import { DefaultersTab } from "./defaulters-tab";
 import { EventStoreTab } from "./event-store-tab";
 import { GroupsTab } from "./groups-tab";
 import { CalcuttaTab } from "./calcutta-tab";
+import { AveragesTab } from "./averages-tab";
 
 export default function EventDetailsPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = use(params);
@@ -95,7 +96,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
       </div>
 
       <Tabs defaultValue="edit" className="w-full">
-        <TabsList className="grid w-full grid-cols-15">
+        <TabsList className="grid w-full grid-cols-16">
           <TabsTrigger value="edit">Edit</TabsTrigger>
           <TabsTrigger value="breeders">Breeders</TabsTrigger>
           <TabsTrigger value="birds">Birds</TabsTrigger>
@@ -111,6 +112,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
           <TabsTrigger value="defaulters">Defaulters</TabsTrigger>
           <TabsTrigger value="store">Store</TabsTrigger>
           <TabsTrigger value="calcutta">Calcutta</TabsTrigger>
+          <TabsTrigger value="averages">Averages</TabsTrigger>
         </TabsList>
 
         <TabsContent value="edit" className="mt-6">
@@ -177,6 +179,10 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
 
         <TabsContent value="store" className="mt-6">
           <EventStoreTab eventId={eventId} />
+        </TabsContent>
+
+        <TabsContent value="averages" className="mt-6">
+          <AveragesTab eventId={eventId} />
         </TabsContent>
       </Tabs>
     </div>

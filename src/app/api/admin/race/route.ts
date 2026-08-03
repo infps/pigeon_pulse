@@ -66,10 +66,14 @@ export async function GET(request: Request) {
       );
     }
 
-    const season = eventId
-      ? await prisma.season.findFirst({ where: { eventId: parseInt(eventId), isActive: true }, orderBy: { startDate: "desc" } })
-      : null;
-    const whereClause = season ? { seasonId: season.id } : {};
+    const seasonIdParam = searchParams.get("seasonId");
+    let whereClause: Record<string, any> = {};
+    if (seasonIdParam) {
+      whereClause = { seasonId: parseInt(seasonIdParam) };
+    } else if (eventId) {
+      const season = await prisma.season.findFirst({ where: { eventId: parseInt(eventId), isActive: true }, orderBy: { startDate: "desc" } });
+      whereClause = season ? { seasonId: season.id } : {};
+    }
 
     const races = await prisma.race.findMany({
       where: whereClause,
