@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,7 @@ function statusBadge(bird: Record<string, unknown>) {
   return <Badge variant="secondary">Inactive</Badge>;
 }
 
-export default function OwnerViewPage() {
+function OwnerViewPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const idx = parseInt(searchParams.get("bird") ?? "0") || 0;
@@ -143,5 +143,13 @@ export default function OwnerViewPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function OwnerViewPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-muted-foreground">Loading...</div>}>
+      <OwnerViewPageInner />
+    </Suspense>
   );
 }

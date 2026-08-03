@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -55,7 +55,7 @@ function betPlacerLabel(meta: Record<string, unknown> | undefined) {
   );
 }
 
-export default function AdminViewPage() {
+function AdminViewPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const idx = parseInt(searchParams.get("bird") ?? "0") || 0;
@@ -618,5 +618,13 @@ export default function AdminViewPage() {
         );
       })()}
     </div>
+  );
+}
+
+export default function AdminViewPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-muted-foreground">Loading...</div>}>
+      <AdminViewPageInner />
+    </Suspense>
   );
 }

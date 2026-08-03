@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ import Link from "next/link";
 function fmtMoney(v: number | null) { if (v == null) return "-"; return `$${v.toFixed(2)}`; }
 function fmtTime(v: string | null) { if (!v) return "-"; try { return new Date(v).toLocaleString(); } catch { return "-"; } }
 
-export default function NonOwnerViewPage() {
+function NonOwnerViewPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const idx = parseInt(searchParams.get("bird") ?? "0") || 0;
@@ -105,5 +105,13 @@ export default function NonOwnerViewPage() {
         </Card>
       )}
     </div>
+  );
+}
+
+export default function NonOwnerViewPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-muted-foreground">Loading...</div>}>
+      <NonOwnerViewPageInner />
+    </Suspense>
   );
 }
