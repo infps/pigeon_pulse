@@ -49,6 +49,9 @@ interface DataTableProps<TData, TValue> {
   onRowSelectionChange?: (updater: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => void
   onRowClick?: (row: TData) => void
   initialColumnVisibility?: VisibilityState
+  externalFilterValue?: string
+  externalFilterColumn?: string
+  emptyState?: React.ReactNode
 }
 
 export function DataTable<TData, TValue>({
@@ -61,6 +64,9 @@ export function DataTable<TData, TValue>({
   onRowSelectionChange: externalOnRowSelectionChange,
   onRowClick,
   initialColumnVisibility,
+  externalFilterValue,
+  externalFilterColumn,
+  emptyState,
 }: DataTableProps<TData, TValue>) {
   const [internalRowSelection, setInternalRowSelection] = React.useState<RowSelectionState>({})
   const [columnVisibility, setColumnVisibility] =
@@ -80,6 +86,7 @@ export function DataTable<TData, TValue>({
   const table = useReactTable({
     data,
     columns,
+    initialState: { pagination: { pageSize: 20 } },
     state: {
       sorting,
       columnVisibility,
@@ -98,6 +105,18 @@ export function DataTable<TData, TValue>({
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
   })
+
+  // Push external filter value into the table when controlled from outside
+  React.useEffect(() => {
+    if (externalFilterValue === undefined) return;
+    const col = externalFilterColumn ?? (filterableColumns.length > 0 ? filterableColumns[0].id : "");
+    if (col) {
+      if (externalFilterColumn) setSelectedColumn(externalFilterColumn);
+      table.getColumn(col)?.setFilterValue(externalFilterValue);
+    } else {
+      table.setGlobalFilter(externalFilterValue);
+    }
+  }, [externalFilterValue, externalFilterColumn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Determine if we should use column-specific filtering or global filtering
   const useColumnFiltering = filterableColumns.length > 0
@@ -201,7 +220,7 @@ export function DataTable<TData, TValue>({
                   colSpan={columns.length}
                   className="h-24 text-center"
                 >
-                  No results.
+                  {emptyState ?? "No results."}
                 </TableCell>
               </TableRow>
             )}

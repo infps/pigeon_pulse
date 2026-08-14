@@ -1,7 +1,7 @@
 "use client";
 
 import type { Event, EventInventoryItem } from "@/lib/types";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback } from "react";
 import { useListEventInventoryItems, useAddBirdsToEvent } from "@/lib/api/event-inventory-items";
 import { useSeasonContext } from "@/lib/season-context";
 import { useListEvents } from "@/lib/api/events";
@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import { Plus, Wifi, Square } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { createBirdsColumns } from "./birds-columns";
@@ -43,8 +43,42 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [detailBirdId, setDetailBirdId] = useState<number | null>(null);
+  const [rfidFilter, setRfidFilter] = useState("");
+  const [isPollActive, setIsPollActive] = useState(false);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastScannedRef = useRef<string | null>(null);
+  const pollStartedAtRef = useRef<string | null>(null);
 
   const { data, isPending, error, refetch } = useListEventInventoryItems(eventId, undefined, undefined, selectedSeasonId);
+
+  const startPollScanner = useCallback(() => {
+    setIsPollActive(true);
+    lastScannedRef.current = null;
+    pollStartedAtRef.current = new Date().toISOString();
+    toast.success("Poll scanner started — scan a bird RFID to search");
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const res = await fetch("/api/scanner/poll", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ startedAt: pollStartedAtRef.current }),
+        });
+        const d = await res.json();
+        if (d?.length > 0 && d[0].el && d[0].el !== lastScannedRef.current) {
+          lastScannedRef.current = d[0].el;
+          setRfidFilter(d[0].el);
+        }
+      } catch { /* silent */ }
+    }, 2000);
+  }, []);
+
+  const stopPollScanner = useCallback(() => {
+    if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
+    setIsPollActive(false);
+    lastScannedRef.current = null;
+    pollStartedAtRef.current = null;
+    toast.info("Poll scanner stopped");
+  }, []);
 
   const handleEdit = (item: EventInventoryItem) => {
     setEditingItem(item);
@@ -84,9 +118,32 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
     );
   }
 
+  const rfidEmptyState = rfidFilter ? (
+    <div className="flex flex-col items-center gap-3 py-4">
+      <p className="text-sm text-muted-foreground">No bird found with RFID <span className="font-mono font-medium">{rfidFilter}</span></p>
+      <div className="flex gap-2">
+        <Button size="sm" variant="outline" onClick={() => { setRfidFilter(""); setIsAddDialogOpen(true); }}>
+          <Plus className="h-4 w-4 mr-1" />Add a bird
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setRfidFilter("")}>
+          Edit a bird
+        </Button>
+      </div>
+    </div>
+  ) : undefined;
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {isPollActive ? (
+          <Button size="sm" variant="outline" className="gap-1.5 border-red-400 text-red-600 hover:bg-red-50" onClick={stopPollScanner}>
+            <Square className="h-4 w-4" />Stop Scan
+          </Button>
+        ) : (
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={startPollScanner}>
+            <Wifi className="h-4 w-4" />Scan RFID
+          </Button>
+        )}
         <Button size="sm" className="gap-1.5" onClick={() => setIsAddDialogOpen(true)}>
           <Plus className="h-4 w-4" />
           Add Birds
@@ -101,7 +158,11 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
           { id: "birdName", title: "Bird Name" },
           { id: "breeder", title: "Breeder" },
           { id: "color", title: "Color" },
+          { id: "rfid", title: "RFID" },
         ]}
+        externalFilterValue={rfidFilter || undefined}
+        externalFilterColumn={rfidFilter ? "rfid" : undefined}
+        emptyState={rfidEmptyState}
       />
 
       <EditBirdDialog

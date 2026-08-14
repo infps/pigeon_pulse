@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useSeasonContext } from "@/lib/season-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,7 +26,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { AlertTriangle, ArrowRightLeft, ChevronDown, ChevronRight, Pencil, Plus, Trash2, Wand2 } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, ChevronDown, ChevronRight, Pencil, Plus, Scan, Square, Trash2, Wand2, Wifi } from "lucide-react";
 import { toast } from "sonner";
 import {
   useEventBaskets,
@@ -624,6 +624,7 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
   const assignMutation = useAssignRaceBaskets(eventId);
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [prescanOpen, setPrescanOpen] = useState(false);
   const [capacity, setCapacity] = useState("");
   const [preview, setPreview] = useState<RaceBasketPreview[] | null>(null);
   const [previewSummary, setPreviewSummary] = useState<RaceAssignSummary | null>(null);
@@ -859,6 +860,17 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
                 <Plus className="h-4 w-4" />
                 Add New Basket
               </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="gap-1.5"
+                onClick={() => setPrescanOpen(true)}
+                disabled={!selectedRaceId || !hasExistingAssignments}
+                title={!hasExistingAssignments ? "Run Set Basket first to assign birds to baskets" : undefined}
+              >
+                <Scan className="h-4 w-4" />
+                Prescan
+              </Button>
             </div>
           </div>
           <CapacitySummary capacity={totalCapacity} active={activeBirds} phase="Race" />
@@ -1044,7 +1056,214 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {prescanOpen && selectedRaceId && (
+        <PrescanDialog
+          eventId={eventId}
+          raceId={selectedRaceId}
+          onClose={() => setPrescanOpen(false)}
+        />
+      )}
     </>
+  );
+}
+
+// ============================================================
+// PRESCAN DIALOG
+// ============================================================
+
+type PrescanRow = {
+  rfid: string;
+  birdName: string | null;
+  attention: boolean;
+  basketLabel: string;
+  status: "scanned" | "already_scanned" | "foreign";
+  raceItemId?: number;
+};
+
+function PrescanDialog({ eventId, raceId, onClose }: { eventId: string; raceId: string; onClose: () => void }) {
+  const [rows, setRows] = useState<PrescanRow[]>([]);
+  const [isPollActive, setIsPollActive] = useState(false);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastScannedRef = useRef<string | null>(null);
+  const pollStartedAtRef = useRef<string | null>(null);
+
+  const doScan = useCallback(async (rfid: string) => {
+    if (rfid === lastScannedRef.current) return;
+    lastScannedRef.current = rfid;
+
+    const res = await fetch(`/api/admin/event/${eventId}/baskets/prescan-race`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rfid, raceId: parseInt(raceId) }),
+    });
+    const data = await res.json();
+
+    const newRow: PrescanRow = {
+      rfid,
+      birdName: data.bird?.birdName ?? data.bird?.band ?? null,
+      attention: data.bird?.attention ?? false,
+      basketLabel: data.basketLabel ?? "-",
+      status: data.status,
+      raceItemId: data.raceItemId,
+    };
+
+    setRows((prev) => {
+      const existing = prev.findIndex((r) => r.rfid === rfid);
+      if (existing >= 0) {
+        const next = [...prev];
+        next[existing] = newRow;
+        return next;
+      }
+      return [...prev, newRow];
+    });
+
+    if (data.status === "already_scanned") toast.info(`Already basketed: ${newRow.birdName ?? rfid}`);
+    else if (data.status === "foreign") toast.warning(`Foreign bird: ${rfid}`);
+    else toast.success(`Scanned: ${newRow.birdName ?? rfid} → ${newRow.basketLabel}`);
+  }, [eventId, raceId]);
+
+  const startPoll = useCallback(() => {
+    setIsPollActive(true);
+    lastScannedRef.current = null;
+    pollStartedAtRef.current = new Date().toISOString();
+    toast.success("Prescan scanner started");
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const res = await fetch("/api/scanner/poll", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ startedAt: pollStartedAtRef.current }),
+        });
+        const d = await res.json();
+        if (d?.length > 0 && d[0].el && d[0].el !== lastScannedRef.current) {
+          await doScan(d[0].el);
+        }
+      } catch { /* silent */ }
+    }, 2000);
+  }, [doScan]);
+
+  const stopPoll = useCallback(() => {
+    if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
+    setIsPollActive(false);
+    lastScannedRef.current = null;
+    toast.info("Prescan scanner stopped");
+  }, []);
+
+  const handleClose = () => {
+    stopPoll();
+    onClose();
+  };
+
+  const handleAddForeign = async (row: PrescanRow) => {
+    try {
+      const res = await fetch(`/api/admin/event/${eventId}/baskets/prescan-race`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rfid: row.rfid, raceId: parseInt(raceId), action: "register_foreign" }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.message ?? "Failed to register"); return; }
+      setRows((prev) => prev.map((r) =>
+        r.rfid === row.rfid ? { ...r, birdName: data.bird?.birdName ?? data.bird?.band ?? r.rfid, status: "scanned", raceItemId: data.raceItemId } : r
+      ));
+      toast.success("Bird registered under admin for later reassignment");
+    } catch { toast.error("Failed to register bird"); }
+  };
+
+  const handleRemoveForeign = async (row: PrescanRow) => {
+    if (row.raceItemId) {
+      try {
+        await fetch(`/api/admin/event/${eventId}/baskets/prescan-race`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ raceItemId: row.raceItemId }),
+        });
+      } catch { /* best effort */ }
+    }
+    setRows((prev) => prev.filter((r) => r.rfid !== row.rfid));
+  };
+
+  const statusBadge = (status: PrescanRow["status"]) => {
+    if (status === "scanned") return <Badge variant="default" className="text-xs">Basketed</Badge>;
+    if (status === "already_scanned") return <Badge variant="secondary" className="text-xs">Already Basketed</Badge>;
+    return <Badge variant="destructive" className="text-xs">Foreign</Badge>;
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) handleClose(); }}>
+      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center justify-between pr-6">
+            <span>Prescan — Race Basket</span>
+            <div className="flex items-center gap-2">
+              {isPollActive ? (
+                <Button size="sm" className="gap-1.5 bg-red-600 hover:bg-red-700" onClick={stopPoll}>
+                  <Square className="h-4 w-4" />Stop Scanner
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={startPoll}>
+                  <Wifi className="h-4 w-4" />Start Scanner
+                </Button>
+              )}
+            </div>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-auto">
+          {rows.length === 0 ? (
+            <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
+              {isPollActive ? "Waiting for scans..." : "Start scanner to begin scanning birds"}
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-primary text-primary-foreground">
+                <tr>
+                  <th className="text-left px-3 py-2 font-medium">Bird Name</th>
+                  <th className="text-left px-3 py-2 font-medium font-mono">RFID</th>
+                  <th className="text-center px-3 py-2 font-medium">Attention</th>
+                  <th className="text-left px-3 py-2 font-medium">Basket</th>
+                  <th className="text-left px-3 py-2 font-medium">Status</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {rows.map((row) => (
+                  <tr key={row.rfid} className={row.status === "foreign" ? "bg-red-50" : undefined}>
+                    <td className="px-3 py-2">{row.birdName ?? <span className="text-muted-foreground italic">Unknown</span>}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{row.rfid}</td>
+                    <td className="px-3 py-2 text-center">
+                      {row.attention && <AlertTriangle className="h-4 w-4 text-amber-500 mx-auto" />}
+                    </td>
+                    <td className="px-3 py-2">{row.basketLabel}</td>
+                    <td className="px-3 py-2">{statusBadge(row.status)}</td>
+                    <td className="px-3 py-2">
+                      {row.status === "foreign" && (
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleAddForeign(row)}>
+                            Add Bird
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600" onClick={() => handleRemoveForeign(row)}>
+                            Remove
+                          </Button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <DialogFooter>
+          <span className="text-xs text-muted-foreground mr-auto">
+            {rows.filter(r => r.status === "scanned").length} basketed · {rows.filter(r => r.status === "foreign").length} foreign
+          </span>
+          <Button onClick={handleClose}>Done</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
