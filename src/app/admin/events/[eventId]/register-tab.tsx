@@ -93,6 +93,7 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
     user?: { username: string | null; displayUsername: string | null; loftName: string | null; image: string | null } | null;
   } | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const lookupBreeder = async () => {
     const q = breederQuery.trim();
@@ -288,6 +289,7 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
       })),
     };
 
+    setSubmitting(true);
     try {
       const response = await fetch(`/api/admin/event/${eventId}/register`, {
         method: "POST",
@@ -313,6 +315,8 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
     } catch (error: any) {
       toast.error(error.message || "Failed to register");
       console.error("Registration error:", error);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -697,7 +701,9 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
         {/* Submit */}
         {reservedBirds > 0 && (
           <div className="flex justify-end">
-            <Button type="submit">Register for Event</Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "Registering..." : "Register for Event"}
+            </Button>
           </div>
         )}
       </form>

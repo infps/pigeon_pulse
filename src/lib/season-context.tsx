@@ -9,6 +9,13 @@ export type Season = {
   startDate: string;
   endDate: string;
   isActive: boolean;
+  feeSchemeId?: number | null;
+  bettingSchemeId?: number | null;
+  finalPrizeSchemeId?: number | null;
+  hotSpot1PrizeSchemeId?: number | null;
+  hotSpot2PrizeSchemeId?: number | null;
+  hotSpot3PrizeSchemeId?: number | null;
+  hotSpotAvgPrizeSchemeId?: number | null;
 };
 
 interface SeasonContextValue {

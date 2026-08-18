@@ -224,8 +224,19 @@ export function AddEditBreederDialog({
       }
       
       handleClose();
-    } catch (error) {
-      toast.error(editingUser ? "Failed to update breeder" : "Failed to create breeder");
+    } catch (error: any) {
+      let msg = editingUser ? "Failed to update breeder" : "Failed to create breeder";
+      if (error?.message) {
+        try {
+          const parsed = JSON.parse(error.message);
+          if (parsed?.message) msg = parsed.message;
+        } catch {
+          if (typeof error.message === "string" && error.message.length < 200) {
+            msg = error.message;
+          }
+        }
+      }
+      toast.error(msg);
     }
   };
 
@@ -262,13 +273,14 @@ export function AddEditBreederDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-3xl !flex flex-col max-h-[90vh] overflow-hidden">
+        <DialogHeader className="shrink-0">
           <DialogTitle>
             {editingUser ? "Edit Breeder" : copyUser ? "Copy Breeder" : "Add New Breeder"}
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="flex-1 overflow-y-auto space-y-4 pr-1">
           <div>
             <Label>Profile Picture</Label>
             <ImageUploadWithCrop
@@ -660,7 +672,8 @@ export function AddEditBreederDialog({
             </div>
           </div>
 
-          <div className="flex gap-2 justify-end pt-4">
+          </div>{/* end scrollable area */}
+          <div className="flex gap-2 justify-end pt-4 shrink-0 border-t mt-2">
             <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
             </Button>

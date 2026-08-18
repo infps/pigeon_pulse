@@ -66,8 +66,8 @@ export async function POST(request: Request, { params }: Params) {
     const seasonIdParam = formData.get("seasonId") as string | null;
 
     if (!file) return NextResponse.json({ message: "No image provided" }, { status: 400 });
-    if (!typeRaw || !["ARRIVAL", "RACE", "FINAL"].includes(typeRaw)) {
-      return NextResponse.json({ message: "type must be ARRIVAL, RACE, or FINAL" }, { status: 400 });
+    if (!typeRaw || !["ARRIVAL", "RACE", "FINAL", "BODY", "WING", "EYE"].includes(typeRaw)) {
+      return NextResponse.json({ message: "type must be ARRIVAL, RACE, FINAL, BODY, WING, or EYE" }, { status: 400 });
     }
 
     const seasonId = await resolveSeasonId(parseInt(eventId), seasonIdParam);

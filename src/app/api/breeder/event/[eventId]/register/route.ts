@@ -208,11 +208,16 @@ export async function POST(
         select: { id: true },
       });
       // raceItems per inventory item id (one bird → one RaceItem per race)
+      const restingStatus = await tx.birdStatusPreset.findFirst({
+        where: { trigger: "REGISTER", isActive: true, OR: [{ seasonId }, { seasonId: null }] },
+        orderBy: [{ seasonId: "desc" }, { sortOrder: "asc" }],
+        select: { id: true },
+      });
       const raceItemsByInventory = new Map<number, number[]>();
       for (const race of existingRaces) {
         for (const item of inventoryItems) {
           const ri = await tx.raceItem.create({
-            data: { raceId: race.id, inventoryItemId: item.id },
+            data: { raceId: race.id, inventoryItemId: item.id, displayStatusId: restingStatus?.id ?? null },
           });
           const list = raceItemsByInventory.get(item.id) ?? [];
           list.push(ri.id);
@@ -330,7 +335,7 @@ export async function POST(
         betsPlaced: betRows.length,
         betStakesTotal,
       };
-    });
+    }, { timeout: 60000, maxWait: 15000 }); // many sequential writes over remote DB exceed the 5s default
 
     return NextResponse.json(
       {

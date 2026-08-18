@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { presetIdFor } from "@/lib/birdStatus";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -241,10 +242,11 @@ export async function POST(
       where: { raceId: raceIdInt, status: "ARRIVED" },
     });
     const birdPosition = arrivedCount + 1;
+    const arrivedStatusId = await presetIdFor(race.seasonId, "ARRIVE");
 
     const updatedRaceItem = await prisma.raceItem.update({
       where: { id: raceItem.id },
-      data: { status: "ARRIVED", raceBasketTime: arrivalTime },
+      data: { status: "ARRIVED", raceBasketTime: arrivalTime, displayStatusId: arrivedStatusId },
       include: {
         inventoryItem: {
           include: {

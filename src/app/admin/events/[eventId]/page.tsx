@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useListEvents } from "@/lib/api/events";
@@ -26,7 +26,6 @@ import { BirdsTab } from "./birds-tab";
 import { BasketsTab } from "./baskets-tab";
 import { RacesTab } from "./races-tab";
 import { BettingTab } from "./betting-tab";
-import { RegisterTab } from "./register-tab";
 import { MessagesTab } from "./messages-tab";
 import { StationsTab } from "./stations-tab";
 import { EventHistoryTab } from "@/app/events/[eventId]/event-history-tab";
@@ -48,6 +47,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
   const { data: prizeSchemesData } = useListPrizeSchemes({});
   const { data: bettingSchemesData } = useListBettingSchemes({});
 
+  const [activeTab, setActiveTab] = useState("edit");
   const event: Event | undefined = eventData?.event;
   const feeSchemes: FeeScheme[] = feeSchemesData?.feeSchemes || [];
   const prizeSchemes: PrizeScheme[] = prizeSchemesData?.prizeSchemes || [];
@@ -95,8 +95,8 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
         <SeasonSelector eventId={eventId} isSuperAdmin={isSuperAdmin} />
       </div>
 
-      <Tabs defaultValue="edit" className="w-full">
-        <TabsList className="grid w-full grid-cols-16">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-15">
           <TabsTrigger value="edit">Edit</TabsTrigger>
           <TabsTrigger value="breeders">Breeders</TabsTrigger>
           <TabsTrigger value="birds">Birds</TabsTrigger>
@@ -108,7 +108,6 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
           <TabsTrigger value="stations">Stations</TabsTrigger>
           <TabsTrigger value="messages">Messages</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
-          <TabsTrigger value="register">Register</TabsTrigger>
           <TabsTrigger value="defaulters">Defaulters</TabsTrigger>
           <TabsTrigger value="store">Store</TabsTrigger>
           <TabsTrigger value="calcutta">Calcutta</TabsTrigger>
@@ -163,10 +162,6 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
 
         <TabsContent value="history" className="mt-6">
           <EventHistoryTab eventId={eventId} />
-        </TabsContent>
-
-        <TabsContent value="register" className="mt-6">
-          <RegisterTab event={event} eventId={eventId} />
         </TabsContent>
 
         <TabsContent value="defaulters" className="mt-6">

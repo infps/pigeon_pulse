@@ -364,6 +364,7 @@ export default function UsersPage() {
       </div>
 
       <DataTable
+        tableId="admin-users"
         columns={columns}
         data={filteredUsers}
         filterableColumns={[

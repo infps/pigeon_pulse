@@ -52,7 +52,18 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { name, startDate, endDate } = body;
+    const {
+      name,
+      startDate,
+      endDate,
+      feeSchemeId,
+      bettingSchemeId,
+      finalPrizeSchemeId,
+      hotSpot1PrizeSchemeId,
+      hotSpot2PrizeSchemeId,
+      hotSpot3PrizeSchemeId,
+      hotSpotAvgPrizeSchemeId,
+    } = body;
 
     if (!name || !startDate || !endDate) {
       return NextResponse.json({ message: "name, startDate, endDate are required" }, { status: 400 });
@@ -68,7 +79,25 @@ export async function POST(
         endDate: new Date(endDate),
         isActive: true,
         eventId,
+        ...(feeSchemeId && { feeSchemeId: parseInt(feeSchemeId) }),
+        ...(bettingSchemeId && { bettingSchemeId: parseInt(bettingSchemeId) }),
+        ...(finalPrizeSchemeId && { finalPrizeSchemeId: parseInt(finalPrizeSchemeId) }),
+        ...(hotSpot1PrizeSchemeId && { hotSpot1PrizeSchemeId: parseInt(hotSpot1PrizeSchemeId) }),
+        ...(hotSpot2PrizeSchemeId && { hotSpot2PrizeSchemeId: parseInt(hotSpot2PrizeSchemeId) }),
+        ...(hotSpot3PrizeSchemeId && { hotSpot3PrizeSchemeId: parseInt(hotSpot3PrizeSchemeId) }),
+        ...(hotSpotAvgPrizeSchemeId && { hotSpotAvgPrizeSchemeId: parseInt(hotSpotAvgPrizeSchemeId) }),
       },
+    });
+
+    // Seed default configurable bird statuses for the season (admins can edit/add later).
+    await prisma.birdStatusPreset.createMany({
+      data: [
+        { seasonId: season.id, code: "RESTING", label: "Resting in Inventory", color: "#94a3b8", trigger: "REGISTER", sortOrder: 1 },
+        { seasonId: season.id, code: "FLYING", label: "Flying", color: "#3b82f6", trigger: "RELEASE", sortOrder: 2 },
+        { seasonId: season.id, code: "ARRIVED", label: "Arrived", color: "#22c55e", trigger: "ARRIVE", sortOrder: 3 },
+        { seasonId: season.id, code: "LOST", label: "Lost", color: "#ef4444", trigger: "LOST", sortOrder: 4 },
+        { seasonId: season.id, code: "INJURED", label: "Injured", color: "#f59e0b", trigger: "INJURED", sortOrder: 5 },
+      ],
     });
 
     return NextResponse.json({ season }, { status: 201 });

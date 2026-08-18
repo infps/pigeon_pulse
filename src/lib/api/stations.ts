@@ -9,8 +9,7 @@ export interface Station {
   latitude: number | null;
   longitude: number | null;
   isActive: boolean;
-  raceTypeId: number | null;
-  raceType?: { id: number; name: string | null; color: string | null } | null;
+  stationRaceTypes: { raceTypeId: number; raceType: { id: number; name: string | null; color: string | null } }[];
   createdAt: string;
   updatedAt: string;
 }

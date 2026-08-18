@@ -28,7 +28,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
     const stations = await prisma.raceStation.findMany({
       where: { seasonId },
       orderBy: { miles: "asc" },
-      include: { raceType: true },
+      include: { stationRaceTypes: { include: { raceType: true } } },
     });
     return NextResponse.json({ stations, message: "ok" });
   } catch (error) {

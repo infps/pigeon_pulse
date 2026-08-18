@@ -2,6 +2,7 @@
 
 import type { Event, Race } from "@/lib/types";
 import { useListRaces, useCreateRace, useUpdateRace, useDeleteRace } from "@/lib/api/races";
+import { useSeasonContext } from "@/lib/season-context";
 import { useListRaceTypes } from "@/lib/api/race-types";
 import { useStations } from "@/lib/api/stations";
 import { haversine } from "@/lib/geo";
@@ -39,7 +40,11 @@ interface RacesTabProps {
 }
 
 export function RacesTab({ event, eventId }: RacesTabProps) {
-  const { data, isPending, error } = useListRaces({ params: { eventId } });
+  const { selectedSeasonId } = useSeasonContext();
+  const raceParams: Record<string, string> = selectedSeasonId
+    ? { seasonId: String(selectedSeasonId) }
+    : { eventId };
+  const { data, isPending, error } = useListRaces({ params: raceParams });
   const { data: raceTypesData } = useListRaceTypes();
   const { data: stationsData } = useStations(eventId);
   const createRaceMutation = useCreateRace();
@@ -402,8 +407,9 @@ function toDateTimeLocal(iso: string) {
         </Button>
       </div>
 
-      <DataTable 
-        columns={createRacesColumns(handleEdit, handleDelete, eventId)} 
+      <DataTable
+        tableId="event-races"
+        columns={createRacesColumns(handleEdit, handleDelete, eventId)}
         data={races}
         filterableColumns={[
           { id: "name", title: "Race Name" },
@@ -475,9 +481,12 @@ function toDateTimeLocal(iso: string) {
                     onValueChange={(value) => {
                       const id = value === "none" ? "" : value;
                       const st = activeStations.find((s) => String(s.id) === id);
-                      // Autofill race type from the station's type (if set).
+                      // Autofill race type from the station's first type (if exactly one set).
+                      const firstType = st?.stationRaceTypes?.[0];
                       const rtId =
-                        st?.raceTypeId != null ? String(st.raceTypeId) : formData.raceTypeId;
+                        st?.stationRaceTypes?.length === 1 && firstType
+                          ? String(firstType.raceTypeId)
+                          : formData.raceTypeId;
                       setFormData({
                         ...formData,
                         raceStationId: id,
@@ -565,7 +574,9 @@ function toDateTimeLocal(iso: string) {
                       longitude: selectedStation.longitude,
                       miles: derivedMiles,
                       isActive: selectedStation.isActive,
-                      color: resolveTypeColor(selectedStation.raceTypeId, selectedStation.raceType?.color),
+                      color: selectedStation.stationRaceTypes?.[0]
+                        ? resolveTypeColor(selectedStation.stationRaceTypes[0].raceTypeId, selectedStation.stationRaceTypes[0].raceType?.color)
+                        : undefined,
                     },
                   ]}
                   height={260}

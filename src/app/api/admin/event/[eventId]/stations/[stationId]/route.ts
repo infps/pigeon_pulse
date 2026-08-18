@@ -60,7 +60,7 @@ export async function PUT(
     if (seasonId instanceof NextResponse) return seasonId;
 
     const body = await req.json();
-    const { name, miles, km, latitude, longitude, isActive, raceTypeId } = body || {};
+    const { name, miles, km, latitude, longitude, isActive, raceTypeIds } = body || {};
 
     const existing = await prisma.raceStation.findFirst({
       where: { id: stationId, seasonId },
@@ -76,9 +76,6 @@ export async function PUT(
       ...(latitude !== undefined ? { latitude: latitude != null ? Number(latitude) : null } : {}),
       ...(longitude !== undefined ? { longitude: longitude != null ? Number(longitude) : null } : {}),
       ...(isActive !== undefined ? { isActive: Boolean(isActive) } : {}),
-      ...(raceTypeId !== undefined
-        ? { raceTypeId: raceTypeId != null && raceTypeId !== "" ? Number(raceTypeId) : null }
-        : {}),
     };
 
     // Recompute distance when coords are provided but no explicit miles/km override.
@@ -96,9 +93,21 @@ export async function PUT(
       }
     }
 
-    const station = await prisma.raceStation.update({
-      where: { id: stationId },
-      data,
+    const station = await prisma.$transaction(async (tx) => {
+      const updated = await tx.raceStation.update({ where: { id: stationId }, data });
+      if (raceTypeIds !== undefined) {
+        const typeIds: number[] = Array.isArray(raceTypeIds) ? raceTypeIds.map(Number).filter(Boolean) : [];
+        await tx.raceStationRaceType.deleteMany({ where: { stationId } });
+        if (typeIds.length) {
+          await tx.raceStationRaceType.createMany({
+            data: typeIds.map((raceTypeId) => ({ stationId, raceTypeId })),
+          });
+        }
+      }
+      return tx.raceStation.findUnique({
+        where: { id: stationId },
+        include: { stationRaceTypes: { include: { raceType: true } } },
+      });
     });
     return NextResponse.json({ station, message: "updated" });
   } catch (error) {

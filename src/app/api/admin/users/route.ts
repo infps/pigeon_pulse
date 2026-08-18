@@ -297,6 +297,30 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      const fields = (error.meta?.target as string[] | undefined)?.join(", ");
+      return NextResponse.json(
+        { message: `Already in use: ${fields ?? "unique field"}` },
+        { status: 409 }
+      );
+    }
+    // better-auth throws APIError (extends Error) with .body.message on duplicate/validation
+    const bodyMsg: string | undefined = (error as any)?.body?.message;
+    if (bodyMsg) {
+      const lower = bodyMsg.toLowerCase();
+      if (lower.includes("already exist") || lower.includes("use another email")) {
+        return NextResponse.json({ message: "Email already in use" }, { status: 409 });
+      }
+      if (lower.includes("already taken")) {
+        return NextResponse.json({ message: "Username already taken" }, { status: 409 });
+      }
+      // Surface any other auth-layer message directly (validation errors, etc.)
+      console.error("Error creating user:", error);
+      return NextResponse.json({ message: bodyMsg }, { status: 400 });
+    }
     console.error("Error creating user:", error);
     return NextResponse.json(
       { message: "Internal server error" },

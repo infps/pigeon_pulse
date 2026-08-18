@@ -510,6 +510,7 @@ export default function RaceDetailsPage() {
                 )}
               </div>
               <DataTable
+                tableId="race-items"
                 columns={raceItemsColumns}
                 data={raceItems}
                 filterableColumns={[

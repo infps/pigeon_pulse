@@ -4,6 +4,7 @@ import * as React from "react"
 import {
   ColumnDef,
   ColumnFiltersState,
+  ColumnOrderState,
   SortingState,
   VisibilityState,
   RowSelectionState,
@@ -39,6 +40,7 @@ import {
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
+  tableId?: string
   searchKey?: string
   searchPlaceholder?: string
   filterableColumns?: {
@@ -54,9 +56,26 @@ interface DataTableProps<TData, TValue> {
   emptyState?: React.ReactNode
 }
 
+function loadPrefs(tableId: string): { visibility: VisibilityState; order: string[] } | null {
+  try {
+    const raw = localStorage.getItem(`dt-prefs-${tableId}`)
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+function savePrefs(tableId: string, visibility: VisibilityState, order: string[]) {
+  try {
+    localStorage.setItem(`dt-prefs-${tableId}`, JSON.stringify({ visibility, order }))
+  } catch {}
+}
+
 export function DataTable<TData, TValue>({
   columns,
   data,
+  tableId,
   searchKey,
   searchPlaceholder = "Search...",
   filterableColumns = [],
@@ -69,17 +88,35 @@ export function DataTable<TData, TValue>({
   emptyState,
 }: DataTableProps<TData, TValue>) {
   const [internalRowSelection, setInternalRowSelection] = React.useState<RowSelectionState>({})
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>(initialColumnVisibility ?? {})
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
-  )
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [selectedColumn, setSelectedColumn] = React.useState<string>(
     filterableColumns.length > 0 ? filterableColumns[0].id : ""
   )
 
-  // Use external state if provided, otherwise use internal state
+  // Load persisted prefs once on mount
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(() => {
+    if (tableId) {
+      const saved = loadPrefs(tableId)
+      if (saved?.visibility) return saved.visibility
+    }
+    return initialColumnVisibility ?? {}
+  })
+
+  const [columnOrder, setColumnOrder] = React.useState<ColumnOrderState>(() => {
+    if (tableId) {
+      const saved = loadPrefs(tableId)
+      if (saved?.order?.length) return saved.order
+    }
+    return []
+  })
+
+  // Persist whenever visibility or order changes
+  React.useEffect(() => {
+    if (!tableId) return
+    savePrefs(tableId, columnVisibility, columnOrder)
+  }, [tableId, columnVisibility, columnOrder])
+
   const rowSelection = externalRowSelection ?? internalRowSelection
   const setRowSelection = externalOnRowSelectionChange ?? setInternalRowSelection
 
@@ -90,6 +127,7 @@ export function DataTable<TData, TValue>({
     state: {
       sorting,
       columnVisibility,
+      columnOrder,
       rowSelection,
       columnFilters,
     },
@@ -98,6 +136,7 @@ export function DataTable<TData, TValue>({
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
+    onColumnOrderChange: setColumnOrder,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -106,19 +145,17 @@ export function DataTable<TData, TValue>({
     getFacetedUniqueValues: getFacetedUniqueValues(),
   })
 
-  // Push external filter value into the table when controlled from outside
   React.useEffect(() => {
-    if (externalFilterValue === undefined) return;
-    const col = externalFilterColumn ?? (filterableColumns.length > 0 ? filterableColumns[0].id : "");
+    if (externalFilterValue === undefined) return
+    const col = externalFilterColumn ?? (filterableColumns.length > 0 ? filterableColumns[0].id : "")
     if (col) {
-      if (externalFilterColumn) setSelectedColumn(externalFilterColumn);
-      table.getColumn(col)?.setFilterValue(externalFilterValue);
+      if (externalFilterColumn) setSelectedColumn(externalFilterColumn)
+      table.getColumn(col)?.setFilterValue(externalFilterValue)
     } else {
-      table.setGlobalFilter(externalFilterValue);
+      table.setGlobalFilter(externalFilterValue)
     }
-  }, [externalFilterValue, externalFilterColumn]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [externalFilterValue, externalFilterColumn]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Determine if we should use column-specific filtering or global filtering
   const useColumnFiltering = filterableColumns.length > 0
   const currentFilterValue = useColumnFiltering
     ? (table.getColumn(selectedColumn)?.getFilterValue() as string) ?? ""
@@ -142,7 +179,6 @@ export function DataTable<TData, TValue>({
                 value={selectedColumn}
                 onValueChange={(value) => {
                   setSelectedColumn(value)
-                  // Clear the previous column filter
                   table.resetColumnFilters()
                 }}
               >
@@ -173,25 +209,24 @@ export function DataTable<TData, TValue>({
             />
           ) : null}
         </div>
-        <DataTableViewOptions table={table} />
+        <DataTableViewOptions
+          table={table}
+          columnOrder={columnOrder}
+          onColumnOrderChange={setColumnOrder}
+        />
       </div>
       <div className="overflow-auto relative rounded-md border max-h-[65vh]">
         <Table>
           <TableHeader className="bg-primary sticky top-0 z-10">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead key={header.id} colSpan={header.colSpan} className="text-primary-foreground font-medium">
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  )
-                })}
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id} colSpan={header.colSpan} className="text-primary-foreground font-medium">
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                ))}
               </TableRow>
             ))}
           </TableHeader>
@@ -206,20 +241,14 @@ export function DataTable<TData, TValue>({
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
+                <TableCell colSpan={columns.length} className="h-24 text-center">
                   {emptyState ?? "No results."}
                 </TableCell>
               </TableRow>

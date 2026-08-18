@@ -118,7 +118,7 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
     );
   }
 
-  const rfidEmptyState = rfidFilter ? (
+  const emptyState = rfidFilter ? (
     <div className="flex flex-col items-center gap-3 py-4">
       <p className="text-sm text-muted-foreground">No bird found with RFID <span className="font-mono font-medium">{rfidFilter}</span></p>
       <div className="flex gap-2">
@@ -126,9 +126,16 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
           <Plus className="h-4 w-4 mr-1" />Add a bird
         </Button>
         <Button size="sm" variant="ghost" onClick={() => setRfidFilter("")}>
-          Edit a bird
+          Clear filter
         </Button>
       </div>
+    </div>
+  ) : eventInventoryItems.length === 0 ? (
+    <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
+      No birds registered yet.{" "}
+      <button onClick={() => setIsAddDialogOpen(true)} className="text-primary underline underline-offset-2">
+        Add birds now.
+      </button>
     </div>
   ) : undefined;
 
@@ -151,6 +158,7 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
       </div>
 
       <DataTable
+        tableId="event-birds"
         columns={columns}
         data={eventInventoryItems}
         filterableColumns={[
@@ -162,7 +170,7 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
         ]}
         externalFilterValue={rfidFilter || undefined}
         externalFilterColumn={rfidFilter ? "rfid" : undefined}
-        emptyState={rfidEmptyState}
+        emptyState={emptyState}
       />
 
       <EditBirdDialog

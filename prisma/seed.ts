@@ -81,13 +81,14 @@ async function main() {
   // Season
   const season = await prisma.season.upsert({
     where: { id: 1 },
-    update: { name: "2026 Season", startDate: new Date("2026-03-01T00:00:00Z"), endDate: new Date("2026-12-31T00:00:00Z") },
+    update: { name: "2026 Season", startDate: new Date("2026-03-01T00:00:00Z"), endDate: new Date("2026-12-31T00:00:00Z"), isActive: true },
     create: {
       id: 1,
       name: "2026 Season",
       startDate: new Date("2026-03-01T00:00:00Z"),
       endDate: new Date("2026-12-31T00:00:00Z"),
       eventId: event.id,
+      isActive: true,
     },
   });
 

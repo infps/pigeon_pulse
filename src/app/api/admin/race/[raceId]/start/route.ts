@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { presetIdFor } from "@/lib/birdStatus";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -37,6 +38,9 @@ export async function POST(
       );
     }
 
+    // Released birds get the "Flying" configurable status (trigger RELEASE).
+    const flyingId = await presetIdFor(race.seasonId, "RELEASE");
+
     // Start race + release all basketted/checked-in birds
     const [updatedRace] = await prisma.$transaction([
       prisma.race.update({
@@ -52,7 +56,7 @@ export async function POST(
           raceId: raceIdInt,
           status: { in: ["LOFT_BASKETED", "CHECKED_IN", "REGISTERED"] },
         },
-        data: { status: "RELEASED" },
+        data: { status: "RELEASED", displayStatusId: flyingId },
       }),
     ]);
 

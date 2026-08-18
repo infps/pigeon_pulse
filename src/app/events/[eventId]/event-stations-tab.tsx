@@ -18,8 +18,7 @@ interface Station {
   latitude: number | null;
   longitude: number | null;
   isActive: boolean;
-  raceTypeId: number | null;
-  raceType?: { name: string | null; color: string | null } | null;
+  stationRaceTypes: { raceTypeId: number; raceType: { name: string | null; color: string | null } }[];
 }
 
 export function EventStationsTab({ eventId, event }: { eventId: string; event?: Event }) {
@@ -46,16 +45,18 @@ export function EventStationsTab({ eventId, event }: { eventId: string; event?: 
     const map = new Map<number, { id: number; name: string; color: string }>();
     let hasUntyped = false;
     for (const s of stations) {
-      if (s.raceTypeId == null) {
+      if (!s.stationRaceTypes.length) {
         hasUntyped = true;
         continue;
       }
-      if (!map.has(s.raceTypeId)) {
-        map.set(s.raceTypeId, {
-          id: s.raceTypeId,
-          name: s.raceType?.name ?? `Type ${s.raceTypeId}`,
-          color: resolveTypeColor(s.raceTypeId, s.raceType?.color) ?? "#64748b",
-        });
+      for (const srt of s.stationRaceTypes) {
+        if (!map.has(srt.raceTypeId)) {
+          map.set(srt.raceTypeId, {
+            id: srt.raceTypeId,
+            name: srt.raceType?.name ?? `Type ${srt.raceTypeId}`,
+            color: resolveTypeColor(srt.raceTypeId, srt.raceType?.color) ?? "#64748b",
+          });
+        }
       }
     }
     return { types: [...map.values()], hasUntyped };
@@ -64,8 +65,8 @@ export function EventStationsTab({ eventId, event }: { eventId: string; event?: 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return stations.filter((s) => {
-      if (typeTab === "untyped" && s.raceTypeId != null) return false;
-      if (typeof typeTab === "number" && s.raceTypeId !== typeTab) return false;
+      if (typeTab === "untyped" && s.stationRaceTypes.length > 0) return false;
+      if (typeof typeTab === "number" && !s.stationRaceTypes.some((srt) => srt.raceTypeId === typeTab)) return false;
       return !q || s.name.toLowerCase().includes(q);
     });
   }, [stations, search, typeTab]);
@@ -163,18 +164,18 @@ export function EventStationsTab({ eventId, event }: { eventId: string; event?: 
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium truncate">{s.name}</span>
-                    {s.raceTypeId != null &&
-                      (() => {
-                        const c = resolveTypeColor(s.raceTypeId, s.raceType?.color) ?? "#64748b";
+                    {s.stationRaceTypes.map((srt) => {
+                        const c = resolveTypeColor(srt.raceTypeId, srt.raceType?.color) ?? "#64748b";
                         return (
                           <span
+                            key={srt.raceTypeId}
                             className="text-[10px] px-1.5 py-0.5 rounded font-medium"
                             style={{ backgroundColor: c, color: textOn(c) }}
                           >
-                            {s.raceType?.name ?? `Type ${s.raceTypeId}`}
+                            {srt.raceType?.name ?? `Type ${srt.raceTypeId}`}
                           </span>
                         );
-                      })()}
+                      })}
                     {s.isActive && <Badge variant="default">active</Badge>}
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
@@ -196,7 +197,9 @@ export function EventStationsTab({ eventId, event }: { eventId: string; event?: 
             base={base}
             stations={filtered.map((s) => ({
               ...s,
-              color: resolveTypeColor(s.raceTypeId, s.raceType?.color),
+              color: s.stationRaceTypes[0]
+                ? resolveTypeColor(s.stationRaceTypes[0].raceTypeId, s.stationRaceTypes[0].raceType?.color)
+                : undefined,
             }))}
             height={560}
             selectedId={selectedId}

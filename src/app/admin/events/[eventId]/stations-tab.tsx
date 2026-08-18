@@ -30,15 +30,7 @@ import { MapPin, Plus, Search } from "lucide-react";
 import { StationsMap, LocationPickerMap } from "@/components/map";
 import { haversine } from "@/lib/geo";
 import { useStations, type Station } from "@/lib/api/stations";
-import { useListRaceTypes } from "@/lib/api/race-types";
 import { resolveTypeColor, textOn } from "@/lib/type-color";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { Event } from "@/lib/types";
 
 export function StationsTab({ eventId, event }: { eventId: string; event?: Event }) {
@@ -63,16 +55,18 @@ export function StationsTab({ eventId, event }: { eventId: string; event?: Event
     const map = new Map<number, { id: number; name: string; color: string }>();
     let hasUntyped = false;
     for (const s of stations) {
-      if (s.raceTypeId == null) {
+      if (!s.stationRaceTypes.length) {
         hasUntyped = true;
         continue;
       }
-      if (!map.has(s.raceTypeId)) {
-        map.set(s.raceTypeId, {
-          id: s.raceTypeId,
-          name: s.raceType?.name ?? `Type ${s.raceTypeId}`,
-          color: resolveTypeColor(s.raceTypeId, s.raceType?.color) ?? "#64748b",
-        });
+      for (const srt of s.stationRaceTypes) {
+        if (!map.has(srt.raceTypeId)) {
+          map.set(srt.raceTypeId, {
+            id: srt.raceTypeId,
+            name: srt.raceType?.name ?? `Type ${srt.raceTypeId}`,
+            color: resolveTypeColor(srt.raceTypeId, srt.raceType?.color) ?? "#64748b",
+          });
+        }
       }
     }
     return { types: [...map.values()], hasUntyped };
@@ -81,8 +75,8 @@ export function StationsTab({ eventId, event }: { eventId: string; event?: Event
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return stations.filter((s) => {
-      if (typeTab === "untyped" && s.raceTypeId != null) return false;
-      if (typeof typeTab === "number" && s.raceTypeId !== typeTab) return false;
+      if (typeTab === "untyped" && s.stationRaceTypes.length > 0) return false;
+      if (typeof typeTab === "number" && !s.stationRaceTypes.some((srt) => srt.raceTypeId === typeTab)) return false;
       if (q && !s.name.toLowerCase().includes(q)) return false;
       return true;
     });
@@ -189,18 +183,18 @@ export function StationsTab({ eventId, event }: { eventId: string; event?: Event
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium truncate">{s.name}</span>
-                        {s.raceTypeId != null &&
-                          (() => {
-                            const c = resolveTypeColor(s.raceTypeId, s.raceType?.color) ?? "#64748b";
+                        {s.stationRaceTypes.map((srt) => {
+                            const c = resolveTypeColor(srt.raceTypeId, srt.raceType?.color) ?? "#64748b";
                             return (
                               <span
+                                key={srt.raceTypeId}
                                 className="text-[10px] px-1.5 py-0.5 rounded font-medium"
                                 style={{ backgroundColor: c, color: textOn(c) }}
                               >
-                                {s.raceType?.name ?? `Type ${s.raceTypeId}`}
+                                {srt.raceType?.name ?? `Type ${srt.raceTypeId}`}
                               </span>
                             );
-                          })()}
+                          })}
                         <Badge variant={s.isActive ? "default" : "secondary"}>
                           {s.isActive ? "active" : "inactive"}
                         </Badge>
@@ -254,7 +248,9 @@ export function StationsTab({ eventId, event }: { eventId: string; event?: Event
               base={base}
               stations={filtered.map((s) => ({
                 ...s,
-                color: resolveTypeColor(s.raceTypeId, s.raceType?.color),
+                color: s.stationRaceTypes[0]
+                  ? resolveTypeColor(s.stationRaceTypes[0].raceTypeId, s.stationRaceTypes[0].raceType?.color)
+                  : undefined,
               }))}
               height={560}
               selectedId={selectedId}
@@ -301,7 +297,7 @@ interface FormState {
   latitude: number | null;
   longitude: number | null;
   isActive: boolean;
-  raceTypeId: string;
+  address: string | null;
 }
 
 function StationFormDialog({
@@ -325,11 +321,9 @@ function StationFormDialog({
     latitude: null,
     longitude: null,
     isActive: true,
-    raceTypeId: "",
+    address: null,
   });
   const [saving, setSaving] = useState(false);
-  const { data: raceTypesData } = useListRaceTypes({});
-  const raceTypes: { id: number; name: string | null }[] = raceTypesData?.raceTypes ?? [];
 
   // Sync form when editing target changes
   const targetId = station?.id ?? null;
@@ -343,7 +337,7 @@ function StationFormDialog({
       latitude: station?.latitude ?? null,
       longitude: station?.longitude ?? null,
       isActive: station?.isActive ?? true,
-      raceTypeId: station?.raceTypeId != null ? String(station.raceTypeId) : "",
+      address: null,
     });
   }
 
@@ -358,6 +352,10 @@ function StationFormDialog({
       }
       return next;
     });
+  };
+
+  const handleAddress = (label: string | null) => {
+    setForm((f) => ({ ...f, address: label }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -379,7 +377,6 @@ function StationFormDialog({
         latitude: form.latitude,
         longitude: form.longitude,
         isActive: form.isActive,
-        raceTypeId: form.raceTypeId === "" ? null : Number(form.raceTypeId),
       };
       const url = station
         ? `/api/admin/event/${eventId}/stations/${station.id}`
@@ -427,40 +424,15 @@ function StationFormDialog({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Station Type</Label>
-            <Select
-              value={form.raceTypeId || "none"}
-              onValueChange={(v) =>
-                setForm((f) => ({ ...f, raceTypeId: v === "none" ? "" : v }))
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select race type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No type</SelectItem>
-                {raceTypes.map((rt) => (
-                  <SelectItem key={rt.id} value={String(rt.id)}>
-                    {rt.name ?? `Type ${rt.id}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Race type for this station. Autofills the race type when this station is chosen.
-            </p>
-          </div>
-
           <div className="space-y-1">
             <Label>Release Point *</Label>
             <p className="text-xs text-muted-foreground">
               Click the map to set the release point. Distance auto-fills from the event location.
             </p>
-            <LocationPickerMap value={pickerValue} onChange={handlePick} height={300} />
+            <LocationPickerMap value={pickerValue} onChange={handlePick} onAddress={handleAddress} height={300} />
             <p className="text-xs text-muted-foreground">
               {form.latitude != null && form.longitude != null
-                ? `Lat ${form.latitude.toFixed(6)}, Lng ${form.longitude.toFixed(6)}`
+                ? `Lat ${form.latitude.toFixed(6)}, Lng ${form.longitude.toFixed(6)}${form.address ? ` — ${form.address}` : ""}`
                 : "No point picked"}
             </p>
           </div>

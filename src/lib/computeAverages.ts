@@ -51,6 +51,7 @@ export async function computeAverageResults(
     select: {
       id: true,
       startTime: true,
+      distance: true,
       raceStation: { select: { miles: true, km: true } },
     },
   });
@@ -96,7 +97,7 @@ export async function computeAverageResults(
         const race = raceMap.get(ri.raceId ?? -1);
         if (!race || !ri.result?.arrivalTime || !race.startTime) continue;
 
-        const distanceMiles = race.raceStation?.miles ?? 0;
+        const distanceMiles = race.raceStation?.miles ?? race.distance ?? 0;
         if (distanceMiles === 0) continue;
 
         const flightMs = ri.result.arrivalTime.getTime() - race.startTime.getTime();

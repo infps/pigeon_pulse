@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +19,8 @@ import {
   User,
   Youtube,
 } from "lucide-react";
+
+const StaticPinMap = dynamic(() => import("@/components/map/static-pin-map"), { ssr: false });
 
 interface DetailsTabProps {
   event: Event;
@@ -322,6 +325,26 @@ export function DetailsTab({ event, stats }: DetailsTabProps) {
           )}
         </div>
       </div>
+
+      {/* Liberation Point Map */}
+      {event.latitude != null && event.longitude != null && (
+        <Card>
+          <CardContent className="p-6 space-y-3">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-lg font-semibold">Liberation Point</h3>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {event.latitude.toFixed(6)}, {event.longitude.toFixed(6)}
+            </p>
+            <StaticPinMap
+              lat={event.latitude}
+              lng={event.longitude}
+              label={event.locationAddress || event.name || "Event location"}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Season at a Glance */}
       <Card>

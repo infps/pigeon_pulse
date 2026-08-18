@@ -488,6 +488,7 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
 
       {/* Table */}
       <DataTable
+        tableId="event-checkin"
         columns={columns}
         data={filteredItems}
         onRowClick={handleRowClick}

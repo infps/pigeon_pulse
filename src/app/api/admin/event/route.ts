@@ -151,7 +151,9 @@ export async function POST(request: Request) {
       data: {
         name: validatedData.name,
         shortName: validatedData.shortName,
-        eventDate: new Date(validatedData.eventDate),
+        eventDate: validatedData.eventDate ? new Date(validatedData.eventDate) : null,
+        endDate: validatedData.endDate ? new Date(validatedData.endDate) : null,
+        description: validatedData.description ?? null,
         isOpen: validatedData.isOpen ?? 1,
         eventTypeId: validatedData.eventTypeId ?? null,
         latitude: validatedData.latitude ?? null,
@@ -274,7 +276,7 @@ export async function PUT(request: Request) {
           shortName: validatedData.shortName,
         }),
         ...(validatedData.eventDate && {
-          eventDate: new Date(validatedData.eventDate),
+          eventDate: validatedData.eventDate ? new Date(validatedData.eventDate) : null,
         }),
         ...(validatedData.isOpen !== undefined && {
           isOpen: validatedData.isOpen,

@@ -58,7 +58,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
     const stations = await prisma.raceStation.findMany({
       where: { seasonId },
       orderBy: { miles: "asc" },
-      include: { raceType: true },
+      include: { stationRaceTypes: { include: { raceType: true } } },
     });
     return NextResponse.json({ stations, message: "ok" });
   } catch (error) {
@@ -82,7 +82,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
     if (seasonId instanceof NextResponse) return seasonId;
 
     const body = await req.json();
-    const { name, miles, km, latitude, longitude, isActive, raceTypeId } = body || {};
+    const { name, miles, km, latitude, longitude, isActive, raceTypeIds } = body || {};
     if (!name || typeof name !== "string") {
       return NextResponse.json({ message: "name required" }, { status: 400 });
     }
@@ -106,6 +106,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
       }
     }
 
+    const typeIds: number[] = Array.isArray(raceTypeIds) ? raceTypeIds.map(Number).filter(Boolean) : [];
+
     const station = await prisma.raceStation.create({
       data: {
         seasonId,
@@ -115,8 +117,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventId
         latitude: lat,
         longitude: lng,
         isActive: isActive != null ? Boolean(isActive) : true,
-        raceTypeId: raceTypeId != null && raceTypeId !== "" ? Number(raceTypeId) : null,
+        stationRaceTypes: typeIds.length
+          ? { createMany: { data: typeIds.map((raceTypeId) => ({ raceTypeId })) } }
+          : undefined,
       },
+      include: { stationRaceTypes: { include: { raceType: true } } },
     });
     return NextResponse.json({ station, message: "created" }, { status: 201 });
   } catch (error) {

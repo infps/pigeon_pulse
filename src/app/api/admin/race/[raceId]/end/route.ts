@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { presetIdFor } from "@/lib/birdStatus";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -50,10 +51,11 @@ export async function POST(
       },
     });
 
-    // Mark all still-released birds as lost
+    // Mark all still-released birds as lost (+ "Lost" configurable status)
+    const lostStatusId = await presetIdFor(race.seasonId, "LOST");
     await prisma.raceItem.updateMany({
       where: { raceId: raceIdInt, status: "RELEASED" },
-      data: { isLost: 1, lostRaceId: raceIdInt },
+      data: { isLost: 1, lostRaceId: raceIdInt, displayStatusId: lostStatusId },
     });
 
     return NextResponse.json(

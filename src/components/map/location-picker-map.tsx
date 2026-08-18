@@ -15,16 +15,18 @@ export interface LatLng {
 interface Props {
   value: LatLng | null;
   onChange: (lat: number, lng: number) => void;
+  onAddress?: (label: string | null) => void;
   height?: number;
 }
 
 // US fallback center when no point chosen yet.
 const FALLBACK_CENTER: [number, number] = [27.5, -81.5];
 
-function ClickHandler({ onChange }: { onChange: Props["onChange"] }) {
+function ClickHandler({ onChange, onAddress }: { onChange: Props["onChange"]; onAddress?: Props["onAddress"] }) {
   useMapEvents({
     click(e) {
       onChange(e.latlng.lat, e.latlng.lng);
+      onAddress?.(null); // raw click has no address label
     },
   });
   return null;
@@ -39,7 +41,7 @@ function Recenter({ value }: { value: LatLng | null }) {
   return null;
 }
 
-export default function LocationPickerMap({ value, onChange, height = 320 }: Props) {
+export default function LocationPickerMap({ value, onChange, onAddress, height = 320 }: Props) {
   return (
     <MapContainer
       center={value ? [value.lat, value.lng] : FALLBACK_CENTER}
@@ -51,8 +53,8 @@ export default function LocationPickerMap({ value, onChange, height = 320 }: Pro
     >
       <ZoomControl position="bottomleft" />
       <BaseLayers />
-      <MapSearchControl onPick={(lat, lng) => onChange(lat, lng)} />
-      <ClickHandler onChange={onChange} />
+      <MapSearchControl onPick={(lat, lng) => onChange(lat, lng)} onAddress={onAddress} />
+      <ClickHandler onChange={onChange} onAddress={onAddress} />
       <Recenter value={value} />
       {value && (
         <Marker
@@ -63,6 +65,7 @@ export default function LocationPickerMap({ value, onChange, height = 320 }: Pro
             dragend(e) {
               const p = e.target.getLatLng();
               onChange(p.lat, p.lng);
+              onAddress?.(null);
             },
           }}
         />

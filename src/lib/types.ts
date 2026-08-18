@@ -216,13 +216,6 @@ export interface Event {
   eventTypeId: number | null;
   eventType?: EventType;
   isOpen: number | null;
-  feeSchemeId: number | null;
-  bettingSchemeId: number | null;
-  finalPrizeSchemeId: number | null;
-  hotSpot1PrizeSchemeId: number | null;
-  hotSpot2PrizeSchemeId: number | null;
-  hotSpot3PrizeSchemeId: number | null;
-  hotSpotAvgPrizeSchemeId: number | null;
   createdById: number | null;
   latitude: number | null;
   longitude: number | null;

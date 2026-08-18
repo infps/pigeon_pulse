@@ -63,6 +63,9 @@ enum BirdImageType {
   ARRIVAL
   RACE
   FINAL
+  BODY
+  WING
+  EYE
 }
 
 enum AverageFilterMode {
@@ -452,7 +455,7 @@ model RaceType {
   races            Race[]
   prizeValues      PrizeValue[]
   raceTypeFees     RaceTypeFeeScheme[]
-  raceStations     RaceStation[]
+  stationRaceTypes RaceStationRaceType[]
   averageConfigRaceTypes AverageConfigRaceType[]
 }
 
@@ -548,12 +551,14 @@ model RaceItem {
   lostRaceId       Int?      @map("LOST_ID_RACE")
   raceBasketTime   DateTime? @map("RACE_BASKET_TIME")
   status           RaceItemStatus      @default(REGISTERED)
+  displayStatusId  Int?                @map("ID_DISPLAY_STATUS")
 
   race             Race?               @relation(fields: [raceId], references: [id])
   inventoryItem    EventInventoryItem? @relation(fields: [inventoryItemId], references: [id])
   result           RaceItemResult?
   scans            RaceItemScan[]
   bets             Bet[]
+  displayStatus    BirdStatusPreset?   @relation(fields: [displayStatusId], references: [id])
 }
 
 model RaceItemResult {
@@ -651,6 +656,7 @@ model Season {
   raceStations     RaceStation[]
   storeListings    EventStoreListing[]
   groups           EventGroup[]
+  statusPresets    BirdStatusPreset[]
   calcuttaConfig   CalcuttaConfig?
   calcuttaBetGroups CalcuttaBetGroup[]
   birdImages       BirdImage[]
@@ -706,15 +712,24 @@ model RaceStation {
   latitude   Float?
   longitude  Float?
   isActive   Boolean  @default(true)
-  raceTypeId Int?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  season   Season    @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  raceType RaceType? @relation(fields: [raceTypeId], references: [id])
-  races    Race[]
+  season           Season               @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  races            Race[]
+  stationRaceTypes RaceStationRaceType[]
 
   @@index([seasonId])
+}
+
+model RaceStationRaceType {
+  stationId  Int
+  raceTypeId Int
+
+  station  RaceStation @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  raceType RaceType    @relation(fields: [raceTypeId], references: [id], onDelete: Cascade)
+
+  @@id([stationId, raceTypeId])
 }
 
 model EventMessage {
@@ -1209,6 +1224,36 @@ model BirdStatusCode {
   eventGroups EventGroup[]
 
   @@map("BirdStatusCodes")
+}
+
+// Configurable, admin-defined bird lifecycle statuses (Flying, Resting, Lost, Injured, ...).
+// Auto-applied to RaceItem.displayStatusId on the matching lifecycle event (trigger).
+enum StatusTrigger {
+  REGISTER
+  CHECKIN
+  RELEASE
+  ARRIVE
+  LOST
+  INJURED
+  MANUAL
+}
+
+model BirdStatusPreset {
+  id        Int           @id @default(autoincrement()) @map("ID_BIRD_STATUS_PRESET")
+  seasonId  Int?          @map("ID_SEASON")
+  code      String        @map("CODE")
+  label     String        @map("LABEL")
+  color     String?       @map("COLOR")
+  trigger   StatusTrigger @default(MANUAL) @map("TRIGGER")
+  sortOrder Int           @default(0)      @map("SORT_ORDER")
+  isActive  Boolean       @default(true)   @map("IS_ACTIVE")
+  createdAt DateTime      @default(now())  @map("CREATED_AT")
+
+  season    Season?       @relation(fields: [seasonId], references: [id])
+  raceItems RaceItem[]
+
+  @@index([seasonId, trigger])
+  @@map("BirdStatusPresets")
 }
 
 
