@@ -53,10 +53,17 @@ export async function GET(
 
     const inventories = await prisma.eventInventory.findMany({
       where: { seasonId },
-      include: {
-        breeder: true,
-        payments: true,
-        items: { include: { bird: true }, orderBy: { birdNo: "asc" } },
+      select: {
+        id: true, breederId: true, loft: true, cashPromised: true,
+        breeder: { select: { firstName: true, lastName: true } },
+        payments: { select: { paymentValue: true, paymentDesc: true, paymentType: true } },
+        items: {
+          select: {
+            id: true, birdNo: true, birdId: true,
+            entryFeeValue: true, perchFeeValue: true, raceFeeValue: true, hotSpotFeeValue: true,
+          },
+          orderBy: { birdNo: "asc" },
+        },
       },
     });
 

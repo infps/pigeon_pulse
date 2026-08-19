@@ -80,52 +80,65 @@ export async function GET(
     const arrivalTo = arrivalToParam ? new Date(arrivalToParam) : null;
     const hasArrivalFilter = (arrivalFrom && !isNaN(arrivalFrom.getTime())) || (arrivalTo && !isNaN(arrivalTo.getTime()));
 
+    const fromMs = arrivalFrom && !isNaN(arrivalFrom.getTime()) ? arrivalFrom.getTime() : null;
+    const toMs = arrivalTo && !isNaN(arrivalTo.getTime()) ? arrivalTo.getTime() : null;
+
     const eventInventoryItems = await prisma.eventInventoryItem.findMany({
       where: {
-        eventInventory: {
-          seasonId,
-        },
+        eventInventory: { seasonId },
+        ...(hasArrivalFilter && {
+          raceItems: {
+            some: {
+              result: {
+                arrivalTime: {
+                  ...(fromMs ? { gte: new Date(fromMs) } : {}),
+                  ...(toMs ? { lte: new Date(toMs) } : {}),
+                },
+              },
+            },
+          },
+        }),
+        ...(paymentStatusFilter && {
+          // approximate pre-filter: only include items where inventory has payments or fees
+          eventInventory: { seasonId },
+        }),
       },
-      include: {
-        bird: true,
-        eventInventory: {
-          include: {
-            breeder: true,
-            items: true,
-            payments: true,
+      select: {
+        id: true,
+        birdNo: true,
+        entryFeeValue: true,
+        perchFeeValue: true,
+        raceFeeValue: true,
+        hotSpotFeeValue: true,
+        birdId: true,
+        eventInventoryId: true,
+        bird: {
+          select: {
+            id: true, rfid: true, color: true, sex: true,
+            band1: true, band2: true, band3: true, band4: true,
           },
         },
-        raceItems: {
-          include: { result: true },
-        },
-      },
-      orderBy: {
         eventInventory: {
-          signInDate: "desc",
+          select: {
+            id: true, breederId: true, loft: true, signInDate: true,
+            breeder: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
+            payments: { select: { paymentValue: true, status: true, paymentDesc: true, paymentType: true } },
+            items: { select: { entryFeeValue: true, perchFeeValue: true, raceFeeValue: true, hotSpotFeeValue: true } },
+          },
         },
+        raceItems: { select: { id: true, status: true, result: { select: { arrivalTime: true, birdPosition: true } } } },
       },
+      orderBy: { eventInventory: { signInDate: "desc" } },
     });
 
-    const filtered = eventInventoryItems.filter((item) => {
-      if (paymentStatusFilter) {
-        const inv = item.eventInventory;
-        if (!inv) return false;
-        const status = computeHybridStatus(inv.items, inv.payments);
-        if (status !== paymentStatusFilter) return false;
-      }
-      if (hasArrivalFilter) {
-        const fromMs = arrivalFrom && !isNaN(arrivalFrom.getTime()) ? arrivalFrom.getTime() : -Infinity;
-        const toMs = arrivalTo && !isNaN(arrivalTo.getTime()) ? arrivalTo.getTime() : Infinity;
-        const matched = item.raceItems.some((ri) => {
-          const t = ri.result?.arrivalTime;
-          if (!t) return false;
-          const ms = new Date(t).getTime();
-          return ms >= fromMs && ms <= toMs;
-        });
-        if (!matched) return false;
-      }
-      return true;
-    });
+    const filtered = paymentStatusFilter
+      ? eventInventoryItems.filter((item) => {
+          const inv = item.eventInventory;
+          if (!inv) return false;
+          const status = computeHybridStatus(inv.items, inv.payments);
+          return status === paymentStatusFilter;
+        })
+      : eventInventoryItems;
 
     return NextResponse.json(
       {
