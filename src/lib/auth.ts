@@ -7,6 +7,12 @@ const auth = betterAuth({
     database: prismaAdapter(prisma, {
         provider: "postgresql",
     }),
+    session: {
+        cookieCache: {
+            enabled: true,
+            maxAge: 60 * 5, // 5 min — short enough to pick up role changes
+        },
+    },
     advanced: {
         disableCSRFCheck: true,
         ipAddress: {

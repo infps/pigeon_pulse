@@ -1,25 +1,20 @@
 import "dotenv/config"
 import pg from 'pg'
 import { PrismaPg } from '@prisma/adapter-pg'
+import { PrismaNeon } from '@prisma/adapter-neon'
 import { PrismaClient } from '../generated/prisma/client'
 
 const url = new URL(process.env.DATABASE_URL!)
 const isLocal = url.hostname === 'localhost' || url.hostname === '127.0.0.1'
 
-let adapter: PrismaPg
+let adapter: PrismaPg | PrismaNeon
 
 if (isLocal) {
   adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 } else {
-  const pool = new pg.Pool({
-    connectionString: process.env.DATABASE_URL!,
-    ssl: { rejectUnauthorized: false },
-    connectionTimeoutMillis: 30000, // Neon cold/burst connects can exceed 5s
-    idleTimeoutMillis: 30000,       // keep connections warm to avoid re-connect churn
-    keepAlive: true,
-    max: 20,
-  })
-  adapter = new PrismaPg(pool)
+  // Neon serverless: HTTP fetch per query — no TCP/TLS handshake overhead.
+  // Falls back to pg.Pool only if adapter-neon is unavailable.
+  adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL! })
 }
 
 // Default 5s interactive-transaction timeout is too tight for many-write transactions
