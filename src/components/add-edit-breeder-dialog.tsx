@@ -68,6 +68,11 @@ export function AddEditBreederDialog({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [ssnDocFile, setSsnDocFile] = useState<File | null>(null);
   const [taxDocFile, setTaxDocFile] = useState<File | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const setField = (key: string, value: string) => {
+    setFormData((f) => ({ ...f, [key]: value }));
+    setFieldErrors((e) => { const n = { ...e }; delete n[key]; return n; });
+  };
 
   const createMutation = useCreateUser({});
   const updateMutation = useUpdateUser({});
@@ -165,20 +170,11 @@ export function AddEditBreederDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name.trim()) {
-      toast.error("Name is required");
-      return;
-    }
-
-    if (!editingUser && !formData.email.trim()) {
-      toast.error("Email is required");
-      return;
-    }
-
-    if (!editingUser && !formData.password.trim()) {
-      toast.error("Password is required");
-      return;
-    }
+    const errs: Record<string, string> = {};
+    if (!formData.name.trim()) errs.name = "Name is required";
+    if (!editingUser && !formData.email.trim()) errs.email = "Email is required";
+    if (!editingUser && !formData.password.trim()) errs.password = "Password is required";
+    if (Object.keys(errs).length) { setFieldErrors(errs); return; }
 
     try {
       const uploadFile = async (file: File, oldKey?: string | null) => {
@@ -226,17 +222,21 @@ export function AddEditBreederDialog({
       handleClose();
     } catch (error: any) {
       let msg = editingUser ? "Failed to update breeder" : "Failed to create breeder";
-      if (error?.message) {
-        try {
-          const parsed = JSON.parse(error.message);
-          if (parsed?.message) msg = parsed.message;
-        } catch {
-          if (typeof error.message === "string" && error.message.length < 200) {
-            msg = error.message;
-          }
-        }
+      const errs: Record<string, string> = {};
+      try {
+        const parsed = typeof error?.message === "string" ? JSON.parse(error.message) : error?.message;
+        if (parsed?.message) msg = parsed.message;
+        // map known API error messages to fields
+        const m = (parsed?.message ?? msg).toLowerCase();
+        if (m.includes("email") && m.includes("exist")) errs.email = "Email already exists";
+        else if (m.includes("username") && (m.includes("exist") || m.includes("taken"))) errs.username = "Username already taken";
+        else if (m.includes("email")) errs.email = parsed?.message ?? msg;
+        else if (m.includes("username")) errs.username = parsed?.message ?? msg;
+      } catch {
+        if (typeof error?.message === "string" && error.message.length < 200) msg = error.message;
       }
-      toast.error(msg);
+      if (Object.keys(errs).length) setFieldErrors(errs);
+      else toast.error(msg);
     }
   };
 
@@ -269,7 +269,14 @@ export function AddEditBreederDialog({
     setImageFile(null);
     setSsnDocFile(null);
     setTaxDocFile(null);
+    setFieldErrors({});
   };
+
+  const FE = ({ field }: { field: string }) => (
+    <p className={`text-xs mt-0.5 ${fieldErrors[field] ? "text-red-800" : "text-muted-foreground/30"}`}>
+      {fieldErrors[field] ?? "​"}
+    </p>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -300,11 +307,9 @@ export function AddEditBreederDialog({
               <Input
                 id="name"
                 value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-                required
+                onChange={(e) => setField("name", e.target.value)}
               />
+              <FE field="name" />
             </div>
 
             <div>
@@ -327,11 +332,9 @@ export function AddEditBreederDialog({
                   id="email"
                   type="email"
                   value={formData.email}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  required
+                  onChange={(e) => setField("email", e.target.value)}
                 />
+                <FE field="email" />
               </div>
 
               <div>
@@ -340,15 +343,10 @@ export function AddEditBreederDialog({
                   id="password"
                   type="password"
                   value={formData.password}
-                  onChange={(e) =>
-                    setFormData({ ...formData, password: e.target.value })
-                  }
-                  required
+                  onChange={(e) => setField("password", e.target.value)}
                   minLength={8}
                 />
-                <p className="text-sm text-gray-500 mt-1">
-                  Minimum 8 characters
-                </p>
+                <FE field="password" />
               </div>
             </>
           )}
@@ -359,10 +357,9 @@ export function AddEditBreederDialog({
               <Input
                 id="username"
                 value={formData.username}
-                onChange={(e) =>
-                  setFormData({ ...formData, username: e.target.value })
-                }
+                onChange={(e) => setField("username", e.target.value)}
               />
+              <FE field="username" />
             </div>
 
             <div>

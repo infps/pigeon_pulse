@@ -190,7 +190,7 @@ export function EditEventTab({
       </div>
 
       <div>
-        <Label htmlFor="locationAddress">Liberation Point Address</Label>
+        <Label htmlFor="locationAddress">Event Location Address</Label>
         <Input
           id="locationAddress"
           value={formData.locationAddress}
