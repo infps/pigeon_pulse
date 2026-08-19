@@ -52,44 +52,52 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
         const arrivalTo = arrivalToParam ? new Date(arrivalToParam) : null;
         const hasArrivalFilter = (arrivalFrom && !isNaN(arrivalFrom.getTime())) || (arrivalTo && !isNaN(arrivalTo.getTime()));
 
+        const fromMs = arrivalFrom && !isNaN(arrivalFrom.getTime()) ? arrivalFrom.getTime() : null;
+        const toMs = arrivalTo && !isNaN(arrivalTo.getTime()) ? arrivalTo.getTime() : null;
+
         const eventInventory = await prisma.eventInventory.findMany({
             where: {
                 seasonId,
+                ...(hasArrivalFilter && {
+                    items: {
+                        some: {
+                            raceItems: {
+                                some: {
+                                    result: {
+                                        arrivalTime: {
+                                            ...(fromMs ? { gte: new Date(fromMs) } : {}),
+                                            ...(toMs ? { lte: new Date(toMs) } : {}),
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                }),
             },
             include: {
                 breeder: true,
                 payments: true,
                 items: {
-                    include: {
-                        bird: true,
-                        raceItems: {
-                            include: { result: true },
-                        },
+                    select: {
+                        id: true,
+                        entryFeeValue: true,
+                        perchFeeValue: true,
+                        raceFeeValue: true,
+                        hotSpotFeeValue: true,
+                        birdId: true,
+                        eventInventoryId: true,
                     },
                 },
             },
         });
 
-        const filtered = eventInventory.filter((inv) => {
-            if (paymentStatusFilter) {
+        const filtered = paymentStatusFilter
+            ? eventInventory.filter((inv) => {
                 const status = computePaymentStatus(inv.items, inv.payments);
-                if (status !== paymentStatusFilter) return false;
-            }
-            if (hasArrivalFilter) {
-                const fromMs = arrivalFrom && !isNaN(arrivalFrom.getTime()) ? arrivalFrom.getTime() : -Infinity;
-                const toMs = arrivalTo && !isNaN(arrivalTo.getTime()) ? arrivalTo.getTime() : Infinity;
-                const matched = inv.items.some((it) =>
-                    it.raceItems.some((ri) => {
-                        const t = ri.result?.arrivalTime;
-                        if (!t) return false;
-                        const ms = new Date(t).getTime();
-                        return ms >= fromMs && ms <= toMs;
-                    })
-                );
-                if (!matched) return false;
-            }
-            return true;
-        });
+                return status === paymentStatusFilter;
+            })
+            : eventInventory;
 
         return NextResponse.json(
             { eventInventory: filtered, message: "Event inventory fetched successfully" },

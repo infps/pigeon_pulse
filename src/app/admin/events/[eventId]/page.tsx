@@ -48,6 +48,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
   const { data: bettingSchemesData } = useListBettingSchemes({});
 
   const [activeTab, setActiveTab] = useState("edit");
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(["edit"]));
   const event: Event | undefined = eventData?.event;
   const feeSchemes: FeeScheme[] = feeSchemesData?.feeSchemes || [];
   const prizeSchemes: PrizeScheme[] = prizeSchemesData?.prizeSchemes || [];
@@ -95,7 +96,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
         <SeasonSelector eventId={eventId} isSuperAdmin={isSuperAdmin} />
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setVisitedTabs(prev => new Set(prev).add(val)); }} className="w-full">
         <TabsList className="grid w-full grid-cols-15">
           <TabsTrigger value="edit">Edit</TabsTrigger>
           <TabsTrigger value="breeders">Breeders</TabsTrigger>
@@ -125,59 +126,59 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
         </TabsContent>
 
         <TabsContent value="breeders" className="mt-6">
-          <BreedersTab event={event} eventId={eventId} />
+          {visitedTabs.has("breeders") && <BreedersTab event={event} eventId={eventId} />}
         </TabsContent>
 
         <TabsContent value="birds" className="mt-6">
-          <BirdsTab event={event} eventId={eventId} />
+          {visitedTabs.has("birds") && <BirdsTab event={event} eventId={eventId} />}
         </TabsContent>
 
         <TabsContent value="groups" className="mt-6">
-          <GroupsTab eventId={eventId} />
+          {visitedTabs.has("groups") && <GroupsTab eventId={eventId} />}
         </TabsContent>
 
         <TabsContent value="baskets" className="mt-6">
-          <BasketsTab eventId={eventId} />
+          {visitedTabs.has("baskets") && <BasketsTab eventId={eventId} />}
         </TabsContent>
 
         <TabsContent value="races" className="mt-6">
-          <RacesTab event={event} eventId={eventId} />
+          {visitedTabs.has("races") && <RacesTab event={event} eventId={eventId} />}
         </TabsContent>
 
         <TabsContent value="betting" className="mt-6">
-          <BettingTab event={event} eventId={eventId} />
+          {visitedTabs.has("betting") && <BettingTab event={event} eventId={eventId} />}
         </TabsContent>
 
         <TabsContent value="result" className="mt-6">
-          <EventResultTab event={event} eventId={eventId} />
+          {visitedTabs.has("result") && <EventResultTab event={event} eventId={eventId} />}
         </TabsContent>
 
         <TabsContent value="stations" className="mt-6">
-          <StationsTab eventId={eventId} event={event} />
+          {visitedTabs.has("stations") && <StationsTab eventId={eventId} event={event} />}
         </TabsContent>
 
         <TabsContent value="messages" className="mt-6">
-          <MessagesTab eventId={eventId} />
+          {visitedTabs.has("messages") && <MessagesTab eventId={eventId} />}
         </TabsContent>
 
         <TabsContent value="history" className="mt-6">
-          <EventHistoryTab eventId={eventId} />
+          {visitedTabs.has("history") && <EventHistoryTab eventId={eventId} />}
         </TabsContent>
 
         <TabsContent value="defaulters" className="mt-6">
-          <DefaultersTab eventId={eventId} event={event} />
+          {visitedTabs.has("defaulters") && <DefaultersTab eventId={eventId} event={event} />}
         </TabsContent>
 
         <TabsContent value="calcutta" className="mt-6">
-          <CalcuttaTab eventId={eventId} />
+          {visitedTabs.has("calcutta") && <CalcuttaTab eventId={eventId} />}
         </TabsContent>
 
         <TabsContent value="store" className="mt-6">
-          <EventStoreTab eventId={eventId} />
+          {visitedTabs.has("store") && <EventStoreTab eventId={eventId} />}
         </TabsContent>
 
         <TabsContent value="averages" className="mt-6">
-          <AveragesTab eventId={eventId} />
+          {visitedTabs.has("averages") && <AveragesTab eventId={eventId} />}
         </TabsContent>
       </Tabs>
     </div>
