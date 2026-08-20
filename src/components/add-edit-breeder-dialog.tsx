@@ -324,7 +324,12 @@ export function AddEditBreederDialog({
             </div>
           </div>
 
-          {!editingUser && (
+          {editingUser ? (
+            <div>
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" type="email" value={formData.email} disabled />
+            </div>
+          ) : (
             <>
               <div>
                 <Label htmlFor="email">Email *</Label>
