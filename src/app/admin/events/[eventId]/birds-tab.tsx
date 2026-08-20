@@ -162,11 +162,15 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
         columns={columns}
         data={eventInventoryItems}
         filterableColumns={[
-          { id: "band", title: "Full Band" },
-          { id: "birdName", title: "Bird Name" },
           { id: "breeder", title: "Breeder" },
+          { id: "birdName", title: "Bird Name" },
+          { id: "band", title: "Full Band" },
           { id: "color", title: "Color" },
           { id: "rfid", title: "RFID" },
+          { id: "band1", title: "Assoc" },
+          { id: "band2", title: "Year" },
+          { id: "band3", title: "Letter" },
+          { id: "band4", title: "Number" },
         ]}
         externalFilterValue={rfidFilter || undefined}
         externalFilterColumn={rfidFilter ? "rfid" : undefined}

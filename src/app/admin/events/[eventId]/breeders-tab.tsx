@@ -157,8 +157,10 @@ export function BreedersTab({ event, eventId, onGoToRegister }: BreedersTabProps
           columns={columns}
           data={eventInventory}
           filterableColumns={[
-            { id: "loft", title: "Loft" },
             { id: "breederName", title: "Breeder Name" },
+            { id: "loft", title: "Loft" },
+            { id: "breederEmail", title: "Email" },
+            { id: "breederPhone", title: "Phone" },
           ]}
         />
       )}
