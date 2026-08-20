@@ -27,4 +27,13 @@ if (isLocal) {
 }
 
 const prisma = new PrismaClient({ adapter, transactionOptions: { maxWait: 20000, timeout: 180000 } })
+
+// Keep Neon compute warm — ping every 4 min to stay under the 5 min suspend threshold.
+// Only runs in long-lived server process (next start), skipped in test/local.
+if (!isLocal && process.env.NODE_ENV === "production") {
+  setInterval(() => {
+    prisma.$queryRaw`SELECT 1`.catch(() => {});
+  }, 4 * 60 * 1000);
+}
+
 export { prisma }
