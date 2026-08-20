@@ -1,23 +1,30 @@
 import "dotenv/config"
 import pg from 'pg'
 import { PrismaPg } from '@prisma/adapter-pg'
-import { PrismaNeon } from '@prisma/adapter-neon'
 import { PrismaClient } from '../generated/prisma/client'
 
-const url = new URL(process.env.DATABASE_URL!)
+const rawUrl = process.env.DATABASE_URL!
+const url = new URL(rawUrl)
 const isLocal = url.hostname === 'localhost' || url.hostname === '127.0.0.1'
+const isPooler = url.hostname.includes('-pooler.')
 
-let adapter: PrismaPg | PrismaNeon
+let adapter: PrismaPg
 
 if (isLocal) {
-  adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
+  adapter = new PrismaPg({ connectionString: rawUrl })
 } else {
-  // Neon serverless: HTTP fetch per query — no TCP/TLS handshake overhead.
-  // Falls back to pg.Pool only if adapter-neon is unavailable.
-  adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL! })
+  // Pooler: small pool — pgbouncer manages real connections. keepAlive off.
+  // Direct: larger pool + keepAlive to survive Neon compute cold starts.
+  const pool = new pg.Pool({
+    connectionString: rawUrl,
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 30000,
+    idleTimeoutMillis: isPooler ? 60000 : 30000,
+    keepAlive: !isPooler,
+    max: isPooler ? 5 : 20,
+  })
+  adapter = new PrismaPg(pool)
 }
 
-// Default 5s interactive-transaction timeout is too tight for many-write transactions
-// over a remote (Neon) DB — raise globally so register/payouts/etc don't hit P2028.
 const prisma = new PrismaClient({ adapter, transactionOptions: { maxWait: 20000, timeout: 180000 } })
 export { prisma }
