@@ -18,7 +18,10 @@ export const createBreedersColumns = (
   },
   {
     id: "breederName",
-    accessorKey: "breeder.firstName",
+    accessorFn: (row) => {
+      const b = row.breeder;
+      return [b?.firstName, b?.lastName].filter(Boolean).join(" ");
+    },
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Breeder Name" />
     ),
@@ -36,21 +39,29 @@ export const createBreedersColumns = (
   },
   {
     id: "breederEmail",
-    header: "Email",
+    accessorFn: (row) => row.breeder?.email ?? "",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Email" />
+    ),
     cell: ({ row }) => <span>{row.original.breeder?.email || "-"}</span>,
   },
   {
     id: "breederPhone",
-    header: "Phone",
+    accessorFn: (row) => row.breeder?.phone ?? "",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Phone" />
+    ),
     cell: ({ row }) => <span>{row.original.breeder?.phone || "-"}</span>,
   },
   {
+    id: "reservedBirds",
     accessorKey: "reservedBirds",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Reserved Birds" />
     ),
   },
   {
+    id: "signInDate",
     accessorKey: "signInDate",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Sign In Date" />
@@ -63,6 +74,28 @@ export const createBreedersColumns = (
     },
   },
   {
+    id: "partners",
+    accessorFn: (row) =>
+      (row.partners ?? [])
+        .map((p) => [p.breeder?.firstName, p.breeder?.lastName].filter(Boolean).join(" "))
+        .filter(Boolean)
+        .join(", "),
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Partners" />
+    ),
+    cell: ({ row }) => {
+      const names = (row.original.partners ?? [])
+        .map((p) => [p.breeder?.firstName, p.breeder?.lastName].filter(Boolean).join(" "))
+        .filter(Boolean);
+      return <span>{names.length ? names.join(", ") : "-"}</span>;
+    },
+  },
+  {
+    id: "perchFee",
+    accessorFn: (row) => {
+      const v = (row.items ?? []).reduce((sum, item) => sum + (item.entryFeeValue ?? 0), 0);
+      return v.toFixed(2);
+    },
     header: "Perch Fee",
     cell: ({ row }) => {
       const value = (row.original.items ?? []).reduce(
@@ -73,6 +106,11 @@ export const createBreedersColumns = (
     },
   },
   {
+    id: "birdFeesValue",
+    accessorFn: (row) => {
+      const v = (row.items ?? []).reduce((sum, item) => sum + (item.perchFeeValue ?? 0), 0);
+      return v.toFixed(2);
+    },
     header: "Bird Fees Value",
     cell: ({ row }) => {
       const value = (row.original.items ?? []).reduce(
@@ -83,6 +121,13 @@ export const createBreedersColumns = (
     },
   },
   {
+    id: "birdFeesPaid",
+    accessorFn: (row) => {
+      const v = (row.payments ?? [])
+        .filter((p) => (p.paymentType as unknown) === "PERCH_FEE")
+        .reduce((sum, p) => sum + (p.paymentValue ?? 0), 0);
+      return v.toFixed(2);
+    },
     header: "Bird Fees Paid",
     cell: ({ row }) => {
       const paid = (row.original.payments ?? [])
@@ -92,6 +137,11 @@ export const createBreedersColumns = (
     },
   },
   {
+    id: "raceFeesValue",
+    accessorFn: (row) => {
+      const v = (row.items ?? []).reduce((sum, item) => sum + (item.raceFeeValue ?? 0), 0);
+      return v.toFixed(2);
+    },
     header: "Race Fees Value",
     cell: ({ row }) => {
       const value = (row.original.items ?? []).reduce(
@@ -102,6 +152,11 @@ export const createBreedersColumns = (
     },
   },
   {
+    id: "hotspotFeesValue",
+    accessorFn: (row) => {
+      const v = (row.items ?? []).reduce((sum, item) => sum + (item.hotSpotFeeValue ?? 0), 0);
+      return v.toFixed(2);
+    },
     header: "Hotspot Fees Value",
     cell: ({ row }) => {
       const value = (row.original.items ?? []).reduce(
@@ -113,6 +168,7 @@ export const createBreedersColumns = (
   },
   {
     id: "paymentStatus",
+    accessorFn: (row) => computePaymentStatus(row.items ?? [], row.payments ?? []),
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Payment Status" />
     ),
@@ -151,6 +207,7 @@ export const createBreedersColumns = (
   },
   {
     id: "note",
+    accessorFn: (row) => row.note ?? "",
     header: "Note",
     cell: ({ row }) => <span>{row.original.note || "-"}</span>,
   },

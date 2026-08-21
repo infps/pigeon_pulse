@@ -161,6 +161,11 @@ export function BreedersTab({ event, eventId, onGoToRegister }: BreedersTabProps
             { id: "loft", title: "Loft" },
             { id: "breederEmail", title: "Email" },
             { id: "breederPhone", title: "Phone" },
+            { id: "partners", title: "Partners" },
+            { id: "reservedBirds", title: "Bird Count" },
+            { id: "signInDate", title: "Sign In Date" },
+            { id: "paymentStatus", title: "Payment Status" },
+            { id: "note", title: "Note" },
           ]}
         />
       )}

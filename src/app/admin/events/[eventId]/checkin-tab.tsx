@@ -495,6 +495,8 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
         filterableColumns={[
           { id: "band", title: "Band" },
           { id: "birdName", title: "Bird Name" },
+          { id: "breeder", title: "Breeder" },
+          { id: "loftBasket", title: "Loft Basket" },
         ]}
       />
 

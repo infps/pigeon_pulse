@@ -414,6 +414,9 @@ function toDateTimeLocal(iso: string) {
         filterableColumns={[
           { id: "name", title: "Race Name" },
           { id: "location", title: "Location" },
+          { id: "status", title: "Status" },
+          { id: "distance", title: "Distance" },
+          { id: "arrivalWeather", title: "Weather" },
         ]}
       />
 
