@@ -5,7 +5,7 @@ import { MapContainer, Marker, Polyline, Popup, useMap, ZoomControl } from "reac
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { pinIcon } from "./icons";
-import { BaseLayers } from "./base-layers";
+import { BaseLayers, MAP_MAX_ZOOM } from "./base-layers";
 
 export interface TrackPoint {
   lat: number;
@@ -113,6 +113,7 @@ export default function TruckTrackMap({
     <MapContainer
       center={center}
       zoom={8}
+      maxZoom={MAP_MAX_ZOOM}
       style={{ height, width: "100%" }}
       className="rounded-md z-0"
       scrollWheelZoom

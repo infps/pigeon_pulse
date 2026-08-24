@@ -1,12 +1,12 @@
 "use client";
 
-import { Fragment, useEffect } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import Link from "next/link";
 import { MapContainer, Marker, Polyline, Popup, useMap, ZoomControl } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { pinIcon } from "./icons";
-import { BaseLayers } from "./base-layers";
+import { BaseLayers, MAP_MAX_ZOOM } from "./base-layers";
 import { MapSearchControl } from "./map-search";
 
 export interface MapRace {
@@ -32,7 +32,11 @@ const LOFT_ICON = pinIcon("#dc2626"); // red = loft/event
 
 function FitBounds({ races }: { races: MapRace[] }) {
   const map = useMap();
+  const coordKey = races.map((r) => `${r.station.lat},${r.station.lng}|${r.loft.lat},${r.loft.lng}`).join(";");
+  const prevKey = useRef<string>("");
   useEffect(() => {
+    if (coordKey === prevKey.current) return;
+    prevKey.current = coordKey;
     const coords: [number, number][] = [];
     races.forEach((r) => {
       coords.push([r.station.lat, r.station.lng]);
@@ -41,7 +45,7 @@ function FitBounds({ races }: { races: MapRace[] }) {
     if (coords.length === 1) map.setView(coords[0], 9);
     else if (coords.length > 1)
       map.fitBounds(L.latLngBounds(coords), { padding: [50, 50] });
-  }, [races, map]);
+  });
   return null;
 }
 
@@ -50,6 +54,7 @@ export default function RacesMap({ races, height = 520 }: Props) {
     <MapContainer
       center={FALLBACK_CENTER}
       zoom={6}
+      maxZoom={MAP_MAX_ZOOM}
       style={{ height, width: "100%" }}
       className="rounded-md z-0"
       scrollWheelZoom

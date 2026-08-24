@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { MapContainer, Marker, useMapEvents, useMap, ZoomControl } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { BASE_ICON } from "./icons";
-import { BaseLayers } from "./base-layers";
+import { BaseLayers, MAP_MAX_ZOOM } from "./base-layers";
 import { MapSearchControl } from "./map-search";
 
 export interface LatLng {
@@ -23,8 +23,16 @@ interface Props {
 const FALLBACK_CENTER: [number, number] = [27.5, -81.5];
 
 function ClickHandler({ onChange, onAddress }: { onChange: Props["onChange"]; onAddress?: Props["onAddress"] }) {
+  const map = useMap();
   useMapEvents({
     click(e) {
+      // Search result list is portaled to body; picking closes it and the same
+      // click lands on the map — MapSearchControl sets this flag to ignore it.
+      if ((map as typeof map & { _ppSuppressClick?: boolean })._ppSuppressClick) return;
+      // Layer/search/zoom controls live inside the map — ignore those clicks
+      // so switching Satellite → Terrain never relocates the pin.
+      const t = e.originalEvent?.target as Element | null;
+      if (t?.closest?.(".leaflet-control")) return;
       onChange(e.latlng.lat, e.latlng.lng);
       onAddress?.(null); // raw click has no address label
     },
@@ -32,12 +40,19 @@ function ClickHandler({ onChange, onAddress }: { onChange: Props["onChange"]; on
   return null;
 }
 
-// Recenter when value is set/changed externally (e.g. edit form load).
+// Recenter only when lat/lng numbers change (not on new object identity each render).
 function Recenter({ value }: { value: LatLng | null }) {
   const map = useMap();
+  const lat = value?.lat;
+  const lng = value?.lng;
+  const prev = useRef<{ lat: number; lng: number } | null>(null);
   useEffect(() => {
-    if (value) map.setView([value.lat, value.lng], Math.max(map.getZoom(), 9));
-  }, [value, map]);
+    if (lat == null || lng == null) return;
+    const same = prev.current && prev.current.lat === lat && prev.current.lng === lng;
+    prev.current = { lat, lng };
+    if (same) return;
+    map.setView([lat, lng], Math.max(map.getZoom(), 9));
+  }, [lat, lng, map]);
   return null;
 }
 
@@ -46,6 +61,7 @@ export default function LocationPickerMap({ value, onChange, onAddress, height =
     <MapContainer
       center={value ? [value.lat, value.lng] : FALLBACK_CENTER}
       zoom={value ? 9 : 5}
+      maxZoom={MAP_MAX_ZOOM}
       style={{ height, width: "100%" }}
       className="rounded-md z-0"
       scrollWheelZoom

@@ -3,7 +3,7 @@
 import { MapContainer, Marker, Popup, ZoomControl } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { BASE_ICON } from "./icons";
-import { BaseLayers } from "./base-layers";
+import { BaseLayers, MAP_MAX_ZOOM } from "./base-layers";
 
 interface Props {
   lat: number;
@@ -17,6 +17,7 @@ export default function StaticPinMap({ lat, lng, label, height = 280 }: Props) {
     <MapContainer
       center={[lat, lng]}
       zoom={11}
+      maxZoom={MAP_MAX_ZOOM}
       style={{ height, width: "100%" }}
       className="rounded-md z-0"
       scrollWheelZoom={false}

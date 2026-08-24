@@ -195,3 +195,12 @@
   float: left;
   height: 0;
 }
+
+/* Leaflet tiles are <img>s — Tailwind preflight (max-width:100%; height:auto)
+   scales them and makes pins look like they drift when switching base layers. */
+.leaflet-container img.leaflet-tile {
+  max-width: none !important;
+  max-height: none !important;
+  width: 256px;
+  height: 256px;
+}

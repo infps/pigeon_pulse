@@ -5,7 +5,7 @@ import { MapContainer, Marker, Polyline, Popup, useMap, ZoomControl } from "reac
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { BASE_ICON, ACTIVE_ICON, INACTIVE_ICON, pinIcon } from "./icons";
-import { BaseLayers } from "./base-layers";
+import { BaseLayers, MAP_MAX_ZOOM } from "./base-layers";
 import { MapSearchControl } from "./map-search";
 
 export interface MapStation {
@@ -41,7 +41,15 @@ const FALLBACK_CENTER: [number, number] = [27.5, -81.5];
 
 function FitBounds({ base, points }: { base: Base | null; points: MapStation[] }) {
   const map = useMap();
+  // Stable key so fitBounds only re-runs when coordinates actually change, not on every re-render
+  const coordKey = [
+    base ? `${base.lat},${base.lng}` : "",
+    ...points.map((s) => `${s.id}:${s.latitude},${s.longitude}`),
+  ].join("|");
+  const prevKey = useRef<string>("");
   useEffect(() => {
+    if (coordKey === prevKey.current) return;
+    prevKey.current = coordKey;
     const coords: [number, number][] = [];
     if (base) coords.push([base.lat, base.lng]);
     points.forEach((s) => coords.push([s.latitude as number, s.longitude as number]));
@@ -50,7 +58,7 @@ function FitBounds({ base, points }: { base: Base | null; points: MapStation[] }
     } else if (coords.length > 1) {
       map.fitBounds(L.latLngBounds(coords), { padding: [40, 40] });
     }
-  }, [base, points, map]);
+  });
   return null;
 }
 
@@ -131,6 +139,7 @@ export default function StationsMap({
     <MapContainer
       center={base ? [base.lat, base.lng] : FALLBACK_CENTER}
       zoom={6}
+      maxZoom={MAP_MAX_ZOOM}
       style={{ height, width: "100%" }}
       className="rounded-md z-0"
       scrollWheelZoom
