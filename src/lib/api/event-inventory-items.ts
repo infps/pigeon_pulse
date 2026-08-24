@@ -44,3 +44,23 @@ export function useAddBirdsToEvent(eventId: string | number) {
     exact: false,
   });
 }
+
+export function useRegisterBirdToEvent(eventId: string | number) {
+  return useApiMutation({
+    method: "POST",
+    endpoint: `/api/admin/event/${eventId}/register-bird`,
+    queryKey: ["event-inventory-items"],
+    exact: false,
+  });
+}
+
+export const useListEventInventoryItemsBySeason = (seasonId: number | string | null) => {
+  const params: Record<string, string> = seasonId ? { seasonId: String(seasonId) } : {};
+  return useApiQuery({
+    queryKey: ["event-inventory-items", "by-season", String(seasonId ?? "")],
+    // ponytail: route ignores eventId when seasonId provided; 0 is valid (not NaN)
+    endpoint: apiEndpoints.eventInventory.itemsByEvent(0),
+    enabled: !!seasonId,
+    params: Object.keys(params).length > 0 ? params : undefined,
+  });
+};
