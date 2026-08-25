@@ -167,6 +167,8 @@ export function BreedersTab({ event, eventId, onGoToRegister }: BreedersTabProps
             { id: "paymentStatus", title: "Payment Status" },
             { id: "note", title: "Note" },
           ]}
+          onRowClick={(inv) => handleBreederClick(inv.id)}
+          rowClickMode="action"
         />
       )}
 

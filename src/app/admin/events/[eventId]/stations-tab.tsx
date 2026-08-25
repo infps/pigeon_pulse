@@ -430,11 +430,37 @@ function StationFormDialog({
               Click the map to set the release point. Distance auto-fills from the event location.
             </p>
             <LocationPickerMap value={pickerValue} onChange={handlePick} onAddress={handleAddress} height={300} />
-            <p className="text-xs text-muted-foreground">
-              {form.latitude != null && form.longitude != null
-                ? `Lat ${form.latitude.toFixed(6)}, Lng ${form.longitude.toFixed(6)}${form.address ? ` — ${form.address}` : ""}`
-                : "No point picked"}
-            </p>
+            <div className="flex gap-2">
+              <div className="flex-1 space-y-1">
+                <Label className="text-xs">Latitude</Label>
+                <Input
+                  placeholder="-90 to 90"
+                  value={form.latitude != null ? String(form.latitude) : ""}
+                  onChange={(e) => {
+                    const la = parseFloat(e.target.value);
+                    if (!isNaN(la) && la >= -90 && la <= 90 && form.longitude != null)
+                      handlePick(la, form.longitude);
+                    else if (e.target.value === "" || e.target.value === "-")
+                      setForm((f) => ({ ...f, latitude: null }));
+                  }}
+                />
+              </div>
+              <div className="flex-1 space-y-1">
+                <Label className="text-xs">Longitude</Label>
+                <Input
+                  placeholder="-180 to 180"
+                  value={form.longitude != null ? String(form.longitude) : ""}
+                  onChange={(e) => {
+                    const lo = parseFloat(e.target.value);
+                    if (!isNaN(lo) && lo >= -180 && lo <= 180 && form.latitude != null)
+                      handlePick(form.latitude, lo);
+                    else if (e.target.value === "" || e.target.value === "-")
+                      setForm((f) => ({ ...f, longitude: null }));
+                  }}
+                />
+              </div>
+            </div>
+            {form.address && <p className="text-xs text-muted-foreground">{form.address}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-3">

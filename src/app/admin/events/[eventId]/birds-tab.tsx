@@ -178,6 +178,8 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
         externalFilterValue={rfidFilter || undefined}
         externalFilterColumn={rfidFilter ? "rfid" : undefined}
         emptyState={emptyState}
+        onRowClick={(item) => { if (item.bird?.id) setDetailBirdId(item.bird.id); }}
+        rowClickMode="action"
       />
 
       <EditBirdDialog

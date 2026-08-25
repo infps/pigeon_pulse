@@ -38,15 +38,7 @@ export const createBirdsColumns = (
     cell: ({ row }) => {
       const bird = row.original.bird;
       const name = bird?.birdName ?? "N/A";
-      if (!bird?.id) return <span>{name}</span>;
-      return (
-        <button
-          onClick={() => onOpenBird(bird.id)}
-          className="text-blue-600 hover:underline cursor-pointer text-left"
-        >
-          {name}
-        </button>
-      );
+      return <span>{name}</span>;
     },
   },
   {

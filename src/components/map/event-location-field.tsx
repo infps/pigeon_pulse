@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { LocationPickerMap } from "@/components/map";
 
 interface Props {
@@ -13,7 +14,24 @@ interface Props {
 
 export function EventLocationField({ latitude, longitude, onChange }: Props) {
   const [address, setAddress] = useState<string | null>(null);
+  const [latInput, setLatInput] = useState(latitude != null ? String(latitude) : "");
+  const [lngInput, setLngInput] = useState(longitude != null ? String(longitude) : "");
+
   const value = latitude != null && longitude != null ? { lat: latitude, lng: longitude } : null;
+
+  // Sync inputs when map click/drag/search changes the value
+  useEffect(() => {
+    setLatInput(latitude != null ? String(latitude) : "");
+    setLngInput(longitude != null ? String(longitude) : "");
+  }, [latitude, longitude]);
+
+  const applyCoords = (lat: string, lng: string) => {
+    const la = parseFloat(lat);
+    const lo = parseFloat(lng);
+    if (!isNaN(la) && !isNaN(lo) && la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
+      onChange(la, lo);
+    }
+  };
 
   return (
     <div className="space-y-2">
@@ -24,21 +42,39 @@ export function EventLocationField({ latitude, longitude, onChange }: Props) {
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => { onChange(null, null); setAddress(null); }}
+            onClick={() => { onChange(null, null); setAddress(null); setLatInput(""); setLngInput(""); }}
           >
             Clear
           </Button>
         )}
       </div>
       <p className="text-xs text-muted-foreground">
-        Click the map (or drag the pin) to set the event/home point. Station distances are measured from here.
+        Click the map, drag the pin, search by name, or paste coordinates below.
       </p>
       <LocationPickerMap value={value} onChange={(lat, lng) => onChange(lat, lng)} onAddress={setAddress} />
-      <p className="text-xs text-muted-foreground">
-        {value
-          ? `Lat ${value.lat.toFixed(6)}, Lng ${value.lng.toFixed(6)}${address ? ` — ${address}` : ""}`
-          : "No location set"}
-      </p>
+      <div className="flex gap-2">
+        <div className="flex-1 space-y-1">
+          <Label className="text-xs">Latitude</Label>
+          <Input
+            placeholder="-90 to 90"
+            value={latInput}
+            onChange={(e) => setLatInput(e.target.value)}
+            onBlur={() => applyCoords(latInput, lngInput)}
+            onKeyDown={(e) => e.key === "Enter" && applyCoords(latInput, lngInput)}
+          />
+        </div>
+        <div className="flex-1 space-y-1">
+          <Label className="text-xs">Longitude</Label>
+          <Input
+            placeholder="-180 to 180"
+            value={lngInput}
+            onChange={(e) => setLngInput(e.target.value)}
+            onBlur={() => applyCoords(latInput, lngInput)}
+            onKeyDown={(e) => e.key === "Enter" && applyCoords(latInput, lngInput)}
+          />
+        </div>
+      </div>
+      {address && <p className="text-xs text-muted-foreground">{address}</p>}
     </div>
   );
 }

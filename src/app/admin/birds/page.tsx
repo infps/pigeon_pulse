@@ -133,12 +133,9 @@ export default function AdminBirdsPage() {
         accessorKey: "birdName",
         header: ({ column }) => <DataTableColumnHeader column={column} title="Bird Name" />,
         cell: ({ row }) => (
-          <button
-            onClick={() => setSelectedBirdId(row.original.id)}
-            className="text-primary hover:underline font-medium text-left"
-          >
+          <span className="font-medium">
             {row.original.birdName || `#${row.original.id}`}
-          </button>
+          </span>
         ),
       },
       {
@@ -183,7 +180,7 @@ export default function AdminBirdsPage() {
         },
       },
     ],
-    [setSelectedBirdId]
+    []
   );
 
   return (
@@ -288,7 +285,12 @@ export default function AdminBirdsPage() {
       ) : isError ? (
         <div className="text-red-500">Error loading birds</div>
       ) : (
-        <DataTable columns={columns} data={birds} />
+        <DataTable
+          columns={columns}
+          data={birds}
+          onRowClick={(bird) => setSelectedBirdId(bird.id)}
+          rowClickMode="action"
+        />
       )}
 
       <BirdDetailDialog

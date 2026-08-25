@@ -50,6 +50,7 @@ interface DataTableProps<TData, TValue> {
   rowSelection?: RowSelectionState
   onRowSelectionChange?: (updater: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => void
   onRowClick?: (row: TData) => void
+  rowClickMode?: "none" | "highlight" | "action"
   initialColumnVisibility?: VisibilityState
   externalFilterValue?: string
   externalFilterColumn?: string
@@ -82,6 +83,7 @@ export function DataTable<TData, TValue>({
   rowSelection: externalRowSelection,
   onRowSelectionChange: externalOnRowSelectionChange,
   onRowClick,
+  rowClickMode,
   initialColumnVisibility,
   externalFilterValue,
   externalFilterColumn,
@@ -236,8 +238,12 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className={onRowClick ? "cursor-pointer" : undefined}
-                  onClick={() => onRowClick?.(row.original)}
+                  className={
+                    (rowClickMode === "action" || rowClickMode === "highlight" || (!rowClickMode && onRowClick))
+                      ? "cursor-pointer hover:bg-muted/60"
+                      : undefined
+                  }
+                  onClick={() => (rowClickMode !== "none") && onRowClick?.(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>

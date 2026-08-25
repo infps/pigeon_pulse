@@ -28,12 +28,7 @@ export const createBreedersColumns = (
     cell: ({ row }) => {
       const breeder = row.original.breeder;
       return (
-        <span
-          className="cursor-pointer hover:underline text-blue-600"
-          onClick={() => onBreederClick(row.original.id)}
-        >
-          {breeder?.firstName} {breeder?.lastName || ""}
-        </span>
+        <span>{breeder?.firstName} {breeder?.lastName || ""}</span>
       );
     },
   },

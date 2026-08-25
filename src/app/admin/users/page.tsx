@@ -46,6 +46,7 @@ export default function UsersPage() {
   const [copyingUser, setCopyingUser] = useState<User | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [eventFilter, setEventFilter] = useState<string>("all");
+  const [roleFilter, setRoleFilter] = useState<string>("all");
   const [isTeamsDialogOpen, setIsTeamsDialogOpen] = useState(false);
   const [selectedBreeder, setSelectedBreeder] = useState<User | null>(null);
   const [teamFormData, setTeamFormData] = useState({
@@ -68,10 +69,9 @@ export default function UsersPage() {
   });
   const users: User[] = usersData?.users || [];
 
-  // Filter users by status
-  const filteredUsers = statusFilter === "all" 
-    ? users 
-    : users.filter(user => user.status === statusFilter);
+  const filteredUsers = users
+    .filter(user => statusFilter === "all" || user.status === statusFilter)
+    .filter(user => roleFilter === "all" || user.role === roleFilter);
 
   const createMutation = useCreateUser({});
   const updateMutation = useUpdateUser({});
@@ -284,6 +284,21 @@ export default function UsersPage() {
               <SelectItem value="ACTIVE">Active</SelectItem>
               <SelectItem value="INACTIVE">Inactive</SelectItem>
               <SelectItem value="PROSPECT">Prospect</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={roleFilter}
+            onValueChange={setRoleFilter}
+          >
+            <SelectTrigger className="w-45">
+              <SelectValue placeholder="Filter by role" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Roles</SelectItem>
+              <SelectItem value="BREEDER">Breeder</SelectItem>
+              <SelectItem value="ADMIN">Admin</SelectItem>
+              <SelectItem value="SUPERADMIN">Super Admin</SelectItem>
             </SelectContent>
           </Select>
 
