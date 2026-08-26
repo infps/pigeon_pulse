@@ -363,6 +363,10 @@ export default function PublicRacePage() {
           birdId={birdPopup.id}
           band={birdPopup.band}
           onClose={() => setBirdPopup(null)}
+          onLoftClick={(breederId, loftName) => {
+            setBirdPopup(null);
+            setBreederPopup({ id: breederId, name: loftName });
+          }}
         />
       )}
     </div>
@@ -549,6 +553,7 @@ interface BirdInfo {
   breederName: string;
   loftImage: string | null;
   eligible: boolean;
+  breederId: number | null;
 }
 
 interface HistoryEntry {
@@ -626,10 +631,12 @@ function BirdHistoryModal({
   birdId,
   band,
   onClose,
+  onLoftClick,
 }: {
   birdId: number;
   band: string;
   onClose: () => void;
+  onLoftClick?: (breederId: number, loftName: string) => void;
 }) {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [birdInfo, setBirdInfo] = useState<BirdInfo | null>(null);
@@ -701,17 +708,30 @@ function BirdHistoryModal({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="font-bold text-base leading-tight">{displayLoft}</span>
+              <button
+                className="font-bold text-base leading-tight hover:underline cursor-pointer text-left"
+                onClick={() => {
+                  if (birdInfo?.breederId && onLoftClick) {
+                    onLoftClick(birdInfo.breederId, displayLoft);
+                    onClose();
+                  }
+                }}
+                disabled={!birdInfo?.breederId || !onLoftClick}
+              >
+                {displayLoft}
+              </button>
               <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             </div>
-            <p className="text-sm text-muted-foreground">{birdInfo?.breederName || "-"}</p>
+            {birdInfo?.breederName && birdInfo.breederName !== displayLoft && (
+              <p className="text-sm text-muted-foreground">{birdInfo.breederName}</p>
+            )}
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               <div className="flex items-center gap-1">
                 <span className="font-mono text-sm">{displayBand}</span>
                 <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               </div>
               {birdInfo?.eligible && (
-                <Badge className="bg-green-500 hover:bg-green-500 text-white text-xs px-2 py-0 h-5">ELIGIBLE</Badge>
+                <Badge className="bg-green-500 hover:bg-green-500 text-white text-xs px-2 py-0 h-5">Active</Badge>
               )}
             </div>
           </div>

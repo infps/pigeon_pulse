@@ -324,12 +324,14 @@ function StationFormDialog({
     address: null,
   });
   const [saving, setSaving] = useState(false);
+  const [coordInput, setCoordInput] = useState("");
 
   // Sync form when editing target changes
   const targetId = station?.id ?? null;
   const [lastTargetId, setLastTargetId] = useState<number | null>(null);
   if (open && targetId !== lastTargetId) {
     setLastTargetId(targetId);
+    setCoordInput(station?.latitude != null && station?.longitude != null ? `${station.latitude}, ${station.longitude}` : "");
     setForm({
       name: station?.name ?? "",
       miles: station?.miles != null ? String(station.miles) : "",
@@ -343,6 +345,7 @@ function StationFormDialog({
 
   // On map pick: set coords + auto-fill distance from event base (editable override).
   const handlePick = (lat: number, lng: number) => {
+    setCoordInput(`${lat}, ${lng}`);
     setForm((f) => {
       const next = { ...f, latitude: lat, longitude: lng };
       if (base) {
@@ -430,36 +433,29 @@ function StationFormDialog({
               Click the map to set the release point. Distance auto-fills from the event location.
             </p>
             <LocationPickerMap value={pickerValue} onChange={handlePick} onAddress={handleAddress} height={300} />
-            <div className="flex gap-2">
-              <div className="flex-1 space-y-1">
-                <Label className="text-xs">Latitude</Label>
-                <Input
-                  placeholder="-90 to 90"
-                  value={form.latitude != null ? String(form.latitude) : ""}
-                  onChange={(e) => {
-                    const la = parseFloat(e.target.value);
-                    if (!isNaN(la) && la >= -90 && la <= 90 && form.longitude != null)
-                      handlePick(la, form.longitude);
-                    else if (e.target.value === "" || e.target.value === "-")
-                      setForm((f) => ({ ...f, latitude: null }));
-                  }}
-                />
-              </div>
-              <div className="flex-1 space-y-1">
-                <Label className="text-xs">Longitude</Label>
-                <Input
-                  placeholder="-180 to 180"
-                  value={form.longitude != null ? String(form.longitude) : ""}
-                  onChange={(e) => {
-                    const lo = parseFloat(e.target.value);
-                    if (!isNaN(lo) && lo >= -180 && lo <= 180 && form.latitude != null)
-                      handlePick(form.latitude, lo);
-                    else if (e.target.value === "" || e.target.value === "-")
-                      setForm((f) => ({ ...f, longitude: null }));
-                  }}
-                />
-              </div>
-            </div>
+            <Input
+              placeholder="Paste coordinates e.g. 22.5718, 88.4617"
+              value={coordInput}
+              onChange={(e) => setCoordInput(e.target.value)}
+              onBlur={() => {
+                if (!coordInput) return;
+                const parts = coordInput.trim().split(/[\s,]+/);
+                if (parts.length >= 2) {
+                  const la = parseFloat(parts[0]), lo = parseFloat(parts[1]);
+                  if (!isNaN(la) && !isNaN(lo) && la >= -90 && la <= 90 && lo >= -180 && lo <= 180) { handlePick(la, lo); return; }
+                }
+                toast.error("Invalid coordinates — use 'lat, lng' format");
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                const parts = coordInput.trim().split(/[\s,]+/);
+                if (parts.length >= 2) {
+                  const la = parseFloat(parts[0]), lo = parseFloat(parts[1]);
+                  if (!isNaN(la) && !isNaN(lo) && la >= -90 && la <= 90 && lo >= -180 && lo <= 180) { handlePick(la, lo); return; }
+                }
+                toast.error("Invalid coordinates — use 'lat, lng' format");
+              }}
+            />
             {form.address && <p className="text-xs text-muted-foreground">{form.address}</p>}
           </div>
 

@@ -14,7 +14,8 @@ interface EventResultTabProps {
 }
 
 function isTraining(r: Race): boolean {
-  return (r.raceType?.name ?? "").toUpperCase() === "T";
+  const n = (r.raceType?.name ?? "").toUpperCase();
+  return n === "T" || n === "TRAINING";
 }
 
 function RaceList({ races }: { races: Race[] }) {

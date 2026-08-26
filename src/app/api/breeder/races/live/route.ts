@@ -5,7 +5,16 @@ export async function GET(req: NextRequest) {
     const liveRaces = await prisma.race.findMany({
       where: {
         startTime: { not: null },
-        NOT: { isClosed: 1 },
+        OR: [{ isClosed: null }, { isClosed: { not: 1 } }],
+        AND: [
+          {
+            OR: [
+              { isLive: true },
+              { status: "STARTED" },
+              { status: "REGISTERING" },
+            ],
+          },
+        ],
       },
       include: {
         seasonRel: {

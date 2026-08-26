@@ -46,6 +46,7 @@ export async function GET(
       include: {
         breeder: {
           select: {
+            id: true,
             userId: true,
             firstName: true,
             lastName: true,
@@ -259,6 +260,7 @@ export async function GET(
         : "",
       loftImage,
       eligible: bird.isActive === 1,
+      breederId: breeder?.id ?? null,
     };
 
     return NextResponse.json({ entries, birdInfo });

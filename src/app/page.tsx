@@ -180,7 +180,7 @@ export default function Home() {
                 <p className="text-xs mt-1">Check back when a race is in progress</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="gap-2 flex flex-col">
                 {sortedLiveRaces.slice(0, 6).map((race) => (
                   <LiveRaceCard key={race.id} race={race} />
                 ))}
@@ -213,7 +213,7 @@ export default function Home() {
                   </Link>
                 )}
               </div>
-              <div className="rounded-md border divide-y">
+              <div className="rounded-md border divide-y flex flex-col gap-2">
                 {newsMessages.map((m) => (
                   <Link
                     key={m.id}

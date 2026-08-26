@@ -61,11 +61,12 @@ export default function AdminBirdsPage() {
   const [color, setColor] = useState("");
   const [sex, setSex] = useState("");
   const [status, setStatus] = useState("active");
+  const [band, setBand] = useState("");
   const [selectedBirdId, setSelectedBirdId] = useState<number | null>(null);
 
   const filters: AdminBirdsFilters = useMemo(
-    () => ({ search, breederId, color, sex, status }),
-    [search, breederId, color, sex, status]
+    () => ({ search, breederId, color, sex, status, band }),
+    [search, breederId, color, sex, status, band]
   );
 
   const { data, isPending, isError } = useAdminListBirds(filters);
@@ -80,6 +81,7 @@ export default function AdminBirdsPage() {
     setColor("");
     setSex("");
     setStatus("all");
+    setBand("");
   };
 
   const columns: ColumnDef<AdminBirdRow>[] = useMemo(
@@ -200,6 +202,15 @@ export default function AdminBirdsPage() {
             placeholder="Name, band, RFID, breeder…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div>
+          <Label htmlFor="band">Band</Label>
+          <Input
+            id="band"
+            placeholder="Filter by band…"
+            value={band}
+            onChange={(e) => setBand(e.target.value)}
           />
         </div>
         <div>

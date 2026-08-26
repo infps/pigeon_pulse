@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LocationPickerMap } from "@/components/map";
+import { toast } from "sonner";
 
 interface Props {
   latitude: number | null;
@@ -14,23 +15,30 @@ interface Props {
 
 export function EventLocationField({ latitude, longitude, onChange }: Props) {
   const [address, setAddress] = useState<string | null>(null);
-  const [latInput, setLatInput] = useState(latitude != null ? String(latitude) : "");
-  const [lngInput, setLngInput] = useState(longitude != null ? String(longitude) : "");
+  const [coordInput, setCoordInput] = useState("");
 
   const value = latitude != null && longitude != null ? { lat: latitude, lng: longitude } : null;
 
-  // Sync inputs when map click/drag/search changes the value
+  // Sync display text when map click/drag/search changes coords
   useEffect(() => {
-    setLatInput(latitude != null ? String(latitude) : "");
-    setLngInput(longitude != null ? String(longitude) : "");
+    if (latitude != null && longitude != null) {
+      setCoordInput(`${latitude}, ${longitude}`);
+    } else {
+      setCoordInput("");
+    }
   }, [latitude, longitude]);
 
-  const applyCoords = (lat: string, lng: string) => {
-    const la = parseFloat(lat);
-    const lo = parseFloat(lng);
-    if (!isNaN(la) && !isNaN(lo) && la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
-      onChange(la, lo);
+  const parseAndApply = (text: string) => {
+    const parts = text.trim().split(/[\s,]+/);
+    if (parts.length >= 2) {
+      const la = parseFloat(parts[0]);
+      const lo = parseFloat(parts[1]);
+      if (!isNaN(la) && !isNaN(lo) && la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
+        onChange(la, lo);
+        return;
+      }
     }
+    toast.error("Invalid coordinates — use 'lat, lng' format");
   };
 
   return (
@@ -42,7 +50,7 @@ export function EventLocationField({ latitude, longitude, onChange }: Props) {
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => { onChange(null, null); setAddress(null); setLatInput(""); setLngInput(""); }}
+            onClick={() => { onChange(null, null); setAddress(null); setCoordInput(""); }}
           >
             Clear
           </Button>
@@ -52,28 +60,13 @@ export function EventLocationField({ latitude, longitude, onChange }: Props) {
         Click the map, drag the pin, search by name, or paste coordinates below.
       </p>
       <LocationPickerMap value={value} onChange={(lat, lng) => onChange(lat, lng)} onAddress={setAddress} />
-      <div className="flex gap-2">
-        <div className="flex-1 space-y-1">
-          <Label className="text-xs">Latitude</Label>
-          <Input
-            placeholder="-90 to 90"
-            value={latInput}
-            onChange={(e) => setLatInput(e.target.value)}
-            onBlur={() => applyCoords(latInput, lngInput)}
-            onKeyDown={(e) => e.key === "Enter" && applyCoords(latInput, lngInput)}
-          />
-        </div>
-        <div className="flex-1 space-y-1">
-          <Label className="text-xs">Longitude</Label>
-          <Input
-            placeholder="-180 to 180"
-            value={lngInput}
-            onChange={(e) => setLngInput(e.target.value)}
-            onBlur={() => applyCoords(latInput, lngInput)}
-            onKeyDown={(e) => e.key === "Enter" && applyCoords(latInput, lngInput)}
-          />
-        </div>
-      </div>
+      <Input
+        placeholder="Paste coordinates e.g. 22.5718, 88.4617"
+        value={coordInput}
+        onChange={(e) => setCoordInput(e.target.value)}
+        onBlur={() => coordInput && parseAndApply(coordInput)}
+        onKeyDown={(e) => e.key === "Enter" && coordInput && parseAndApply(coordInput)}
+      />
       {address && <p className="text-xs text-muted-foreground">{address}</p>}
     </div>
   );

@@ -39,6 +39,7 @@ import {
 import { Download, Plus, Trash2, Columns2, Columns3 } from "lucide-react";
 import type { RowSelectionState } from "@tanstack/react-table";
 import type { Event, User, UserRole, UserStatus } from "@/lib/types";
+import { getCountryName } from "@/lib/flag-constants";
 
 export default function UsersPage() {
   const [isOpen, setIsOpen] = useState(false);
@@ -47,6 +48,9 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [countryFilter, setCountryFilter] = useState<string>("all");
+  const [cityFilter, setCityFilter] = useState<string>("");
+  const [loftFilter, setLoftFilter] = useState<string>("");
   const [isTeamsDialogOpen, setIsTeamsDialogOpen] = useState(false);
   const [selectedBreeder, setSelectedBreeder] = useState<User | null>(null);
   const [teamFormData, setTeamFormData] = useState({
@@ -64,14 +68,20 @@ export default function UsersPage() {
     (a: Event, b: Event) => new Date(b.eventDate ?? 0).getTime() - new Date(a.eventDate ?? 0).getTime()
   );
 
-  const { data: usersData, isPending, isError } = useListUsers({
-    params: eventFilter !== "all" ? { eventId: eventFilter } : {},
-  });
+  const userParams: Record<string, string> = {};
+  if (eventFilter !== "all") userParams.eventId = eventFilter;
+  if (roleFilter !== "all") userParams.role = roleFilter;
+
+  const { data: usersData, isPending, isError } = useListUsers({ params: userParams });
   const users: User[] = usersData?.users || [];
 
+  const uniqueCountries = Array.from(new Set(users.map(u => u.country).filter(Boolean))) as string[];
+
   const filteredUsers = users
-    .filter(user => statusFilter === "all" || user.status === statusFilter)
-    .filter(user => roleFilter === "all" || user.role === roleFilter);
+    .filter(u => statusFilter === "all" || u.status === statusFilter)
+    .filter(u => countryFilter === "all" || u.country === countryFilter)
+    .filter(u => !cityFilter || (u.city ?? "").toLowerCase().includes(cityFilter.toLowerCase()))
+    .filter(u => !loftFilter || (u.loftName ?? "").toLowerCase().includes(loftFilter.toLowerCase()));
 
   const createMutation = useCreateUser({});
   const updateMutation = useUpdateUser({});
@@ -318,6 +328,32 @@ export default function UsersPage() {
               ))}
             </SelectContent>
           </Select>
+
+          <Select value={countryFilter} onValueChange={setCountryFilter}>
+            <SelectTrigger className="w-45">
+              <SelectValue placeholder="Filter by country" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Countries</SelectItem>
+              {uniqueCountries.map((c) => (
+                <SelectItem key={c} value={c}>{getCountryName(c)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Input
+            placeholder="City…"
+            value={cityFilter}
+            onChange={(e) => setCityFilter(e.target.value)}
+            className="w-36"
+          />
+
+          <Input
+            placeholder="Loft…"
+            value={loftFilter}
+            onChange={(e) => setLoftFilter(e.target.value)}
+            className="w-36"
+          />
         </div>
 
         <div className="flex items-center gap-2">
