@@ -1,7 +1,7 @@
 // useApiQuery.ts
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 
@@ -67,6 +67,7 @@ export function useApiQuery({
     retry: false,
     refetchOnReconnect: false,
     staleTime: Infinity,
+    placeholderData: keepPreviousData,
     ...(refetchInterval && { refetchInterval }),
   });
 
