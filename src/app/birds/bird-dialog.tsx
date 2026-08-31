@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -69,7 +69,7 @@ interface BirdDialogProps {
 export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogProps) {
   const [name, setName] = useState("");
   const [federation, setFederation] = useState("AU");
-  const [year, setYear] = useState(new Date().getFullYear().toString());
+  const [year, setYear] = useState(String(new Date().getFullYear()).slice(-2));
   const [letters, setLetters] = useState("");
   const [bandNumber, setBandNumber] = useState("");
   const [color, setColor] = useState("BB");
@@ -77,6 +77,7 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
   const [rfid, setRfid] = useState("");
   const [attention, setAttention] = useState(false);
   const [stagedBirds, setStagedBirds] = useState<StagedBird[]>([]);
+  const bandNumberRef = useRef<HTMLInputElement>(null);
 
   const isEdit = !!bird;
 
@@ -116,7 +117,7 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
     if (bird) {
       setName(bird.birdName || "");
       setFederation(bird.band1 || "AU");
-      setYear(bird.band2 || new Date().getFullYear().toString());
+      setYear(bird.band2 || String(new Date().getFullYear()).slice(-2));
       setLetters(bird.band3 || "");
       setBandNumber(bird.band4 || "");
       setColor(bird.color || "BB");
@@ -126,7 +127,7 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
     } else {
       setName("");
       setFederation("AU");
-      setYear(new Date().getFullYear().toString());
+      setYear(String(new Date().getFullYear()).slice(-2));
       setLetters("");
       setBandNumber("");
       setColor("BB");
@@ -207,6 +208,7 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
     setAttention(false);
     const parsed = parseInt(bandNumber);
     setBandNumber(isNaN(parsed) ? "" : String(parsed + 1));
+    setTimeout(() => bandNumberRef.current?.focus(), 0);
   };
 
   const handleCreateAll = async () => {
@@ -310,6 +312,7 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
                 <Label htmlFor="bandNumber">Band Number *</Label>
                 <Input
                   id="bandNumber"
+                  ref={bandNumberRef}
                   value={bandNumber}
                   onChange={(e) => setBandNumber(e.target.value)}
                   placeholder="12345"
@@ -367,11 +370,11 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
             </Button>
             {!isEdit && (
               <Button type="button" variant="secondary" onClick={handleSaveAndNew}>
-                Save & New
+                Add Another Bird
               </Button>
             )}
             <Button type="submit" disabled={isPending}>
-              {isPending ? "Saving..." : isEdit ? "Update" : "Add Bird"}
+              {isPending ? "Saving..." : isEdit ? "Update" : "Register Bird"}
             </Button>
           </DialogFooter>
         </form>

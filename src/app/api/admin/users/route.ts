@@ -64,7 +64,7 @@ function mapBreederToUser(breeder: any) {
     note: breeder.note,
     role: "BREEDER",
     taxNumber: breeder.taxNumber,
-    loftName: null,
+    loftName: breeder.defNameAgn || breeder.defNameAs || null,
     isLegacy: true,
   };
 }

@@ -64,22 +64,22 @@ const auth = betterAuth({
                 return { ...session, user: { ...user, role: existingRole } };
             }
 
+            const fetchRole = () => prisma.user.findUnique({ where: { id: user.id }, select: { role: true } });
             try {
-                const dbUser = await prisma.user.findUnique({
-                    where:{id:user.id},
-                    select:{role:true}
+                let dbUser = await fetchRole().catch(async (e: any) => {
+                    // Retry once on Neon cold-start timeout
+                    if (e?.code === "ETIMEDOUT" || e?.code === "P1001") {
+                        await new Promise(r => setTimeout(r, 1500));
+                        return fetchRole();
+                    }
+                    throw e;
                 });
                 return {
                     ...session,
-                    user:{
-                        ...user,
-                        role: dbUser?.role ?? "BREEDER"
-                    }
+                    user: { ...user, role: dbUser?.role ?? "BREEDER" }
                 };
             } catch (e) {
                 console.error("[customSession] failed to fetch role for user", user.id, e);
-                // Re-throw so better-auth surfaces a proper error rather than
-                // silently downgrading the role to BREEDER and causing a 401.
                 throw e;
             }
         })

@@ -432,7 +432,6 @@ export default function UsersPage() {
           address: false,
           city: false,
           postalCode: false,
-          country: false,
           state: false,
           webAddress: false,
         }}

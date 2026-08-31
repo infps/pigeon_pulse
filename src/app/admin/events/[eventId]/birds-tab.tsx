@@ -27,12 +27,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Wifi, WifiOff, Square, Usb } from "lucide-react";
+import { Plus, Wifi, WifiOff, Square, Usb, Upload, Download } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { createBirdsColumns } from "./birds-columns";
 import { EditBirdDialog } from "@/components/edit-bird-dialog";
 import { BirdDetailDialog } from "@/components/bird-detail-dialog";
+import { ImportModal, ExportModal } from "@/components/csv-import-export";
 
 interface BirdsTabProps {
   event: Event;
@@ -47,6 +48,8 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [detailBirdId, setDetailBirdId] = useState<number | null>(null);
   const [rfidFilter, setRfidFilter] = useState("");
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
   const [isPollActive, setIsPollActive] = useState(false);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastScannedRef = useRef<string | null>(null);
@@ -154,6 +157,12 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
             <Wifi className="h-4 w-4" />Scan RFID
           </Button>
         )}
+        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setIsImportOpen(true)}>
+          <Upload className="h-4 w-4" />Import
+        </Button>
+        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setIsExportOpen(true)}>
+          <Download className="h-4 w-4" />Export
+        </Button>
         <Button size="sm" className="gap-1.5" onClick={() => setIsAddDialogOpen(true)}>
           <Plus className="h-4 w-4" />
           Add Birds
@@ -204,6 +213,51 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
         onOpenChange={(o) => { if (!o) setDetailBirdId(null); }}
         birdId={detailBirdId}
         eventId={parseInt(eventId)}
+      />
+
+      <ImportModal
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        previewUrl={`/api/admin/event/${eventId}/import-birds/preview`}
+        commitUrl={`/api/admin/event/${eventId}/import-birds/commit`}
+        templateFields="breeder_first_name,breeder_last_name,breeder_email,bird_name,band1,band2,band3,band4,color,sex,rfid,attention"
+        templateFilename="birds-import-template.csv"
+        previewColumns={[
+          { key: "breederName", label: "Breeder" },
+          { key: "breederAction", label: "Breeder Action", render: (r) => {
+            const a = r.breederAction as string;
+            if (a === "existing_email") return <span className="text-xs text-blue-600">match email</span>;
+            if (a === "existing_name") return <span className="text-xs text-blue-600">match name</span>;
+            if (a === "create") return <span className="text-xs text-green-600">create new</span>;
+            return null;
+          }},
+          { key: "band", label: "Band" },
+          { key: "birdName", label: "Bird Name" },
+          { key: "color", label: "Color" },
+        ]}
+        onSuccess={() => { refetch(); queryClient.invalidateQueries({ queryKey: ["event-inventory"] }); }}
+      />
+
+      <ExportModal
+        open={isExportOpen}
+        onOpenChange={setIsExportOpen}
+        fields={[
+          { key: "breeder_name", label: "Breeder Name" },
+          { key: "breeder_email", label: "Breeder Email" },
+          { key: "bird_name", label: "Bird Name" },
+          { key: "band", label: "Band (full)" },
+          { key: "band1", label: "Federation (band1)" },
+          { key: "band2", label: "Year (band2)" },
+          { key: "band3", label: "Letters (band3)" },
+          { key: "band4", label: "Number (band4)" },
+          { key: "color", label: "Color" },
+          { key: "sex", label: "Sex" },
+          { key: "rfid", label: "RFID" },
+          { key: "attention", label: "Attention" },
+          { key: "is_backup", label: "Backup" },
+        ]}
+        exportUrl={(fields) => `/api/admin/event/${eventId}/export-birds?fields=${fields.join(",")}`}
+        filename={`birds-event-${eventId}.csv`}
       />
     </div>
   );
@@ -305,7 +359,7 @@ function AddBirdsDialog({
   const [newBreederId, setNewBreederId] = useState("");
   const [newName, setNewName] = useState("");
   const [newBand1, setNewBand1] = useState("");
-  const [newBand2, setNewBand2] = useState("");
+  const [newBand2, setNewBand2] = useState(String(new Date().getFullYear()).slice(-2));
   const [newBand3, setNewBand3] = useState("");
   const [newBand4, setNewBand4] = useState("");
   const [newColor, setNewColor] = useState("");
@@ -313,6 +367,13 @@ function AddBirdsDialog({
   const [newRfid, setNewRfid] = useState("");
   const [newAttention, setNewAttention] = useState(false);
   const [newIsBackup, setNewIsBackup] = useState(false);
+
+  const bandNumberRef = useRef<HTMLInputElement>(null);
+  const [stagedBirds, setStagedBirds] = useState<Array<{
+    tempId: string; breederId: string; name: string;
+    band1: string; band2: string; band3: string; band4: string;
+    color: string; sex: string; rfid: string; attention: boolean; isBackup: boolean;
+  }>>([]);
 
   // RFID scanner state
   const [rfidPolling, setRfidPolling] = useState(false);
@@ -419,7 +480,8 @@ function AddBirdsDialog({
   const resetAll = () => {
     stopRfidPoll();
     setMode("");
-    setNewBreederId(""); setNewName(""); setNewBand1(""); setNewBand2(""); setNewBand3(""); setNewBand4("");
+    setStagedBirds([]);
+    setNewBreederId(""); setNewName(""); setNewBand1(""); setNewBand2(String(new Date().getFullYear()).slice(-2)); setNewBand3(""); setNewBand4("");
     setNewColor(""); setNewSex("1"); setNewRfid(""); setNewAttention(false); setNewIsBackup(false);
     setSourceEventId(""); setSelectedBirdIds(new Set());
     setSourceSeasonId(""); setSelectedSeasonBirdIds(new Set());
@@ -431,21 +493,53 @@ function AddBirdsDialog({
     setFn(next);
   };
 
+  const handleStageAndNew = () => {
+    if (!newBreederId) { toast.error("Select a breeder"); return; }
+    if (!newBand1 || !newBand2 || !newBand3 || !newBand4) { toast.error("All band fields required"); return; }
+    if (!newColor) { toast.error("Select a color"); return; }
+    const bandKey = `${newBand1}-${newBand2}-${newBand3}-${newBand4}`;
+    if (stagedBirds.some(b => `${b.band1}-${b.band2}-${b.band3}-${b.band4}` === bandKey)) {
+      toast.error("Band already staged"); return;
+    }
+    setStagedBirds(prev => [...prev, {
+      tempId: crypto.randomUUID(),
+      breederId: newBreederId, name: newName,
+      band1: newBand1, band2: newBand2, band3: newBand3, band4: newBand4,
+      color: newColor, sex: newSex, rfid: newRfid, attention: newAttention, isBackup: newIsBackup,
+    }]);
+    setNewName(""); setNewBand3(""); setNewRfid(""); setNewAttention(false); setNewIsBackup(false);
+    const parsed = parseInt(newBand4);
+    setNewBand4(isNaN(parsed) ? "" : String(parsed + 1));
+    setTimeout(() => bandNumberRef.current?.focus(), 0);
+  };
+
   const handleSubmitNew = async () => {
     if (!newBreederId) { toast.error("Select a breeder"); return; }
     if (!newBand1 || !newBand2 || !newBand3 || !newBand4) { toast.error("All band fields required"); return; }
     if (!newColor) { toast.error("Select a color"); return; }
-    try {
-      const res = await registerMutation.mutateAsync({
+
+    const allBirds = [
+      ...stagedBirds.map(b => ({
+        breederId: parseInt(b.breederId),
+        name: b.name || `${b.band1}-${b.band2}-${b.band3}-${b.band4}`,
+        band1: b.band1, band2: b.band2, band3: b.band3, band4: b.band4,
+        color: b.color, sex: parseInt(b.sex),
+        rfid: b.rfid || undefined, attention: b.attention, isBackup: b.isBackup,
+      })),
+      {
         breederId: parseInt(newBreederId),
         name: newName || `${newBand1}-${newBand2}-${newBand3}-${newBand4}`,
         band1: newBand1, band2: newBand2, band3: newBand3, band4: newBand4,
         color: newColor, sex: parseInt(newSex),
-        rfid: newRfid || undefined,
-        attention: newAttention,
-        isBackup: newIsBackup,
-      });
-      toast.success((res as any)?.message || "Bird registered");
+        rfid: newRfid || undefined, attention: newAttention, isBackup: newIsBackup,
+      },
+    ];
+
+    try {
+      for (const bird of allBirds) {
+        await registerMutation.mutateAsync(bird);
+      }
+      toast.success(allBirds.length > 1 ? `${allBirds.length} birds registered` : "Bird registered");
       resetAll();
       onOpenChange(false);
       onSuccess();
@@ -484,9 +578,9 @@ function AddBirdsDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) resetAll(); onOpenChange(v); }}>
-      <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Add Birds</DialogTitle>
+          <DialogTitle>{mode === "new" && stagedBirds.length > 0 ? `Add Birds (${stagedBirds.length} staged)` : "Add Birds"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 overflow-y-auto flex-1 pr-1">
@@ -551,7 +645,7 @@ function AddBirdsDialog({
                 <span className="pb-2 text-muted-foreground">-</span>
                 <div className="flex-1 space-y-1.5">
                   <Label>Number</Label>
-                  <Input className="h-9" placeholder="1234" value={newBand4} onChange={(e) => setNewBand4(e.target.value)} />
+                  <Input ref={bandNumberRef} className="h-9" placeholder="1234" value={newBand4} onChange={(e) => setNewBand4(e.target.value)} />
                 </div>
                 <span className="pb-2 text-muted-foreground">-</span>
                 <div className="flex-1 space-y-1.5">
@@ -681,8 +775,13 @@ function AddBirdsDialog({
         <DialogFooter>
           <Button variant="outline" onClick={() => { resetAll(); onOpenChange(false); }}>Cancel</Button>
           {mode === "new" && (
+            <Button type="button" variant="secondary" onClick={handleStageAndNew}>
+              Add Another Bird
+            </Button>
+          )}
+          {mode === "new" && (
             <Button onClick={handleSubmitNew} disabled={isSubmitting}>
-              {isSubmitting ? "Registering…" : "Register Bird"}
+              {isSubmitting ? "Registering…" : stagedBirds.length > 0 ? `Register ${stagedBirds.length + 1} Birds` : "Register Bird"}
             </Button>
           )}
           {mode === "event" && (

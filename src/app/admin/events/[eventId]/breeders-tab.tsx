@@ -16,10 +16,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Upload, Download } from "lucide-react";
 import { createBreedersColumns } from "./breeders-columns";
 import { BreederDetailsDialog } from "@/components/breeder-details-dialog";
 import { RegisterDialog } from "@/components/register-dialog";
+import { ImportModal, ExportModal } from "@/components/csv-import-export";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface BreedersTabProps {
   event: Event;
@@ -32,6 +34,9 @@ export function BreedersTab({ event, eventId, onGoToRegister }: BreedersTabProps
   const [selectedEventInventoryId, setSelectedEventInventoryId] = useState<number | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const [paymentStatus, setPaymentStatus] = useState<string>("all");
   const [arrivalFrom, setArrivalFrom] = useState<string>("");
@@ -109,6 +114,12 @@ export function BreedersTab({ event, eventId, onGoToRegister }: BreedersTabProps
           </Button>
         )}
       </div>
+      <Button size="sm" variant="outline" onClick={() => setIsImportOpen(true)}>
+        <Upload className="h-4 w-4 mr-1.5" />Import
+      </Button>
+      <Button size="sm" variant="outline" onClick={() => setIsExportOpen(true)}>
+        <Download className="h-4 w-4 mr-1.5" />Export
+      </Button>
       <Button size="sm" onClick={() => setIsRegisterOpen(true)}>
         <UserPlus className="h-4 w-4 mr-1.5" />
         Register Breeder
@@ -184,6 +195,41 @@ export function BreedersTab({ event, eventId, onGoToRegister }: BreedersTabProps
         eventId={eventId}
         open={isRegisterOpen}
         onOpenChange={setIsRegisterOpen}
+      />
+
+      <ImportModal
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        previewUrl="/api/admin/breeders/import/preview"
+        commitUrl="/api/admin/breeders/import/commit"
+        templateFields="first_name,last_name,email,phone,cell,sms,address1,city1,state1,zip1"
+        templateFilename="breeders-import-template.csv"
+        previewColumns={[
+          { key: "firstName", label: "First Name" },
+          { key: "lastName", label: "Last Name" },
+          { key: "email", label: "Email" },
+          { key: "phone", label: "Phone" },
+        ]}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ["event-inventory"] })}
+      />
+
+      <ExportModal
+        open={isExportOpen}
+        onOpenChange={setIsExportOpen}
+        fields={[
+          { key: "first_name", label: "First Name" },
+          { key: "last_name", label: "Last Name" },
+          { key: "email", label: "Email" },
+          { key: "phone", label: "Phone" },
+          { key: "cell", label: "Cell" },
+          { key: "sms", label: "SMS" },
+          { key: "address1", label: "Address" },
+          { key: "city1", label: "City" },
+          { key: "state1", label: "State" },
+          { key: "zip1", label: "ZIP" },
+        ]}
+        exportUrl={(fields) => `/api/admin/breeders/export?fields=${fields.join(",")}`}
+        filename="breeders.csv"
       />
     </div>
   );

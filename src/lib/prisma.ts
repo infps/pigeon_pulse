@@ -18,10 +18,12 @@ if (isLocal) {
   const pool = new pg.Pool({
     connectionString: rawUrl,
     ssl: { rejectUnauthorized: false },
-    connectionTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
     idleTimeoutMillis: isPooler ? 60000 : 30000,
     keepAlive: !isPooler,
     max: isPooler ? 5 : 20,
+    // Neon compute can take 2-5s to wake from suspension
+    query_timeout: 30000,
   })
   adapter = new PrismaPg(pool)
 }
@@ -29,8 +31,9 @@ if (isLocal) {
 const prisma = new PrismaClient({ adapter, transactionOptions: { maxWait: 20000, timeout: 180000 } })
 
 // Keep Neon compute warm — ping every 4 min to stay under the 5 min suspend threshold.
-// Only runs in long-lived server process (next start), skipped in test/local.
-if (!isLocal && process.env.NODE_ENV === "production") {
+// Also fire immediately on module load so first request doesn't hit a cold Neon.
+if (!isLocal) {
+  prisma.$queryRaw`SELECT 1`.catch(() => {});
   setInterval(() => {
     prisma.$queryRaw`SELECT 1`.catch(() => {});
   }, 4 * 60 * 1000);
