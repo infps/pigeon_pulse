@@ -507,7 +507,7 @@ function AddBirdsDialog({
       band1: newBand1, band2: newBand2, band3: newBand3, band4: newBand4,
       color: newColor, sex: newSex, rfid: newRfid, attention: newAttention, isBackup: newIsBackup,
     }]);
-    setNewName(""); setNewBand3(""); setNewRfid(""); setNewAttention(false); setNewIsBackup(false);
+    setNewName(""); setNewRfid(""); setNewAttention(false); setNewIsBackup(false);
     const parsed = parseInt(newBand4);
     setNewBand4(isNaN(parsed) ? "" : String(parsed + 1));
     setTimeout(() => bandNumberRef.current?.focus(), 0);
