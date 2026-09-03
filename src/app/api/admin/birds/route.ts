@@ -54,6 +54,7 @@ export async function GET(req: NextRequest) {
     const birds = await prisma.bird.findMany({
       where,
       orderBy: { id: "desc" },
+      take: 500,
       include: {
         breeder: {
           select: {
@@ -67,14 +68,13 @@ export async function GET(req: NextRequest) {
         inventoryItems: {
           take: 1,
           orderBy: { id: "desc" },
-          include: {
+          select: {
+            id: true,
             eventInventory: {
-              include: {
+              select: {
                 season: {
-                  include: {
-                    event: {
-                      select: { id: true, name: true, eventDate: true },
-                    },
+                  select: {
+                    event: { select: { id: true, name: true, eventDate: true } },
                   },
                 },
               },

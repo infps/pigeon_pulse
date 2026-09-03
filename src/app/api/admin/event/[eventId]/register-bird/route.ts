@@ -16,6 +16,37 @@ const schema = z.object({
   rfid: z.string().optional(),
   attention: z.boolean().optional(),
   isBackup: z.boolean().optional(),
+  // extended fields
+  isActive: z.boolean().optional(),
+  isLost: z.boolean().optional(),
+  lostDate: z.string().optional().nullable(),
+  lostRaceId: z.number().int().optional().nullable(),
+  note: z.string().optional().nullable(),
+  arrivalTime: z.string().optional().nullable(),
+  departureTime: z.string().optional().nullable(),
+  // fees
+  perchFeeValue: z.number().optional().nullable(),
+  entryFeeValue: z.number().optional().nullable(),
+  hotSpotFeeValue: z.number().optional().nullable(),
+  raceFeeValue: z.number().optional().nullable(),
+  // betting classes
+  belgianShowBet1: z.number().optional().nullable(),
+  belgianShowBet2: z.number().optional().nullable(),
+  belgianShowBet3: z.number().optional().nullable(),
+  belgianShowBet4: z.number().optional().nullable(),
+  belgianShowBet5: z.number().optional().nullable(),
+  belgianShowBet6: z.number().optional().nullable(),
+  belgianShowBet7: z.number().optional().nullable(),
+  standardShowBet1: z.number().optional().nullable(),
+  standardShowBet2: z.number().optional().nullable(),
+  standardShowBet3: z.number().optional().nullable(),
+  standardShowBet4: z.number().optional().nullable(),
+  standardShowBet5: z.number().optional().nullable(),
+  wtaBet1: z.number().optional().nullable(),
+  wtaBet2: z.number().optional().nullable(),
+  wtaBet3: z.number().optional().nullable(),
+  wtaBet4: z.number().optional().nullable(),
+  wtaBet5: z.number().optional().nullable(),
 });
 
 export async function POST(
@@ -40,7 +71,16 @@ export async function POST(
     if (!parsed.success) {
       return NextResponse.json({ message: parsed.error.issues[0]?.message || "Invalid input" }, { status: 400 });
     }
-    const { breederId, name, band1, band2, band3, band4, color, sex, rfid, attention, isBackup } = parsed.data;
+
+    const {
+      breederId, name, band1, band2, band3, band4, color, sex, rfid, attention, isBackup,
+      isActive, isLost, lostDate, lostRaceId, note, arrivalTime, departureTime,
+      perchFeeValue, entryFeeValue, hotSpotFeeValue, raceFeeValue,
+      belgianShowBet1, belgianShowBet2, belgianShowBet3, belgianShowBet4,
+      belgianShowBet5, belgianShowBet6, belgianShowBet7,
+      standardShowBet1, standardShowBet2, standardShowBet3, standardShowBet4, standardShowBet5,
+      wtaBet1, wtaBet2, wtaBet3, wtaBet4, wtaBet5,
+    } = parsed.data;
 
     const url = new URL(request.url);
     const seasonIdParam = url.searchParams.get("seasonId");
@@ -74,8 +114,11 @@ export async function POST(
           rfid: rfid || null,
           attention: attention ?? false,
           breederId,
-          isActive: 1,
-          isLost: 0,
+          isActive: isActive === false ? 0 : 1,
+          isLost: isLost ? 1 : 0,
+          lostDate: lostDate ? new Date(lostDate) : null,
+          lostRaceId: lostRaceId ?? null,
+          note: note || null,
         },
       });
 
@@ -95,7 +138,34 @@ export async function POST(
       }
 
       const item = await tx.eventInventoryItem.create({
-        data: { birdId: bird.id, eventInventoryId: eventInventory.id, isBackup: isBackup ? 1 : 0 },
+        data: {
+          birdId: bird.id,
+          eventInventoryId: eventInventory.id,
+          isBackup: isBackup ? 1 : 0,
+          arrivalDate: arrivalTime ? new Date(arrivalTime) : new Date(),
+          departureDate: departureTime ? new Date(departureTime) : null,
+          perchFeeValue: perchFeeValue ?? null,
+          entryFeeValue: entryFeeValue ?? null,
+          hotSpotFeeValue: hotSpotFeeValue ?? null,
+          raceFeeValue: raceFeeValue ?? null,
+          belgianShowBet1: belgianShowBet1 ?? null,
+          belgianShowBet2: belgianShowBet2 ?? null,
+          belgianShowBet3: belgianShowBet3 ?? null,
+          belgianShowBet4: belgianShowBet4 ?? null,
+          belgianShowBet5: belgianShowBet5 ?? null,
+          belgianShowBet6: belgianShowBet6 ?? null,
+          belgianShowBet7: belgianShowBet7 ?? null,
+          standardShowBet1: standardShowBet1 ?? null,
+          standardShowBet2: standardShowBet2 ?? null,
+          standardShowBet3: standardShowBet3 ?? null,
+          standardShowBet4: standardShowBet4 ?? null,
+          standardShowBet5: standardShowBet5 ?? null,
+          wtaBet1: wtaBet1 ?? null,
+          wtaBet2: wtaBet2 ?? null,
+          wtaBet3: wtaBet3 ?? null,
+          wtaBet4: wtaBet4 ?? null,
+          wtaBet5: wtaBet5 ?? null,
+        },
       });
 
       await tx.eventInventory.update({

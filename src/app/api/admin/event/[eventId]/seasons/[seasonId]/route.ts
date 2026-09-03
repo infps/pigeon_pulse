@@ -3,6 +3,36 @@ import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ eventId: string; seasonId: string }> }
+) {
+  const { eventId: eventIdParam, seasonId: seasonIdParam } = await params;
+  const eventId = parseInt(eventIdParam);
+  const seasonId = parseInt(seasonIdParam);
+
+  if (isNaN(eventId) || isNaN(seasonId)) {
+    return NextResponse.json({ message: "Invalid ID" }, { status: 400 });
+  }
+
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user || session.user.role !== "SUPERADMIN") {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
+
+    const season = await prisma.season.findFirst({ where: { id: seasonId, eventId } });
+    if (!season) return NextResponse.json({ message: "Season not found" }, { status: 404 });
+    if (season.isActive) return NextResponse.json({ message: "Cannot delete active season" }, { status: 400 });
+
+    await prisma.season.delete({ where: { id: seasonId } });
+    return NextResponse.json({ message: "Season deleted" });
+  } catch (error) {
+    console.error("Error deleting season:", error);
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+  }
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ eventId: string; seasonId: string }> }

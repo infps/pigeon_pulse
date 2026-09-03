@@ -235,11 +235,7 @@ export function EditBirdDialog({
     lastScannedRfidRef.current = null;
     pollStartedAtRef.current = new Date().toISOString();
     toast.success('Scanner connected - polling started');
-    
-    // Poll immediately
-    pollScanner();
-    
-    // Then poll every 2 seconds
+
     pollingIntervalRef.current = setInterval(pollScanner, 2000);
   };
 

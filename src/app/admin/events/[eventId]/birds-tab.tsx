@@ -1,6 +1,6 @@
 "use client";
 
-import type { Event, EventInventoryItem } from "@/lib/types";
+import type { Event, EventInventoryItem, FeeScheme } from "@/lib/types";
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useWebSerial } from "@/hooks/useWebSerial";
 import { useListEventInventoryItems, useAddBirdsToEvent, useRegisterBirdToEvent, useListEventInventoryItemsBySeason } from "@/lib/api/event-inventory-items";
@@ -42,6 +42,12 @@ interface BirdsTabProps {
 
 export function BirdsTab({ event, eventId }: BirdsTabProps) {
   const { selectedSeasonId } = useSeasonContext();
+  const activeFeeScheme: FeeScheme | null = useMemo(() => {
+    const seasons = (event as any).seasons as Array<{ isActive: boolean; feeScheme?: FeeScheme }> | undefined;
+    if (!seasons) return null;
+    const active = seasons.find((s) => s.isActive) ?? seasons[0];
+    return active?.feeScheme ?? null;
+  }, [event]);
   const queryClient = useQueryClient();
   const [editingItem, setEditingItem] = useState<EventInventoryItem | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -62,6 +68,7 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
     lastScannedRef.current = null;
     pollStartedAtRef.current = new Date().toISOString();
     toast.success("Poll scanner started — scan a bird RFID to search");
+
     pollIntervalRef.current = setInterval(async () => {
       try {
         const res = await fetch("/api/scanner/poll", {
@@ -205,6 +212,7 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
         onOpenChange={setIsAddDialogOpen}
         eventId={eventId}
         existingItems={eventInventoryItems}
+        feeScheme={activeFeeScheme}
         onSuccess={handleAddSuccess}
       />
 
@@ -339,41 +347,169 @@ function BirdChecklist({
 
 type AddMode = "new" | "event" | "season";
 
+const INIT_YEAR = String(new Date().getFullYear()).slice(-2);
+
+// ponytail: placeholder until add-bird-form component is wired in
+function useNewBirdForm() {
+  const [breederId, setBreederId] = useState("");
+  const [band1, setBand1] = useState("");
+  const [band2, setBand2] = useState(INIT_YEAR);
+  const [band3, setBand3] = useState("");
+  const [band4, setBand4] = useState("");
+  const [color, setColor] = useState("");
+  const [sex, setSex] = useState<"0" | "1" | "2">("1");
+  const [rfid, setRfid] = useState("");
+  const [name, setName] = useState("");
+  const [isActive, setIsActive] = useState(true);
+  const [isLost, setIsLost] = useState(false);
+  const [lostDate, setLostDate] = useState("");
+  const [lostRaceId, setLostRaceId] = useState("");
+  const [attention, setAttention] = useState(false);
+  const [note, setNote] = useState("");
+  const [arrivalTime, setArrivalTime] = useState("");
+  const [departureTime, setDepartureTime] = useState("");
+  const [isBackup, setIsBackup] = useState(false);
+  // fees
+  const [perchFeeValue, setPerchFeeValue] = useState("");
+  const [entryFeeValue, setEntryFeeValue] = useState("");
+  const [hotSpotFeeValue, setHotSpotFeeValue] = useState("");
+  const [raceFeeValue, setRaceFeeValue] = useState("");
+  // betting classes
+  const [belgianShowBet1, setBelgianShowBet1] = useState(false);
+  const [belgianShowBet2, setBelgianShowBet2] = useState(false);
+  const [belgianShowBet3, setBelgianShowBet3] = useState(false);
+  const [belgianShowBet4, setBelgianShowBet4] = useState(false);
+  const [belgianShowBet5, setBelgianShowBet5] = useState(false);
+  const [belgianShowBet6, setBelgianShowBet6] = useState(false);
+  const [belgianShowBet7, setBelgianShowBet7] = useState(false);
+  const [standardShowBet1, setStandardShowBet1] = useState(false);
+  const [standardShowBet2, setStandardShowBet2] = useState(false);
+  const [standardShowBet3, setStandardShowBet3] = useState(false);
+  const [standardShowBet4, setStandardShowBet4] = useState(false);
+  const [standardShowBet5, setStandardShowBet5] = useState(false);
+  const [wtaBet1, setWtaBet1] = useState(false);
+  const [wtaBet2, setWtaBet2] = useState(false);
+  const [wtaBet3, setWtaBet3] = useState(false);
+  const [wtaBet4, setWtaBet4] = useState(false);
+  const [wtaBet5, setWtaBet5] = useState(false);
+
+  const resetForm = (keepBreederAndBand = false) => {
+    if (!keepBreederAndBand) { setBreederId(""); setBand1(""); setBand2(INIT_YEAR); setBand3(""); }
+    setBand4("");
+    setColor(keepBreederAndBand ? color : "");
+    setSex("1");
+    setRfid(""); setName(""); setIsActive(true); setIsLost(false);
+    setLostDate(""); setLostRaceId(""); setAttention(false); setNote("");
+    setArrivalTime(""); setDepartureTime(""); setIsBackup(false);
+    setPerchFeeValue(""); setEntryFeeValue(""); setHotSpotFeeValue(""); setRaceFeeValue("");
+    setBelgianShowBet1(false); setBelgianShowBet2(false); setBelgianShowBet3(false);
+    setBelgianShowBet4(false); setBelgianShowBet5(false); setBelgianShowBet6(false); setBelgianShowBet7(false);
+    setStandardShowBet1(false); setStandardShowBet2(false); setStandardShowBet3(false);
+    setStandardShowBet4(false); setStandardShowBet5(false);
+    setWtaBet1(false); setWtaBet2(false); setWtaBet3(false); setWtaBet4(false); setWtaBet5(false);
+  };
+
+  const buildPayload = () => ({
+    breederId: parseInt(breederId),
+    name: name || `${band1}-${band2}-${band3}-${band4}`,
+    band1, band2, band3, band4,
+    color, sex: parseInt(sex),
+    rfid: rfid || undefined,
+    attention,
+    isBackup,
+    isActive,
+    isLost,
+    lostDate: lostDate || null,
+    lostRaceId: lostRaceId ? parseInt(lostRaceId) : null,
+    note: note || null,
+    arrivalTime: arrivalTime || null,
+    departureTime: departureTime || null,
+    perchFeeValue: perchFeeValue ? parseFloat(perchFeeValue) : null,
+    entryFeeValue: entryFeeValue ? parseFloat(entryFeeValue) : null,
+    hotSpotFeeValue: hotSpotFeeValue ? parseFloat(hotSpotFeeValue) : null,
+    raceFeeValue: raceFeeValue ? parseFloat(raceFeeValue) : null,
+    belgianShowBet1: belgianShowBet1 ? 1 : null,
+    belgianShowBet2: belgianShowBet2 ? 1 : null,
+    belgianShowBet3: belgianShowBet3 ? 1 : null,
+    belgianShowBet4: belgianShowBet4 ? 1 : null,
+    belgianShowBet5: belgianShowBet5 ? 1 : null,
+    belgianShowBet6: belgianShowBet6 ? 1 : null,
+    belgianShowBet7: belgianShowBet7 ? 1 : null,
+    standardShowBet1: standardShowBet1 ? 1 : null,
+    standardShowBet2: standardShowBet2 ? 1 : null,
+    standardShowBet3: standardShowBet3 ? 1 : null,
+    standardShowBet4: standardShowBet4 ? 1 : null,
+    standardShowBet5: standardShowBet5 ? 1 : null,
+    wtaBet1: wtaBet1 ? 1 : null,
+    wtaBet2: wtaBet2 ? 1 : null,
+    wtaBet3: wtaBet3 ? 1 : null,
+    wtaBet4: wtaBet4 ? 1 : null,
+    wtaBet5: wtaBet5 ? 1 : null,
+  });
+
+  return {
+    breederId, setBreederId,
+    band1, setBand1, band2, setBand2, band3, setBand3, band4, setBand4,
+    color, setColor, sex, setSex,
+    rfid, setRfid, name, setName,
+    isActive, setIsActive, isLost, setIsLost, lostDate, setLostDate, lostRaceId, setLostRaceId,
+    attention, setAttention, note, setNote,
+    arrivalTime, setArrivalTime, departureTime, setDepartureTime, isBackup, setIsBackup,
+    perchFeeValue, setPerchFeeValue, entryFeeValue, setEntryFeeValue,
+    hotSpotFeeValue, setHotSpotFeeValue, raceFeeValue, setRaceFeeValue,
+    belgianShowBet1, setBelgianShowBet1, belgianShowBet2, setBelgianShowBet2,
+    belgianShowBet3, setBelgianShowBet3, belgianShowBet4, setBelgianShowBet4,
+    belgianShowBet5, setBelgianShowBet5, belgianShowBet6, setBelgianShowBet6,
+    belgianShowBet7, setBelgianShowBet7,
+    standardShowBet1, setStandardShowBet1, standardShowBet2, setStandardShowBet2,
+    standardShowBet3, setStandardShowBet3, standardShowBet4, setStandardShowBet4,
+    standardShowBet5, setStandardShowBet5,
+    wtaBet1, setWtaBet1, wtaBet2, setWtaBet2, wtaBet3, setWtaBet3,
+    wtaBet4, setWtaBet4, wtaBet5, setWtaBet5,
+    resetForm, buildPayload,
+  };
+}
+
 function AddBirdsDialog({
   open,
   onOpenChange,
   eventId,
   existingItems,
+  feeScheme,
   onSuccess,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   eventId: string;
   existingItems: EventInventoryItem[];
+  feeScheme: FeeScheme | null;
   onSuccess: () => void;
 }) {
   const [mode, setMode] = useState<AddMode | "">("");
-
-  // mode=new state
   const registerMutation = useRegisterBirdToEvent(eventId);
-  const [newBreederId, setNewBreederId] = useState("");
-  const [newName, setNewName] = useState("");
-  const [newBand1, setNewBand1] = useState("");
-  const [newBand2, setNewBand2] = useState(String(new Date().getFullYear()).slice(-2));
-  const [newBand3, setNewBand3] = useState("");
-  const [newBand4, setNewBand4] = useState("");
-  const [newColor, setNewColor] = useState("");
-  const [newSex, setNewSex] = useState<"0" | "1" | "2">("1");
-  const [newRfid, setNewRfid] = useState("");
-  const [newAttention, setNewAttention] = useState(false);
-  const [newIsBackup, setNewIsBackup] = useState(false);
-
+  const form = useNewBirdForm();
   const bandNumberRef = useRef<HTMLInputElement>(null);
-  const [stagedBirds, setStagedBirds] = useState<Array<{
-    tempId: string; breederId: string; name: string;
-    band1: string; band2: string; band3: string; band4: string;
-    color: string; sex: string; rfid: string; attention: boolean; isBackup: boolean;
-  }>>([]);
+
+  // Auto-fill fees from feeScheme when breeder is selected
+  useEffect(() => {
+    if (!feeScheme || !form.breederId) return;
+    const breederId = parseInt(form.breederId);
+    const breedersCurrentCount = existingItems.filter(
+      (item) => item.eventInventory?.breederId === breederId && !item.replacedItemId
+    ).length;
+    const nextPosition = breedersCurrentCount + 1;
+    const birdFeeItem = feeScheme.birdFeeItems?.find((b) => b.birdNo === nextPosition);
+    const perchFee = birdFeeItem?.birdFee ?? null;
+    const hotspotFee =
+      (feeScheme.hotSpot1Fee ?? 0) +
+      (feeScheme.hotSpot2Fee ?? 0) +
+      (feeScheme.hotSpot3Fee ?? 0) +
+      (feeScheme.hotSpotFinalFee ?? 0);
+    form.setPerchFeeValue(perchFee != null ? String(perchFee) : "");
+    form.setEntryFeeValue(feeScheme.entryFee != null ? String(feeScheme.entryFee) : "");
+    form.setHotSpotFeeValue(hotspotFee > 0 ? String(hotspotFee) : "");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.breederId, feeScheme]);
 
   // RFID scanner state
   const [rfidPolling, setRfidPolling] = useState(false);
@@ -395,7 +531,7 @@ function AddBirdsDialog({
         const d = await res.json();
         if (d?.length > 0 && d[0].el && d[0].el !== rfidLastRef.current) {
           rfidLastRef.current = d[0].el;
-          setNewRfid(d[0].el);
+          form.setRfid(d[0].el);
         }
       } catch { /* silent */ }
     };
@@ -409,16 +545,7 @@ function AddBirdsDialog({
   };
 
   const { isConnected: isSerial, error: serialError, connect: connectSerial, disconnect: disconnectSerial } =
-    useWebSerial({ onScan: (scanned) => setNewRfid(scanned) });
-
-  const startSerial = async () => {
-    stopRfidPoll();
-    await connectSerial();
-  };
-
-  const stopSerial = async () => {
-    await disconnectSerial();
-  };
+    useWebSerial({ onScan: (scanned) => form.setRfid(scanned) });
 
   useEffect(() => {
     if (!open) { stopRfidPoll(); disconnectSerial(); }
@@ -426,7 +553,6 @@ function AddBirdsDialog({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Breeders registered in this event (derived from existing items — no extra fetch)
   const eventBreeders = useMemo(() => {
     const seen = new Map<number, { id: number; firstName: string | null; lastName: string | null }>();
     for (const item of existingItems) {
@@ -443,9 +569,7 @@ function AddBirdsDialog({
   const { data: eventsData } = useListEvents({ params: mode === "event" ? {} : undefined });
   const allEvents: any[] = eventsData?.events || [];
   const otherEvents = allEvents.filter((e: any) => String(e.id) !== eventId);
-  const { data: sourceEventData, isPending: loadingEventSource } = useListEventInventoryItems(
-    sourceEventId || 0
-  );
+  const { data: sourceEventData, isPending: loadingEventSource } = useListEventInventoryItems(sourceEventId || 0);
   const sourceEventItems: any[] = sourceEventData?.eventInventoryItems || [];
 
   // mode=season state
@@ -466,12 +590,10 @@ function AddBirdsDialog({
     () => new Set(existingItems.map((i) => i.bird?.id).filter(Boolean)),
     [existingItems]
   );
-
   const availableEventBirds = useMemo(
     () => sourceEventItems.filter((item: any) => item.bird && !existingBirdIds.has(item.bird.id)),
     [sourceEventItems, existingBirdIds]
   );
-
   const availableSeasonBirds = useMemo(
     () => sourceSeasonItems.filter((item: any) => item.bird && !existingBirdIds.has(item.bird.id)),
     [sourceSeasonItems, existingBirdIds]
@@ -480,9 +602,7 @@ function AddBirdsDialog({
   const resetAll = () => {
     stopRfidPoll();
     setMode("");
-    setStagedBirds([]);
-    setNewBreederId(""); setNewName(""); setNewBand1(""); setNewBand2(String(new Date().getFullYear()).slice(-2)); setNewBand3(""); setNewBand4("");
-    setNewColor(""); setNewSex("1"); setNewRfid(""); setNewAttention(false); setNewIsBackup(false);
+    form.resetForm(false);
     setSourceEventId(""); setSelectedBirdIds(new Set());
     setSourceSeasonId(""); setSelectedSeasonBirdIds(new Set());
   };
@@ -493,53 +613,34 @@ function AddBirdsDialog({
     setFn(next);
   };
 
-  const handleStageAndNew = () => {
-    if (!newBreederId) { toast.error("Select a breeder"); return; }
-    if (!newBand1 || !newBand2 || !newBand3 || !newBand4) { toast.error("All band fields required"); return; }
-    if (!newColor) { toast.error("Select a color"); return; }
-    const bandKey = `${newBand1}-${newBand2}-${newBand3}-${newBand4}`;
-    if (stagedBirds.some(b => `${b.band1}-${b.band2}-${b.band3}-${b.band4}` === bandKey)) {
-      toast.error("Band already staged"); return;
-    }
-    setStagedBirds(prev => [...prev, {
-      tempId: crypto.randomUUID(),
-      breederId: newBreederId, name: newName,
-      band1: newBand1, band2: newBand2, band3: newBand3, band4: newBand4,
-      color: newColor, sex: newSex, rfid: newRfid, attention: newAttention, isBackup: newIsBackup,
-    }]);
-    setNewName(""); setNewRfid(""); setNewAttention(false); setNewIsBackup(false);
-    const parsed = parseInt(newBand4);
-    setNewBand4(isNaN(parsed) ? "" : String(parsed + 1));
-    setTimeout(() => bandNumberRef.current?.focus(), 0);
+  const validate = () => {
+    if (!form.breederId) { toast.error("Select a breeder"); return false; }
+    if (!form.band1 || !form.band2 || !form.band3 || !form.band4) { toast.error("All band fields required"); return false; }
+    if (!form.color) { toast.error("Select a color"); return false; }
+    return true;
   };
 
-  const handleSubmitNew = async () => {
-    if (!newBreederId) { toast.error("Select a breeder"); return; }
-    if (!newBand1 || !newBand2 || !newBand3 || !newBand4) { toast.error("All band fields required"); return; }
-    if (!newColor) { toast.error("Select a color"); return; }
-
-    const allBirds = [
-      ...stagedBirds.map(b => ({
-        breederId: parseInt(b.breederId),
-        name: b.name || `${b.band1}-${b.band2}-${b.band3}-${b.band4}`,
-        band1: b.band1, band2: b.band2, band3: b.band3, band4: b.band4,
-        color: b.color, sex: parseInt(b.sex),
-        rfid: b.rfid || undefined, attention: b.attention, isBackup: b.isBackup,
-      })),
-      {
-        breederId: parseInt(newBreederId),
-        name: newName || `${newBand1}-${newBand2}-${newBand3}-${newBand4}`,
-        band1: newBand1, band2: newBand2, band3: newBand3, band4: newBand4,
-        color: newColor, sex: parseInt(newSex),
-        rfid: newRfid || undefined, attention: newAttention, isBackup: newIsBackup,
-      },
-    ];
-
+  const handleAddAnother = async () => {
+    if (!validate()) return;
     try {
-      for (const bird of allBirds) {
-        await registerMutation.mutateAsync(bird);
-      }
-      toast.success(allBirds.length > 1 ? `${allBirds.length} birds registered` : "Bird registered");
+      await registerMutation.mutateAsync(form.buildPayload());
+      toast.success("Bird registered");
+      onSuccess();
+      // keep breeder, federation, year, letters; increment band number
+      const parsed = parseInt(form.band4);
+      form.resetForm(true);
+      form.setBand4(isNaN(parsed) ? "" : String(parsed + 1));
+      setTimeout(() => bandNumberRef.current?.focus(), 0);
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to register bird");
+    }
+  };
+
+  const handleRegister = async () => {
+    if (!validate()) return;
+    try {
+      await registerMutation.mutateAsync(form.buildPayload());
+      toast.success("Bird registered");
       resetAll();
       onOpenChange(false);
       onSuccess();
@@ -553,12 +654,8 @@ function AddBirdsDialog({
     try {
       const res = await addMutation.mutateAsync({ birdIds: [...selectedBirdIds] });
       toast.success((res as any)?.message || "Birds added");
-      resetAll();
-      onOpenChange(false);
-      onSuccess();
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to add birds");
-    }
+      resetAll(); onOpenChange(false); onSuccess();
+    } catch (error: any) { toast.error(error?.message || "Failed to add birds"); }
   };
 
   const handleSubmitFromSeason = async () => {
@@ -566,12 +663,8 @@ function AddBirdsDialog({
     try {
       const res = await addMutation.mutateAsync({ birdIds: [...selectedSeasonBirdIds] });
       toast.success((res as any)?.message || "Birds added");
-      resetAll();
-      onOpenChange(false);
-      onSuccess();
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to add birds");
-    }
+      resetAll(); onOpenChange(false); onSuccess();
+    } catch (error: any) { toast.error(error?.message || "Failed to add birds"); }
   };
 
   const isSubmitting = registerMutation.isPending || addMutation.isPending;
@@ -580,7 +673,7 @@ function AddBirdsDialog({
     <Dialog open={open} onOpenChange={(v) => { if (!v) resetAll(); onOpenChange(v); }}>
       <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>{mode === "new" && stagedBirds.length > 0 ? `Add Birds (${stagedBirds.length} staged)` : "Add Birds"}</DialogTitle>
+          <DialogTitle>Add Birds</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 overflow-y-auto flex-1 pr-1">
@@ -588,9 +681,7 @@ function AddBirdsDialog({
           <div className="space-y-2">
             <Label>How would you like to add birds?</Label>
             <Select value={mode} onValueChange={(v) => { resetAll(); setMode(v as AddMode); }}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select an option…" />
-              </SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Select an option…" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="new">Register New Bird</SelectItem>
                 <SelectItem value="event">From Past Event</SelectItem>
@@ -599,12 +690,12 @@ function AddBirdsDialog({
             </Select>
           </div>
 
-          {/* Mode: Register New Bird */}
+          {/* ── Register New Bird ── */}
           {mode === "new" && (
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <Label>Breeder</Label>
-                <Select value={newBreederId} onValueChange={setNewBreederId}>
+                <Select value={form.breederId} onValueChange={form.setBreederId}>
                   <SelectTrigger><SelectValue placeholder="Select breeder" /></SelectTrigger>
                   <SelectContent>
                     {eventBreeders.map((b) => (
@@ -618,14 +709,13 @@ function AddBirdsDialog({
 
               <div className="space-y-1.5">
                 <Label>Bird Name <span className="text-muted-foreground font-normal">(optional)</span></Label>
-                <Input placeholder="e.g. Blue Arrow" value={newName} onChange={(e) => setNewName(e.target.value)} />
+                <Input placeholder="e.g. Blue Arrow" value={form.name} onChange={(e) => form.setName(e.target.value)} />
               </div>
 
-              {/* Band row — inline with separators, same as create-bird-dialog */}
               <div className="flex items-end gap-1">
                 <div className="flex-1 space-y-1.5">
                   <Label>Federation</Label>
-                  <Select value={newBand1} onValueChange={setNewBand1}>
+                  <Select value={form.band1} onValueChange={form.setBand1}>
                     <SelectTrigger className="h-9"><SelectValue placeholder="AU…" /></SelectTrigger>
                     <SelectContent>
                       {FEDERATIONS.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
@@ -635,22 +725,22 @@ function AddBirdsDialog({
                 <span className="pb-2 text-muted-foreground">-</span>
                 <div className="flex-1 space-y-1.5">
                   <Label>Year</Label>
-                  <Input className="h-9" placeholder="2024" value={newBand2} onChange={(e) => setNewBand2(e.target.value.replace(/[^0-9]/g, ""))} />
+                  <Input className="h-9" value={form.band2} onChange={(e) => form.setBand2(e.target.value.replace(/[^0-9]/g, ""))} />
                 </div>
                 <span className="pb-2 text-muted-foreground">-</span>
                 <div className="flex-1 space-y-1.5">
                   <Label>Letters</Label>
-                  <Input className="h-9" placeholder="ABC" value={newBand3} onChange={(e) => setNewBand3(e.target.value.toUpperCase())} />
+                  <Input className="h-9" value={form.band3} onChange={(e) => form.setBand3(e.target.value.toUpperCase())} />
                 </div>
                 <span className="pb-2 text-muted-foreground">-</span>
                 <div className="flex-1 space-y-1.5">
                   <Label>Number</Label>
-                  <Input ref={bandNumberRef} className="h-9" placeholder="1234" value={newBand4} onChange={(e) => setNewBand4(e.target.value)} />
+                  <Input ref={bandNumberRef} className="h-9" value={form.band4} onChange={(e) => form.setBand4(e.target.value)} />
                 </div>
                 <span className="pb-2 text-muted-foreground">-</span>
                 <div className="flex-1 space-y-1.5">
                   <Label>Color</Label>
-                  <Select value={newColor} onValueChange={setNewColor}>
+                  <Select value={form.color} onValueChange={form.setColor}>
                     <SelectTrigger className="h-9"><SelectValue placeholder="…" /></SelectTrigger>
                     <SelectContent>
                       {COLORS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -660,7 +750,7 @@ function AddBirdsDialog({
                 <span className="pb-2 text-muted-foreground">-</span>
                 <div className="flex-1 space-y-1.5">
                   <Label>Sex</Label>
-                  <Select value={newSex} onValueChange={(v) => setNewSex(v as "0" | "1" | "2")}>
+                  <Select value={form.sex} onValueChange={(v) => form.setSex(v as "0" | "1" | "2")}>
                     <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="1">Cock</SelectItem>
@@ -671,17 +761,16 @@ function AddBirdsDialog({
                 </div>
               </div>
 
-              {/* RFID with poll + serial scanner buttons */}
               <div className="space-y-1.5">
                 <Label>RFID <span className="text-muted-foreground font-normal">(optional)</span></Label>
                 <div className="flex gap-1">
-                  <Input className="flex-1" placeholder="scan or type…" value={newRfid} onChange={(e) => setNewRfid(e.target.value)} />
+                  <Input className="flex-1" placeholder="scan or type…" value={form.rfid} onChange={(e) => form.setRfid(e.target.value)} />
                   <Button type="button" variant={rfidPolling ? "default" : "outline"} size="icon"
-                    onClick={rfidPolling ? stopRfidPoll : startRfidPoll} title="Poll scanner (python / tipes)">
+                    onClick={rfidPolling ? stopRfidPoll : startRfidPoll} title="Poll scanner">
                     {rfidPolling ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
                   </Button>
                   <Button type="button" variant={isSerial ? "default" : "outline"} size="icon"
-                    onClick={isSerial ? stopSerial : startSerial} title="Web Serial (Chrome/Edge COM port)">
+                    onClick={isSerial ? disconnectSerial : connectSerial} title="Web Serial">
                     <Usb className="h-4 w-4" />
                   </Button>
                 </div>
@@ -692,14 +781,38 @@ function AddBirdsDialog({
 
               <div className="flex gap-6">
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <Checkbox checked={newAttention} onCheckedChange={(v) => setNewAttention(!!v)} />
+                  <Checkbox checked={form.attention} onCheckedChange={(v) => form.setAttention(!!v)} />
                   <span className="text-sm">Pay attention while basketing</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <Checkbox checked={newIsBackup} onCheckedChange={(v) => setNewIsBackup(!!v)} />
+                  <Checkbox checked={form.isBackup} onCheckedChange={(v) => form.setIsBackup(!!v)} />
                   <span className="text-sm">Backup bird</span>
                 </label>
               </div>
+
+              {feeScheme && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Fees</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Perch fee ($)</Label>
+                      <Input className="h-9" type="number" step="0.01" min="0" value={form.perchFeeValue} onChange={(e) => form.setPerchFeeValue(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Entry fee ($)</Label>
+                      <Input className="h-9" type="number" step="0.01" min="0" value={form.entryFeeValue} onChange={(e) => form.setEntryFeeValue(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Hot spot fee ($)</Label>
+                      <Input className="h-9" type="number" step="0.01" min="0" value={form.hotSpotFeeValue} onChange={(e) => form.setHotSpotFeeValue(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Race fee ($)</Label>
+                      <Input className="h-9" type="number" step="0.01" min="0" value={form.raceFeeValue} onChange={(e) => form.setRaceFeeValue(e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -775,13 +888,13 @@ function AddBirdsDialog({
         <DialogFooter>
           <Button variant="outline" onClick={() => { resetAll(); onOpenChange(false); }}>Cancel</Button>
           {mode === "new" && (
-            <Button type="button" variant="secondary" onClick={handleStageAndNew}>
-              Add Another Bird
+            <Button type="button" variant="secondary" onClick={handleAddAnother} disabled={isSubmitting}>
+              {isSubmitting ? "Saving…" : "Add Another Bird"}
             </Button>
           )}
           {mode === "new" && (
-            <Button onClick={handleSubmitNew} disabled={isSubmitting}>
-              {isSubmitting ? "Registering…" : stagedBirds.length > 0 ? `Register ${stagedBirds.length + 1} Birds` : "Register Bird"}
+            <Button onClick={handleRegister} disabled={isSubmitting}>
+              {isSubmitting ? "Registering…" : "Register Bird"}
             </Button>
           )}
           {mode === "event" && (

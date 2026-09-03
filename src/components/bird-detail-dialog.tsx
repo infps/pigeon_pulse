@@ -409,7 +409,7 @@ export function BirdDetailDialog({ open, onOpenChange, birdId, eventId }: Props)
               const raceItems = eventItem.raceItems ?? [];
               // fallback: if no races yet, show event-level slots with no meta
               const raceTabs = raceItems.length > 0
-                ? raceItems.map(ri => ({ id: ri.id, name: ri.race?.name ?? `Race ${ri.id}`, slots: makeBetsForRace(ri.bets) }))
+                ? raceItems.map(ri => ({ id: ri.id, name: ri.race?.name || `Race ${ri.id}`, slots: makeBetsForRace(ri.bets) }))
                 : [{ id: 0, name: "No races yet", slots: makeBetsForRace([]) }];
 
               return (
@@ -467,9 +467,9 @@ export function BirdDetailDialog({ open, onOpenChange, birdId, eventId }: Props)
                     </CardHeader>
                     <CardContent>
                       <Tabs defaultValue={String(raceTabs[0].id)}>
-                        <TabsList className="mb-3 h-7 flex-wrap">
+                        <TabsList className="mb-3 h-auto flex-wrap gap-1">
                           {raceTabs.map(rt => (
-                            <TabsTrigger key={rt.id} value={String(rt.id)} className="text-xs px-2 h-6">
+                            <TabsTrigger key={rt.id} value={String(rt.id)} className="text-xs px-3 h-7 min-w-[100px]">
                               {rt.name}
                             </TabsTrigger>
                           ))}

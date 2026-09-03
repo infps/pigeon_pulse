@@ -107,12 +107,14 @@ export async function POST(
         if (newBirdIds.length === 0) continue;
 
         // Create EventInventoryItems
+        const now = new Date();
         const createdItems: { id: number }[] = [];
         for (const birdId of newBirdIds) {
           const item = await tx.eventInventoryItem.create({
-            data: { birdId, eventInventoryId: eventInventory.id },
+            data: { birdId, eventInventoryId: eventInventory.id, arrivalDate: now },
           });
           createdItems.push({ id: item.id });
+          await tx.bird.update({ where: { id: birdId }, data: { isActive: 1 } });
         }
 
         await tx.eventInventory.update({

@@ -1128,6 +1128,7 @@ function PrescanDialog({ eventId, raceId, onClose }: { eventId: string; raceId: 
     lastScannedRef.current = null;
     pollStartedAtRef.current = new Date().toISOString();
     toast.success("Prescan scanner started");
+
     pollIntervalRef.current = setInterval(async () => {
       try {
         const res = await fetch("/api/scanner/poll", {

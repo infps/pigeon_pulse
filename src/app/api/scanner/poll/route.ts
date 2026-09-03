@@ -9,13 +9,18 @@ function getClientIp(req: NextRequest): string {
   );
 }
 
+// ponytail: in-memory dedup so tipes.de's buffered RFID isn't returned twice
+// key = deviceIp, value = last rfid returned from tipes.de fallback
+const tipesLastRfid = new Map<string, string>();
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const { startedAt } = body;
 
     const deviceIp = getClientIp(request);
-    const sessionStart = startedAt ? new Date(startedAt) : new Date(Date.now() - 10_000);
+    // ponytail: no startedAt = caller didn't intend a session window, use now so no stale rows slip through
+    const sessionStart = startedAt ? new Date(startedAt) : new Date();
 
     // Find oldest unprocessed scan from this device IP after session start
     const candidate = await prisma.rfidScan.findFirst({
@@ -61,6 +66,14 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
+    // Dedup: if tipes.de returns the same RFID as last time for this device, skip it
+    if (Array.isArray(data) && data.length > 0 && data[0].el) {
+      const rfid = data[0].el;
+      if (tipesLastRfid.get(deviceIp) === rfid) {
+        return NextResponse.json([]);
+      }
+      tipesLastRfid.set(deviceIp, rfid);
+    }
     return NextResponse.json(data);
   } catch (error) {
     console.error("Error polling scanner:", error);

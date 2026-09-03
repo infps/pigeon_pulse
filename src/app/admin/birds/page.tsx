@@ -46,7 +46,9 @@ interface AdminBirdRow {
   inventoryItems: Array<{
     id: number;
     eventInventory: {
-      event: { id: number; name: string | null; eventDate: string | null } | null;
+      season: {
+        event: { id: number; name: string | null; eventDate: string | null } | null;
+      } | null;
     } | null;
   }>;
 }
@@ -173,7 +175,7 @@ export default function AdminBirdsPage() {
         id: "lastEvent",
         header: "Last Event",
         cell: ({ row }) => {
-          const ev = row.original.inventoryItems?.[0]?.eventInventory?.event;
+          const ev = row.original.inventoryItems?.[0]?.eventInventory?.season?.event;
           return ev?.name ? (
             <span className="text-sm">{ev.name}</span>
           ) : (

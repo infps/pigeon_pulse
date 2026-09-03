@@ -85,7 +85,7 @@ export async function POST(
         }
 
         const item = await tx.eventInventoryItem.create({
-          data: { birdId: bird.id, eventInventoryId: eventInventory.id, isBackup: 0 },
+          data: { birdId: bird.id, eventInventoryId: eventInventory.id, isBackup: 0, arrivalDate: new Date() },
         });
 
         await tx.eventInventory.update({

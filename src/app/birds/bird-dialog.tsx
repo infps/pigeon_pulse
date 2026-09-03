@@ -352,16 +352,6 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
                 Pay attention during basketing
               </Label>
             </div>
-{/* 
-            <div className="space-y-2">
-              <Label htmlFor="rfid">RFID</Label>
-              <Input
-                id="rfid"
-                value={rfid}
-                onChange={(e) => setRfid(e.target.value)}
-                placeholder="RFID tag (optional)"
-              />
-            </div> */}
           </div>
 
           <DialogFooter>

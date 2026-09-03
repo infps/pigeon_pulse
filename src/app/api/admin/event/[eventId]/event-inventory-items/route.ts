@@ -114,8 +114,8 @@ export async function GET(
         eventInventoryId: true,
         bird: {
           select: {
-            id: true, rfid: true, color: true, sex: true,
-            band1: true, band2: true, band3: true, band4: true,
+            id: true, rfid: true, color: true, sex: true, isActive: true,
+            band: true, band1: true, band2: true, band3: true, band4: true,
           },
         },
         eventInventory: {

@@ -19,6 +19,11 @@ export const TruckTrackMap = dynamic(() => import("./truck-track-map"), {
   loading: () => <Skeleton className="w-full" style={{ height: 360 }} />,
 });
 
+export const StaticPinMap = dynamic(() => import("./static-pin-map"), {
+  ssr: false,
+  loading: () => <Skeleton className="w-full" style={{ height: 220 }} />,
+});
+
 export const RacesMap = dynamic(() => import("./races-map"), {
   ssr: false,
   loading: () => <Skeleton className="w-full" style={{ height: 520 }} />,

@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/tabs";
 import { ArrowLeft } from "lucide-react";
 import type { BettingScheme, Event, FeeScheme, PrizeScheme } from "@/lib/types";
-import { EditEventTab } from "./edit-event-tab";
+import { DetailsTab } from "./details-tab";
 import { BreedersTab } from "./breeders-tab";
 import { BirdsTab } from "./birds-tab";
 
@@ -47,8 +47,8 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
   const { data: prizeSchemesData } = useListPrizeSchemes({});
   const { data: bettingSchemesData } = useListBettingSchemes({});
 
-  const [activeTab, setActiveTab] = useState("edit");
-  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(["edit"]));
+  const [activeTab, setActiveTab] = useState("details");
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(["details"]));
   const event: Event | undefined = eventData?.event;
   const feeSchemes: FeeScheme[] = feeSchemesData?.feeSchemes || [];
   const prizeSchemes: PrizeScheme[] = prizeSchemesData?.prizeSchemes || [];
@@ -98,7 +98,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
 
       <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setVisitedTabs(prev => new Set(prev).add(val)); }} className="w-full">
         <TabsList className="grid w-full grid-cols-15">
-          <TabsTrigger value="edit">Edit</TabsTrigger>
+          <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="breeders">Breeders</TabsTrigger>
           <TabsTrigger value="birds">Birds</TabsTrigger>
           <TabsTrigger value="groups">Groups</TabsTrigger>
@@ -115,8 +115,8 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
           <TabsTrigger value="averages">Averages</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="edit" className="mt-6">
-          <EditEventTab
+        <TabsContent value="details" className="mt-6">
+          <DetailsTab
             event={event}
             eventId={eventId}
             feeSchemes={feeSchemes}

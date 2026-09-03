@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select";
 import { DataTable } from "@/components/ui/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Radio, Square, CheckCircle2, Wifi, WifiOff, Usb } from "lucide-react";
+import { Radio, Square, CheckCircle2, Wifi } from "lucide-react";
 import { useWebSerial } from "@/hooks/useWebSerial";
 import { toast } from "sonner";
 import {
@@ -78,6 +78,11 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
   // post-scan result
   type ScanResult = { birdLabel: string; group: { name: string; color: string | null }; tagColorGroup?: { name: string } | null };
   const [lastScanResult, setLastScanResult] = useState<ScanResult | null>(null);
+
+  // scan dialog
+  type BasketedEntry = { item: CheckinStatusItem; result: ScanResult };
+  const [scanDialogOpen, setScanDialogOpen] = useState(false);
+  const [basketedLog, setBasketedLog] = useState<BasketedEntry[]>([]);
 
   const lastScannedRfidRef = useRef<string | null>(null);
   const scannerIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -153,17 +158,19 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
   };
 
   const handleScanSuccess = useCallback(
-    (result: any, birdLabel: string) => {
+    (result: any, birdLabel: string, item?: CheckinStatusItem) => {
       if (result?.alreadyAssigned) {
         toast.info(`Already in group "${result.groupName ?? result.groupId}"`);
         return;
       }
       const grp = result?.group;
-      setLastScanResult({
+      const scanResult: ScanResult = {
         birdLabel,
         group: { name: grp?.name ?? "?", color: grp?.color ?? null },
         tagColorGroup: result?.tagColorGroup ?? null,
-      });
+      };
+      setLastScanResult(scanResult);
+      if (item) setBasketedLog(prev => [{ item, result: scanResult }, ...prev]);
       toast.success(`Scanned: ${birdLabel} → ${grp?.name ?? "group"}`);
       if (result?.capacityWarning && grp) {
         setCapacityWarningInfo({
@@ -197,7 +204,7 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
       setSelectedItem(null);
       setRfidInput("");
       setSelectedGroupId(null);
-      handleScanSuccess(result, selectedItem.bird?.birdName || selectedItem.bird?.band || "bird");
+      handleScanSuccess(result, selectedItem.bird?.birdName || selectedItem.bird?.band || "bird", selectedItem);
     } catch (error: any) {
       toast.error(error?.message || "Failed to scan");
     }
@@ -223,7 +230,7 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
         });
         setSelectedItem(null);
         setLinkDialogOpen(false);
-        handleScanSuccess(res as any, current.bird?.birdName || current.bird?.band || "bird");
+        handleScanSuccess(res as any, current.bird?.birdName || current.bird?.band || "bird", current);
       } catch (error: any) {
         toast.error(error?.message || "Scan failed");
       }
@@ -247,8 +254,10 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
 
   // Poll path (python push or tipes)
   const startPollScanner = useCallback(() => {
-    if (isSerialActive) disconnectSerial(); // mutually exclusive
+    if (isSerialActive) disconnectSerial();
     setIsPollActive(true);
+    setBasketedLog([]);
+    setScanDialogOpen(true);
     lastScannedRfidRef.current = null;
     pollStartedAtRef.current = new Date().toISOString();
     toast.success("Poll scanner started — select a bird then scan");
@@ -395,43 +404,18 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Loft Basketing</CardTitle>
             <div className="flex items-center gap-2">
-              {/* Poll button (python / tipes) */}
               {isPollActive ? (
-                <Button
-                  onClick={stopPollScanner}
-                  size="sm"
-                  className="gap-2 bg-red-600 hover:bg-red-700"
-                >
-                  <Square className="h-4 w-4" />
-                  Stop Poll
+                <Button onClick={() => setScanDialogOpen(true)} size="sm" variant="outline" className="gap-2">
+                  <Wifi className="h-4 w-4" />
+                  View Scanner
                 </Button>
               ) : (
                 <Button onClick={startPollScanner} size="sm" variant="outline" className="gap-2">
                   <Wifi className="h-4 w-4" />
-                  Poll
-                </Button>
-              )}
-
-              {/* Web Serial direct */}
-              {isSerialActive ? (
-                <Button
-                  onClick={stopSerialScanner}
-                  size="sm"
-                  className="gap-2 bg-red-600 hover:bg-red-700"
-                >
-                  <Square className="h-4 w-4" />
-                  Stop USB
-                </Button>
-              ) : (
-                <Button onClick={startSerialScanner} size="sm" className="gap-2">
-                  <Usb className="h-4 w-4" />
-                  Web Serial
+                  Start Scanner
                 </Button>
               )}
             </div>
-            {serialError && (
-              <div className="text-xs text-red-600 mt-1">Serial: {serialError}</div>
-            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -513,6 +497,97 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
           </Button>
         </div>
       )}
+
+      {/* Scan Dialog */}
+      <Dialog open={scanDialogOpen} onOpenChange={(o) => { if (!o) stopPollScanner(); setScanDialogOpen(o); }}>
+        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>Basketing Scanner</span>
+              <Badge variant={isPollActive ? "default" : "secondary"}>
+                {basketedLog.length} scanned
+              </Badge>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
+            <Progress value={summary.total > 0 ? (basketedLog.length / summary.total) * 100 : 0} className="h-2" />
+
+            {selectedItem && (
+              <div className="flex items-center gap-3 rounded-lg border px-4 py-3">
+                <Radio className="h-5 w-5 text-primary animate-pulse shrink-0" />
+                <div className="flex-1">
+                  <p className="font-bold">{selectedItem.bird?.birdName || selectedItem.bird?.band || "—"}</p>
+                  <p className="text-xs text-muted-foreground font-mono">{selectedItem.bird?.band}</p>
+                </div>
+                {!selectedItem.hasPaid && <Badge variant="destructive">Unpaid</Badge>}
+              </div>
+            )}
+
+            {!selectedItem && isPollActive && (
+              <div className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground text-center animate-pulse">
+                Select a bird from the table below, then scan its RFID tag
+              </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto border rounded-lg">
+              {basketedLog.length === 0 ? (
+                <p className="text-sm text-muted-foreground p-4 text-center">No birds scanned yet</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-muted text-muted-foreground sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">#</th>
+                      <th className="px-3 py-2 text-left font-medium">Name</th>
+                      <th className="px-3 py-2 text-left font-medium">Band</th>
+                      <th className="px-3 py-2 text-left font-medium">RFID</th>
+                      <th className="px-3 py-2 text-left font-medium">Breeder</th>
+                      <th className="px-3 py-2 text-left font-medium">Paid</th>
+                      <th className="px-3 py-2 text-left font-medium">Attn</th>
+                      <th className="px-3 py-2 text-left font-medium w-48">Note</th>
+                      <th className="px-3 py-2 text-left font-medium">Basket</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {basketedLog.map(({ item, result }, i) => (
+                      <tr key={item.id}>
+                        <td className="px-3 py-2 text-muted-foreground">{basketedLog.length - i}</td>
+                        <td className="px-3 py-2 font-medium">{item.bird?.birdName || "—"}</td>
+                        <td className="px-3 py-2 font-mono text-xs">{item.bird?.band || "—"}</td>
+                        <td className="px-3 py-2 font-mono text-xs">{item.bird?.rfid || "—"}</td>
+                        <td className="px-3 py-2 text-xs">{[item.breeder?.firstName, item.breeder?.lastName].filter(Boolean).join(" ") || "—"}</td>
+                        <td className="px-3 py-2">
+                          {item.hasPaid
+                            ? <Badge variant="default" className="text-[10px] px-1 py-0">Paid</Badge>
+                            : <Badge variant="destructive" className="text-[10px] px-1 py-0">Unpaid</Badge>}
+                        </td>
+                        <td className="px-3 py-2">
+                          {item.bird?.attention
+                            ? <Badge variant="destructive" className="text-[10px] px-1 py-0">!</Badge>
+                            : <span className="text-muted-foreground">—</span>}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground w-48 max-w-[192px] truncate">{item.bird?.note || "—"}</td>
+                        <td className="px-3 py-2 text-xs font-medium">{result.group.name}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="border-t pt-3">
+            {isPollActive ? (
+              <Button variant="destructive" onClick={() => { stopPollScanner(); setScanDialogOpen(false); }} className="gap-2">
+                <Square className="h-4 w-4" />
+                Stop Scanner
+              </Button>
+            ) : (
+              <Button onClick={() => setScanDialogOpen(false)}>Close</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Link RFID + Group Dialog */}
       <Dialog open={linkDialogOpen} onOpenChange={(o) => { setLinkDialogOpen(o); if (!o) setSelectedGroupId(null); }}>

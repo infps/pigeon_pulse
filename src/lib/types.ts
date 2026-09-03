@@ -468,7 +468,7 @@ export interface Team {
 export interface CheckinStatusItem {
   id: number;
   birdId: number | null;
-  bird: Pick<Bird, "id" | "band" | "birdName" | "rfid" | "color" | "sex"> | null;
+  bird: Pick<Bird, "id" | "band" | "birdName" | "rfid" | "color" | "sex" | "attention" | "note"> | null;
   breeder: Pick<Breeder, "id" | "firstName" | "lastName"> | null;
   isCheckedIn: boolean;
   hasRfid: boolean;
