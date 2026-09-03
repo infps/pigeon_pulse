@@ -1,6 +1,6 @@
 "use client";
 
-import { useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -53,6 +53,54 @@ export function CreateBirdDialog({
   const bandNumberRef = useRef<HTMLInputElement>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
+
+  // RFID poll scanner
+  const [isPolling, setIsPolling] = useState(false);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollStartedAtRef = useRef<string | null>(null);
+  const lastScannedRfidRef = useRef<string | null>(null);
+
+  const pollOnce = useCallback(async () => {
+    try {
+      const res = await fetch("/api/scanner/poll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ startedAt: pollStartedAtRef.current }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data) && data.length > 0 && data[0].el) {
+        const rfid: string = data[0].el;
+        if (rfid !== lastScannedRfidRef.current) {
+          lastScannedRfidRef.current = rfid;
+          dispatch({ rfid });
+          stopPolling();
+        }
+      }
+    } catch { /* network, ignore */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const startPolling = useCallback(() => {
+    if (pollIntervalRef.current) return;
+    setIsPolling(true);
+    lastScannedRfidRef.current = null;
+    pollStartedAtRef.current = new Date().toISOString();
+    toast.success("Scanner connected");
+    pollIntervalRef.current = setInterval(pollOnce, 2000);
+  }, [pollOnce]);
+
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    setIsPolling(false);
+  }, []);
+
+  // Cleanup on unmount / close
+  useEffect(() => {
+    if (!open) stopPolling();
+  }, [open, stopPolling]);
 
   const createMutation = useCreateBird({
     onSuccess: () => {
@@ -122,6 +170,15 @@ export function CreateBirdDialog({
   };
 
   const bs = event.bettingScheme ?? null;
+  const fs = event.feeScheme ?? null;
+  const schemeDefaults = fs ? {
+    entryFee: fs.entryFee ?? null,
+    birdFee: fs.birdFeeItems?.[0]?.birdFee ?? null,
+    hotSpot1Fee: fs.hotSpot1Fee ?? null,
+    hotSpot2Fee: fs.hotSpot2Fee ?? null,
+    hotSpot3Fee: fs.hotSpot3Fee ?? null,
+    hotSpotFinalFee: fs.hotSpotFinalFee ?? null,
+  } : null;
 
   const form = (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -133,10 +190,14 @@ export function CreateBirdDialog({
         showClasses
         bandNumberRef={bandNumberRef}
         imageUrl={imageUrl}
+        schemeDefaults={schemeDefaults}
         onImageChange={(url, file) => {
           setImageUrl(url ?? null);
           setImageFile(file ?? null);
         }}
+        rfidPolling={isPolling}
+        onStartRfidPoll={startPolling}
+        onStopRfidPoll={stopPolling}
       />
       <div className="flex justify-end gap-2 pt-2">
         {!inline && (

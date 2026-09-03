@@ -91,6 +91,15 @@ export interface AddBirdFormProps {
   // image
   imageUrl?: string | null;
   onImageChange?: (imageUrl: string | null, imageFile?: File | null) => void;
+  // read-only season fee reference
+  schemeDefaults?: {
+    entryFee: number | null;
+    birdFee: number | null;
+    hotSpot1Fee: number | null;
+    hotSpot2Fee: number | null;
+    hotSpot3Fee: number | null;
+    hotSpotFinalFee: number | null;
+  } | null;
 }
 
 // ── Default state factory ──────────────────────────────────────────────────
@@ -213,6 +222,7 @@ export function AddBirdForm({
   showClasses = true,
   imageUrl,
   onImageChange,
+  schemeDefaults,
 }: AddBirdFormProps) {
   const internalBandRef = useRef<HTMLInputElement>(null);
   const bandRef = bandNumberRef ?? internalBandRef;
@@ -309,7 +319,6 @@ export function AddBirdForm({
                 {rfidPolling && <p className="text-xs text-green-600 animate-pulse">Poll active — scan a bird</p>}
                 {isSerial && <p className="text-xs text-blue-600 animate-pulse">Web Serial active</p>}
                 {serialError && <p className="text-xs text-red-600">{serialError}</p>}
-              <button>RFID</button>{/* Need to implement this RFID Scanner fetcher button from the forms*/}
             </div>
           </div>
         </div>
@@ -400,6 +409,28 @@ export function AddBirdForm({
       {showFees && (
         <div className="space-y-2">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Event Details &amp; Fees</Label>
+          {schemeDefaults && (
+            <div className="rounded-md bg-muted/40 border p-3 space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Season Fee Schedule</p>
+              <div className="grid grid-cols-3 gap-x-6 gap-y-1 text-xs">
+                {[
+                  ["Entry Fee", schemeDefaults.entryFee],
+                  ["Per Bird Fee", schemeDefaults.birdFee],
+                  ["Hot Spot 1", schemeDefaults.hotSpot1Fee],
+                  ["Hot Spot 2", schemeDefaults.hotSpot2Fee],
+                  ["Hot Spot 3", schemeDefaults.hotSpot3Fee],
+                  ["Final Hot Spot", schemeDefaults.hotSpotFinalFee],
+                ].map(([label, value]) => (
+                  <div key={label as string} className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">{label}</span>
+                    <span className="font-mono font-medium">
+                      {value != null ? `$${(value as number).toFixed(2)}` : "—"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Arrival date</Label>

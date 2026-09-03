@@ -90,16 +90,7 @@ function StatRow({ label, value }: { label: string; value: string | number }) {
 
 export function DetailsTab({ event, eventId, feeSchemes, prizeSchemes, bettingSchemes }: DetailsTabProps) {
   const [editOpen, setEditOpen] = useState(false);
-  const { selectedSeasonId, activeSeason } = useSeasonContext();
-
-  // Derive scheme names from already-loaded lists + active season IDs
-  const feeSchemeName = feeSchemes.find((s) => s.id === activeSeason?.feeSchemeId)?.name ?? null;
-  const bettingSchemeName = bettingSchemes.find((s) => s.id === activeSeason?.bettingSchemeId)?.name ?? null;
-  const finalPrizeName = prizeSchemes.find((s) => s.id === activeSeason?.finalPrizeSchemeId)?.name ?? null;
-  const hotSpot1Name = prizeSchemes.find((s) => s.id === activeSeason?.hotSpot1PrizeSchemeId)?.name ?? null;
-  const hotSpot2Name = prizeSchemes.find((s) => s.id === activeSeason?.hotSpot2PrizeSchemeId)?.name ?? null;
-  const hotSpot3Name = prizeSchemes.find((s) => s.id === activeSeason?.hotSpot3PrizeSchemeId)?.name ?? null;
-  const hotSpotAvgName = prizeSchemes.find((s) => s.id === activeSeason?.hotSpotAvgPrizeSchemeId)?.name ?? null;
+  const { selectedSeasonId } = useSeasonContext();
 
   const { data: stats, isPending } = useQuery<DashboardStats>({
     queryKey: ["dashboard-stats", eventId, selectedSeasonId],
@@ -314,16 +305,21 @@ export function DetailsTab({ event, eventId, feeSchemes, prizeSchemes, bettingSc
           <CardTitle className="text-base">Active Season Schemes</CardTitle>
         </CardHeader>
         <CardContent className="text-sm">
-          {activeSeason ? (
+          {stats?.seasonName ? (
             <div className="grid grid-cols-4 gap-x-8 gap-y-1.5">
-              <InfoRow label="Season" value={activeSeason.name} />
-              <InfoRow label="Fee Scheme" value={feeSchemeName ?? "—"} />
-              <InfoRow label="Betting Scheme" value={bettingSchemeName ?? "—"} />
-              <InfoRow label="Final Prize" value={finalPrizeName ?? "—"} />
-              <InfoRow label="Hot Spot 1" value={hotSpot1Name ?? "—"} />
-              <InfoRow label="Hot Spot 2" value={hotSpot2Name ?? "—"} />
-              <InfoRow label="Hot Spot 3" value={hotSpot3Name ?? "—"} />
-              <InfoRow label="Hot Spot Avg" value={hotSpotAvgName ?? "—"} />
+              <InfoRow label="Season" value={stats.seasonName} />
+              <InfoRow label="Fee Scheme" value={stats.feeSchemeName ?? "—"} />
+              <InfoRow label="Betting Scheme" value={stats.bettingSchemeName ?? "—"} />
+              <InfoRow label="Final Prize" value={stats.finalPrizeSchemeName ?? "—"} />
+              <InfoRow label="Hot Spot 1" value={stats.hotSpot1PrizeName ?? "—"} />
+              <InfoRow label="Hot Spot 2" value={stats.hotSpot2PrizeName ?? "—"} />
+              <InfoRow label="Hot Spot 3" value={stats.hotSpot3PrizeName ?? "—"} />
+              <InfoRow label="Hot Spot Avg" value={stats.hotSpotAvgPrizeName ?? "—"} />
+            </div>
+          ) : isPending ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
             </div>
           ) : (
             <p className="text-muted-foreground">No active season.</p>
