@@ -26,7 +26,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { AlertTriangle, ArrowRightLeft, ChevronDown, ChevronRight, Pencil, Plus, Scan, Square, Trash2, Wand2, Wifi } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, ChevronDown, ChevronRight, Pencil, Plus, Radio, Scan, Square, Trash2, Wand2, Wifi } from "lucide-react";
 import { toast } from "sonner";
 import {
   useEventBaskets,
@@ -37,9 +37,11 @@ import {
   useClearBasket,
   useAssignRaceBaskets,
   useCheckinStatus,
+  useScanLoftBasket,
 } from "@/lib/api/event-baskets";
+import { useWebSerial } from "@/hooks/useWebSerial";
 import { useListRaces } from "@/lib/api/races";
-import type { EventBasketItem, Race } from "@/lib/types";
+import type { CheckinStatusItem, EventBasketItem, Race } from "@/lib/types";
 import {
   Select,
   SelectContent,
@@ -143,6 +145,7 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
   const assignMutation = useAssignBaskets(eventId);
   const clearMutation = useClearBasket(eventId);
 
+  const [scanDialogOpen, setScanDialogOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [capacity, setCapacity] = useState("");
   const [assignMode, setAssignMode] = useState<"shuffle" | "assign" | null>(null);
@@ -339,6 +342,15 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
               <Button size="sm" className="gap-1.5" onClick={openDialog}>
                 <Plus className="h-4 w-4" />
                 Add New Basket
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                className="gap-1.5"
+                onClick={() => setScanDialogOpen(true)}
+              >
+                <Scan className="h-4 w-4" />
+                Scan & Basket
               </Button>
             </div>
           </div>
@@ -574,6 +586,14 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {scanDialogOpen && (
+        <LoftScanDialog
+          eventId={eventId}
+          seasonId={selectedSeasonId}
+          onClose={() => { setScanDialogOpen(false); refetch(); }}
+        />
+      )}
     </>
   );
 }
@@ -1261,6 +1281,213 @@ function PrescanDialog({ eventId, raceId, onClose }: { eventId: string; raceId: 
           <span className="text-xs text-muted-foreground mr-auto">
             {rows.filter(r => r.status === "scanned").length} basketed · {rows.filter(r => r.status === "foreign").length} foreign
           </span>
+          <Button onClick={handleClose}>Done</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ============================================================
+// LOFT SCAN DIALOG
+// ============================================================
+
+type LoftScanRow = {
+  item: CheckinStatusItem;
+  groupName: string;
+};
+
+function LoftScanDialog({
+  eventId,
+  seasonId,
+  onClose,
+}: {
+  eventId: string;
+  seasonId?: number | null;
+  onClose: () => void;
+}) {
+  const { data, refetch } = useCheckinStatus(eventId, seasonId);
+  const scanLoftMutation = useScanLoftBasket(eventId);
+
+  const unassigned: CheckinStatusItem[] = (data?.items ?? []).filter(
+    (i: CheckinStatusItem) => !i.isLoftBasketed
+  );
+
+  const [selectedItem, setSelectedItem] = useState<CheckinStatusItem | null>(null);
+  const [scannedLog, setScannedLog] = useState<LoftScanRow[]>([]);
+  const [isPollActive, setIsPollActive] = useState(false);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollStartedAtRef = useRef<string | null>(null);
+  const lastScannedRef = useRef<string | null>(null);
+  const selectedItemRef = useRef<CheckinStatusItem | null>(null);
+  const webSerialOnScanRef = useRef<(rfid: string) => void>(() => {});
+  selectedItemRef.current = selectedItem;
+
+  const handleScan = useCallback(async (rfid: string) => {
+    if (rfid === lastScannedRef.current) return;
+    const current = selectedItemRef.current;
+    if (!current) { toast.warning("Select a bird first"); return; }
+    lastScannedRef.current = rfid;
+    try {
+      const res = await scanLoftMutation.mutateAsync({
+        eventInventoryItemId: current.id,
+        rfid,
+      });
+      const groupName = (res as any)?.group?.name ?? "group";
+      setScannedLog((prev) => [{ item: current, groupName }, ...prev]);
+      toast.success(`${current.bird?.birdName || current.bird?.band} → ${groupName}`);
+      setSelectedItem(null);
+      refetch();
+    } catch (err: any) {
+      toast.error(err?.message || "Scan failed");
+      lastScannedRef.current = null;
+    }
+  }, [scanLoftMutation, refetch]);
+
+  webSerialOnScanRef.current = handleScan;
+  const { isConnected: isSerial, error: serialError, connect: connectSerial, disconnect: disconnectSerial } =
+    useWebSerial({ onScan: (rfid) => webSerialOnScanRef.current(rfid) });
+
+  const startPoll = useCallback(() => {
+    setIsPollActive(true);
+    lastScannedRef.current = null;
+    pollStartedAtRef.current = new Date().toISOString();
+    toast.success("Scanner started — select a bird then scan");
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const res = await fetch("/api/scanner/poll", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ startedAt: pollStartedAtRef.current }),
+        });
+        const d = await res.json();
+        if (d?.length > 0 && d[0].el && d[0].el !== lastScannedRef.current) {
+          await handleScan(d[0].el);
+        }
+      } catch { /* silent */ }
+    }, 2000);
+  }, [handleScan]);
+
+  const stopPoll = useCallback(() => {
+    if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
+    setIsPollActive(false);
+    lastScannedRef.current = null;
+    toast.info("Scanner stopped");
+  }, []);
+
+  const handleClose = () => {
+    stopPoll();
+    disconnectSerial();
+    onClose();
+  };
+
+  const anyScanner = isPollActive || isSerial;
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) handleClose(); }}>
+      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center justify-between pr-6">
+            <span>Scan & Basket — Loft</span>
+            <div className="flex items-center gap-2">
+              {isPollActive ? (
+                <Button size="sm" className="gap-1.5 bg-red-600 hover:bg-red-700" onClick={stopPoll}>
+                  <Square className="h-4 w-4" />Stop
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={startPoll}>
+                  <Wifi className="h-4 w-4" />Start Poll
+                </Button>
+              )}
+              {isSerial ? (
+                <Button size="sm" className="gap-1.5 bg-blue-600 hover:bg-blue-700" onClick={() => disconnectSerial()}>
+                  <Square className="h-4 w-4" />USB Stop
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={() => { if (isPollActive) stopPoll(); connectSerial(); }}>
+                  <Radio className="h-4 w-4" />USB Serial
+                </Button>
+              )}
+            </div>
+          </DialogTitle>
+        </DialogHeader>
+
+        {serialError && (
+          <p className="text-xs text-destructive">{serialError}</p>
+        )}
+
+        <div className="flex-1 overflow-hidden flex flex-col gap-3">
+          {selectedItem && (
+            <div className="flex items-center gap-3 rounded-lg border px-4 py-2 bg-muted">
+              <Radio className="h-4 w-4 text-primary animate-pulse shrink-0" />
+              <span className="font-medium text-sm">{selectedItem.bird?.birdName || selectedItem.bird?.band}</span>
+              <span className="text-xs text-muted-foreground font-mono">{selectedItem.bird?.band}</span>
+              {!selectedItem.hasPaid && <Badge variant="destructive" className="text-xs">Unpaid</Badge>}
+              <button className="ml-auto text-xs text-muted-foreground hover:text-foreground" onClick={() => setSelectedItem(null)}>✕</button>
+            </div>
+          )}
+          {!selectedItem && anyScanner && (
+            <p className="text-xs text-muted-foreground text-center animate-pulse border border-dashed rounded px-3 py-2">
+              Click a bird below to select, then scan its RFID tag
+            </p>
+          )}
+
+          <div className="grid grid-cols-2 gap-3 flex-1 overflow-hidden">
+            {/* Unassigned birds */}
+            <div className="flex flex-col overflow-hidden">
+              <p className="text-xs font-medium text-muted-foreground mb-1">Unassigned ({unassigned.length})</p>
+              <div className="flex-1 overflow-y-auto border rounded-lg">
+                {unassigned.length === 0 ? (
+                  <p className="text-sm text-muted-foreground p-4 text-center">All birds basketed</p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <tbody className="divide-y">
+                      {unassigned.map((item) => (
+                        <tr
+                          key={item.id}
+                          className={`cursor-pointer hover:bg-muted/60 transition-colors ${selectedItem?.id === item.id ? "bg-primary/10 ring-1 ring-primary" : ""}`}
+                          onClick={() => { setSelectedItem(item); lastScannedRef.current = null; }}
+                        >
+                          <td className="px-3 py-2 font-medium">{item.bird?.birdName || "—"}</td>
+                          <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{item.bird?.band}</td>
+                          <td className="px-3 py-2 text-xs text-muted-foreground">{item.breeder?.lastName}</td>
+                          <td className="px-3 py-2">
+                            {!item.hasPaid && <Badge variant="destructive" className="text-[10px]">!</Badge>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+
+            {/* Scanned log */}
+            <div className="flex flex-col overflow-hidden">
+              <p className="text-xs font-medium text-muted-foreground mb-1">Basketed ({scannedLog.length})</p>
+              <div className="flex-1 overflow-y-auto border rounded-lg">
+                {scannedLog.length === 0 ? (
+                  <p className="text-sm text-muted-foreground p-4 text-center">No birds scanned yet</p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <tbody className="divide-y">
+                      {scannedLog.map(({ item, groupName }, i) => (
+                        <tr key={item.id}>
+                          <td className="px-3 py-2 font-medium">{item.bird?.birdName || "—"}</td>
+                          <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{item.bird?.band}</td>
+                          <td className="px-3 py-2 text-xs font-medium text-primary">{groupName}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <span className="text-xs text-muted-foreground mr-auto">{scannedLog.length} basketed</span>
           <Button onClick={handleClose}>Done</Button>
         </DialogFooter>
       </DialogContent>

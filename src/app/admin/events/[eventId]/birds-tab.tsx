@@ -1,8 +1,15 @@
 "use client";
 
 import type { Event, EventInventoryItem, FeeScheme } from "@/lib/types";
-import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect, useReducer } from "react";
 import { useWebSerial } from "@/hooks/useWebSerial";
+import {
+  AddBirdForm,
+  createAddBirdFormState,
+  buildAddBirdPayload,
+  validateAddBirdForm,
+} from "@/components/add-bird-form";
+import type { AddBirdFormState } from "@/components/add-bird-form";
 import { useListEventInventoryItems, useAddBirdsToEvent, useRegisterBirdToEvent, useListEventInventoryItemsBySeason } from "@/lib/api/event-inventory-items";
 import { useSeasonContext } from "@/lib/season-context";
 import { useListEvents } from "@/lib/api/events";
@@ -211,6 +218,7 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
         open={isAddDialogOpen}
         onOpenChange={setIsAddDialogOpen}
         eventId={eventId}
+        event={event}
         existingItems={eventInventoryItems}
         feeScheme={activeFeeScheme}
         onSuccess={handleAddSuccess}
@@ -271,14 +279,6 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
   );
 }
 
-// ============================================================
-// CONSTANTS (shared with edit-bird-dialog)
-// ============================================================
-const FEDERATIONS = ["AU", "IF", "NPA", "CU", "BB", "ARPU", "IPB"];
-const COLORS = [
-  "BB", "BC", "BBWF", "BBPD", "BCWF", "BCPD", "SPLA", "CHOC", "RC", "SIL",
-  "RCSP", "RR", "BLK", "OPAL", "SLAT", "PENC", "WHIT", "GRIZ", "DC", "DCWF",
-];
 
 // ============================================================
 // SHARED: Bird checklist used by event + season modes
@@ -350,130 +350,25 @@ type AddMode = "new" | "event" | "season";
 const INIT_YEAR = String(new Date().getFullYear()).slice(-2);
 
 // ponytail: placeholder until add-bird-form component is wired in
-function useNewBirdForm() {
-  const [breederId, setBreederId] = useState("");
-  const [band1, setBand1] = useState("");
-  const [band2, setBand2] = useState(INIT_YEAR);
-  const [band3, setBand3] = useState("");
-  const [band4, setBand4] = useState("");
-  const [color, setColor] = useState("");
-  const [sex, setSex] = useState<"0" | "1" | "2">("1");
-  const [rfid, setRfid] = useState("");
-  const [name, setName] = useState("");
-  const [isActive, setIsActive] = useState(true);
-  const [isLost, setIsLost] = useState(false);
-  const [lostDate, setLostDate] = useState("");
-  const [lostRaceId, setLostRaceId] = useState("");
-  const [attention, setAttention] = useState(false);
-  const [note, setNote] = useState("");
-  const [arrivalTime, setArrivalTime] = useState("");
-  const [departureTime, setDepartureTime] = useState("");
-  const [isBackup, setIsBackup] = useState(false);
-  // fees
-  const [perchFeeValue, setPerchFeeValue] = useState("");
-  const [entryFeeValue, setEntryFeeValue] = useState("");
-  const [hotSpotFeeValue, setHotSpotFeeValue] = useState("");
-  const [raceFeeValue, setRaceFeeValue] = useState("");
-  // betting classes
-  const [belgianShowBet1, setBelgianShowBet1] = useState(false);
-  const [belgianShowBet2, setBelgianShowBet2] = useState(false);
-  const [belgianShowBet3, setBelgianShowBet3] = useState(false);
-  const [belgianShowBet4, setBelgianShowBet4] = useState(false);
-  const [belgianShowBet5, setBelgianShowBet5] = useState(false);
-  const [belgianShowBet6, setBelgianShowBet6] = useState(false);
-  const [belgianShowBet7, setBelgianShowBet7] = useState(false);
-  const [standardShowBet1, setStandardShowBet1] = useState(false);
-  const [standardShowBet2, setStandardShowBet2] = useState(false);
-  const [standardShowBet3, setStandardShowBet3] = useState(false);
-  const [standardShowBet4, setStandardShowBet4] = useState(false);
-  const [standardShowBet5, setStandardShowBet5] = useState(false);
-  const [wtaBet1, setWtaBet1] = useState(false);
-  const [wtaBet2, setWtaBet2] = useState(false);
-  const [wtaBet3, setWtaBet3] = useState(false);
-  const [wtaBet4, setWtaBet4] = useState(false);
-  const [wtaBet5, setWtaBet5] = useState(false);
+function birdFormReducer(s: AddBirdFormState, patch: Partial<AddBirdFormState>): AddBirdFormState {
+  return { ...s, ...patch };
+}
 
-  const resetForm = (keepBreederAndBand = false) => {
-    if (!keepBreederAndBand) { setBreederId(""); setBand1(""); setBand2(INIT_YEAR); setBand3(""); }
-    setBand4("");
-    setColor(keepBreederAndBand ? color : "");
-    setSex("1");
-    setRfid(""); setName(""); setIsActive(true); setIsLost(false);
-    setLostDate(""); setLostRaceId(""); setAttention(false); setNote("");
-    setArrivalTime(""); setDepartureTime(""); setIsBackup(false);
-    setPerchFeeValue(""); setEntryFeeValue(""); setHotSpotFeeValue(""); setRaceFeeValue("");
-    setBelgianShowBet1(false); setBelgianShowBet2(false); setBelgianShowBet3(false);
-    setBelgianShowBet4(false); setBelgianShowBet5(false); setBelgianShowBet6(false); setBelgianShowBet7(false);
-    setStandardShowBet1(false); setStandardShowBet2(false); setStandardShowBet3(false);
-    setStandardShowBet4(false); setStandardShowBet5(false);
-    setWtaBet1(false); setWtaBet2(false); setWtaBet3(false); setWtaBet4(false); setWtaBet5(false);
-  };
-
-  const buildPayload = () => ({
-    breederId: parseInt(breederId),
-    name: name || `${band1}-${band2}-${band3}-${band4}`,
-    band1, band2, band3, band4,
-    color, sex: parseInt(sex),
-    rfid: rfid || undefined,
-    attention,
-    isBackup,
-    isActive,
-    isLost,
-    lostDate: lostDate || null,
-    lostRaceId: lostRaceId ? parseInt(lostRaceId) : null,
-    note: note || null,
-    arrivalTime: arrivalTime || null,
-    departureTime: departureTime || null,
-    perchFeeValue: perchFeeValue ? parseFloat(perchFeeValue) : null,
-    entryFeeValue: entryFeeValue ? parseFloat(entryFeeValue) : null,
-    hotSpotFeeValue: hotSpotFeeValue ? parseFloat(hotSpotFeeValue) : null,
-    raceFeeValue: raceFeeValue ? parseFloat(raceFeeValue) : null,
-    belgianShowBet1: belgianShowBet1 ? 1 : null,
-    belgianShowBet2: belgianShowBet2 ? 1 : null,
-    belgianShowBet3: belgianShowBet3 ? 1 : null,
-    belgianShowBet4: belgianShowBet4 ? 1 : null,
-    belgianShowBet5: belgianShowBet5 ? 1 : null,
-    belgianShowBet6: belgianShowBet6 ? 1 : null,
-    belgianShowBet7: belgianShowBet7 ? 1 : null,
-    standardShowBet1: standardShowBet1 ? 1 : null,
-    standardShowBet2: standardShowBet2 ? 1 : null,
-    standardShowBet3: standardShowBet3 ? 1 : null,
-    standardShowBet4: standardShowBet4 ? 1 : null,
-    standardShowBet5: standardShowBet5 ? 1 : null,
-    wtaBet1: wtaBet1 ? 1 : null,
-    wtaBet2: wtaBet2 ? 1 : null,
-    wtaBet3: wtaBet3 ? 1 : null,
-    wtaBet4: wtaBet4 ? 1 : null,
-    wtaBet5: wtaBet5 ? 1 : null,
-  });
-
-  return {
-    breederId, setBreederId,
-    band1, setBand1, band2, setBand2, band3, setBand3, band4, setBand4,
-    color, setColor, sex, setSex,
-    rfid, setRfid, name, setName,
-    isActive, setIsActive, isLost, setIsLost, lostDate, setLostDate, lostRaceId, setLostRaceId,
-    attention, setAttention, note, setNote,
-    arrivalTime, setArrivalTime, departureTime, setDepartureTime, isBackup, setIsBackup,
-    perchFeeValue, setPerchFeeValue, entryFeeValue, setEntryFeeValue,
-    hotSpotFeeValue, setHotSpotFeeValue, raceFeeValue, setRaceFeeValue,
-    belgianShowBet1, setBelgianShowBet1, belgianShowBet2, setBelgianShowBet2,
-    belgianShowBet3, setBelgianShowBet3, belgianShowBet4, setBelgianShowBet4,
-    belgianShowBet5, setBelgianShowBet5, belgianShowBet6, setBelgianShowBet6,
-    belgianShowBet7, setBelgianShowBet7,
-    standardShowBet1, setStandardShowBet1, standardShowBet2, setStandardShowBet2,
-    standardShowBet3, setStandardShowBet3, standardShowBet4, setStandardShowBet4,
-    standardShowBet5, setStandardShowBet5,
-    wtaBet1, setWtaBet1, wtaBet2, setWtaBet2, wtaBet3, setWtaBet3,
-    wtaBet4, setWtaBet4, wtaBet5, setWtaBet5,
-    resetForm, buildPayload,
-  };
+function makeBirdFormSetters(dispatch: React.Dispatch<Partial<AddBirdFormState>>) {
+  const keys = Object.keys(createAddBirdFormState()) as (keyof AddBirdFormState)[];
+  return Object.fromEntries(
+    keys.map((k) => [
+      `set${k.charAt(0).toUpperCase()}${k.slice(1)}`,
+      (v: AddBirdFormState[typeof k]) => dispatch({ [k]: v } as Partial<AddBirdFormState>),
+    ])
+  ) as any;
 }
 
 function AddBirdsDialog({
   open,
   onOpenChange,
   eventId,
+  event,
   existingItems,
   feeScheme,
   onSuccess,
@@ -481,47 +376,54 @@ function AddBirdsDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   eventId: string;
+  event: Event;
   existingItems: EventInventoryItem[];
   feeScheme: FeeScheme | null;
   onSuccess: () => void;
 }) {
   const [mode, setMode] = useState<AddMode | "">("");
   const registerMutation = useRegisterBirdToEvent(eventId);
-  const form = useNewBirdForm();
   const bandNumberRef = useRef<HTMLInputElement>(null);
+  const [breederId, setBreederId] = useState("");
+
+  const [birdState, birdDispatch] = useReducer(birdFormReducer, createAddBirdFormState());
+  const birdSetters = makeBirdFormSetters(birdDispatch);
 
   // Auto-fill fees from feeScheme when breeder is selected
   useEffect(() => {
-    if (!feeScheme || !form.breederId) return;
-    const breederId = parseInt(form.breederId);
-    const breedersCurrentCount = existingItems.filter(
-      (item) => item.eventInventory?.breederId === breederId && !item.replacedItemId
+    if (!feeScheme || !breederId) return;
+    const bid = parseInt(breederId);
+    const count = existingItems.filter(
+      (item) => item.eventInventory?.breederId === bid && !item.replacedItemId
     ).length;
-    const nextPosition = breedersCurrentCount + 1;
-    const birdFeeItem = feeScheme.birdFeeItems?.find((b) => b.birdNo === nextPosition);
+    const birdFeeItem = feeScheme.birdFeeItems?.find((b) => b.birdNo === count + 1);
     const perchFee = birdFeeItem?.birdFee ?? null;
     const hotspotFee =
       (feeScheme.hotSpot1Fee ?? 0) +
       (feeScheme.hotSpot2Fee ?? 0) +
       (feeScheme.hotSpot3Fee ?? 0) +
       (feeScheme.hotSpotFinalFee ?? 0);
-    form.setPerchFeeValue(perchFee != null ? String(perchFee) : "");
-    form.setEntryFeeValue(feeScheme.entryFee != null ? String(feeScheme.entryFee) : "");
-    form.setHotSpotFeeValue(hotspotFee > 0 ? String(hotspotFee) : "");
+    birdDispatch({
+      perchFeeValue: perchFee != null ? String(perchFee) : "",
+      entryFeeValue: feeScheme.entryFee != null ? String(feeScheme.entryFee) : "",
+      hotSpotFeeValue: hotspotFee > 0 ? String(hotspotFee) : "",
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.breederId, feeScheme]);
+  }, [breederId, feeScheme]);
 
-  // RFID scanner state
+  // RFID poll scanner
   const [rfidPolling, setRfidPolling] = useState(false);
   const rfidPollRef = useRef<NodeJS.Timeout | null>(null);
   const rfidPollStartRef = useRef<string | null>(null);
   const rfidLastRef = useRef<string | null>(null);
 
-  const startRfidPoll = () => {
+  const startRfidPoll = useCallback(() => {
+    if (rfidPollRef.current) return;
     setRfidPolling(true);
     rfidLastRef.current = null;
     rfidPollStartRef.current = new Date().toISOString();
-    const poll = async () => {
+    toast.success("Scanner connected");
+    rfidPollRef.current = setInterval(async () => {
       try {
         const res = await fetch("/api/scanner/poll", {
           method: "POST",
@@ -531,27 +433,23 @@ function AddBirdsDialog({
         const d = await res.json();
         if (d?.length > 0 && d[0].el && d[0].el !== rfidLastRef.current) {
           rfidLastRef.current = d[0].el;
-          form.setRfid(d[0].el);
+          birdDispatch({ rfid: d[0].el });
+          stopRfidPoll();
         }
       } catch { /* silent */ }
-    };
-    poll();
-    rfidPollRef.current = setInterval(poll, 2000);
-  };
+    }, 2000);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const stopRfidPoll = () => {
+  const stopRfidPoll = useCallback(() => {
     if (rfidPollRef.current) { clearInterval(rfidPollRef.current); rfidPollRef.current = null; }
     setRfidPolling(false);
-  };
-
-  const { isConnected: isSerial, error: serialError, connect: connectSerial, disconnect: disconnectSerial } =
-    useWebSerial({ onScan: (scanned) => form.setRfid(scanned) });
+  }, []);
 
   useEffect(() => {
-    if (!open) { stopRfidPoll(); disconnectSerial(); }
-    return () => { stopRfidPoll(); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+    if (!open) stopRfidPoll();
+    return () => stopRfidPoll();
+  }, [open, stopRfidPoll]);
 
   const eventBreeders = useMemo(() => {
     const seen = new Map<number, { id: number; firstName: string | null; lastName: string | null }>();
@@ -602,7 +500,8 @@ function AddBirdsDialog({
   const resetAll = () => {
     stopRfidPoll();
     setMode("");
-    form.resetForm(false);
+    setBreederId("");
+    birdDispatch(createAddBirdFormState());
     setSourceEventId(""); setSelectedBirdIds(new Set());
     setSourceSeasonId(""); setSelectedSeasonBirdIds(new Set());
   };
@@ -614,22 +513,21 @@ function AddBirdsDialog({
   };
 
   const validate = () => {
-    if (!form.breederId) { toast.error("Select a breeder"); return false; }
-    if (!form.band1 || !form.band2 || !form.band3 || !form.band4) { toast.error("All band fields required"); return false; }
-    if (!form.color) { toast.error("Select a color"); return false; }
+    if (!breederId) { toast.error("Select a breeder"); return false; }
+    const err = validateAddBirdForm(birdState);
+    if (err) { toast.error(err); return false; }
     return true;
   };
 
   const handleAddAnother = async () => {
     if (!validate()) return;
     try {
-      await registerMutation.mutateAsync(form.buildPayload());
+      await registerMutation.mutateAsync(buildAddBirdPayload(birdState, parseInt(breederId)));
       toast.success("Bird registered");
       onSuccess();
-      // keep breeder, federation, year, letters; increment band number
-      const parsed = parseInt(form.band4);
-      form.resetForm(true);
-      form.setBand4(isNaN(parsed) ? "" : String(parsed + 1));
+      const parsed = parseInt(birdState.band4);
+      const kept = { band1: birdState.band1, band2: birdState.band2, band3: birdState.band3 };
+      birdDispatch({ ...createAddBirdFormState(), ...kept, band4: isNaN(parsed) ? "" : String(parsed + 1) });
       setTimeout(() => bandNumberRef.current?.focus(), 0);
     } catch (error: any) {
       toast.error(error?.message || "Failed to register bird");
@@ -639,7 +537,7 @@ function AddBirdsDialog({
   const handleRegister = async () => {
     if (!validate()) return;
     try {
-      await registerMutation.mutateAsync(form.buildPayload());
+      await registerMutation.mutateAsync(buildAddBirdPayload(birdState, parseInt(breederId)));
       toast.success("Bird registered");
       resetAll();
       onOpenChange(false);
@@ -671,7 +569,7 @@ function AddBirdsDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) resetAll(); onOpenChange(v); }}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+      <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Add Birds</DialogTitle>
         </DialogHeader>
@@ -695,7 +593,7 @@ function AddBirdsDialog({
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <Label>Breeder</Label>
-                <Select value={form.breederId} onValueChange={form.setBreederId}>
+                <Select value={breederId} onValueChange={setBreederId}>
                   <SelectTrigger><SelectValue placeholder="Select breeder" /></SelectTrigger>
                   <SelectContent>
                     {eventBreeders.map((b) => (
@@ -707,112 +605,17 @@ function AddBirdsDialog({
                 </Select>
               </div>
 
-              <div className="space-y-1.5">
-                <Label>Bird Name <span className="text-muted-foreground font-normal">(optional)</span></Label>
-                <Input placeholder="e.g. Blue Arrow" value={form.name} onChange={(e) => form.setName(e.target.value)} />
-              </div>
-
-              <div className="flex items-end gap-1">
-                <div className="flex-1 space-y-1.5">
-                  <Label>Federation</Label>
-                  <Select value={form.band1} onValueChange={form.setBand1}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="AU…" /></SelectTrigger>
-                    <SelectContent>
-                      {FEDERATIONS.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <span className="pb-2 text-muted-foreground">-</span>
-                <div className="flex-1 space-y-1.5">
-                  <Label>Year</Label>
-                  <Input className="h-9" value={form.band2} onChange={(e) => form.setBand2(e.target.value.replace(/[^0-9]/g, ""))} />
-                </div>
-                <span className="pb-2 text-muted-foreground">-</span>
-                <div className="flex-1 space-y-1.5">
-                  <Label>Letters</Label>
-                  <Input className="h-9" value={form.band3} onChange={(e) => form.setBand3(e.target.value.toUpperCase())} />
-                </div>
-                <span className="pb-2 text-muted-foreground">-</span>
-                <div className="flex-1 space-y-1.5">
-                  <Label>Number</Label>
-                  <Input ref={bandNumberRef} className="h-9" value={form.band4} onChange={(e) => form.setBand4(e.target.value)} />
-                </div>
-                <span className="pb-2 text-muted-foreground">-</span>
-                <div className="flex-1 space-y-1.5">
-                  <Label>Color</Label>
-                  <Select value={form.color} onValueChange={form.setColor}>
-                    <SelectTrigger className="h-9"><SelectValue placeholder="…" /></SelectTrigger>
-                    <SelectContent>
-                      {COLORS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <span className="pb-2 text-muted-foreground">-</span>
-                <div className="flex-1 space-y-1.5">
-                  <Label>Sex</Label>
-                  <Select value={form.sex} onValueChange={(v) => form.setSex(v as "0" | "1" | "2")}>
-                    <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">Cock</SelectItem>
-                      <SelectItem value="2">Hen</SelectItem>
-                      <SelectItem value="0">Unknown</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>RFID <span className="text-muted-foreground font-normal">(optional)</span></Label>
-                <div className="flex gap-1">
-                  <Input className="flex-1" placeholder="scan or type…" value={form.rfid} onChange={(e) => form.setRfid(e.target.value)} />
-                  <Button type="button" variant={rfidPolling ? "default" : "outline"} size="icon"
-                    onClick={rfidPolling ? stopRfidPoll : startRfidPoll} title="Poll scanner">
-                    {rfidPolling ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-                  </Button>
-                  <Button type="button" variant={isSerial ? "default" : "outline"} size="icon"
-                    onClick={isSerial ? disconnectSerial : connectSerial} title="Web Serial">
-                    <Usb className="h-4 w-4" />
-                  </Button>
-                </div>
-                {rfidPolling && <p className="text-xs text-green-600 animate-pulse">Poll active — scan a bird</p>}
-                {isSerial && <p className="text-xs text-blue-600 animate-pulse">Web Serial active — scan to assign</p>}
-                {serialError && <p className="text-xs text-red-600">{serialError}</p>}
-              </div>
-
-              <div className="flex gap-6">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <Checkbox checked={form.attention} onCheckedChange={(v) => form.setAttention(!!v)} />
-                  <span className="text-sm">Pay attention while basketing</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <Checkbox checked={form.isBackup} onCheckedChange={(v) => form.setIsBackup(!!v)} />
-                  <span className="text-sm">Backup bird</span>
-                </label>
-              </div>
-
-              {feeScheme && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Fees</Label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Perch fee ($)</Label>
-                      <Input className="h-9" type="number" step="0.01" min="0" value={form.perchFeeValue} onChange={(e) => form.setPerchFeeValue(e.target.value)} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Entry fee ($)</Label>
-                      <Input className="h-9" type="number" step="0.01" min="0" value={form.entryFeeValue} onChange={(e) => form.setEntryFeeValue(e.target.value)} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Hot spot fee ($)</Label>
-                      <Input className="h-9" type="number" step="0.01" min="0" value={form.hotSpotFeeValue} onChange={(e) => form.setHotSpotFeeValue(e.target.value)} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Race fee ($)</Label>
-                      <Input className="h-9" type="number" step="0.01" min="0" value={form.raceFeeValue} onChange={(e) => form.setRaceFeeValue(e.target.value)} />
-                    </div>
-                  </div>
-                </div>
-              )}
+              <AddBirdForm
+                state={birdState}
+                setters={birdSetters}
+                bettingScheme={event.bettingScheme ?? null}
+                showFees={!!feeScheme}
+                showClasses
+                bandNumberRef={bandNumberRef}
+                rfidPolling={rfidPolling}
+                onStartRfidPoll={startRfidPoll}
+                onStopRfidPoll={stopRfidPoll}
+              />
             </div>
           )}
 

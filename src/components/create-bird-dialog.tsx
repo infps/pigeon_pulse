@@ -22,6 +22,7 @@ interface CreateBirdDialogProps {
   breederId: number;
   event: Event;
   onSuccess?: () => void;
+  onAddAnother?: () => void;
   inline?: boolean;
 }
 
@@ -46,6 +47,7 @@ export function CreateBirdDialog({
   breederId,
   event,
   onSuccess,
+  onAddAnother,
   inline,
 }: CreateBirdDialogProps) {
   const [state, dispatch] = useReducer(formReducer, createAddBirdFormState());
@@ -53,6 +55,7 @@ export function CreateBirdDialog({
   const bandNumberRef = useRef<HTMLInputElement>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const addAnotherRef = useRef(false);
 
   // RFID poll scanner
   const [isPolling, setIsPolling] = useState(false);
@@ -105,11 +108,19 @@ export function CreateBirdDialog({
   const createMutation = useCreateBird({
     onSuccess: () => {
       toast.success("Bird created successfully");
+      const keepBand = { band1: state.band1, band2: state.band2, band3: state.band3 };
+      const nextBand4 = String((parseInt(state.band4) || 0) + 1);
       dispatch(createAddBirdFormState());
       setImageUrl(null);
       setImageFile(null);
       onSuccess?.();
-      onOpenChange(false);
+      if (addAnotherRef.current) {
+        addAnotherRef.current = false;
+        dispatch({ ...keepBand, band4: nextBand4 });
+        onAddAnother?.();
+      } else {
+        onOpenChange(false);
+      }
     },
   });
 
@@ -203,6 +214,12 @@ export function CreateBirdDialog({
         {!inline && (
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
+          </Button>
+        )}
+        {onAddAnother && (
+          <Button type="submit" variant="secondary" disabled={createMutation.isPending}
+            onClick={() => { addAnotherRef.current = true; }}>
+            {createMutation.isPending ? "Saving…" : "Add Another"}
           </Button>
         )}
         <Button type="submit" disabled={createMutation.isPending}>

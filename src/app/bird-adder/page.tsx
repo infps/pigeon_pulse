@@ -18,6 +18,7 @@ import {
   buildAddBirdPayload,
 } from "@/components/add-bird-form";
 import type { AddBirdFormState } from "@/components/add-bird-form";
+import { useWebSerial } from "@/hooks/useWebSerial";
 import { toast } from "sonner";
 import { Trash2, Radio, Square, Pencil } from "lucide-react";
 
@@ -62,6 +63,59 @@ export default function BirdAdderPage() {
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [editState, editDispatch] = useReducer(formReducer, createAddBirdFormState());
   const editSetters = makeSetters(editDispatch);
+
+  // RFID poll scanner for AddBirdForm
+  const [rfidPolling, setRfidPolling] = useState(false);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollStartedAtRef = useRef<string | null>(null);
+  const lastScannedRfidRef = useRef<string | null>(null);
+
+  const handleRfidScanned = useCallback((rfid: string) => {
+    if (rfid === lastScannedRfidRef.current) return;
+    lastScannedRfidRef.current = rfid;
+    dispatch({ rfid });
+    toast.success(`RFID scanned: ${rfid}`);
+  }, []);
+
+  const startRfidPoll = useCallback(() => {
+    setRfidPolling(true);
+    pollStartedAtRef.current = new Date().toISOString();
+    lastScannedRfidRef.current = null;
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const res = await fetch("/api/scanner/poll", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ startedAt: pollStartedAtRef.current }),
+        });
+        const data = await res.json();
+        if (data?.length > 0 && data[0].el) handleRfidScanned(data[0].el);
+      } catch { /* silent */ }
+    }, 2000);
+    toast.success("Poll scanner started");
+  }, [handleRfidScanned]);
+
+  const stopRfidPoll = useCallback(() => {
+    if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
+    setRfidPolling(false);
+    lastScannedRfidRef.current = null;
+    toast.info("Poll scanner stopped");
+  }, []);
+
+  const webSerialOnScanRef = useRef<(rfid: string) => void>(() => {});
+  webSerialOnScanRef.current = handleRfidScanned;
+  const { isConnected: isSerial, error: serialError, connect: connectSerial, disconnect: disconnectSerial } =
+    useWebSerial({ onScan: (rfid) => webSerialOnScanRef.current(rfid) });
+
+  const handleConnectSerial = async () => {
+    if (rfidPolling) stopRfidPoll();
+    lastScannedRfidRef.current = null;
+    await connectSerial();
+  };
+  const handleDisconnectSerial = async () => {
+    await disconnectSerial();
+    lastScannedRfidRef.current = null;
+  };
 
   // basketing sim
   const [basketing, setBasketingActive] = useState(false);
@@ -179,7 +233,10 @@ export default function BirdAdderPage() {
   }, [birds, stopBasketSim]);
 
   // cleanup on unmount
-  useEffect(() => () => { if (basketTimerRef.current) clearInterval(basketTimerRef.current); }, []);
+  useEffect(() => () => {
+    if (basketTimerRef.current) clearInterval(basketTimerRef.current);
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+  }, []);
 
   const basketedCount = birds.filter(b => b.basketed).length;
   const basketPct = birds.length > 0 ? (basketedCount / birds.length) * 100 : 0;
@@ -355,6 +412,13 @@ export default function BirdAdderPage() {
               showFees={false}
               showClasses={false}
               bandNumberRef={bandNumberRef}
+              rfidPolling={rfidPolling}
+              onStartRfidPoll={startRfidPoll}
+              onStopRfidPoll={stopRfidPoll}
+              isSerial={isSerial}
+              serialError={serialError}
+              onConnectSerial={handleConnectSerial}
+              onDisconnectSerial={handleDisconnectSerial}
             />
           </div>
           <DialogFooter className="border-t pt-3">

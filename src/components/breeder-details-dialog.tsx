@@ -398,7 +398,8 @@ export function BreederDetailsDialog({
             eventInventoryId={eventInventoryId!}
             breederId={eventInventory.breederId ?? 0}
             event={event}
-            onSuccess={handleBirdEditSuccess}
+            onSuccess={() => refetch()}
+            onAddAnother={() => {}}
             inline
           />
         )}
