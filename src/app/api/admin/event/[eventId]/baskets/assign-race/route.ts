@@ -54,23 +54,20 @@ export async function POST(
       );
     }
 
-    // 1. Source pool — birds currently loft-basketed
-    const loftAssignments = await prisma.basketAssignment.findMany({
-      where: { eventBasket: { seasonId, phase: "LOFT" } },
-      include: {
-        inventoryItem: {
-          include: {
-            eventInventory: {
-              include: { breeder: { select: { lastName: true } } },
-            },
-          },
+    // 1. Source pool — all registered birds for this season
+    const inventoryItems = await prisma.eventInventoryItem.findMany({
+      where: { eventInventory: { seasonId } },
+      select: {
+        id: true,
+        eventInventory: {
+          select: { breeder: { select: { lastName: true } } },
         },
       },
     });
 
-    if (loftAssignments.length === 0) {
+    if (inventoryItems.length === 0) {
       return NextResponse.json(
-        { message: "No loft-basketed birds found. Assign loft baskets first." },
+        { message: "No registered birds found for this season." },
         { status: 400 }
       );
     }
@@ -112,11 +109,11 @@ export async function POST(
       for (const rb of raceBaskets) {
         for (const a of rb.assignments) alreadyAssigned.add(a.eventInventoryItemId);
       }
-      items = loftAssignments
-        .filter((a) => !alreadyAssigned.has(a.eventInventoryItemId))
-        .map((a) => ({
-          id: a.eventInventoryItemId,
-          breederLastName: a.inventoryItem?.eventInventory?.breeder?.lastName ?? "Unknown",
+      items = inventoryItems
+        .filter((i) => !alreadyAssigned.has(i.id))
+        .map((i) => ({
+          id: i.id,
+          breederLastName: i.eventInventory?.breeder?.lastName ?? "Unknown",
         }));
 
       slots = raceBaskets.map((b) => ({
@@ -130,9 +127,9 @@ export async function POST(
           .filter(Boolean) as string[],
       }));
     } else {
-      items = loftAssignments.map((a) => ({
-        id: a.eventInventoryItemId,
-        breederLastName: a.inventoryItem?.eventInventory?.breeder?.lastName ?? "Unknown",
+      items = inventoryItems.map((i) => ({
+        id: i.id,
+        breederLastName: i.eventInventory?.breeder?.lastName ?? "Unknown",
       }));
       slots = raceBaskets.map((b) => ({
         id: b.id,

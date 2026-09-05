@@ -27,7 +27,6 @@ import {
 import { DataTable } from "@/components/ui/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Radio, Square, CheckCircle2, Wifi } from "lucide-react";
-import { useWebSerial } from "@/hooks/useWebSerial";
 import { toast } from "sonner";
 import {
   useCheckinStatus,
@@ -87,14 +86,8 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
   const lastScannedRfidRef = useRef<string | null>(null);
   const scannerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const selectedItemRef = useRef<CheckinStatusItem | null>(null);
-  const webSerialOnScanRef = useRef<(rfid: string) => void>(() => {});
-
   // Keep ref in sync for scanner callback
   selectedItemRef.current = selectedItem;
-
-  // Web Serial hook early (safe for TDZ in callbacks)
-  const { isConnected: isSerialActive, error: serialError, connect: connectSerial, disconnect: disconnectSerial } =
-    useWebSerial({ onScan: (rfid) => webSerialOnScanRef.current(rfid) });
 
   const items: CheckinStatusItem[] = data?.items || [];
   const summary: CheckinSummary = data?.summary || { total: 0, checkedIn: 0, notCheckedIn: 0 };
@@ -147,7 +140,7 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
       return;
     }
     setSelectedItem(item);
-    const anyScanner = isPollActive || isSerialActive;
+    const anyScanner = isPollActive;
     if (!anyScanner) {
       // Open link dialog for manual RFID entry
       setRfidInput("");
@@ -238,23 +231,8 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
     [scanLoftMutation, targetGroup, handleScanSuccess]
   );
 
-  // Direct from web serial
-  const handleWebSerialScan = (rfid: string) => {
-    if (rfid === lastScannedRfidRef.current) return;
-    lastScannedRfidRef.current = rfid;
-    if (selectedItemRef.current) {
-      handleScanResult(rfid);
-    } else {
-      setRfidInput(rfid);
-      toast.info(`Scanned: ${rfid} — select a bird to assign`);
-    }
-  };
-  // Keep ref current for the early hook
-  webSerialOnScanRef.current = handleWebSerialScan;
-
   // Poll path (python push or tipes)
   const startPollScanner = useCallback(() => {
-    if (isSerialActive) disconnectSerial();
     setIsPollActive(true);
     setBasketedLog([]);
     setScanDialogOpen(true);
@@ -286,7 +264,7 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
         // silent
       }
     }, 2000);
-  }, [handleScanResult, isSerialActive, disconnectSerial]);
+  }, [handleScanResult]);
 
   const stopPollScanner = useCallback(() => {
     if (scannerIntervalRef.current) {
@@ -298,20 +276,6 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
     pollStartedAtRef.current = null;
     toast.info("Poll scanner stopped");
   }, []);
-
-  // Web serial connect/stop wrappers
-  const startSerialScanner = async () => {
-    if (isPollActive) stopPollScanner();
-    lastScannedRfidRef.current = null;
-    toast.success("Web Serial: select port in browser");
-    await connectSerial();
-  };
-
-  const stopSerialScanner = async () => {
-    await disconnectSerial();
-    lastScannedRfidRef.current = null;
-    toast.info("Web Serial stopped");
-  };
 
   const columns = createCheckinColumns(handleLink, handleUnlink);
 
@@ -632,13 +596,13 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
               <Label htmlFor="rfid">RFID Tag</Label>
               <Input
                 id="rfid"
-                placeholder={(isPollActive || isSerialActive) ? "Waiting for scanner..." : "Enter RFID tag"}
+                placeholder={isPollActive ? "Waiting for scanner..." : "Enter RFID tag"}
                 value={rfidInput}
                 onChange={(e) => setRfidInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleConfirmLink()}
                 autoFocus
               />
-              {(isPollActive || isSerialActive) && (
+              {isPollActive && (
                 <p className="text-xs text-muted-foreground mt-1 animate-pulse">Scanner active — scan a tag to auto-fill</p>
               )}
             </div>

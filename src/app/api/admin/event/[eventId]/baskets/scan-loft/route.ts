@@ -39,11 +39,8 @@ export async function POST(
     const body = await request.json();
     const { eventInventoryItemId, rfid, groupId: groupIdOverride } = body;
 
-    if (!eventInventoryItemId || !rfid || typeof rfid !== "string" || rfid.trim() === "") {
-      return NextResponse.json(
-        { message: "eventInventoryItemId and rfid are required" },
-        { status: 400 }
-      );
+    if (!rfid || typeof rfid !== "string" || rfid.trim() === "") {
+      return NextResponse.json({ message: "rfid is required" }, { status: 400 });
     }
 
     // Use override group if provided, else find OPEN loft group for season
@@ -57,12 +54,13 @@ export async function POST(
       );
     }
 
-    // Validate item belongs to this season
+    // Look up item: by explicit id OR by rfid tag on the bird
+    const itemWhere = eventInventoryItemId
+      ? { id: eventInventoryItemId, eventInventory: { seasonId } }
+      : { bird: { rfid: rfid.trim() }, eventInventory: { seasonId } };
+
     const item = await prisma.eventInventoryItem.findFirst({
-      where: {
-        id: eventInventoryItemId,
-        eventInventory: { seasonId },
-      },
+      where: itemWhere,
       include: {
         bird: { select: { id: true, band: true, birdName: true, rfid: true } },
         currentGroup: { select: { id: true, name: true } },
@@ -76,7 +74,7 @@ export async function POST(
 
     if (!item || !item.bird) {
       return NextResponse.json(
-        { message: "Bird not found for this event" },
+        { message: `No bird with RFID ${rfid.trim()} registered in this event`, foreign: true },
         { status: 404 }
       );
     }

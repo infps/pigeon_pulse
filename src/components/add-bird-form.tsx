@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Wifi, WifiOff, Usb } from "lucide-react";
+import { Wifi, WifiOff } from "lucide-react";
 import { FEDERATIONS, COLORS } from "@/lib/bird-constants";
 import type { BettingScheme } from "@/lib/types";
 import { ImageCapture } from "@/components/image-capture";
@@ -79,10 +79,6 @@ export interface AddBirdFormProps {
   rfidPolling?: boolean;
   onStartRfidPoll?: () => void;
   onStopRfidPoll?: () => void;
-  isSerial?: boolean;
-  serialError?: string | null;
-  onConnectSerial?: () => void;
-  onDisconnectSerial?: () => void;
   // optional band number ref for external focus control
   bandNumberRef?: React.RefObject<HTMLInputElement | null>;
   // optional: hide fees / classes sections
@@ -213,10 +209,6 @@ export function AddBirdForm({
   rfidPolling,
   onStartRfidPoll,
   onStopRfidPoll,
-  isSerial,
-  serialError,
-  onConnectSerial,
-  onDisconnectSerial,
   bandNumberRef,
   showFees = true,
   showClasses = true,
@@ -303,22 +295,8 @@ export function AddBirdForm({
                     {rfidPolling ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
                   </Button>
                 )}
-                {onConnectSerial && (
-                  <Button
-                    type="button"
-                    variant={isSerial ? "default" : "outline"}
-                    size="icon"
-                    className="h-9 w-9 shrink-0"
-                    onClick={isSerial ? onDisconnectSerial : onConnectSerial}
-                    title="Web Serial"
-                  >
-                    <Usb className="h-4 w-4" />
-                  </Button>
-                )}
               </div>
                 {rfidPolling && <p className="text-xs text-green-600 animate-pulse">Poll active — scan a bird</p>}
-                {isSerial && <p className="text-xs text-blue-600 animate-pulse">Web Serial active</p>}
-                {serialError && <p className="text-xs text-red-600">{serialError}</p>}
             </div>
           </div>
         </div>

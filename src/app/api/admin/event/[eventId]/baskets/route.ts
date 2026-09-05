@@ -70,15 +70,22 @@ export async function GET(
           include: {
             inventoryItem: {
               include: {
-                bird: { select: { id: true, band: true, birdName: true, rfid: true } },
+                bird: { select: { id: true, band: true, band1: true, band2: true, band3: true, band4: true, birdName: true, rfid: true, color: true, sex: true, attention: true, note: true } },
                 eventInventory: {
                   include: {
                     breeder: { select: { id: true, firstName: true, lastName: true } },
                   },
                 },
+                birdEventHistory: {
+                  where: { action: "BASKET_ASSIGNED" },
+                  orderBy: { createdAt: "asc" },
+                  take: 1,
+                  select: { createdAt: true },
+                },
               },
             },
           },
+          orderBy: { assignedAt: "asc" },
         },
       },
       orderBy: [{ phase: "asc" }, { basketNo: "asc" }],

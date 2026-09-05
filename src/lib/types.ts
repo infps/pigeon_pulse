@@ -500,10 +500,11 @@ export interface BasketAssignmentDetail {
   eventInventoryItemId: number;
   assignedAt: string;
   inventoryItem?: {
-    bird?: Pick<Bird, "id" | "band" | "birdName" | "rfid"> | null;
+    bird?: Pick<Bird, "id" | "band" | "band1" | "band2" | "band3" | "band4" | "birdName" | "rfid" | "color" | "sex" | "attention" | "note"> | null;
     eventInventory?: {
       breeder?: Pick<Breeder, "id" | "firstName" | "lastName"> | null;
     } | null;
+    birdEventHistory?: { createdAt: string }[];
   } | null;
 }
 

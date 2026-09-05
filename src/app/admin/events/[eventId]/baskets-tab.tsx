@@ -26,7 +26,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { AlertTriangle, ArrowRightLeft, ChevronDown, ChevronRight, Pencil, Plus, Radio, Scan, Square, Trash2, Wand2, Wifi } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp, LayoutList, Pencil, Plus, Radio, Scan, Square, Table2, Trash2, Wand2, Wifi } from "lucide-react";
 import { toast } from "sonner";
 import {
   useEventBaskets,
@@ -39,7 +39,6 @@ import {
   useCheckinStatus,
   useScanLoftBasket,
 } from "@/lib/api/event-baskets";
-import { useWebSerial } from "@/hooks/useWebSerial";
 import { useListRaces } from "@/lib/api/races";
 import type { CheckinStatusItem, EventBasketItem, Race } from "@/lib/types";
 import {
@@ -57,15 +56,19 @@ interface BasketsTabProps {
 export function BasketsTab({ eventId }: BasketsTabProps) {
   return (
     <Tabs defaultValue="loft" className="w-full">
-      <TabsList className="grid w-full grid-cols-2">
+      <TabsList className="grid w-full grid-cols-3">
         <TabsTrigger value="loft">Loft Baskets</TabsTrigger>
         <TabsTrigger value="race">Race Baskets</TabsTrigger>
+        <TabsTrigger value="prescan">Bird Prescan</TabsTrigger>
       </TabsList>
       <TabsContent value="loft" className="space-y-4 mt-4">
         <LoftBasketPanel eventId={eventId} />
       </TabsContent>
       <TabsContent value="race" className="space-y-4 mt-4">
         <RaceBasketPanel eventId={eventId} />
+      </TabsContent>
+      <TabsContent value="prescan" className="space-y-4 mt-4">
+        <BirdPrescanPanel eventId={eventId} />
       </TabsContent>
     </Tabs>
   );
@@ -637,7 +640,7 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
     selectedRaceId || undefined,
     selectedSeasonId
   );
-  const { data: loftData } = useEventBaskets(eventId, "LOFT", undefined, selectedSeasonId);
+  const { data: checkinData } = useCheckinStatus(eventId, selectedSeasonId);
   const createMutation = useCreateBasket(eventId);
   const deleteMutation = useDeleteBasket(eventId);
   const updateMutation = useUpdateBasket(eventId);
@@ -655,13 +658,9 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
   const [editCapacity, setEditCapacity] = useState("");
 
   const baskets: EventBasketItem[] = data?.baskets || [];
-  const loftBaskets: EventBasketItem[] = loftData?.baskets || [];
 
   const totalCapacity = baskets.reduce((s, b) => s + b.capacity, 0);
-  const activeBirds = loftBaskets.reduce(
-    (s, b) => s + (b._count?.assignments ?? b.assignments?.length ?? 0),
-    0
-  );
+  const activeBirds = checkinData?.summary?.total ?? 0;
   const insufficient = totalCapacity < activeBirds;
 
   const nextBasketNo = baskets.length > 0
@@ -846,7 +845,7 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
                   !selectedRaceId
                     ? "Select a race first"
                     : activeBirds === 0
-                    ? "Assign loft baskets first"
+                    ? "No registered birds found"
                     : insufficient
                     ? `Not enough capacity for ${activeBirds} active birds`
                     : undefined
@@ -1289,12 +1288,169 @@ function PrescanDialog({ eventId, raceId, onClose }: { eventId: string; raceId: 
 }
 
 // ============================================================
+// BIRD PRESCAN PANEL
+// ============================================================
+
+type PrescanEntry = {
+  rfid: string;
+  birdName: string | null;
+  band: string | null;
+  breederName: string | null;
+  status: string | null;
+  unknown: boolean;
+};
+
+function BirdPrescanPanel({ eventId }: { eventId: string }) {
+  const { selectedSeasonId } = useSeasonContext();
+  const { data } = useCheckinStatus(eventId, selectedSeasonId);
+
+  const rfidMap = new Map<string, CheckinStatusItem>();
+  for (const item of (data?.items ?? []) as CheckinStatusItem[]) {
+    if (item.bird?.rfid) rfidMap.set(item.bird.rfid, item);
+  }
+
+  const [entries, setEntries] = useState<PrescanEntry[]>([]);
+  const [isPollActive, setIsPollActive] = useState(false);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollStartedAtRef = useRef<string | null>(null);
+  const lastScannedRef = useRef<string | null>(null);
+
+  const handleScan = useCallback((rfid: string) => {
+    if (rfid === lastScannedRef.current) return;
+    lastScannedRef.current = rfid;
+
+    const item = rfidMap.get(rfid);
+    const entry: PrescanEntry = item
+      ? {
+          rfid,
+          birdName: item.bird?.birdName ?? null,
+          band: item.bird?.band ?? null,
+          breederName: [item.breeder?.firstName, item.breeder?.lastName].filter(Boolean).join(" ") || null,
+          status: item.isLoftBasketed ? "LOFT_BASKETED" : "REGISTERED",
+          unknown: false,
+        }
+      : { rfid, birdName: null, band: null, breederName: null, status: null, unknown: true };
+
+    setEntries((prev) => {
+      const existing = prev.findIndex((e) => e.rfid === rfid);
+      if (existing >= 0) {
+        const next = [...prev];
+        next[existing] = entry;
+        return next;
+      }
+      return [entry, ...prev];
+    });
+
+    if (entry.unknown) toast.warning(`Unknown RFID: ${rfid}`);
+    else toast.success(`${entry.birdName ?? rfid} — ${entry.breederName ?? "?"}`);
+  }, [rfidMap]);
+
+  const startPoll = useCallback(() => {
+    setIsPollActive(true);
+    lastScannedRef.current = null;
+    pollStartedAtRef.current = new Date().toISOString();
+    toast.success("Prescan scanner started");
+    pollIntervalRef.current = setInterval(async () => {
+      try {
+        const res = await fetch("/api/scanner/poll", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ startedAt: pollStartedAtRef.current }),
+        });
+        const d = await res.json();
+        if (d?.length > 0 && d[0].el && d[0].el !== lastScannedRef.current) {
+          handleScan(d[0].el);
+        }
+      } catch { /* silent */ }
+    }, 2000);
+  }, [handleScan]);
+
+  const stopPoll = useCallback(() => {
+    if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
+    setIsPollActive(false);
+    lastScannedRef.current = null;
+    toast.info("Prescan scanner stopped");
+  }, []);
+
+  const statusBadge = (entry: PrescanEntry) => {
+    if (entry.unknown) return <Badge variant="destructive" className="text-xs">Unknown</Badge>;
+    if (entry.status === "LOFT_BASKETED") return <Badge variant="default" className="text-xs">Loft Basketed</Badge>;
+    return <Badge variant="secondary" className="text-xs">Registered</Badge>;
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg">Bird Prescan</CardTitle>
+          <div className="flex items-center gap-2">
+            {entries.length > 0 && (
+              <Button size="sm" variant="ghost" onClick={() => { setEntries([]); lastScannedRef.current = null; }}>
+                Clear
+              </Button>
+            )}
+            {isPollActive ? (
+              <Button size="sm" className="gap-1.5 bg-red-600 hover:bg-red-700" onClick={stopPoll}>
+                <Square className="h-4 w-4" />Stop Scanner
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={startPoll}>
+                <Wifi className="h-4 w-4" />Start Scanner
+              </Button>
+            )}
+          </div>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Scan any RFID tag to identify bird and breeder. Read-only — no assignments made.
+        </p>
+      </CardHeader>
+      <CardContent>
+        {entries.length === 0 ? (
+          <div className="flex items-center justify-center h-40 text-sm text-muted-foreground border border-dashed rounded-lg">
+            {isPollActive ? "Waiting for scans..." : "Start scanner to begin"}
+          </div>
+        ) : (
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted text-muted-foreground sticky top-0">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium font-mono">RFID</th>
+                  <th className="px-3 py-2 text-left font-medium">Bird Name</th>
+                  <th className="px-3 py-2 text-left font-medium">Band</th>
+                  <th className="px-3 py-2 text-left font-medium">Breeder</th>
+                  <th className="px-3 py-2 text-left font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {entries.map((entry) => (
+                  <tr key={entry.rfid} className={entry.unknown ? "bg-red-50" : undefined}>
+                    <td className="px-3 py-2 font-mono text-xs">{entry.rfid}</td>
+                    <td className="px-3 py-2">{entry.birdName ?? <span className="text-muted-foreground italic">—</span>}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{entry.band ?? "—"}</td>
+                    <td className="px-3 py-2">{entry.breederName ?? <span className="text-muted-foreground italic">—</span>}</td>
+                    <td className="px-3 py-2">{statusBadge(entry)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground mt-2">
+          {entries.filter(e => !e.unknown).length} identified · {entries.filter(e => e.unknown).length} unknown
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================================
 // LOFT SCAN DIALOG
 // ============================================================
 
 type LoftScanRow = {
   item: CheckinStatusItem;
   groupName: string;
+  scannedAt: string;
 };
 
 function LoftScanDialog({
@@ -1309,50 +1465,82 @@ function LoftScanDialog({
   const { data, refetch } = useCheckinStatus(eventId, seasonId);
   const scanLoftMutation = useScanLoftBasket(eventId);
 
-  const unassigned: CheckinStatusItem[] = (data?.items ?? []).filter(
-    (i: CheckinStatusItem) => !i.isLoftBasketed
+  const allItems: CheckinStatusItem[] = data?.items ?? [];
+  const unassigned: CheckinStatusItem[] = allItems.filter((i: CheckinStatusItem) => !i.isLoftBasketed);
+  // build rfid→item map for instant lookup on scan
+  const rfidMapRef = useRef<Map<string, CheckinStatusItem>>(new Map());
+  rfidMapRef.current = new Map(
+    allItems.filter(i => i.bird?.rfid).map(i => [i.bird!.rfid!, i])
   );
 
-  const [selectedItem, setSelectedItem] = useState<CheckinStatusItem | null>(null);
   const [scannedLog, setScannedLog] = useState<LoftScanRow[]>([]);
   const [isPollActive, setIsPollActive] = useState(false);
+  const [foreignCount, setForeignCount] = useState(0);
+  type HeroScan = { item: CheckinStatusItem; groupName: string; status: "basketed" | "duplicate" | "foreign" } | { rfid: string; status: "foreign" };
+  const [lastScan, setLastScan] = useState<HeroScan | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pollStartedAtRef = useRef<string | null>(null);
   const lastScannedRef = useRef<string | null>(null);
-  const selectedItemRef = useRef<CheckinStatusItem | null>(null);
-  const webSerialOnScanRef = useRef<(rfid: string) => void>(() => {});
-  selectedItemRef.current = selectedItem;
 
   const handleScan = useCallback(async (rfid: string) => {
     if (rfid === lastScannedRef.current) return;
-    const current = selectedItemRef.current;
-    if (!current) { toast.warning("Select a bird first"); return; }
     lastScannedRef.current = rfid;
+
+    // Check already basketed
+    const existingItem = rfidMapRef.current.get(rfid);
+    if (existingItem?.isLoftBasketed) {
+      setLastScan({ item: existingItem, groupName: existingItem.loftBasketLabel ?? "—", status: "duplicate" });
+      toast.info(`Already basketed: ${existingItem.bird?.birdName || existingItem.bird?.band}`);
+      return;
+    }
+
     try {
-      const res = await scanLoftMutation.mutateAsync({
-        eventInventoryItemId: current.id,
-        rfid,
-      });
-      const groupName = (res as any)?.group?.name ?? "group";
-      setScannedLog((prev) => [{ item: current, groupName }, ...prev]);
-      toast.success(`${current.bird?.birdName || current.bird?.band} → ${groupName}`);
-      setSelectedItem(null);
+      const res = await scanLoftMutation.mutateAsync({ rfid });
+      const data = res as any;
+
+      if (data?.alreadyAssigned) {
+        const item = rfidMapRef.current.get(rfid) ?? existingItem;
+        if (item) setLastScan({ item, groupName: data.groupName ?? "—", status: "duplicate" });
+        toast.info(`Already basketed: ${data.groupName}`);
+        return;
+      }
+
+      if (data?.foreign) {
+        setLastScan({ rfid, status: "foreign" });
+        setForeignCount(c => c + 1);
+        toast.warning(`Foreign bird: ${rfid}`);
+        return;
+      }
+
+      const groupName = data?.group?.name ?? "group";
+      // find item by rfid from updated data
+      const item = rfidMapRef.current.get(rfid);
+      if (item) {
+        setScannedLog((prev) => [{ item, groupName, scannedAt: new Date().toISOString() }, ...prev]);
+        setLastScan({ item, groupName, status: "basketed" });
+        toast.success(`${item.bird?.birdName || item.bird?.band} → ${groupName}`);
+      } else {
+        toast.success(`Scanned → ${groupName}`);
+      }
       refetch();
     } catch (err: any) {
-      toast.error(err?.message || "Scan failed");
+      const msg = err?.message || "Scan failed";
+      if (msg.includes("No bird with RFID") || err?.status === 404) {
+        setLastScan({ rfid, status: "foreign" });
+        setForeignCount(c => c + 1);
+        toast.warning(`Foreign bird: ${rfid}`);
+      } else {
+        toast.error(msg);
+      }
       lastScannedRef.current = null;
     }
   }, [scanLoftMutation, refetch]);
-
-  webSerialOnScanRef.current = handleScan;
-  const { isConnected: isSerial, error: serialError, connect: connectSerial, disconnect: disconnectSerial } =
-    useWebSerial({ onScan: (rfid) => webSerialOnScanRef.current(rfid) });
 
   const startPoll = useCallback(() => {
     setIsPollActive(true);
     lastScannedRef.current = null;
     pollStartedAtRef.current = new Date().toISOString();
-    toast.success("Scanner started — select a bird then scan");
+    toast.success("Scanner started — scan bird RFID tags");
     pollIntervalRef.current = setInterval(async () => {
       try {
         const res = await fetch("/api/scanner/poll", {
@@ -1377,11 +1565,8 @@ function LoftScanDialog({
 
   const handleClose = () => {
     stopPoll();
-    disconnectSerial();
     onClose();
   };
-
-  const anyScanner = isPollActive || isSerial;
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) handleClose(); }}>
@@ -1392,104 +1577,138 @@ function LoftScanDialog({
             <div className="flex items-center gap-2">
               {isPollActive ? (
                 <Button size="sm" className="gap-1.5 bg-red-600 hover:bg-red-700" onClick={stopPoll}>
-                  <Square className="h-4 w-4" />Stop
+                  <Square className="h-4 w-4" />Stop Scanner
                 </Button>
               ) : (
                 <Button size="sm" variant="outline" className="gap-1.5" onClick={startPoll}>
-                  <Wifi className="h-4 w-4" />Start Poll
-                </Button>
-              )}
-              {isSerial ? (
-                <Button size="sm" className="gap-1.5 bg-blue-600 hover:bg-blue-700" onClick={() => disconnectSerial()}>
-                  <Square className="h-4 w-4" />USB Stop
-                </Button>
-              ) : (
-                <Button size="sm" variant="outline" className="gap-1.5" onClick={() => { if (isPollActive) stopPoll(); connectSerial(); }}>
-                  <Radio className="h-4 w-4" />USB Serial
+                  <Wifi className="h-4 w-4" />Start Scanner
                 </Button>
               )}
             </div>
           </DialogTitle>
         </DialogHeader>
 
-        {serialError && (
-          <p className="text-xs text-destructive">{serialError}</p>
-        )}
-
         <div className="flex-1 overflow-hidden flex flex-col gap-3">
-          {selectedItem && (
-            <div className="flex items-center gap-3 rounded-lg border px-4 py-2 bg-muted">
+          {isPollActive && (
+            <div className="flex items-center gap-2 rounded-lg border border-dashed px-3 py-2">
               <Radio className="h-4 w-4 text-primary animate-pulse shrink-0" />
-              <span className="font-medium text-sm">{selectedItem.bird?.birdName || selectedItem.bird?.band}</span>
-              <span className="text-xs text-muted-foreground font-mono">{selectedItem.bird?.band}</span>
-              {!selectedItem.hasPaid && <Badge variant="destructive" className="text-xs">Unpaid</Badge>}
-              <button className="ml-auto text-xs text-muted-foreground hover:text-foreground" onClick={() => setSelectedItem(null)}>✕</button>
+              <p className="text-xs text-muted-foreground animate-pulse">Scanning — hold RFID tag to reader</p>
             </div>
           )}
-          {!selectedItem && anyScanner && (
-            <p className="text-xs text-muted-foreground text-center animate-pulse border border-dashed rounded px-3 py-2">
-              Click a bird below to select, then scan its RFID tag
-            </p>
-          )}
 
-          <div className="grid grid-cols-2 gap-3 flex-1 overflow-hidden">
-            {/* Unassigned birds */}
-            <div className="flex flex-col overflow-hidden">
-              <p className="text-xs font-medium text-muted-foreground mb-1">Unassigned ({unassigned.length})</p>
-              <div className="flex-1 overflow-y-auto border rounded-lg">
-                {unassigned.length === 0 ? (
-                  <p className="text-sm text-muted-foreground p-4 text-center">All birds basketed</p>
+          {/* Last scanned hero */}
+          {lastScan ? (
+            <div className={`rounded-xl border-2 p-4 transition-all ${
+              lastScan.status === "basketed" ? "border-green-400 bg-green-50" :
+              lastScan.status === "duplicate" ? "border-amber-400 bg-amber-50" :
+              "border-red-400 bg-red-50"
+            }`}>
+              <div className="flex items-start gap-4">
+                <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-white text-xl font-bold ${
+                  lastScan.status === "basketed" ? "bg-green-500" :
+                  lastScan.status === "duplicate" ? "bg-amber-500" : "bg-red-500"
+                }`}>
+                  {lastScan.status === "basketed" ? "✓" : lastScan.status === "duplicate" ? "↩" : "!"}
+                </div>
+                {"item" in lastScan ? (
+                  <div className="flex-1 min-w-0">
+                    <span className={`text-xs font-bold uppercase tracking-widest ${
+                      lastScan.status === "basketed" ? "text-green-700" : "text-amber-700"
+                    }`}>
+                      {lastScan.status === "basketed" ? "Basketed" : "Already Basketed"}
+                    </span>
+                    <p className="text-xl font-bold font-mono mt-0.5">{lastScan.item.bird?.band ?? "—"}</p>
+                    {lastScan.item.bird?.birdName && <p className="text-sm text-muted-foreground">{lastScan.item.bird.birdName}</p>}
+                    {"groupName" in lastScan && (
+                      <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
+                        <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">Basket</p><p className="font-medium">{lastScan.groupName}</p></div>
+                        <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">Breeder</p><p>{lastScan.item.breeder?.lastName ?? "—"}</p></div>
+                        <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">RFID</p><p className="font-mono text-xs">{lastScan.item.bird?.rfid ?? "—"}</p></div>
+                        <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">Color</p><p>{lastScan.item.bird?.color ?? "—"}</p></div>
+                        <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">Sex</p><p>{lastScan.item.bird?.sex === 1 ? "Cock" : lastScan.item.bird?.sex === 2 ? "Hen" : "—"}</p></div>
+                        <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">Paid</p><p>{lastScan.item.hasPaid ? "Yes" : <span className="text-red-600 font-semibold">No</span>}</p></div>
+                      </div>
+                    )}
+                    {lastScan.item.bird?.attention && (
+                      <div className="mt-2 flex items-center gap-2 rounded-lg bg-red-100 border border-red-300 px-3 py-2">
+                        <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
+                        <p className="text-base font-bold text-red-700">ATTENTION REQUIRED</p>
+                      </div>
+                    )}
+                    {lastScan.item.bird?.note && (
+                      <div className="mt-2 rounded-lg bg-yellow-50 border border-yellow-300 px-3 py-2">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Note</p>
+                        <p className="text-base font-bold text-yellow-900">{lastScan.item.bird.note}</p>
+                      </div>
+                    )}
+                  </div>
                 ) : (
-                  <table className="w-full text-sm">
-                    <tbody className="divide-y">
-                      {unassigned.map((item) => (
-                        <tr
-                          key={item.id}
-                          className={`cursor-pointer hover:bg-muted/60 transition-colors ${selectedItem?.id === item.id ? "bg-primary/10 ring-1 ring-primary" : ""}`}
-                          onClick={() => { setSelectedItem(item); lastScannedRef.current = null; }}
-                        >
-                          <td className="px-3 py-2 font-medium">{item.bird?.birdName || "—"}</td>
-                          <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{item.bird?.band}</td>
-                          <td className="px-3 py-2 text-xs text-muted-foreground">{item.breeder?.lastName}</td>
-                          <td className="px-3 py-2">
-                            {!item.hasPaid && <Badge variant="destructive" className="text-[10px]">!</Badge>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-bold uppercase tracking-widest text-red-700">Foreign Bird</span>
+                    <p className="text-xl font-bold font-mono mt-0.5">{lastScan.rfid}</p>
+                    <p className="text-sm text-muted-foreground">Not registered in this event</p>
+                  </div>
                 )}
               </div>
             </div>
-
-            {/* Scanned log */}
-            <div className="flex flex-col overflow-hidden">
-              <p className="text-xs font-medium text-muted-foreground mb-1">Basketed ({scannedLog.length})</p>
-              <div className="flex-1 overflow-y-auto border rounded-lg">
-                {scannedLog.length === 0 ? (
-                  <p className="text-sm text-muted-foreground p-4 text-center">No birds scanned yet</p>
-                ) : (
-                  <table className="w-full text-sm">
-                    <tbody className="divide-y">
-                      {scannedLog.map(({ item, groupName }, i) => (
-                        <tr key={item.id}>
-                          <td className="px-3 py-2 font-medium">{item.bird?.birdName || "—"}</td>
-                          <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{item.bird?.band}</td>
-                          <td className="px-3 py-2 text-xs font-medium text-primary">{groupName}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
+          ) : (
+            <div className="rounded-xl border-2 border-dashed px-4 py-4 text-center text-sm text-muted-foreground">
+              Scan a bird to see details here
             </div>
+          )}
+
+          {/* Scan log */}
+          <div className="flex-1 overflow-y-auto border rounded-lg">
+            {scannedLog.length === 0 ? (
+              <p className="text-sm text-muted-foreground p-4 text-center">No birds scanned yet</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-muted text-muted-foreground sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium">#</th>
+                    <th className="px-3 py-2 text-left font-medium">Band</th>
+                    <th className="px-3 py-2 text-left font-medium">Name</th>
+                    <th className="px-3 py-2 text-left font-medium">Breeder</th>
+                    <th className="px-3 py-2 text-left font-medium">Basket</th>
+                    <th className="px-3 py-2 text-left font-medium">Scanned At</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {scannedLog.map(({ item, groupName, scannedAt }, i) => (
+                    <tr key={item.id}>
+                      <td className="px-3 py-2 text-muted-foreground">{scannedLog.length - i}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{item.bird?.band}</td>
+                      <td className="px-3 py-2 font-medium">{item.bird?.birdName || "—"}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{item.breeder?.lastName}</td>
+                      <td className="px-3 py-2 text-primary font-medium">{groupName}</td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">{new Date(scannedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
 
-        <DialogFooter>
-          <span className="text-xs text-muted-foreground mr-auto">{scannedLog.length} basketed</span>
-          <Button onClick={handleClose}>Done</Button>
-        </DialogFooter>
+        <div className="border-t pt-3 space-y-3">
+          <div className="flex justify-center gap-10">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-green-600">{scannedLog.length}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Basketed</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-amber-500">{unassigned.length}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Pending</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-red-500">{foreignCount}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Foreign</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleClose}>Done</Button>
+          </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -1498,6 +1717,55 @@ function LoftScanDialog({
 // ============================================================
 // SHARED COMPONENTS
 // ============================================================
+
+type SortKey = "band" | "birdName" | "breeder" | "basket" | "color" | "sex" | "assignedAt";
+type SortDir = "asc" | "desc";
+
+type FlatRow = {
+  assignmentId: number;
+  band: string;
+  birdName: string;
+  breeder: string;
+  basket: string;
+  basketNo: number;
+  color: string;
+  sex: string;
+  rfid: string;
+  attention: boolean;
+  note: string;
+  assignedAt: string;
+};
+
+function flattenBaskets(baskets: EventBasketItem[]): FlatRow[] {
+  const rows: FlatRow[] = [];
+  for (const b of baskets) {
+    for (const a of b.assignments ?? []) {
+      const bird = a.inventoryItem?.bird;
+      const breeder = a.inventoryItem?.eventInventory?.breeder;
+      const scannedAt = a.inventoryItem?.birdEventHistory?.[0]?.createdAt ?? a.assignedAt;
+      rows.push({
+        assignmentId: a.id,
+        band: bird?.band ?? "—",
+        birdName: bird?.birdName ?? "—",
+        breeder: breeder?.lastName ?? "—",
+        basket: b.label ?? `Basket #${b.basketNo}`,
+        basketNo: b.basketNo,
+        color: bird?.color ?? "—",
+        sex: bird?.sex === 1 ? "Cock" : bird?.sex === 2 ? "Hen" : "—",
+        rfid: bird?.rfid ?? "—",
+        attention: bird?.attention ?? false,
+        note: bird?.note ?? "",
+        assignedAt: scannedAt,
+      });
+    }
+  }
+  return rows;
+}
+
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  if (col !== sortKey) return <ChevronsUpDown className="h-3 w-3 opacity-40" />;
+  return sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />;
+}
 
 function PersistedBasketsView({
   baskets,
@@ -1514,9 +1782,16 @@ function PersistedBasketsView({
   onMove?: (basket: EventBasketItem) => void;
   onEdit?: (basket: EventBasketItem) => void;
 }) {
-  if (isPending) {
-    return <Skeleton className="h-32 w-full" />;
-  }
+  const [view, setView] = useState<"grouped" | "table">("grouped");
+  const [sortKey, setSortKey] = useState<SortKey>("assignedAt");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  const handleSort = (col: SortKey) => {
+    if (col === sortKey) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(col); setSortDir("asc"); }
+  };
+
+  if (isPending) return <Skeleton className="h-32 w-full" />;
 
   if (baskets.length === 0) {
     return (
@@ -1528,22 +1803,97 @@ function PersistedBasketsView({
     );
   }
 
+  const rows = flattenBaskets(baskets).sort((a, b) => {
+    const av = a[sortKey], bv = b[sortKey];
+    const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  const cols: { key: SortKey; label: string }[] = [
+    { key: "band", label: "Band" },
+    { key: "birdName", label: "Name" },
+    { key: "breeder", label: "Breeder" },
+    { key: "basket", label: "Basket" },
+    { key: "color", label: "Color" },
+    { key: "sex", label: "Sex" },
+    { key: "rfid", label: "RFID" },
+    { key: "assignedAt", label: "Basketed At" },
+  ];
+
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">
-          {phase} Baskets
-          <Badge variant="secondary" className="ml-2">
-            {baskets.length}
-          </Badge>
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">
+            {phase} Baskets
+            <Badge variant="secondary" className="ml-2">{baskets.length}</Badge>
+          </CardTitle>
+          <div className="flex items-center rounded-md border">
+            <button
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-l-md transition-colors ${view === "grouped" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+              onClick={() => setView("grouped")}
+            >
+              <LayoutList className="h-3.5 w-3.5" />Grouped
+            </button>
+            <button
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-r-md transition-colors ${view === "table" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+              onClick={() => setView("table")}
+            >
+              <Table2 className="h-3.5 w-3.5" />Table
+            </button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-2">
-          {baskets.map((basket) => (
-            <PersistedBasketCard key={basket.id} basket={basket} onDelete={onDelete} onMove={onMove} onEdit={onEdit} />
-          ))}
-        </div>
+        {view === "grouped" ? (
+          <div className="space-y-2">
+            {baskets.map((basket) => (
+              <PersistedBasketCard key={basket.id} basket={basket} onDelete={onDelete} onMove={onMove} onEdit={onEdit} />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-lg border overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted text-muted-foreground sticky top-0">
+                <tr>
+                  {cols.map(({ key, label }) => (
+                    <th key={key} className="px-3 py-2 text-left font-medium whitespace-nowrap">
+                      <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => handleSort(key)}>
+                        {label}
+                        <SortIcon col={key} sortKey={sortKey} sortDir={sortDir} />
+                      </button>
+                    </th>
+                  ))}
+                  <th className="px-3 py-2 text-left font-medium">Flags</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {rows.length === 0 ? (
+                  <tr><td colSpan={cols.length + 1} className="px-3 py-6 text-center text-muted-foreground">No birds assigned yet</td></tr>
+                ) : rows.map((r) => (
+                  <tr key={r.assignmentId} className={r.attention ? "bg-red-50" : "hover:bg-muted/40 transition-colors"}>
+                    <td className="px-3 py-2 font-mono text-xs">{r.band}</td>
+                    <td className="px-3 py-2">{r.birdName}</td>
+                    <td className="px-3 py-2">{r.breeder}</td>
+                    <td className="px-3 py-2 font-medium">{r.basket}</td>
+                    <td className="px-3 py-2">{r.color}</td>
+                    <td className="px-3 py-2">{r.sex}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{r.rfid}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
+                      {r.assignedAt ? new Date(r.assignedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—"}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1">
+                        {r.attention && <Badge variant="destructive" className="text-[10px] px-1">!</Badge>}
+                        {r.note && <span className="text-[10px] text-muted-foreground truncate max-w-[80px]" title={r.note}>{r.note}</span>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -1562,7 +1912,6 @@ function PersistedBasketCard({
 }) {
   const [expanded, setExpanded] = useState(false);
   const birdCount = basket._count?.assignments ?? basket.assignments?.length ?? 0;
-  const isEmpty = birdCount === 0;
   const breeders = [
     ...new Set(
       (basket.assignments || [])
@@ -1579,71 +1928,71 @@ function PersistedBasketCard({
           onClick={() => setExpanded(!expanded)}
         >
           <div className="flex items-center gap-2">
-            {expanded ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )}
+            {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             <span className="font-medium">{basket.label || `Basket #${basket.basketNo}`}</span>
-            <Badge variant="secondary">
-              {birdCount}/{basket.capacity}
-            </Badge>
+            <Badge variant="secondary">{birdCount}/{basket.capacity}</Badge>
           </div>
-          <span className="text-sm text-muted-foreground">
-            {breeders.join(", ")}
-          </span>
+          <span className="text-sm text-muted-foreground">{breeders.join(", ")}</span>
         </button>
         <div className="flex items-center mr-2">
           {onEdit && (
-            <button
-              className="p-2 text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => onEdit(basket)}
-              title="Edit label / capacity"
-            >
+            <button className="p-2 text-muted-foreground hover:text-foreground transition-colors" onClick={() => onEdit(basket)} title="Edit">
               <Pencil className="h-4 w-4" />
             </button>
           )}
           {onMove && (
-            <button
-              className="p-2 text-muted-foreground hover:text-foreground transition-colors"
-              onClick={() => onMove(basket)}
-              title="Clear birds from basket"
-            >
+            <button className="p-2 text-muted-foreground hover:text-foreground transition-colors" onClick={() => onMove(basket)} title="Clear">
               <ArrowRightLeft className="h-4 w-4" />
             </button>
           )}
           {onDelete && (
-            <button
-              className="p-2 text-muted-foreground hover:text-destructive transition-colors"
-              onClick={() => onDelete(basket)}
-              title="Delete basket"
-            >
+            <button className="p-2 text-muted-foreground hover:text-destructive transition-colors" onClick={() => onDelete(basket)} title="Delete">
               <Trash2 className="h-4 w-4" />
             </button>
           )}
         </div>
       </div>
       {expanded && basket.assignments && (
-        <div className="border-t px-3 py-2 space-y-1">
-          {[...basket.assignments]
-            .sort((a, b) => {
-              const la = a.inventoryItem?.eventInventory?.breeder?.lastName ?? "";
-              const lb = b.inventoryItem?.eventInventory?.breeder?.lastName ?? "";
-              return la.localeCompare(lb);
-            })
-            .map((a) => (
-              <div key={a.id} className="flex items-center gap-3 text-sm py-0.5">
-                <span className="font-mono text-xs text-muted-foreground w-32 truncate">
-                  {a.inventoryItem?.bird?.band || "N/A"}
-                </span>
-                <span className="flex-1">
-                  {a.inventoryItem?.bird?.birdName || "N/A"}
-                </span>
-                <span className="text-muted-foreground">
-                  {a.inventoryItem?.eventInventory?.breeder?.lastName || ""}
-                </span>
-              </div>
-            ))}
+        <div className="border-t overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-muted-foreground">
+              <tr>
+                <th className="px-3 py-1.5 text-left text-xs font-medium">Band</th>
+                <th className="px-3 py-1.5 text-left text-xs font-medium">Name</th>
+                <th className="px-3 py-1.5 text-left text-xs font-medium">Breeder</th>
+                <th className="px-3 py-1.5 text-left text-xs font-medium">Color</th>
+                <th className="px-3 py-1.5 text-left text-xs font-medium">Sex</th>
+                <th className="px-3 py-1.5 text-left text-xs font-medium">Basketed At</th>
+                <th className="px-3 py-1.5 text-left text-xs font-medium">Flags</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {[...basket.assignments]
+                .sort((a, b) => new Date(a.assignedAt).getTime() - new Date(b.assignedAt).getTime())
+                .map((a) => {
+                  const bird = a.inventoryItem?.bird;
+                  const breeder = a.inventoryItem?.eventInventory?.breeder;
+                  return (
+                    <tr key={a.id} className={bird?.attention ? "bg-red-50" : undefined}>
+                      <td className="px-3 py-1.5 font-mono text-xs">{bird?.band ?? "—"}</td>
+                      <td className="px-3 py-1.5">{bird?.birdName ?? "—"}</td>
+                      <td className="px-3 py-1.5 text-muted-foreground">{breeder?.lastName ?? "—"}</td>
+                      <td className="px-3 py-1.5">{bird?.color ?? "—"}</td>
+                      <td className="px-3 py-1.5">{bird?.sex === 1 ? "Cock" : bird?.sex === 2 ? "Hen" : "—"}</td>
+                      <td className="px-3 py-1.5 text-xs text-muted-foreground whitespace-nowrap">
+                        {(() => { const t = a.inventoryItem?.birdEventHistory?.[0]?.createdAt ?? a.assignedAt; return t ? new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—"; })()}
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <div className="flex items-center gap-1">
+                          {bird?.attention && <Badge variant="destructive" className="text-[10px] px-1">!</Badge>}
+                          {bird?.note && <span className="text-[10px] text-muted-foreground truncate max-w-[80px]" title={bird.note}>{bird.note}</span>}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
