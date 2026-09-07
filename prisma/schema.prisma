@@ -512,9 +512,10 @@ model Race {
   raceItemScans  RaceItemScan[]
   phantomBirds   RacePhantomBird[]
   ignoreBirds    RaceIgnoreBird[]
-  arrivalGroups  ArrivalGroup[]
-  eventBaskets   EventBasket[]
-  averageConfigRaces AverageConfigRace[]
+  arrivalGroups       ArrivalGroup[]
+  eventBaskets        EventBasket[]
+  averageConfigRaces  AverageConfigRace[]
+  statusVisibility    RaceStatusVisibility[]
 }
 
 model TruckPing {
@@ -541,6 +542,18 @@ model ArrivalGroup {
   arrivalTimeEnd   DateTime?
   race             Race      @relation(fields: [raceId], references: [id])
   results          RaceItemResult[]
+}
+
+model RaceStatusVisibility {
+  id      Int            @id @default(autoincrement())
+  raceId  Int
+  status  RaceItemStatus
+  visible Boolean        @default(true)
+
+  race Race @relation(fields: [raceId], references: [id], onDelete: Cascade)
+
+  @@unique([raceId, status])
+  @@index([raceId])
 }
 
 model RaceItem {

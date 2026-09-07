@@ -23,6 +23,7 @@ import { BasketTabs } from "./basket-tabs";
 import { BasketRaceItemsDialog } from "./basket-race-items-dialog";
 // GPS disabled for now: import { TransportCard, RouteHistoryCard } from "./transport-card";
 import { raceItemsColumns } from "./race-items-columns";
+import { RaceStatusFilter } from "./race-status-filter";
 import { getWeatherIcon } from "@/lib/weather-constants";
 import { StationsMap } from "@/components/map";
 import type { Race, Event, RaceItem } from "@/lib/types";
@@ -41,6 +42,7 @@ export default function RaceDetailsPage() {
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [basketDialogOpen, setBasketDialogOpen] = useState(false);
   const [pathOpen, setPathOpen] = useState(false);
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [arrivalFrom, setArrivalFrom] = useState<string>("");
   const [arrivalTo, setArrivalTo] = useState<string>("");
@@ -196,16 +198,17 @@ export default function RaceDetailsPage() {
   const fromMs = arrivalFrom ? new Date(`${arrivalFrom}T00:00:00`).getTime() : NaN;
   const toMs = arrivalTo ? new Date(`${arrivalTo}T23:59:59.999`).getTime() : NaN;
   const hasArrivalFilter = !isNaN(fromMs) || !isNaN(toMs);
-  const raceItems: RaceItem[] = hasArrivalFilter
-    ? allRaceItems.filter((ri) => {
-        const t = ri.arrivalTime ?? ri.result?.arrivalTime ?? null;
-        if (!t) return false;
-        const ms = new Date(t).getTime();
-        if (!isNaN(fromMs) && ms < fromMs) return false;
-        if (!isNaN(toMs) && ms > toMs) return false;
-        return true;
-      })
-    : allRaceItems;
+  const raceItems: RaceItem[] = allRaceItems.filter((ri) => {
+    if (selectedStatuses.length > 0 && !selectedStatuses.includes(ri.status ?? "")) return false;
+    if (hasArrivalFilter) {
+      const t = ri.arrivalTime ?? ri.result?.arrivalTime ?? null;
+      if (!t) return false;
+      const ms = new Date(t).getTime();
+      if (!isNaN(fromMs) && ms < fromMs) return false;
+      if (!isNaN(toMs) && ms > toMs) return false;
+    }
+    return true;
+  });
 
   // Get selected race items
   const selectedRaceItems = raceItems.filter((_, index) => rowSelection[index]);
@@ -484,30 +487,76 @@ export default function RaceDetailsPage() {
               )}
             </CardHeader>
             <CardContent className="overflow-x-auto">
-              <div className="flex flex-wrap items-end gap-3 mb-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">Arrival From</Label>
-                  <Input
-                    type="date"
-                    className="h-9 w-44"
-                    value={arrivalFrom}
-                    onChange={(e) => setArrivalFrom(e.target.value)}
-                  />
+              {/* Status count chips */}
+              {(() => {
+                const rawCounts: Record<string, number> = {};
+                allRaceItems.forEach((ri) => {
+                  if (ri.status) rawCounts[ri.status] = (rawCounts[ri.status] ?? 0) + 1;
+                });
+                const loftCount     = rawCounts["LOFT_BASKETED"] ?? 0;
+                const arrivedCount  = rawCounts["ARRIVED"] ?? 0;
+                const foreignCount  = rawCounts["FOREIGN_BIRD"] ?? 0;
+                // Released = still in flight + arrived + foreign (all were released)
+                const releasedCount = (rawCounts["RELEASED"] ?? 0) + arrivedCount + foreignCount;
+
+                const CHIPS = [
+                  { values: ["LOFT_BASKETED"],              label: "Loft Basketed", count: loftCount,     color: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300" },
+                  { values: ["RELEASED","ARRIVED","FOREIGN_BIRD"], label: "Released",     count: releasedCount, color: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300" },
+                  { values: ["ARRIVED"],                    label: "Arrived",      count: arrivedCount,  color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300" },
+                  { values: ["FOREIGN_BIRD"],               label: "Foreign",      count: foreignCount,  color: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300" },
+                ] as const;
+
+                return (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {CHIPS.map((chip) => {
+                      const active = chip.values.length === selectedStatuses.length &&
+                        chip.values.every((v) => selectedStatuses.includes(v));
+                      return (
+                        <button
+                          key={chip.label}
+                          type="button"
+                          onClick={() => setSelectedStatuses(active ? [] : [...chip.values])}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${chip.color} ${active ? "ring-2 ring-offset-1 ring-current" : "opacity-80 hover:opacity-100"}`}
+                        >
+                          <span className="text-base font-bold">{chip.count}</span>
+                          <span>{chip.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <RaceStatusFilter
+                  raceId={raceId}
+                  selectedStatuses={selectedStatuses}
+                  onSelectedChange={setSelectedStatuses}
+                />
+                <div className="flex items-end gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Arrival From</Label>
+                    <Input
+                      type="date"
+                      className="h-8 w-40"
+                      value={arrivalFrom}
+                      onChange={(e) => setArrivalFrom(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Arrival To</Label>
+                    <Input
+                      type="date"
+                      className="h-8 w-40"
+                      value={arrivalTo}
+                      onChange={(e) => setArrivalTo(e.target.value)}
+                    />
+                  </div>
+                  {(arrivalFrom || arrivalTo) && (
+                    <Button variant="outline" size="sm" className="h-8" onClick={() => { setArrivalFrom(""); setArrivalTo(""); }}>
+                      Clear
+                    </Button>
+                  )}
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Arrival To</Label>
-                  <Input
-                    type="date"
-                    className="h-9 w-44"
-                    value={arrivalTo}
-                    onChange={(e) => setArrivalTo(e.target.value)}
-                  />
-                </div>
-                {(arrivalFrom || arrivalTo) && (
-                  <Button variant="outline" size="sm" onClick={() => { setArrivalFrom(""); setArrivalTo(""); }}>
-                    Clear
-                  </Button>
-                )}
               </div>
               <DataTable
                 tableId="race-items"

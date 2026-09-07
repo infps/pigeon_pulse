@@ -17,6 +17,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table"
+import { Check, ListFilter, X } from "lucide-react"
 
 import {
   Table,
@@ -29,6 +30,8 @@ import {
 import { DataTablePagination } from "@/components/ui/data-table-pagination"
 import { DataTableViewOptions } from "@/components/ui/data-table-view-options"
 import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import {
   Select,
   SelectContent,
@@ -36,6 +39,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+
+export interface FacetedFilter {
+  id: string
+  title: string
+  options: { label: string; value: string }[]
+}
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -47,6 +64,7 @@ interface DataTableProps<TData, TValue> {
     id: string
     title: string
   }[]
+  facetedFilters?: FacetedFilter[]
   rowSelection?: RowSelectionState
   onRowSelectionChange?: (updater: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => void
   onRowClick?: (row: TData) => void
@@ -80,6 +98,7 @@ export function DataTable<TData, TValue>({
   searchKey,
   searchPlaceholder = "Search...",
   filterableColumns = [],
+  facetedFilters = [],
   rowSelection: externalRowSelection,
   onRowSelectionChange: externalOnRowSelectionChange,
   onRowClick,
@@ -96,7 +115,6 @@ export function DataTable<TData, TValue>({
     filterableColumns.length > 0 ? filterableColumns[0].id : ""
   )
 
-  // Load persisted prefs once on mount
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(() => {
     if (tableId) {
       const saved = loadPrefs(tableId)
@@ -113,7 +131,6 @@ export function DataTable<TData, TValue>({
     return []
   })
 
-  // Persist whenever visibility or order changes
   React.useEffect(() => {
     if (!tableId) return
     savePrefs(tableId, columnVisibility, columnOrder)
@@ -171,10 +188,22 @@ export function DataTable<TData, TValue>({
     }
   }
 
+  const filteredCount = table.getFilteredRowModel().rows.length
+  const totalCount = data.length
+  const isFiltered = filteredCount !== totalCount
+
+  const anyFacetActive = facetedFilters.some(
+    (ff) => ((table.getColumn(ff.id)?.getFilterValue() as string[]) ?? []).length > 0
+  )
+
+  const clearAllFacets = () => {
+    facetedFilters.forEach((ff) => table.getColumn(ff.id)?.setFilterValue(undefined))
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {useColumnFiltering ? (
             <>
               <Select
@@ -210,6 +239,74 @@ export function DataTable<TData, TValue>({
               className="h-8 w-37.5 lg:w-62.5"
             />
           ) : null}
+
+          {facetedFilters.map((ff) => {
+            const selected = (table.getColumn(ff.id)?.getFilterValue() as string[]) ?? []
+            const toggle = (value: string) => {
+              const next = selected.includes(value)
+                ? selected.filter((v) => v !== value)
+                : [...selected, value]
+              table.getColumn(ff.id)?.setFilterValue(next.length ? next : undefined)
+            }
+            return (
+              <DropdownMenu key={ff.id}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 gap-1.5 border-dashed">
+                    <ListFilter className="h-3.5 w-3.5" />
+                    {ff.title}
+                    {selected.length > 0 && (
+                      <Badge variant="secondary" className="ml-1 rounded-sm px-1 font-normal">
+                        {selected.length}
+                      </Badge>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuLabel>{ff.title}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {ff.options.map((opt) => {
+                    const checked = selected.includes(opt.value)
+                    return (
+                      <DropdownMenuCheckboxItem
+                        key={opt.value}
+                        checked={checked}
+                        onCheckedChange={() => toggle(opt.value)}
+                      >
+                        {opt.label}
+                        {checked && <Check className="ml-auto h-3.5 w-3.5 opacity-60" />}
+                      </DropdownMenuCheckboxItem>
+                    )
+                  })}
+                  {selected.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuCheckboxItem
+                        checked={false}
+                        onCheckedChange={() => table.getColumn(ff.id)?.setFilterValue(undefined)}
+                        className="text-muted-foreground"
+                      >
+                        Clear filter
+                      </DropdownMenuCheckboxItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )
+          })}
+
+          {isFiltered && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">
+                {filteredCount} of {totalCount}
+              </span>
+              {anyFacetActive && (
+                <Button variant="ghost" size="sm" className="h-6 px-1.5 text-xs" onClick={clearAllFacets}>
+                  <X className="h-3 w-3 mr-1" />
+                  Reset
+                </Button>
+              )}
+            </div>
+          )}
         </div>
         <DataTableViewOptions
           table={table}

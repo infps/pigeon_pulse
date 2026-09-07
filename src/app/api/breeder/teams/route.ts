@@ -75,6 +75,9 @@ export async function GET(request: Request) {
                     band3: true,
                     band4: true,
                     birdName: true,
+                    note: true,
+                    color: true,
+                    sex: true,
                   },
                 },
                 currentGroup: {
@@ -102,14 +105,18 @@ export async function GET(request: Request) {
       id: number;
       band: string;
       name: string | null;
+      note: string | null;
+      color: string | null;
+      sex: string | null;
       status: string | null;
       position: number | null;
       vaccinated: boolean;
+      eventId: number | null;
     };
     const statsByTeam = new Map<
       number,
       {
-        birds: Map<number, TeamBird>;
+        birds: TeamBird[];
         races: Map<number, string>;
         events: Map<number, string>;
       }
@@ -118,12 +125,13 @@ export async function GET(request: Request) {
       if (inv.teamId == null) continue;
       const stat =
         statsByTeam.get(inv.teamId) ?? {
-          birds: new Map<number, TeamBird>(),
+          birds: [],
           races: new Map<number, string>(),
           events: new Map<number, string>(),
         };
-      if (inv.season?.event?.id != null) {
-        stat.events.set(inv.season.event.id, inv.season.event.name ?? `Event ${inv.season.event.id}`);
+      const eventId = inv.season?.event?.id ?? null;
+      if (eventId != null) {
+        stat.events.set(eventId, inv.season!.event!.name ?? `Event ${eventId}`);
       }
       for (const item of inv.items) {
         const b = item.bird;
@@ -157,9 +165,10 @@ export async function GET(request: Request) {
             b.band?.trim() ||
             [b.band1, b.band2, b.band3, b.band4].filter(Boolean).join("-") ||
             "No band";
-          stat.birds.set(b.id, { id: b.id, band, name: b.birdName, status: effectiveStatus, position, vaccinated });
+          const sex = b.sex === 1 ? "Cock" : b.sex === 2 ? "Hen" : null;
+          stat.birds.push({ id: b.id, band, name: b.birdName, note: b.note ?? null, color: b.color ?? null, sex, status: effectiveStatus, position, vaccinated, eventId });
         } else if (item.birdId != null) {
-          stat.birds.set(item.birdId, { id: item.birdId, band: "No band", name: null, status: effectiveStatus, position, vaccinated });
+          stat.birds.push({ id: item.birdId, band: "No band", name: null, note: null, color: null, sex: null, status: effectiveStatus, position, vaccinated, eventId });
         }
       }
       statsByTeam.set(inv.teamId, stat);
@@ -169,8 +178,8 @@ export async function GET(request: Request) {
       const stat = statsByTeam.get(t.id);
       return {
         ...t,
-        birdCount: stat ? stat.birds.size : 0,
-        birds: stat ? Array.from(stat.birds.values()) : [],
+        birdCount: stat ? stat.birds.length : 0,
+        birds: stat ? stat.birds : [],
         races: stat ? Array.from(stat.races.values()) : [],
         events: stat
           ? Array.from(stat.events.entries()).map(([id, name]) => ({ id, name }))

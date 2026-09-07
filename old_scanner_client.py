@@ -10,8 +10,12 @@ import requests
 import json
 import asyncio
 import websockets
+from datetime import timezone
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Optional, Dict, Any
+
+_executor = ThreadPoolExecutor(max_workers=4)
 
 
 # Configuration
@@ -106,22 +110,35 @@ class RFIDScanner:
                 
                 print(f"📡 RX: {message}")
 
-                # MC2100 format: "ANTENNA:RINGNO" e.g. "SN000/002:R500000672"
-                # Fallback: legacy dash-separated "RINGNO-TIMESTAMP-ANTENNA"
+                # Real MC2100 format: "4F7D5A06-3E-05.09.26 04:17:29.58-001"
+                # RFID is always the first dash-delimited token (8 hex chars)
+                # Legacy format: "SN000/002:R500000672" (antenna:ring, no real RFID)
                 ring_no = None
-                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
                 antenna = ""
 
-                if ":" in message:
-                    colon_parts = message.split(":", 1)
-                    antenna = colon_parts[0].strip()
-                    ring_no = colon_parts[1].strip()
-                else:
-                    dash_parts = message.split("-")
-                    if len(dash_parts) >= 3:
-                        ring_no = dash_parts[0]
-                        timestamp = dash_parts[1]
-                        antenna = dash_parts[2]
+                first_token = message.split("-")[0].strip()
+                # 8-char hex = real RFID tag
+                if len(first_token) == 8 and all(c in "0123456789ABCDEFabcdef" for c in first_token):
+                    ring_no = first_token.upper()
+                    # Parse scanner's own timestamp: "4F7D5A06-3E-05.09.26 04:17:29.58-001"
+                    # tokens: [rfid, antenna_hex, "DD.MM.YY HH:MM:SS.ss-seq"]
+                    parts = message.split("-", 2)
+                    if len(parts) == 3:
+                        try:
+                            raw = parts[2].rsplit("-", 1)[0].strip()  # "DD.MM.YY HH:MM:SS.ss"
+                            raw = raw.rsplit(".", 1)[0]               # "DD.MM.YY HH:MM:SS"
+                            # Scanner embeds local time — attach local tz then convert to UTC
+                            dt = datetime.strptime(raw, "%d.%m.%y %H:%M:%S").astimezone(timezone.utc)
+                            timestamp = dt.strftime("%Y%m%d%H%M%S")
+                        except Exception:
+                            pass  # keep datetime.now() fallback
+                # elif ":" in message:  # ponytail: legacy SN path disabled, kept for reference
+                #     colon_parts = message.split(":", 1)
+                #     candidate = colon_parts[1].strip()
+                #     if candidate and "/" not in candidate and " " not in candidate:
+                #         antenna = colon_parts[0].strip()
+                #         ring_no = candidate
 
                 if ring_no:
                     self.ser.write(ACK)
@@ -486,27 +503,29 @@ def race_mode(scanner: RFIDScanner, client: PigeonPulseClient):
                     print(f"\n📍 ARRIVAL DETECTED!")
                     print(f"   Ring: {ring_no} | Time: {timestamp} | Antenna: {antenna}")
 
-                    # Push for web poll path
-                    client.push_scan(ring_no)
+                    # Fire API calls in background — don't block the scan loop
+                    def _post(rn, ts, ant):
+                        client.push_scan(rn)
+                        result = client.submit_race_arrival(race_id, rn, ts, ant)
+                        if ws_ok and ws_client.connected:
+                            try:
+                                msg = {
+                                    "type": "arrival",
+                                    "raceId": race_id,
+                                    "ringNo": rn,
+                                    "timestamp": ts,
+                                    "birdPosition": result.get("birdPosition"),
+                                    "message": result.get("message", ""),
+                                }
+                                asyncio.run_coroutine_threadsafe(
+                                    ws_client.ws.send(json.dumps(msg)),
+                                    asyncio.get_event_loop()
+                                )
+                                print("   📡 Broadcasted via WebSocket")
+                            except Exception as e:
+                                print(f"   ⚠️  WS broadcast error: {e}")
 
-                    # Submit to API
-                    result = client.submit_race_arrival(race_id, ring_no, timestamp, antenna)
-
-                    # Broadcast via WebSocket
-                    if ws_ok and ws_client.connected:
-                        try:
-                            msg = {
-                                "type": "arrival",
-                                "raceId": race_id,
-                                "ringNo": ring_no,
-                                "timestamp": timestamp,
-                                "birdPosition": result.get("birdPosition"),
-                                "message": result.get("message", ""),
-                            }
-                            await ws_client.ws.send(json.dumps(msg))
-                            print("   📡 Broadcasted via WebSocket")
-                        except Exception as e:
-                            print(f"   ⚠️  WS broadcast error: {e}")
+                    _executor.submit(_post, ring_no, timestamp, antenna)
 
         except KeyboardInterrupt:
             pass

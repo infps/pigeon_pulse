@@ -22,8 +22,17 @@ export async function GET(
       select: { id: true, startTime: true },
     });
 
+    const visibilityRows = await prisma.raceStatusVisibility.findMany({
+      where: { raceId: raceIdInt, visible: false },
+      select: { status: true },
+    });
+    const hiddenStatuses = visibilityRows.map((r) => r.status);
+
     const raceItems = await prisma.raceItem.findMany({
-      where: { raceId: raceIdInt },
+      where: {
+        raceId: raceIdInt,
+        ...(hiddenStatuses.length > 0 && { status: { notIn: hiddenStatuses } }),
+      },
       include: {
         inventoryItem: {
           include: {
@@ -46,7 +55,7 @@ export async function GET(
         result: true,
       },
       orderBy: [
-        { result: { arrivalTime: "asc" } },
+        { result: { birdPosition: "asc" } },
       ],
     });
 
@@ -91,6 +100,14 @@ export async function GET(
         arrivalTime: item.result?.arrivalTime ?? null,
         previousPosition,
       };
+    });
+
+    // Prisma nulls-first on relation orderBy — push null-position birds to end
+    flattenedRaceItems.sort((a, b) => {
+      if (a.birdPosition == null && b.birdPosition == null) return 0;
+      if (a.birdPosition == null) return 1;
+      if (b.birdPosition == null) return -1;
+      return a.birdPosition - b.birdPosition;
     });
 
     return NextResponse.json(

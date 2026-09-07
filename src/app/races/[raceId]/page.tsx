@@ -100,9 +100,10 @@ export default function PublicRacePage() {
   }
 
   // --- Enrich items: rank, gap, ypm ---
+  // Use birdPosition from DB — computed by scan endpoint, excludes foreign birds
   const arrived = raceItems
-    .filter((it) => !!it.arrivalTime)
-    .sort((a, b) => new Date(a.arrivalTime!).getTime() - new Date(b.arrivalTime!).getTime());
+    .filter((it) => it.birdPosition != null)
+    .sort((a, b) => (a.birdPosition as number) - (b.birdPosition as number));
 
   const leaderTimeMs = arrived[0]?.arrivalTime ? new Date(arrived[0].arrivalTime).getTime() : null;
   const startMs = race.startTime ? new Date(race.startTime).getTime() : null;
@@ -110,7 +111,7 @@ export default function PublicRacePage() {
   const distanceYards = distanceMi * 1760;
 
   const rankMap = new Map<number, number>();
-  arrived.forEach((it, idx) => rankMap.set(it.id, idx + 1));
+  arrived.forEach((it) => rankMap.set(it.id, it.birdPosition as number));
 
   const enriched: EnrichedRaceItem[] = raceItems.map((it) => {
     const arrivalMs = it.arrivalTime ? new Date(it.arrivalTime).getTime() : null;
@@ -386,7 +387,7 @@ function fmsFlight(ms: number): string {
 
 function fmsArrival(d: string): string {
   const dt = new Date(d);
-  return `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}:${String(dt.getSeconds()).padStart(2, "0")}.${String(dt.getMilliseconds()).padStart(3, "0")}`;
+  return `${String(dt.getUTCHours()).padStart(2, "0")}:${String(dt.getUTCMinutes()).padStart(2, "0")}:${String(dt.getUTCSeconds()).padStart(2, "0")}.${String(dt.getUTCMilliseconds()).padStart(3, "0")}`;
 }
 
 function fmsGap(ms: number): string {
@@ -495,8 +496,8 @@ function BreederBirdsModal({
                 const speed =
                   item.ypm != null
                     ? velocityUnit === "MPM"
-                      ? (item.ypm * 0.9144).toFixed(3)
-                      : item.ypm.toFixed(3)
+                      ? (item.ypm * 0.9144).toFixed(6)
+                      : item.ypm.toFixed(6)
                     : null;
                 const sexIcon = item.bandSex === 1 ? "♂" : item.bandSex === 2 ? "♀" : "";
                 const sexColor = item.bandSex === 1 ? "text-blue-500" : "text-pink-500";
@@ -597,8 +598,8 @@ function RaceHistoryTable({ entries, velocityUnit }: { entries: HistoryEntry[]; 
             const speed =
               e.ypm != null
                 ? velocityUnit === "MPM"
-                  ? (e.ypm * 0.9144).toFixed(4)
-                  : e.ypm.toFixed(4)
+                  ? (e.ypm * 0.9144).toFixed(6)
+                  : e.ypm.toFixed(6)
                 : "-";
             return (
               <tr key={i} className="border-b last:border-0 hover:bg-muted/30">
