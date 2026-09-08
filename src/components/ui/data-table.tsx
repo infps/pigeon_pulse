@@ -58,6 +58,7 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
   tableId?: string
+  resetFiltersKey?: number
   searchKey?: string
   searchPlaceholder?: string
   filterableColumns?: {
@@ -73,6 +74,7 @@ interface DataTableProps<TData, TValue> {
   externalFilterValue?: string
   externalFilterColumn?: string
   emptyState?: React.ReactNode
+  toolbarExtra?: React.ReactNode
 }
 
 function loadPrefs(tableId: string): { visibility: VisibilityState; order: string[] } | null {
@@ -95,6 +97,7 @@ export function DataTable<TData, TValue>({
   columns,
   data,
   tableId,
+  resetFiltersKey,
   searchKey,
   searchPlaceholder = "Search...",
   filterableColumns = [],
@@ -107,6 +110,7 @@ export function DataTable<TData, TValue>({
   externalFilterValue,
   externalFilterColumn,
   emptyState,
+  toolbarExtra,
 }: DataTableProps<TData, TValue>) {
   const [internalRowSelection, setInternalRowSelection] = React.useState<RowSelectionState>({})
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -163,6 +167,12 @@ export function DataTable<TData, TValue>({
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
   })
+
+  React.useEffect(() => {
+    if (resetFiltersKey === undefined) return
+    table.resetColumnFilters()
+    table.setGlobalFilter("")
+  }, [resetFiltersKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
     if (externalFilterValue === undefined) return
@@ -307,6 +317,7 @@ export function DataTable<TData, TValue>({
               )}
             </div>
           )}
+          {toolbarExtra}
         </div>
         <DataTableViewOptions
           table={table}

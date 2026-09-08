@@ -387,7 +387,7 @@ function fmsFlight(ms: number): string {
 
 function fmsArrival(d: string): string {
   const dt = new Date(d);
-  return `${String(dt.getUTCHours()).padStart(2, "0")}:${String(dt.getUTCMinutes()).padStart(2, "0")}:${String(dt.getUTCSeconds()).padStart(2, "0")}.${String(dt.getUTCMilliseconds()).padStart(3, "0")}`;
+  return `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}:${String(dt.getSeconds()).padStart(2, "0")}.${String(dt.getMilliseconds()).padStart(3, "0")}`;
 }
 
 function fmsGap(ms: number): string {

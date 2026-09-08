@@ -1,38 +1,24 @@
 "use client";
 
-import { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef, SortingFn } from "@tanstack/react-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import type { RaceItem } from "@/lib/types";
+
+const nullsLast: SortingFn<RaceItem> = (a, b, colId) => {
+  const av = a.getValue(colId) ?? null;
+  const bv = b.getValue(colId) ?? null;
+  if (av === null && bv === null) return 0;
+  if (av === null) return 1;
+  if (bv === null) return -1;
+  if (typeof av === "number" && typeof bv === "number") return av - bv;
+  return String(av).localeCompare(String(bv));
+};
 
 export const raceItemsColumns: ColumnDef<RaceItem>[] = [
   {
-    id: "select",
-    header: ({ table }) => (
-      <Checkbox
-        checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && "indeterminate")
-        }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all"
-        className="translate-y-[2px]"
-      />
-    ),
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
-        className="translate-y-[2px]"
-      />
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
     accessorKey: "birdPosition",
+    sortingFn: nullsLast,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Position" />
     ),
@@ -43,6 +29,7 @@ export const raceItemsColumns: ColumnDef<RaceItem>[] = [
   },
   {
     accessorKey: "status",
+    sortingFn: nullsLast,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
@@ -63,6 +50,7 @@ export const raceItemsColumns: ColumnDef<RaceItem>[] = [
   {
     id: "band",
     accessorKey: "bird.band",
+    sortingFn: nullsLast,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Band" />
     ),
@@ -74,6 +62,7 @@ export const raceItemsColumns: ColumnDef<RaceItem>[] = [
   {
     id: "birdName",
     accessorKey: "bird.birdName",
+    sortingFn: nullsLast,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Bird Name" />
     ),
@@ -85,6 +74,7 @@ export const raceItemsColumns: ColumnDef<RaceItem>[] = [
   {
     id: "breeder",
     accessorKey: "bird.breeder.firstName",
+    sortingFn: nullsLast,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Breeder" />
     ),
@@ -96,6 +86,7 @@ export const raceItemsColumns: ColumnDef<RaceItem>[] = [
   {
     id: "loft",
     accessorKey: "eventInventoryItem.eventInventory.loft",
+    sortingFn: nullsLast,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Loft" />
     ),
@@ -106,6 +97,7 @@ export const raceItemsColumns: ColumnDef<RaceItem>[] = [
   },
   {
     accessorKey: "arrivalTime",
+    sortingFn: nullsLast,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Arrival Time" />
     ),
@@ -120,6 +112,7 @@ export const raceItemsColumns: ColumnDef<RaceItem>[] = [
   },
   {
     accessorKey: "speed",
+    sortingFn: nullsLast,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Speed" />
     ),
@@ -130,6 +123,7 @@ export const raceItemsColumns: ColumnDef<RaceItem>[] = [
   },
   {
     accessorKey: "loftBasketLabel",
+    sortingFn: nullsLast,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Loft Basket" />
     ),
@@ -144,6 +138,7 @@ export const raceItemsColumns: ColumnDef<RaceItem>[] = [
   },
   {
     accessorKey: "raceBasketLabel",
+    sortingFn: nullsLast,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Race Basket" />
     ),

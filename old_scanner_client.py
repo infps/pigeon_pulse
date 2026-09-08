@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-_executor = ThreadPoolExecutor(max_workers=4)
+_executor = ThreadPoolExecutor(max_workers=20)
 
 
 # Configuration
@@ -74,7 +74,7 @@ class RFIDScanner:
     
     def set_time(self) -> bool:
         """Set the scanner's internal clock"""
-        now = datetime.now().strftime("%Y%m%d%H%M%S")
+        now = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
         print(f"🕐 Setting time: {now}")
         
         self.ser.write(now.encode("ascii") + LF)
@@ -212,7 +212,7 @@ class PigeonPulseClient:
                 url,
                 json={"ringNo": ring_no, "timestamp": timestamp, "antenna": antenna},
                 headers=headers,
-                timeout=10,
+                timeout=4,
             )
             data = resp.json()
             if resp.ok:
@@ -493,7 +493,7 @@ def race_mode(scanner: RFIDScanner, client: PigeonPulseClient):
 
         try:
             while True:
-                scan_data = scanner.read_scan(timeout=5.0)
+                scan_data = scanner.read_scan(timeout=1.0)
 
                 if scan_data:
                     ring_no = scan_data["ring_no"]
@@ -505,7 +505,7 @@ def race_mode(scanner: RFIDScanner, client: PigeonPulseClient):
 
                     # Fire API calls in background — don't block the scan loop
                     def _post(rn, ts, ant):
-                        client.push_scan(rn)
+                        # push_scan omitted in race mode — only needed for checkin poll bridge
                         result = client.submit_race_arrival(race_id, rn, ts, ant)
                         if ws_ok and ws_client.connected:
                             try:

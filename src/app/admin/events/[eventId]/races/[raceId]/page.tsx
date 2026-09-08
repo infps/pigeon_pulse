@@ -10,7 +10,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -20,16 +19,14 @@ import {
 } from "@/components/ui/dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { BasketTabs } from "./basket-tabs";
-import { BasketRaceItemsDialog } from "./basket-race-items-dialog";
 // GPS disabled for now: import { TransportCard, RouteHistoryCard } from "./transport-card";
 import { raceItemsColumns } from "./race-items-columns";
 import { RaceStatusFilter } from "./race-status-filter";
 import { getWeatherIcon } from "@/lib/weather-constants";
 import { StationsMap } from "@/components/map";
 import type { Race, Event, RaceItem } from "@/lib/types";
-import type { RowSelectionState } from "@tanstack/react-table";
 import Image from "next/image";
-import { Package, Play, Radio, Square, StopCircle } from "lucide-react";
+import { Play, Radio, Square, StopCircle } from "lucide-react";
 import { RaceWindButton } from "@/components/map/race-wind-dialog";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -39,13 +36,13 @@ export default function RaceDetailsPage() {
   const eventId = params?.eventId as string;
   const raceId = params?.raceId as string;
 
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [basketDialogOpen, setBasketDialogOpen] = useState(false);
   const [pathOpen, setPathOpen] = useState(false);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [arrivalFrom, setArrivalFrom] = useState<string>("");
   const [arrivalTo, setArrivalTo] = useState<string>("");
+  const [arrivalDefaultSet, setArrivalDefaultSet] = useState(false);
+  const [tableResetKey, setTableResetKey] = useState(0);
   const lastScannedRfidRef = useRef<string | null>(null);
   const scannerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pollStartedAtRef = useRef<string | null>(null);
@@ -195,31 +192,41 @@ export default function RaceDetailsPage() {
   const event = eventData?.event as Event;
   const allRaceItems = (raceItemsData?.raceItems || []) as RaceItem[];
 
-  const fromMs = arrivalFrom ? new Date(`${arrivalFrom}T00:00:00`).getTime() : NaN;
-  const toMs = arrivalTo ? new Date(`${arrivalTo}T23:59:59.999`).getTime() : NaN;
+  // Set default arrivalFrom to first bird's arrival time once data loads
+  if (!arrivalDefaultSet && allRaceItems.length > 0) {
+    const firstArrival = allRaceItems
+      .map((ri) => ri.arrivalTime ?? ri.result?.arrivalTime ?? null)
+      .filter(Boolean)
+      .map((t) => new Date(t!).getTime())
+      .sort((a, b) => a - b)[0];
+    if (firstArrival) {
+      const d = new Date(firstArrival);
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const local = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      setArrivalFrom(local);
+    }
+    setArrivalDefaultSet(true);
+  }
+
+  const fromMs = arrivalFrom ? new Date(arrivalFrom).getTime() : NaN;
+  const toMs = arrivalTo ? new Date(arrivalTo).getTime() : NaN;
   const hasArrivalFilter = !isNaN(fromMs) || !isNaN(toMs);
   const raceItems: RaceItem[] = allRaceItems.filter((ri) => {
     if (selectedStatuses.length > 0 && !selectedStatuses.includes(ri.status ?? "")) return false;
     if (hasArrivalFilter) {
       const t = ri.arrivalTime ?? ri.result?.arrivalTime ?? null;
-      if (!t) return false;
-      const ms = new Date(t).getTime();
-      if (!isNaN(fromMs) && ms < fromMs) return false;
-      if (!isNaN(toMs) && ms > toMs) return false;
+      if (t) {
+        const ms = new Date(t).getTime();
+        if (!isNaN(fromMs) && ms < fromMs) return false;
+        if (!isNaN(toMs) && ms > toMs) return false;
+      }
     }
     return true;
   });
 
-  // Get selected race items
-  const selectedRaceItems = raceItems.filter((_, index) => rowSelection[index]);
-
   // Launch path available when race has a station + event has loft coords.
   const hasPath =
     !!race?.raceStation && event?.latitude != null && event?.longitude != null;
-
-  const handleBasketSuccess = () => {
-    setRowSelection({});
-  };
 
   if (!race || !event) {
     return (
@@ -260,8 +267,9 @@ export default function RaceDetailsPage() {
             <div className="flex-1 min-w-0">
               <div className="space-y-3">
                 <div>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <h1 className="text-2xl md:text-3xl font-bold text-foreground">{race.description}</h1>
+                  <h1 className="text-2xl md:text-3xl font-bold text-foreground">{race.description}</h1>
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    <span className="text-sm md:text-base text-muted-foreground font-medium">{event.name}</span>
                     {race.status === "REGISTERING" && (
                       <Badge variant="default" className="text-sm bg-blue-600">Registering</Badge>
                     )}
@@ -271,9 +279,6 @@ export default function RaceDetailsPage() {
                     {race.status === "ENDED" && (
                       <Badge variant="secondary" className="text-sm">Ended</Badge>
                     )}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 mt-2">
-                    <span className="text-sm md:text-base text-muted-foreground font-medium">{event.name}</span>
                     <Badge variant={race.status === "ENDED" ? "secondary" : "default"}>
                       {race.raceType?.name || "Race"}
                     </Badge>
@@ -320,9 +325,14 @@ export default function RaceDetailsPage() {
                       </Button>
                     )}
                   </div>
-                  <p className="text-sm md:text-base text-blue-600 mt-1">
-                    Location: <span className="font-medium">{race.location}</span>
-                  </p>
+                  <div className="flex flex-wrap items-center gap-3 mt-1">
+                    <p className="text-sm md:text-base text-blue-600">
+                      Location: <span className="font-medium">{race.location}</span>
+                    </p>
+                    <p className="text-sm md:text-base text-muted-foreground">
+                      Race ID: <span className="font-mono font-medium">{race.id}</span>
+                    </p>
+                  </div>
                 </div>
 
                 {/* Weather & Conditions - Compact Layout */}
@@ -463,131 +473,108 @@ export default function RaceDetailsPage() {
 
 
       {/* Main Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-4 md:gap-6">
-        {/* Left Side */}
-        <div className="space-y-4 md:space-y-6 min-w-0">
+      <div className="space-y-4 md:space-y-6">
 
-          {/* GPS disabled for now (re-enable after deploy/testing) */}
-          {/* <TransportCard raceId={raceId} /> */}
-          {/* <RouteHistoryCard raceId={raceId} /> */}
+        {/* GPS disabled for now (re-enable after deploy/testing) */}
+        {/* <TransportCard raceId={raceId} /> */}
+        {/* <RouteHistoryCard raceId={raceId} /> */}
 
-          {/* Race Items Table */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Race Items ({raceItems.length})</CardTitle>
-              {selectedRaceItems.length > 0 && (
-                <Button
-                  onClick={() => setBasketDialogOpen(true)}
-                  size="sm"
-                  className="gap-2"
-                >
-                  <Package className="h-4 w-4" />
-                  Basket ({selectedRaceItems.length})
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent className="overflow-x-auto">
-              {/* Status count chips */}
-              {(() => {
-                const rawCounts: Record<string, number> = {};
-                allRaceItems.forEach((ri) => {
-                  if (ri.status) rawCounts[ri.status] = (rawCounts[ri.status] ?? 0) + 1;
-                });
-                const loftCount     = rawCounts["LOFT_BASKETED"] ?? 0;
-                const arrivedCount  = rawCounts["ARRIVED"] ?? 0;
-                const foreignCount  = rawCounts["FOREIGN_BIRD"] ?? 0;
-                // Released = still in flight + arrived + foreign (all were released)
-                const releasedCount = (rawCounts["RELEASED"] ?? 0) + arrivedCount + foreignCount;
-
-                const CHIPS = [
-                  { values: ["LOFT_BASKETED"],              label: "Loft Basketed", count: loftCount,     color: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300" },
-                  { values: ["RELEASED","ARRIVED","FOREIGN_BIRD"], label: "Released",     count: releasedCount, color: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300" },
-                  { values: ["ARRIVED"],                    label: "Arrived",      count: arrivedCount,  color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300" },
-                  { values: ["FOREIGN_BIRD"],               label: "Foreign",      count: foreignCount,  color: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300" },
-                ] as const;
-
-                return (
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {CHIPS.map((chip) => {
-                      const active = chip.values.length === selectedStatuses.length &&
-                        chip.values.every((v) => selectedStatuses.includes(v));
-                      return (
-                        <button
-                          key={chip.label}
-                          type="button"
-                          onClick={() => setSelectedStatuses(active ? [] : [...chip.values])}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${chip.color} ${active ? "ring-2 ring-offset-1 ring-current" : "opacity-80 hover:opacity-100"}`}
-                        >
-                          <span className="text-base font-bold">{chip.count}</span>
-                          <span>{chip.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-              <div className="flex flex-wrap items-center gap-2 mb-3">
-                <RaceStatusFilter
-                  raceId={raceId}
-                  selectedStatuses={selectedStatuses}
-                  onSelectedChange={setSelectedStatuses}
-                />
-                <div className="flex items-end gap-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Arrival From</Label>
-                    <Input
-                      type="date"
-                      className="h-8 w-40"
-                      value={arrivalFrom}
-                      onChange={(e) => setArrivalFrom(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Arrival To</Label>
-                    <Input
-                      type="date"
-                      className="h-8 w-40"
-                      value={arrivalTo}
-                      onChange={(e) => setArrivalTo(e.target.value)}
-                    />
-                  </div>
-                  {(arrivalFrom || arrivalTo) && (
-                    <Button variant="outline" size="sm" className="h-8" onClick={() => { setArrivalFrom(""); setArrivalTo(""); }}>
-                      Clear
-                    </Button>
-                  )}
+        {/* Race Items Table */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Race Items ({raceItems.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            {/* Row 1: status chips + status filter */}
+            {(() => {
+              const rawCounts: Record<string, number> = {};
+              allRaceItems.forEach((ri) => {
+                if (ri.status) rawCounts[ri.status] = (rawCounts[ri.status] ?? 0) + 1;
+              });
+              const loftCount     = rawCounts["LOFT_BASKETED"] ?? 0;
+              const arrivedCount  = rawCounts["ARRIVED"] ?? 0;
+              const foreignCount  = rawCounts["FOREIGN_BIRD"] ?? 0;
+              const releasedCount = (rawCounts["RELEASED"] ?? 0) + arrivedCount + foreignCount;
+              const CHIPS = [
+                { values: ["LOFT_BASKETED"],                     label: "Loft Basketed", count: loftCount,     color: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300" },
+                { values: ["RELEASED","ARRIVED","FOREIGN_BIRD"], label: "Released",      count: releasedCount, color: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300" },
+                { values: ["ARRIVED"],                           label: "Arrived",       count: arrivedCount,  color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300" },
+                { values: ["FOREIGN_BIRD"],                      label: "Foreign",       count: foreignCount,  color: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300" },
+              ] as const;
+              return (
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  {CHIPS.map((chip) => {
+                    const active = chip.values.length === selectedStatuses.length &&
+                      chip.values.every((v) => selectedStatuses.includes(v));
+                    return (
+                      <button
+                        key={chip.label}
+                        type="button"
+                        onClick={() => setSelectedStatuses(active ? [] : [...chip.values])}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${chip.color} ${active ? "ring-2 ring-offset-1 ring-current" : "opacity-80 hover:opacity-100"}`}
+                      >
+                        <span className="text-base font-bold">{chip.count}</span>
+                        <span>{chip.label}</span>
+                      </button>
+                    );
+                  })}
+                  <RaceStatusFilter
+                    raceId={raceId}
+                    selectedStatuses={selectedStatuses}
+                    onSelectedChange={setSelectedStatuses}
+                  />
                 </div>
-              </div>
-              <DataTable
-                tableId="race-items"
-                columns={raceItemsColumns}
-                data={raceItems}
-                filterableColumns={[
-                  { id: "band", title: "Band" },
-                  { id: "birdName", title: "Bird Name" },
-                  { id: "breeder", title: "Breeder" },
-                ]}
-                rowSelection={rowSelection}
-                onRowSelectionChange={setRowSelection}
+              );
+            })()}
+
+            {/* Row 2: arrival time */}
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Arrival Time:</span>
+              <span className="text-sm text-muted-foreground">From:</span>
+              <Input
+                type="datetime-local"
+                className="h-8 w-48"
+                value={arrivalFrom}
+                onChange={(e) => setArrivalFrom(e.target.value)}
               />
-            </CardContent>
-          </Card>
-        </div>
+              <span className="text-sm text-muted-foreground">To:</span>
+              <Input
+                type="datetime-local"
+                className="h-8 w-48"
+                value={arrivalTo}
+                onChange={(e) => setArrivalTo(e.target.value)}
+              />
+            </div>
 
-        {/* Right Side - 30% */}
-        <div className="min-w-0">
-          <BasketTabs eventId={eventId} />
-        </div>
+            {/* Row 3: search + clear — via DataTable toolbarExtra */}
+            <DataTable
+              tableId="race-items"
+              columns={raceItemsColumns}
+              data={raceItems}
+              resetFiltersKey={tableResetKey}
+              filterableColumns={[
+                { id: "band", title: "Band" },
+                { id: "birdName", title: "Bird Name" },
+                { id: "breeder", title: "Breeder" },
+              ]}
+              toolbarExtra={
+                <Button variant="outline" size="sm" className="h-8" onClick={() => {
+                  setArrivalFrom("");
+                  setArrivalTo("");
+                  setArrivalDefaultSet(false);
+                  setSelectedStatuses([]);
+                  setTableResetKey((k) => k + 1);
+                }}>
+                  Clear All
+                </Button>
+              }
+            />
+          </CardContent>
+        </Card>
+
+        {/* Basketting List */}
+        <BasketTabs eventId={eventId} />
       </div>
-
-      {/* Basket Dialog */}
-      <BasketRaceItemsDialog
-        open={basketDialogOpen}
-        onOpenChange={setBasketDialogOpen}
-        selectedItems={selectedRaceItems}
-        eventId={eventId}
-        onSuccess={handleBasketSuccess}
-      />
 
       {/* Launch path popup: station → loft */}
       {hasPath && race.raceStation && (

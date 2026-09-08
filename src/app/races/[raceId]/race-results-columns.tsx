@@ -45,10 +45,10 @@ function formatGap(ms: number): string {
 function formatArrival(d: string | null): string {
   if (!d) return "-";
   const dt = new Date(d);
-  const hh = String(dt.getUTCHours()).padStart(2, "0");
-  const mm = String(dt.getUTCMinutes()).padStart(2, "0");
-  const ss = String(dt.getUTCSeconds()).padStart(2, "0");
-  const ms = String(dt.getUTCMilliseconds()).padStart(3, "0");
+  const hh = String(dt.getHours()).padStart(2, "0");
+  const mm = String(dt.getMinutes()).padStart(2, "0");
+  const ss = String(dt.getSeconds()).padStart(2, "0");
+  const ms = String(dt.getMilliseconds()).padStart(3, "0");
   return `${hh}:${mm}:${ss}.${ms}`;
 }
 
