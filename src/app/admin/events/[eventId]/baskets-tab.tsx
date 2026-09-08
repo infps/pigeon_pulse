@@ -1718,7 +1718,7 @@ function LoftScanDialog({
 // SHARED COMPONENTS
 // ============================================================
 
-type SortKey = "band" | "birdName" | "breeder" | "basket" | "color" | "sex" | "assignedAt";
+type SortKey = "band" | "birdName" | "breeder" | "basket" | "color" | "sex" | "assignedAt" | "rfid";
 type SortDir = "asc" | "desc";
 
 type FlatRow = {

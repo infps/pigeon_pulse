@@ -101,7 +101,7 @@ export async function POST(
     const getDefaulterGroup = async () => {
       if (defaulterGroup) return defaulterGroup;
       defaulterGroup = await prisma.eventGroup.findFirst({
-        where: { seasonId: race.seasonId, type: "DEFAULTER" },
+        where: { seasonId: race.seasonId ?? undefined, type: "DEFAULTER" },
         select: { id: true },
       });
       if (!defaulterGroup) {
