@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useApiQuery } from "@/hooks/useApi";
 import { apiEndpoints } from "@/lib/endpoints";
 import { authClient } from "@/lib/auth-client";
@@ -10,16 +10,32 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
-import { Cloud, Thermometer, Wind, ArrowUpRight, TrendingUp, TrendingDown, Gauge, Building, Home as HomeIcon, Users, Bird as BirdIcon, Calendar, Trophy, ExternalLink, DollarSign, MapPin as MapPinIcon } from "lucide-react";
+import { Cloud, Thermometer, Wind, TrendingUp, Gauge, Building, Home as HomeIcon, Users, Bird as BirdIcon, Calendar, Trophy, ExternalLink, DollarSign, MapPin as MapPinIcon, Volume2, VolumeX, MapPin } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { makeRaceResultsColumns, type EnrichedRaceItem } from "./race-results-columns";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RaceBettingTab } from "./race-betting-tab";
+import { GoLiveTab } from "./go-live-tab";
 // GPS disabled for now: import { LiveTransit } from "./live-transit";
 import { useSettings } from "@/lib/settings-context";
 import type { Race, RaceItem } from "@/lib/types";
 import { RaceWindButton } from "@/components/map/race-wind-dialog";
 import Image from "next/image";
+
+function useElapsedTimer(startTime: string | null | undefined, active: boolean): string {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!active || !startTime) return;
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [active, startTime]);
+  if (!startTime) return "+00:00:00";
+  const elapsed = Math.max(0, Date.now() - new Date(startTime).getTime());
+  const h = Math.floor(elapsed / 3600000);
+  const m = Math.floor((elapsed % 3600000) / 60000);
+  const s = Math.floor((elapsed % 60000) / 1000);
+  return `+${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
 
 function raceTypeLabel(code?: string | null): string {
   if (!code) return "";
@@ -51,7 +67,14 @@ export default function PublicRacePage() {
   const raceId = params?.raceId as string;
   const { data: sessionData } = authClient.useSession();
   const currentUserId = sessionData?.user?.id ?? null;
+  const [activeTab, setActiveTab] = useState("arrivals");
   const [myTeamOnly, setMyTeamOnly] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  const prevArrivedCountRef = useRef<number>(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => {
+    audioRef.current = new Audio("/audio/freesound_community-bird-3-f-89236.mp3");
+  }, []);
   const [breederPopup, setBreederPopup] = useState<{ id: number; name: string } | null>(null);
   const [birdPopup, setBirdPopup] = useState<{ id: number; band: string } | null>(null);
   const { velocityUnit, sexTerminology } = useSettings();
@@ -70,11 +93,12 @@ export default function PublicRacePage() {
 
   const race = raceData?.race as Race;
   const isLive = race?.status === "STARTED";
+  const elapsed = useElapsedTimer(race?.startTime, isLive);
 
   const { data: raceItemsData, isPending: raceItemsLoading } = useApiQuery({
     endpoint: apiEndpoints.breeder.raceItems(raceId),
     queryKey: ["breeder", "raceItems", raceId],
-    refetchInterval: isLive ? 15000 : false,
+    refetchInterval: isLive ? (activeTab === "golive" ? 5000 : 15000) : false,
   });
 
   if (raceLoading || raceItemsLoading) {
@@ -116,9 +140,11 @@ export default function PublicRacePage() {
   const enriched: EnrichedRaceItem[] = raceItems.map((it) => {
     const arrivalMs = it.arrivalTime ? new Date(it.arrivalTime).getTime() : null;
     let ypm: number | null = null;
+    let flightTimeMs: number | null = null;
     if (arrivalMs && startMs && distanceYards > 0) {
       const minutes = (arrivalMs - startMs) / 60000;
       if (minutes > 0) ypm = distanceYards / minutes;
+      flightTimeMs = arrivalMs - startMs;
     }
     const breeder = it.bird?.breeder;
     const loftName = breeder?.user?.loftName || (breeder ? `${breeder.firstName ?? ""} ${breeder.lastName ?? ""}`.trim() : "");
@@ -127,6 +153,7 @@ export default function PublicRacePage() {
       rank: rankMap.get(it.id) ?? null,
       leaderTimeMs,
       ypm,
+      flightTimeMs,
       loftName: loftName || "-",
       countryCode: breeder?.country ?? null,
       loftImage: breeder?.user?.image ?? breeder?.image ?? null,
@@ -152,64 +179,85 @@ export default function PublicRacePage() {
 
   const raceVelocity = enriched.find((e) => e.rank === 1)?.ypm ?? null;
 
+  // Play sound on new arrivals when race is live and sound enabled
+  useEffect(() => {
+    if (!isLive || !soundEnabled) {
+      prevArrivedCountRef.current = returned;
+      return;
+    }
+    if (returned > prevArrivedCountRef.current) {
+      audioRef.current?.play().catch(() => {});
+    }
+    prevArrivedCountRef.current = returned;
+  }, [returned, isLive, soundEnabled]);
+
   const completedTime = race.status === "ENDED" && race.endTime ? formatTime(race.endTime) : null;
+
+  // Partial release: transport not yet fully arrived at loft
+  const isPartialRelease = race.transportStatus != null && race.transportStatus !== "ARRIVED" && isLive;
 
   return (
     <div className="container mx-auto p-4 md:p-6 space-y-4">
       {/* Race Header */}
-      <Card>
-        <CardContent className="p-4 md:p-6">
-          <div className="flex flex-col md:flex-row gap-4 md:gap-6">
+      <Card className="overflow-hidden">
+        <CardContent className="p-4 md:p-5">
+          <div className="flex items-start gap-4">
             {/* Event Logo */}
             <div className="shrink-0">
-              <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-muted flex items-center justify-center overflow-hidden shadow-lg border-4 border-background">
+              <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-muted flex items-center justify-center overflow-hidden shadow-lg border-4 border-background">
                 {race.event?.logoImage ? (
                   <Image
                     src={race.event.logoImage}
                     alt={race.event.name ?? "Event"}
-                    width={128}
-                    height={128}
+                    width={96}
+                    height={96}
                     className="object-cover w-full h-full"
                   />
                 ) : (
-                  <span className="text-2xl md:text-3xl font-bold text-muted-foreground">
+                  <span className="text-xl md:text-2xl font-bold text-muted-foreground">
                     {(race.event?.name ?? race.description ?? "").substring(0, 3).toUpperCase()}
                   </span>
                 )}
               </div>
             </div>
 
-            {/* Main info column */}
+            {/* Main info */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between gap-2 flex-wrap">
+              {/* Title row */}
+              <div className="flex items-start justify-between gap-2">
                 <div>
-                  <h1 className="text-2xl md:text-3xl font-bold text-foreground">
+                  <h1 className="text-xl md:text-2xl font-bold text-foreground leading-tight">
                     {race.event?.name || race.description}
                   </h1>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <span className="text-sm font-semibold text-red-600 uppercase tracking-wide">
-                      {race.description}
-                    </span>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span className="text-sm text-muted-foreground">{race.description}</span>
                     {race.raceType?.name && (
-                      <Badge variant="outline" className="text-xs">
+                      <Badge variant="outline" className="text-xs px-1.5 py-0">
                         {raceTypeLabel(race.raceType.name)}
                       </Badge>
                     )}
                   </div>
-                  <p className="text-sm md:text-base mt-1">
-                    Release Station:{" "}
-                    <span className="font-semibold text-blue-600">{race.location || "-"}</span>
-                  </p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="text-sm text-muted-foreground">Release Station:</span>
+                    <button
+                      className="text-sm font-semibold text-blue-600 hover:underline flex items-center gap-1"
+                      onClick={() => race.location && window.open(`https://maps.google.com/?q=${encodeURIComponent(race.location)}`, "_blank")}
+                    >
+                      {race.location || "-"}
+                      {race.location && <MapPin className="h-3 w-3" />}
+                    </button>
+                  </div>
                 </div>
-                <div>
+                {/* Elapsed timer / status — top right */}
+                <div className="shrink-0 flex flex-col items-end gap-1.5">
+                  {isLive && (
+                    <div className="flex items-center gap-1.5 bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-700 rounded-full px-3 py-1">
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                      <span className="text-sm font-mono font-semibold text-red-600 dark:text-red-400">{elapsed}</span>
+                    </div>
+                  )}
                   {race.status === "REGISTERING" && (
                     <Badge variant="default" className="bg-blue-600">Registering</Badge>
-                  )}
-                  {race.status === "STARTED" && (
-                    <Badge variant="default" className="bg-red-600 animate-pulse gap-1.5">
-                      <span className="h-2 w-2 rounded-full bg-white animate-ping" />
-                      LIVE
-                    </Badge>
                   )}
                   {completedTime && (
                     <Badge variant="outline" className="text-sm gap-1.5">
@@ -220,116 +268,168 @@ export default function PublicRacePage() {
                 </div>
               </div>
 
-              {/* Info row: weather block + date + distance + velocity */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-2 md:gap-3 mt-4">
+              {/* Info row: weather + date + distance + velocity */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
                 {/* Weather */}
-                <div className="border border-border rounded-lg p-2 text-xs space-y-1 bg-card text-card-foreground">
-                  <div className="flex items-center gap-2">
-                    <Building className="h-3.5 w-3.5 text-muted-foreground" />
-                    <Cloud className="h-3.5 w-3.5 text-blue-500" />
+                <div className="border border-border rounded-lg p-2 text-xs space-y-1.5 bg-card text-card-foreground col-span-2 md:col-span-1">
+                  <div className="flex items-center gap-1.5">
+                    <Building className="h-3 w-3 text-muted-foreground shrink-0" />
+                    <span className="text-muted-foreground font-medium w-12 shrink-0">Release</span>
+                    <Cloud className="h-3 w-3 text-blue-500 shrink-0" />
                     <span>{race.weather || "-"}</span>
-                    <Thermometer className="h-3.5 w-3.5 text-red-500" />
+                    <Thermometer className="h-3 w-3 text-red-500 shrink-0" />
                     <span className="text-red-600 dark:text-red-400 font-semibold">{race.temperature ? `${race.temperature}°F` : "-"}</span>
-                    <Wind className="h-3.5 w-3.5" />
+                    <Wind className="h-3 w-3 shrink-0" />
                     <span>{race.wind || "-"}</span>
-                    <ArrowUpRight className="h-3 w-3 text-blue-600 dark:text-blue-400" />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <HomeIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                    <Cloud className="h-3.5 w-3.5 text-blue-500" />
+                  <div className="flex items-center gap-1.5">
+                    <HomeIcon className="h-3 w-3 text-muted-foreground shrink-0" />
+                    <span className="text-muted-foreground font-medium w-12 shrink-0">Arrival</span>
+                    <Cloud className="h-3 w-3 text-blue-500 shrink-0" />
                     <span>{race.arrivalWeather || "-"}</span>
-                    <Thermometer className="h-3.5 w-3.5 text-red-500" />
+                    <Thermometer className="h-3 w-3 text-red-500 shrink-0" />
                     <span className="text-red-600 dark:text-red-400 font-semibold">{race.arrivalTemperature ? `${race.arrivalTemperature}°F` : "-"}</span>
-                    <Wind className="h-3.5 w-3.5" />
+                    <Wind className="h-3 w-3 shrink-0" />
                     <span>{race.arrivalWind || "-"}</span>
-                    <ArrowUpRight className="h-3 w-3 text-blue-600 dark:text-blue-400" />
                   </div>
                 </div>
 
                 {/* Release Date & Time */}
-                <div className="border border-border rounded-lg p-2 md:p-3 text-center bg-card text-card-foreground">
-                  <div className="text-sm md:text-base font-bold">
-                    {formatDateTime(race.startTime)}
-                  </div>
-                  <div className="text-xs text-muted-foreground mt-1">Release Date & Time</div>
+                <div className="border border-border rounded-lg p-2 text-center bg-card text-card-foreground">
+                  <div className="text-sm font-bold">{formatDateTime(race.startTime)}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wide">Release Date & Time</div>
                 </div>
 
                 {/* Distance */}
-                <div className="border border-border rounded-lg p-2 md:p-3 text-center bg-card text-card-foreground">
-                  <div className="text-lg md:text-xl font-bold">
-                    {distanceMi.toFixed(3)} <span className="text-sm">MI</span>
+                <div className="border border-border rounded-lg p-2 text-center bg-card text-card-foreground">
+                  <div className="text-base font-bold">
+                    {distanceMi.toFixed(3)} <span className="text-xs text-muted-foreground">MI</span>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-1">Distance</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wide">Distance</div>
                 </div>
 
                 {/* Race Velocity */}
-                <div className="border border-border rounded-lg p-2 md:p-3 text-center bg-card text-card-foreground">
-                  <div className="text-lg md:text-xl font-bold text-red-600 dark:text-red-400">
-                    {raceVelocity != null ? (velocityUnit === "MPM" ? (raceVelocity * 0.9144).toFixed(2) : raceVelocity.toFixed(2)) : "-"} <span className="text-sm">{velocityUnit}</span>
+                <div className="border border-border rounded-lg p-2 text-center bg-card text-card-foreground">
+                  <div className="text-base font-bold text-red-600 dark:text-red-400">
+                    {raceVelocity != null ? (velocityUnit === "MPM" ? (raceVelocity * 0.9144).toFixed(2) : raceVelocity.toFixed(2)) : "-"}{" "}
+                    <span className="text-xs">{velocityUnit}</span>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-1">Race Velocity</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wide">Race Velocity</div>
                 </div>
               </div>
 
-              {/* Stats line */}
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+              {/* Stats + actions row */}
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
                 <span>Active Lofts: <span className="font-bold">{activeLofts}</span></span>
-                <span>Released: <span className="font-bold">{released}</span></span>
-                <span className="flex items-center gap-1">
-                  Returned: <span className="font-bold">{returned}</span>
-                  <TrendingUp className="h-3.5 w-3.5 text-green-600" />
-                  <span className="text-green-600 font-semibold">{returnedPct}%</span>
-                </span>
-                <span className="flex items-center gap-1">
-                  Awaiting: <span className="font-bold">{awaiting}</span>
-                  <TrendingDown className="h-3.5 w-3.5 text-red-600" />
-                  <span className="text-red-600 font-semibold">{awaitingPct}%</span>
-                </span>
+                <span>Returned: <span className="font-bold">{returned}</span></span>
+                {isPartialRelease && (
+                  <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-300 dark:border-purple-700 font-medium">
+                    Partial Release
+                  </Badge>
+                )}
+                {/* Action buttons inline */}
+                <div className="ml-auto flex items-center gap-2 flex-wrap">
+                  <RaceWindButton raceId={raceId} />
+                  {currentUserId && (
+                    <Button
+                      size="sm"
+                      variant={myTeamOnly ? "default" : "outline"}
+                      className={myTeamOnly ? "bg-purple-600 hover:bg-purple-700 text-white gap-1.5 h-7 text-xs" : "gap-1.5 h-7 text-xs"}
+                      onClick={() => setMyTeamOnly((v) => !v)}
+                    >
+                      <Users className="h-3.5 w-3.5" />
+                      {myTeamOnly ? "Show All" : "My Team"}
+                    </Button>
+                  )}
+                  <button
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => setSoundEnabled((v) => !v)}
+                  >
+                    <span className="text-xs">Sound:</span>
+                    {soundEnabled ? <Volume2 className="h-4 w-4 text-green-600" /> : <VolumeX className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
-            </div>
-
-            {/* Competitions side panel */}
-            <div className="flex flex-col items-end gap-2 md:w-40 shrink-0">
-              <span className="text-xs text-muted-foreground">Competitions</span>
-              <Button
-                variant="default"
-                className="bg-green-500 hover:bg-green-600 text-white gap-1.5"
-                onClick={() => race.eventId && router.push(`/events/${race.eventId}/avg-speed`)}
-              >
-                <Gauge className="h-4 w-4" />
-                Avg. Speed
-              </Button>
-              <RaceWindButton raceId={raceId} />
-              {currentUserId && (
-                <Button
-                  variant={myTeamOnly ? "default" : "outline"}
-                  className={myTeamOnly ? "bg-purple-600 hover:bg-purple-700 text-white gap-1.5 w-full" : "gap-1.5 w-full"}
-                  onClick={() => setMyTeamOnly((v) => !v)}
-                >
-                  <Users className="h-4 w-4" />
-                  {myTeamOnly ? "Show All" : "My Team"}
-                </Button>
-              )}
             </div>
           </div>
         </CardContent>
+        {/* Progress bar */}
+        <div className="h-1 w-full bg-muted">
+          <div className="h-full bg-red-500 transition-all duration-500" style={{ width: `${(released > 0 ? (returned / released) * 100 : 0)}%` }} />
+        </div>
       </Card>
 
       {/* GPS disabled for now (re-enable after deploy/testing) */}
       {/* <LiveTransit raceId={raceId} /> */}
 
-      {/* Results + Betting */}
-      <Tabs defaultValue="results">
-        <TabsList>
-          <TabsTrigger value="results">Results</TabsTrigger>
-          <TabsTrigger value="betting">Betting</TabsTrigger>
-        </TabsList>
-        <TabsContent value="results" className="mt-4">
+      {/* 4-tab nav + Results */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        {/* Tab bar styled like reference */}
+        <div className="flex items-center gap-1 flex-wrap">
+          <TabsList className="h-auto p-1 gap-1 bg-card border">
+            <TabsTrigger value="arrivals" className="gap-1.5 text-sm px-3 py-1.5">
+              <span className="text-base leading-none">≡</span> Arrivals
+            </TabsTrigger>
+            <TabsTrigger value="golive" className="gap-1.5 text-sm px-3 py-1.5 data-[state=active]:text-red-600 data-[state=active]:bg-red-50 dark:data-[state=active]:bg-red-950/40">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+              </span>
+              Go Live
+            </TabsTrigger>
+            <TabsTrigger
+              value="avgspeed"
+              className="gap-1.5 text-sm px-3 py-1.5 data-[state=active]:text-green-600 data-[state=active]:bg-green-50 dark:data-[state=active]:bg-green-950/40"
+              onClick={() => race.eventId && router.push(`/events/${race.eventId}/avg-speed`)}
+            >
+              <Gauge className="h-3.5 w-3.5" /> Avg. Speed
+            </TabsTrigger>
+            <TabsTrigger value="all" className="gap-1.5 text-sm px-3 py-1.5">
+              <TrendingUp className="h-3.5 w-3.5" /> View All Results
+            </TabsTrigger>
+            <TabsTrigger value="betting" className="gap-1.5 text-sm px-3 py-1.5">
+              <DollarSign className="h-3.5 w-3.5" /> Betting
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        {/* Arrivals — only birds that have arrived, sorted by rank */}
+        <TabsContent value="arrivals" className="mt-4">
           <Card>
             <CardContent className="p-4 md:p-6">
-              <h2 className="text-center text-lg font-bold text-blue-600 mb-4">
-                Race Results by Rank
-              </h2>
+              <h2 className="text-center text-lg font-bold text-blue-600 mb-4">Arrival Results by Rank</h2>
+              <DataTable
+                columns={columns}
+                data={(myTeamOnly && currentUserId
+                  ? enriched.filter((e) => e.bird?.breeder?.user?.id === currentUserId)
+                  : enriched
+                ).filter((e) => e.rank != null)}
+                searchKey="loftAndBand"
+                searchPlaceholder="Loft Name or Bird Band"
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Go Live — stream + live top 10 */}
+        <TabsContent value="golive" className="mt-4">
+          <GoLiveTab
+            race={race}
+            enriched={enriched}
+            released={released}
+            returned={returned}
+            velocityUnit={velocityUnit}
+          />
+        </TabsContent>
+
+        {/* Avg Speed — navigates away, placeholder */}
+        <TabsContent value="avgspeed" className="mt-4" />
+
+        {/* View All Results — includes not-yet-arrived birds */}
+        <TabsContent value="all" className="mt-4">
+          <Card>
+            <CardContent className="p-4 md:p-6">
+              <h2 className="text-center text-lg font-bold text-foreground mb-4">All Birds</h2>
               <DataTable
                 columns={columns}
                 data={myTeamOnly && currentUserId
@@ -341,6 +441,8 @@ export default function PublicRacePage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Betting */}
         <TabsContent value="betting" className="mt-4">
           <Card>
             <CardContent className="p-4 md:p-6">

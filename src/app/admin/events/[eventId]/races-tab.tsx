@@ -14,8 +14,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { createRacesColumns } from "./races-columns";
 import { Button } from "@/components/ui/button";
 import { Plus, CloudSun, Loader2 } from "lucide-react";
-import { useState } from "react";
-import { fetchReleaseForecast } from "@/lib/weather-forecast";
+import { useState, useEffect } from "react";
+import { fetchReleaseForecast, fetchSunriseSunset } from "@/lib/weather-forecast";
 import {
   Dialog,
   DialogContent,
@@ -164,6 +164,29 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
       setFetchingWx(false);
     }
   };
+
+  // Auto-fetch forecast when station + startTime are both set (create mode only)
+  useEffect(() => {
+    if (!isDialogOpen || editingRace) return;
+    if (!selectedStation?.latitude || !selectedStation?.longitude || !formData.startTime) return;
+    handleFetchForecast();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.raceStationId, isDialogOpen]);
+
+  // Auto-fetch sunrise/sunset when startTime or station changes (create mode only)
+  useEffect(() => {
+    if (!isDialogOpen || editingRace || !formData.startTime) return;
+    const date = formData.startTime.slice(0, 10);
+    const lat = selectedStation?.latitude ?? (hasLoft ? (event.latitude as number) : null);
+    const lon = selectedStation?.longitude ?? (hasLoft ? (event.longitude as number) : null);
+    if (lat == null || lon == null) return;
+    fetchSunriseSunset(lat, lon, date)
+      .then(({ sunrise, sunset }) =>
+        setFormData((prev) => ({ ...prev, sunrise, sunset }))
+      )
+      .catch(() => {}); // silent — user can fill manually
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.startTime, formData.raceStationId, isDialogOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -381,14 +404,17 @@ function toDateTimeLocal(iso: string) {
       <div className="flex justify-end">
         <Button onClick={() => {
           setEditingRace(null);
+          const now = new Date();
+          now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+          const defaultStart = now.toISOString().slice(0, 16);
           setFormData({
             raceTypeId: "",
             raceStationId: "",
             name: "",
             description: "",
-            distance: "",
-            location: "",
-            startTime: "",
+            distance: "1",
+            location: event.locationAddress ?? "",
+            startTime: defaultStart,
             sunrise: "",
             sunset: "",
             arrivalTemperature: "",

@@ -12,14 +12,17 @@ const scanSchema = z.object({
 });
 
 function parseTimestamp(ts: string): Date {
-  return new Date(
+  // Format: YYYYMMDDHHMMSSsss (17 chars with ms) or YYYYMMDDHHMMSS (14 chars legacy)
+  const ms = ts.length >= 17 ? parseInt(ts.substring(14, 17)) : 0;
+  return new Date(Date.UTC(
     parseInt(ts.substring(0, 4)),
     parseInt(ts.substring(4, 6)) - 1,
     parseInt(ts.substring(6, 8)),
     parseInt(ts.substring(8, 10)),
     parseInt(ts.substring(10, 12)),
     parseInt(ts.substring(12, 14)),
-  );
+    ms,
+  ));
 }
 
 async function assignDefaulterGroup(seasonId: number | null, inventoryItemId: number | null, userId: string | null | undefined) {
@@ -202,6 +205,14 @@ export async function POST(
       );
     }
 
+    // Bird was not loft-basketted and released — not eligible for arrival
+    if (raceItem.status !== "RELEASED") {
+      return NextResponse.json(
+        { raceItem, message: "Bird was not released for this race (not loft-basketted)", isNewScan: false, scanType: "skipped" },
+        { status: 200 }
+      );
+    }
+
     const arrivalTime = parseTimestamp(timestamp);
 
     // Race already ended → foreign bird (arrived after race closed)
@@ -238,34 +249,37 @@ export async function POST(
     }
 
     // Live race scan (STARTED) → arrival with ranking
-    const arrivedCount = await prisma.raceItem.count({
-      where: { raceId: raceIdInt, status: "ARRIVED" },
-    });
-    const birdPosition = arrivedCount + 1;
     const arrivedStatusId = await presetIdFor(race.seasonId, "ARRIVE");
 
-    const updatedRaceItem = await prisma.raceItem.update({
-      where: { id: raceItem.id },
-      data: { status: "ARRIVED", raceBasketTime: arrivalTime, displayStatusId: arrivedStatusId },
-      include: {
-        inventoryItem: {
-          include: {
-            bird: {
-              include: {
-                breeder: {
-                  select: { firstName: true, lastName: true, email: true },
+    // Count + update in one transaction to avoid duplicate positions under concurrent scans
+    const { updatedRaceItem, birdPosition } = await prisma.$transaction(async (tx) => {
+      const arrivedCount = await tx.raceItem.count({
+        where: { raceId: raceIdInt, status: "ARRIVED" },
+      });
+      const pos = arrivedCount + 1;
+      const updated = await tx.raceItem.update({
+        where: { id: raceItem.id },
+        data: { status: "ARRIVED", raceBasketTime: arrivalTime, displayStatusId: arrivedStatusId },
+        include: {
+          inventoryItem: {
+            include: {
+              bird: {
+                include: {
+                  breeder: {
+                    select: { firstName: true, lastName: true, email: true },
+                  },
                 },
               },
             },
           },
         },
-      },
-    });
-
-    await prisma.raceItemResult.upsert({
-      where: { raceItemId: raceItem.id },
-      create: { raceItemId: raceItem.id, arrivalTime, birdPosition },
-      update: { arrivalTime, birdPosition },
+      });
+      await tx.raceItemResult.upsert({
+        where: { raceItemId: raceItem.id },
+        create: { raceItemId: raceItem.id, arrivalTime, birdPosition: pos },
+        update: { arrivalTime, birdPosition: pos },
+      });
+      return { updatedRaceItem: updated, birdPosition: pos };
     });
 
     await prisma.birdEventHistory.create({

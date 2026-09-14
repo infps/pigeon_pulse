@@ -146,7 +146,7 @@ export function DataTable<TData, TValue>({
   const table = useReactTable({
     data,
     columns,
-    initialState: { pagination: { pageSize: 20 } },
+    initialState: { pagination: { pageSize: 150 } },
     state: {
       sorting,
       columnVisibility,

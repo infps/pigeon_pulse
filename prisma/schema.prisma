@@ -499,6 +499,7 @@ model Race {
   transportStartedAt DateTime?       @map("TRANSPORT_STARTED_AT")
   transportEndedAt   DateTime?       @map("TRANSPORT_ENDED_AT")
   bettingOpen        Boolean         @default(false) @map("BETTING_OPEN")
+  youtubeUrl         String?         @map("YOUTUBE_URL")
 
   seasonRel   Season?      @relation(fields: [seasonId], references: [id])
   raceType    RaceType?    @relation(fields: [raceTypeId], references: [id])

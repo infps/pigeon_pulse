@@ -94,8 +94,8 @@ export default function RaceDetailsPage() {
   });
 
   // Scanner functions
-  const handleScan = useCallback(async (rfid: string) => {
-    const now = new Date();
+  const handleScan = useCallback(async (rfid: string, scanTime?: Date) => {
+    const now = scanTime ?? new Date();
     const timestamp = now.getFullYear().toString() +
       (now.getMonth() + 1).toString().padStart(2, '0') +
       now.getDate().toString().padStart(2, '0') +
@@ -158,11 +158,12 @@ export default function RaceDetailsPage() {
         });
         const data = await res.json();
 
-        if (data && data.length > 0 && data[0].el) {
-          const rfid = data[0].el;
-          if (rfid !== lastScannedRfidRef.current) {
-            lastScannedRfidRef.current = rfid;
-            handleScan(rfid);
+        if (data && data.length > 0) {
+          for (const scan of data) {
+            if (scan.el && scan.el !== lastScannedRfidRef.current) {
+              lastScannedRfidRef.current = scan.el;
+              handleScan(scan.el, scan.timestamp ? new Date(scan.timestamp) : undefined);
+            }
           }
         }
       } catch {

@@ -37,7 +37,6 @@ import {
   useClearBasket,
   useAssignRaceBaskets,
   useCheckinStatus,
-  useScanLoftBasket,
 } from "@/lib/api/event-baskets";
 import { useListRaces } from "@/lib/api/races";
 import type { CheckinStatusItem, EventBasketItem, Race } from "@/lib/types";
@@ -351,9 +350,11 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
                 variant="secondary"
                 className="gap-1.5"
                 onClick={() => setScanDialogOpen(true)}
+                disabled={!hasExistingAssignments}
+                title={!hasExistingAssignments ? "Run Set Baskets first to assign birds to baskets" : undefined}
               >
                 <Scan className="h-4 w-4" />
-                Scan & Basket
+                Scan to Place
               </Button>
             </div>
           </div>
@@ -1447,9 +1448,14 @@ function BirdPrescanPanel({ eventId }: { eventId: string }) {
 // LOFT SCAN DIALOG
 // ============================================================
 
+// Lookup result from prescan-loft: where the bird is already basketed.
+type LoftBasket = { label: string; basketNo: number; capacity: number; count: number };
 type LoftScanRow = {
-  item: CheckinStatusItem;
-  groupName: string;
+  band: string | null;
+  birdName: string | null;
+  breeder: string | null;
+  loftName: string | null;
+  basketLabel: string;
   scannedAt: string;
 };
 
@@ -1462,79 +1468,80 @@ function LoftScanDialog({
   seasonId?: number | null;
   onClose: () => void;
 }) {
-  const { data, refetch } = useCheckinStatus(eventId, seasonId);
-  const scanLoftMutation = useScanLoftBasket(eventId);
+  const { data } = useCheckinStatus(eventId, seasonId);
 
   const allItems: CheckinStatusItem[] = data?.items ?? [];
-  const unassigned: CheckinStatusItem[] = allItems.filter((i: CheckinStatusItem) => !i.isLoftBasketed);
-  // build rfid→item map for instant lookup on scan
-  const rfidMapRef = useRef<Map<string, CheckinStatusItem>>(new Map());
-  rfidMapRef.current = new Map(
-    allItems.filter(i => i.bird?.rfid).map(i => [i.bird!.rfid!, i])
-  );
+  // Total birds placed in a loft basket by Set Baskets (the "assign first" step).
+  const basketedTotal = allItems.filter((i) => i.isLoftBasketed).length;
 
   const [scannedLog, setScannedLog] = useState<LoftScanRow[]>([]);
   const [isPollActive, setIsPollActive] = useState(false);
   const [foreignCount, setForeignCount] = useState(0);
-  type HeroScan = { item: CheckinStatusItem; groupName: string; status: "basketed" | "duplicate" | "foreign" } | { rfid: string; status: "foreign" };
+  const [ignoredCount, setIgnoredCount] = useState(0);
+  const scannedRfidsRef = useRef<Set<string>>(new Set());
+  type Bird = { band?: string | null; birdName?: string | null; rfid?: string | null; color?: string | null; sex?: number | null; attention?: boolean | null; note?: string | null };
+  type Breeder = { firstName?: string | null; lastName?: string | null };
+  type HeroScan =
+    | { status: "placed"; bird: Bird; breeder: Breeder | null; loftName: string | null; basket: LoftBasket }
+    | { status: "unassigned"; bird: Bird; breeder: Breeder | null; loftName: string | null }
+    | { status: "foreign"; rfid: string };
   const [lastScan, setLastScan] = useState<HeroScan | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pollStartedAtRef = useRef<string | null>(null);
   const lastScannedRef = useRef<string | null>(null);
 
+  const breederName = (b: Breeder | null) =>
+    b ? [b.firstName, b.lastName].filter(Boolean).join(" ") || null : null;
+
   const handleScan = useCallback(async (rfid: string) => {
     if (rfid === lastScannedRef.current) return;
     lastScannedRef.current = rfid;
 
-    // Check already basketed
-    const existingItem = rfidMapRef.current.get(rfid);
-    if (existingItem?.isLoftBasketed) {
-      setLastScan({ item: existingItem, groupName: existingItem.loftBasketLabel ?? "—", status: "duplicate" });
-      toast.info(`Already basketed: ${existingItem.bird?.birdName || existingItem.bird?.band}`);
+    // Already looked up this tag this session → ignore duplicate.
+    if (scannedRfidsRef.current.has(rfid)) {
+      setIgnoredCount((c) => c + 1);
+      toast.info(`Already scanned: ${rfid}`);
       return;
     }
 
     try {
-      const res = await scanLoftMutation.mutateAsync({ rfid });
-      const data = res as any;
+      const res = await fetch(`/api/admin/event/${eventId}/baskets/prescan-loft`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rfid }),
+      });
+      const d = await res.json();
 
-      if (data?.alreadyAssigned) {
-        const item = rfidMapRef.current.get(rfid) ?? existingItem;
-        if (item) setLastScan({ item, groupName: data.groupName ?? "—", status: "duplicate" });
-        toast.info(`Already basketed: ${data.groupName}`);
-        return;
-      }
-
-      if (data?.foreign) {
-        setLastScan({ rfid, status: "foreign" });
-        setForeignCount(c => c + 1);
+      if (d?.status === "foreign") {
+        setLastScan({ status: "foreign", rfid });
+        setForeignCount((c) => c + 1);
         toast.warning(`Foreign bird: ${rfid}`);
         return;
       }
 
-      const groupName = data?.group?.name ?? "group";
-      // find item by rfid from updated data
-      const item = rfidMapRef.current.get(rfid);
-      if (item) {
-        setScannedLog((prev) => [{ item, groupName, scannedAt: new Date().toISOString() }, ...prev]);
-        setLastScan({ item, groupName, status: "basketed" });
-        toast.success(`${item.bird?.birdName || item.bird?.band} → ${groupName}`);
-      } else {
-        toast.success(`Scanned → ${groupName}`);
+      if (d?.status === "unassigned") {
+        setLastScan({ status: "unassigned", bird: d.bird, breeder: d.breeder, loftName: d.loftName });
+        toast.warning(`${d.bird?.birdName || d.bird?.band || rfid} — not in a basket yet`);
+        return;
       }
-      refetch();
-    } catch (err: any) {
-      const msg = err?.message || "Scan failed";
-      if (msg.includes("No bird with RFID") || err?.status === 404) {
-        setLastScan({ rfid, status: "foreign" });
-        setForeignCount(c => c + 1);
-        toast.warning(`Foreign bird: ${rfid}`);
-      } else {
-        toast.error(msg);
-      }
+
+      // placed
+      scannedRfidsRef.current.add(rfid);
+      setLastScan({ status: "placed", bird: d.bird, breeder: d.breeder, loftName: d.loftName, basket: d.basket });
+      setScannedLog((prev) => [{
+        band: d.bird?.band ?? null,
+        birdName: d.bird?.birdName ?? null,
+        breeder: breederName(d.breeder),
+        loftName: d.loftName ?? null,
+        basketLabel: d.basket?.label ?? "—",
+        scannedAt: new Date().toISOString(),
+      }, ...prev]);
+      toast.success(`${d.bird?.birdName || d.bird?.band} → ${d.basket?.label}`);
+    } catch {
+      toast.error("Scan lookup failed");
       lastScannedRef.current = null;
     }
-  }, [scanLoftMutation, refetch]);
+  }, [eventId]);
 
   const startPoll = useCallback(() => {
     setIsPollActive(true);
@@ -1573,7 +1580,7 @@ function LoftScanDialog({
       <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between pr-6">
-            <span>Scan & Basket — Loft</span>
+            <span>Scan to Place — Loft</span>
             <div className="flex items-center gap-2">
               {isPollActive ? (
                 <Button size="sm" className="gap-1.5 bg-red-600 hover:bg-red-700" onClick={stopPoll}>
@@ -1599,61 +1606,67 @@ function LoftScanDialog({
           {/* Last scanned hero */}
           {lastScan ? (
             <div className={`rounded-xl border-2 p-4 transition-all ${
-              lastScan.status === "basketed" ? "border-green-400 bg-green-50" :
-              lastScan.status === "duplicate" ? "border-amber-400 bg-amber-50" :
+              lastScan.status === "placed" ? "border-green-400 bg-green-50" :
+              lastScan.status === "unassigned" ? "border-amber-400 bg-amber-50" :
               "border-red-400 bg-red-50"
             }`}>
               <div className="flex items-start gap-4">
                 <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-white text-xl font-bold ${
-                  lastScan.status === "basketed" ? "bg-green-500" :
-                  lastScan.status === "duplicate" ? "bg-amber-500" : "bg-red-500"
+                  lastScan.status === "placed" ? "bg-green-500" :
+                  lastScan.status === "unassigned" ? "bg-amber-500" : "bg-red-500"
                 }`}>
-                  {lastScan.status === "basketed" ? "✓" : lastScan.status === "duplicate" ? "↩" : "!"}
+                  {lastScan.status === "placed" ? "✓" : lastScan.status === "unassigned" ? "?" : "!"}
                 </div>
-                {"item" in lastScan ? (
+                {lastScan.status === "foreign" ? (
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-bold uppercase tracking-widest text-red-700">Foreign Bird</span>
+                    <p className="text-xl font-bold font-mono mt-0.5">{lastScan.rfid}</p>
+                    <p className="text-sm text-muted-foreground">Not registered in this event</p>
+                  </div>
+                ) : (
                   <div className="flex-1 min-w-0">
                     <span className={`text-xs font-bold uppercase tracking-widest ${
-                      lastScan.status === "basketed" ? "text-green-700" : "text-amber-700"
+                      lastScan.status === "placed" ? "text-green-700" : "text-amber-700"
                     }`}>
-                      {lastScan.status === "basketed" ? "Basketed" : "Already Basketed"}
+                      {lastScan.status === "placed" ? "Place in Basket" : "Not Basketed Yet"}
                     </span>
-                    <p className="text-xl font-bold font-mono mt-0.5">{lastScan.item.bird?.band ?? "—"}</p>
-                    {lastScan.item.bird?.birdName && <p className="text-sm text-muted-foreground">{lastScan.item.bird.birdName}</p>}
-                    {"groupName" in lastScan && (
-                      <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
-                        <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">Basket</p><p className="font-medium">{lastScan.groupName}</p></div>
-                        <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">Breeder</p><p>{lastScan.item.breeder?.lastName ?? "—"}</p></div>
-                        <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">RFID</p><p className="font-mono text-xs">{lastScan.item.bird?.rfid ?? "—"}</p></div>
-                        <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">Color</p><p>{lastScan.item.bird?.color ?? "—"}</p></div>
-                        <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">Sex</p><p>{lastScan.item.bird?.sex === 1 ? "Cock" : lastScan.item.bird?.sex === 2 ? "Hen" : "—"}</p></div>
-                        <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">Paid</p><p>{lastScan.item.hasPaid ? "Yes" : <span className="text-red-600 font-semibold">No</span>}</p></div>
-                      </div>
+                    <p className="text-xl font-bold font-mono mt-0.5">{lastScan.bird?.band ?? "—"}</p>
+                    {lastScan.bird?.birdName && <p className="text-sm text-muted-foreground">{lastScan.bird.birdName}</p>}
+                    <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
+                      {lastScan.status === "placed" && (
+                        <div>
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Basket</p>
+                          <p className="font-medium">{lastScan.basket.label} <span className="text-muted-foreground">({lastScan.basket.count}/{lastScan.basket.capacity})</span></p>
+                        </div>
+                      )}
+                      <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">Loft</p><p>{lastScan.loftName ?? "—"}</p></div>
+                      <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">Breeder</p><p>{breederName(lastScan.breeder) ?? "—"}</p></div>
+                      <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">RFID</p><p className="font-mono text-xs">{lastScan.bird?.rfid ?? "—"}</p></div>
+                      <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">Color</p><p>{lastScan.bird?.color ?? "—"}</p></div>
+                      <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">Sex</p><p>{lastScan.bird?.sex === 1 ? "Cock" : lastScan.bird?.sex === 2 ? "Hen" : "—"}</p></div>
+                    </div>
+                    {lastScan.status === "unassigned" && (
+                      <p className="mt-2 text-sm text-amber-700">Not in a loft basket — run <strong>Set Baskets</strong> or it was skipped.</p>
                     )}
-                    {lastScan.item.bird?.attention && (
+                    {lastScan.bird?.attention && (
                       <div className="mt-2 flex items-center gap-2 rounded-lg bg-red-100 border border-red-300 px-3 py-2">
                         <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
                         <p className="text-base font-bold text-red-700">ATTENTION REQUIRED</p>
                       </div>
                     )}
-                    {lastScan.item.bird?.note && (
+                    {lastScan.bird?.note && (
                       <div className="mt-2 rounded-lg bg-yellow-50 border border-yellow-300 px-3 py-2">
                         <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Note</p>
-                        <p className="text-base font-bold text-yellow-900">{lastScan.item.bird.note}</p>
+                        <p className="text-base font-bold text-yellow-900">{lastScan.bird.note}</p>
                       </div>
                     )}
-                  </div>
-                ) : (
-                  <div className="flex-1 min-w-0">
-                    <span className="text-xs font-bold uppercase tracking-widest text-red-700">Foreign Bird</span>
-                    <p className="text-xl font-bold font-mono mt-0.5">{lastScan.rfid}</p>
-                    <p className="text-sm text-muted-foreground">Not registered in this event</p>
                   </div>
                 )}
               </div>
             </div>
           ) : (
             <div className="rounded-xl border-2 border-dashed px-4 py-4 text-center text-sm text-muted-foreground">
-              Scan a bird to see details here
+              Scan a bird to see which basket to place it in
             </div>
           )}
 
@@ -1668,20 +1681,22 @@ function LoftScanDialog({
                     <th className="px-3 py-2 text-left font-medium">#</th>
                     <th className="px-3 py-2 text-left font-medium">Band</th>
                     <th className="px-3 py-2 text-left font-medium">Name</th>
+                    <th className="px-3 py-2 text-left font-medium">Loft</th>
                     <th className="px-3 py-2 text-left font-medium">Breeder</th>
                     <th className="px-3 py-2 text-left font-medium">Basket</th>
                     <th className="px-3 py-2 text-left font-medium">Scanned At</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {scannedLog.map(({ item, groupName, scannedAt }, i) => (
-                    <tr key={item.id}>
+                  {scannedLog.map((row, i) => (
+                    <tr key={`${row.band}-${row.scannedAt}`}>
                       <td className="px-3 py-2 text-muted-foreground">{scannedLog.length - i}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{item.bird?.band}</td>
-                      <td className="px-3 py-2 font-medium">{item.bird?.birdName || "—"}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{item.breeder?.lastName}</td>
-                      <td className="px-3 py-2 text-primary font-medium">{groupName}</td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">{new Date(scannedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{row.band || "—"}</td>
+                      <td className="px-3 py-2 font-medium">{row.birdName || "—"}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{row.loftName || "—"}</td>
+                      <td className="px-3 py-2 text-muted-foreground">{row.breeder || "—"}</td>
+                      <td className="px-3 py-2 text-primary font-medium">{row.basketLabel}</td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">{new Date(row.scannedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1693,16 +1708,20 @@ function LoftScanDialog({
         <div className="border-t pt-3 space-y-3">
           <div className="flex justify-center gap-10">
             <div className="text-center">
-              <p className="text-2xl font-bold text-green-600">{scannedLog.length}</p>
+              <p className="text-2xl font-bold text-green-600">{basketedTotal}</p>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Basketed</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-amber-500">{unassigned.length}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Pending</p>
+              <p className="text-2xl font-bold text-amber-500">{Math.max(basketedTotal - scannedLog.length, 0)}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Left to Scan</p>
             </div>
             <div className="text-center">
               <p className="text-2xl font-bold text-red-500">{foreignCount}</p>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Foreign</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-muted-foreground">{ignoredCount}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Ignored</p>
             </div>
           </div>
           <DialogFooter>

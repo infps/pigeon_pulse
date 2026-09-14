@@ -363,6 +363,7 @@ export interface Race {
   transportStatus?: "IDLE" | "IN_TRANSIT" | "ARRIVED" | null;
   transportStartedAt?: string | null;
   transportEndedAt?: string | null;
+  youtubeUrl?: string | null;
   raceStationId: number | null;
   event?: Event;
   raceType?: RaceType;

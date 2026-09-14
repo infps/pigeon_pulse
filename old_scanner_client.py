@@ -114,7 +114,7 @@ class RFIDScanner:
                 # RFID is always the first dash-delimited token (8 hex chars)
                 # Legacy format: "SN000/002:R500000672" (antenna:ring, no real RFID)
                 ring_no = None
-                timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+                timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S000")
                 antenna = ""
 
                 first_token = message.split("-")[0].strip()
@@ -127,18 +127,25 @@ class RFIDScanner:
                     if len(parts) == 3:
                         try:
                             raw = parts[2].rsplit("-", 1)[0].strip()  # "DD.MM.YY HH:MM:SS.ss"
-                            raw = raw.rsplit(".", 1)[0]               # "DD.MM.YY HH:MM:SS"
+                            # Extract centiseconds before stripping them
+                            cs = 0
+                            if "." in raw.split(" ")[-1]:
+                                cs = int(raw.split(".")[-1])  # centiseconds (0-99)
+                            raw_sec = raw.rsplit(".", 1)[0]   # "DD.MM.YY HH:MM:SS"
                             # Scanner embeds local time — attach local tz then convert to UTC
-                            dt = datetime.strptime(raw, "%d.%m.%y %H:%M:%S").astimezone(timezone.utc)
-                            timestamp = dt.strftime("%Y%m%d%H%M%S")
+                            dt = datetime.strptime(raw_sec, "%d.%m.%y %H:%M:%S").astimezone(timezone.utc)
+                            ms = cs * 10  # centiseconds → milliseconds
+                            timestamp = dt.strftime("%Y%m%d%H%M%S") + f"{ms:03d}"
                         except Exception:
                             pass  # keep datetime.now() fallback
-                # elif ":" in message:  # ponytail: legacy SN path disabled, kept for reference
-                #     colon_parts = message.split(":", 1)
-                #     candidate = colon_parts[1].strip()
-                #     if candidate and "/" not in candidate and " " not in candidate:
-                #         antenna = colon_parts[0].strip()
-                #         ring_no = candidate
+                elif ":" in message:
+                    # Legacy format: "SN000/003:0000026000/TLI200V3.01"
+                    # antenna = "SN000/003", ring = first token after ":" split on "/"
+                    colon_parts = message.split(":", 1)
+                    antenna = colon_parts[0].strip()
+                    candidate = colon_parts[1].split("/")[0].strip()
+                    if candidate and candidate.isalnum():
+                        ring_no = candidate
 
                 if ring_no:
                     self.ser.write(ACK)

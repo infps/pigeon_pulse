@@ -54,7 +54,7 @@ export async function POST(
       prisma.raceItem.updateMany({
         where: {
           raceId: raceIdInt,
-          status: { in: ["LOFT_BASKETED", "CHECKED_IN", "REGISTERED"] },
+          status: { in: ["LOFT_BASKETED"] },
         },
         data: { status: "RELEASED", displayStatusId: flyingId },
       }),

@@ -13,6 +13,7 @@ export type EnrichedRaceItem = RaceItem & {
   rank: number | null;
   leaderTimeMs: number | null;
   ypm: number | null;
+  flightTimeMs: number | null;
   loftName: string;
   countryCode: string | null;
   loftImage: string | null;
@@ -63,6 +64,15 @@ export function makeRaceResultsColumns({
   onBreederClick?: (breederId: number, loftName: string) => void;
   onBirdClick?: (birdId: number, band: string) => void;
 }): ColumnDef<EnrichedRaceItem>[] {
+function formatFlightTime(ms: number | null): string {
+  if (ms == null || ms <= 0) return "-";
+  const h = String(Math.floor(ms / 3600000)).padStart(2, "0");
+  const m = String(Math.floor((ms % 3600000) / 60000)).padStart(2, "0");
+  const s = String(Math.floor((ms % 60000) / 1000)).padStart(2, "0");
+  const mil = String(ms % 1000).padStart(3, "0");
+  return `${h}:${m}:${s}.${mil}`;
+}
+
 return [
   {
     id: "rank",
@@ -72,7 +82,7 @@ return [
     ),
     cell: ({ row }) => {
       const r = row.original.rank;
-      if (!r) return <span className="text-muted-foreground">-</span>;
+      if (!r) return <span className="text-muted-foreground text-xs">-</span>;
       const color =
         r === 1 ? "text-yellow-500" :
         r === 2 ? "text-gray-400" :
@@ -80,29 +90,20 @@ return [
       const prev = row.original.previousPosition ?? null;
       const delta = prev != null ? prev - r : null;
       return (
-        <div className="flex items-center gap-2">
-          <span className="font-semibold">{r}</span>
-          {r <= 3 && <Trophy className={`h-4 w-4 ${color}`} />}
+        <div className="flex items-center gap-1.5">
+          <span className="font-semibold text-sm w-6 text-right">{r}</span>
+          {r <= 3 && <Trophy className={`h-3.5 w-3.5 ${color}`} />}
           {delta != null && (
             delta > 0 ? (
-              <span
-                className="inline-flex items-center gap-0.5 text-xs font-semibold text-green-600"
-                title={`Up ${delta} from prev race (was #${prev})`}
-              >
+              <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-green-600">
                 <ArrowUp className="h-3 w-3" />{delta}
               </span>
             ) : delta < 0 ? (
-              <span
-                className="inline-flex items-center gap-0.5 text-xs font-semibold text-red-600"
-                title={`Down ${-delta} from prev race (was #${prev})`}
-              >
+              <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-red-600">
                 <ArrowDown className="h-3 w-3" />{-delta}
               </span>
             ) : (
-              <span
-                className="inline-flex items-center gap-0.5 text-xs text-muted-foreground"
-                title={`Same as prev race (#${prev})`}
-              >
+              <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
                 <Minus className="h-3 w-3" />
               </span>
             )
@@ -110,16 +111,12 @@ return [
         </div>
       );
     },
-    sortingFn: (a, b) => {
-      const ra = a.original.rank ?? 9999;
-      const rb = b.original.rank ?? 9999;
-      return ra - rb;
-    },
+    sortingFn: (a, b) => (a.original.rank ?? 9999) - (b.original.rank ?? 9999),
   },
   {
     id: "loftAndBand",
     accessorFn: (row) => `${row.loftName} ${row.band}`,
-    header: () => <span>Loft & Bird Band ID</span>,
+    header: () => <span>Loft & Bird Band ID - Sex - Color</span>,
     cell: ({ row }) => {
       const o = row.original;
       const flag = countryToFlag(o.countryCode);
@@ -132,7 +129,6 @@ return [
             type="button"
             className="relative h-10 w-10 rounded-full overflow-hidden bg-muted shrink-0 hover:ring-2 hover:ring-primary transition-all"
             onClick={() => o.breederId && onBreederClick?.(o.breederId, o.loftName)}
-            title={onBreederClick ? `View ${o.loftName}'s birds` : undefined}
           >
             {o.loftImage ? (
               <Image src={o.loftImage} alt={o.loftName} fill className="object-cover" />
@@ -151,20 +147,20 @@ return [
               {flag && <span className="text-base leading-none">{flag}</span>}
               <span className="font-semibold text-sm">{o.loftName || "-"}</span>
             </button>
-            <div className="flex items-center gap-1.5">
-              <MapPin className="h-3 w-3 text-green-600" />
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <MapPin className="h-3 w-3 text-green-600 shrink-0" />
               <button
                 type="button"
                 className="font-mono text-xs text-green-700 hover:underline"
                 onClick={() => o.birdId && onBirdClick?.(o.birdId, o.band)}
-                title={onBirdClick ? "View bird history" : undefined}
               >
                 {o.band || "-"}
               </button>
               {sexLabel && (
-                <span className={`text-xs font-medium ${sexColor}`}>
-                  {sexIcon} {sexLabel}
-                </span>
+                <span className={`text-xs font-medium ${sexColor}`}>{sexIcon} {sexLabel}</span>
+              )}
+              {o.color && (
+                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">{o.color}</Badge>
               )}
             </div>
           </div>
@@ -173,29 +169,16 @@ return [
     },
   },
   {
-    id: "color",
-    accessorFn: (row) => row.color ?? "",
-    header: () => <span>Color</span>,
-    cell: ({ row }) => {
-      const c = row.original.color;
-      return c ? (
-        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">{c}</Badge>
-      ) : (
-        <span className="text-muted-foreground">-</span>
-      );
-    },
-  },
-  {
     id: "arrivalGap",
     header: () => <span>Arrival & Gap</span>,
     cell: ({ row }) => {
       const o = row.original;
-      if (!o.arrivalTime) return <span className="text-muted-foreground">-</span>;
+      if (!o.arrivalTime) return <span className="text-muted-foreground text-xs">-</span>;
       const arrival = formatArrival(o.arrivalTime);
       if (o.rank === 1) {
         return (
           <div className="flex flex-col">
-            <span className="text-sm">{arrival}</span>
+            <span className="font-mono text-sm">{arrival}</span>
             <span className="text-xs font-semibold text-green-600">LEADER</span>
           </div>
         );
@@ -204,23 +187,39 @@ return [
         const gap = new Date(o.arrivalTime).getTime() - o.leaderTimeMs;
         return (
           <div className="flex flex-col">
-            <span className="text-sm">{arrival}</span>
-            <span className="text-xs text-red-600">{formatGap(gap)}</span>
+            <span className="font-mono text-sm">{arrival}</span>
+            <span className="text-xs font-semibold text-red-600">{formatGap(gap)}</span>
           </div>
         );
       }
-      return <span className="text-sm">{arrival}</span>;
+      return <span className="font-mono text-sm">{arrival}</span>;
+    },
+  },
+  {
+    id: "flightTime",
+    header: () => <span>Flight Time</span>,
+    cell: ({ row }) => {
+      const ms = row.original.flightTimeMs;
+      if (ms == null) return <span className="text-muted-foreground text-xs">-</span>;
+      return (
+        <div className="flex items-center gap-1 text-xs font-mono">
+          <span className="text-muted-foreground">⏱</span>
+          <span>{formatFlightTime(ms)}</span>
+        </div>
+      );
     },
   },
   {
     id: "speed",
-    header: () => <span>Speed ({velocityUnit})</span>,
+    header: ({ column }) => <DataTableColumnHeader column={column} title={`Speed (${velocityUnit})`} />,
+    accessorFn: (row) => row.ypm ?? -1,
     cell: ({ row }) => {
       const v = row.original.ypm;
-      if (v == null) return <span className="text-muted-foreground">-</span>;
-      const display = velocityUnit === "MPM" ? (v * 0.9144).toFixed(6) : v.toFixed(6);
-      return <span className="font-semibold text-blue-600">{display} {velocityUnit}</span>;
+      if (v == null) return <span className="text-muted-foreground text-xs">-</span>;
+      const display = velocityUnit === "MPM" ? (v * 0.9144).toFixed(4) : v.toFixed(4);
+      return <span className="font-semibold text-blue-600">{display} <span className="text-xs font-normal">{velocityUnit}</span></span>;
     },
+    sortingFn: (a, b) => (b.original.ypm ?? -1) - (a.original.ypm ?? -1),
   },
   {
     id: "competitions",

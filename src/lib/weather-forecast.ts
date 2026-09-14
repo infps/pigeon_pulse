@@ -83,3 +83,21 @@ export async function fetchReleaseForecast(
     weather: codeToWeather(code),
   };
 }
+
+export async function fetchSunriseSunset(
+  lat: number,
+  lon: number,
+  date: string // "YYYY-MM-DD"
+): Promise<{ sunrise: string; sunset: string }> {
+  const url =
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    `&daily=sunrise,sunset&timezone=auto&start_date=${date}&end_date=${date}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Sunrise/sunset fetch failed (${res.status})`);
+  const data = await res.json();
+  const sr: string | undefined = data?.daily?.sunrise?.[0];
+  const ss: string | undefined = data?.daily?.sunset?.[0];
+  if (!sr || !ss) throw new Error("No sunrise/sunset data");
+  // Open-Meteo returns "YYYY-MM-DDTHH:MM" — extract HH:MM
+  return { sunrise: sr.slice(11, 16), sunset: ss.slice(11, 16) };
+}

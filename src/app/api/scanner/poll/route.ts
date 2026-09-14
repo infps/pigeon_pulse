@@ -22,8 +22,8 @@ export async function POST(request: NextRequest) {
     // ponytail: no startedAt = caller didn't intend a session window, use now so no stale rows slip through
     const sessionStart = startedAt ? new Date(startedAt) : new Date();
 
-    // Find oldest unprocessed scan from this device IP after session start
-    const candidate = await prisma.rfidScan.findFirst({
+    // Find all unprocessed scans from this device IP after session start
+    const candidates = await prisma.rfidScan.findMany({
       where: {
         deviceIp,
         processed: false,
@@ -32,17 +32,19 @@ export async function POST(request: NextRequest) {
       orderBy: { timestamp: "asc" },
     });
 
-    if (candidate) {
-      // Atomic claim — only mark processed if still unclaimed (prevents TOCTOU)
+    if (candidates.length > 0) {
+      const ids = candidates.map((c) => c.id);
+      // Atomic claim — mark all processed at once
       const claimed = await prisma.rfidScan.updateMany({
-        where: { id: candidate.id, processed: false },
+        where: { id: { in: ids }, processed: false },
         data: { processed: true },
       });
 
       if (claimed.count > 0) {
-        return NextResponse.json([{ el: candidate.rfidTag, source: "python" }]);
+        return NextResponse.json(
+          candidates.map((c) => ({ el: c.rfidTag, timestamp: c.timestamp, source: "python" }))
+        );
       }
-      // Another concurrent poll claimed it — return empty, client retries next interval
       return NextResponse.json([]);
     }
 
