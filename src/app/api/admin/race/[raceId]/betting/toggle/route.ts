@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { notifyBettingOpen } from "@/lib/notifications";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -52,6 +53,9 @@ export async function POST(
       where: { id: raceIdInt },
       data: { bettingOpen: newValue },
     });
+
+    // Tell the season when a pool opens; closing needs no announcement.
+    if (updated.bettingOpen) await notifyBettingOpen(updated.id);
 
     return NextResponse.json({ bettingOpen: updated.bettingOpen });
   } catch (error) {

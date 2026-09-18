@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { presetIdFor } from "@/lib/birdStatus";
 import { lockRace } from "@/lib/race-results";
+import { notifyBirdArrived } from "@/lib/notifications";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -329,6 +330,14 @@ export async function POST(
         performedById: session?.user?.id ?? null,
       },
     });
+
+    // Tell the owner their bird is home, with the place it took.
+    await notifyBirdArrived(
+      raceIdInt,
+      raceItem.inventoryItemId,
+      bird.band ?? bird.rfid ?? ringNo,
+      birdPosition
+    );
 
     // Auto STATUS group: if birdPosition matches a BirdStatusCode, assign it
     const statusCode = await prisma.birdStatusCode.findFirst({

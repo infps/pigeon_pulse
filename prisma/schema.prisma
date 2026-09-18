@@ -139,6 +139,7 @@ model User {
   bettorPayments      Payment[]          @relation("BettorPayments")
   calcuttaBids        CalcuttaBid[]
   ownedCalcuttaGroups CalcuttaBetGroup[]
+  notifications       Notification[]
 
   @@map("Users")
 }
@@ -543,6 +544,7 @@ model Race {
   eventBaskets        EventBasket[]
   averageConfigRaces  AverageConfigRace[]
   statusVisibility    RaceStatusVisibility[]
+  notifications       Notification[]
 }
 
 model TruckPing {
@@ -701,6 +703,7 @@ model Season {
   calcuttaBetGroups CalcuttaBetGroup[]
   birdImages       BirdImage[]
   averageConfigs   AverageConfig[]
+  notifications    Notification[]
 
   @@index([eventId])
   @@map("Seasons")
@@ -1384,4 +1387,37 @@ model BirdEventHistory {
   inventoryItem EventInventoryItem @relation(fields: [eventInventoryItemId], references: [id], onDelete: Cascade)
 
   @@index([eventInventoryItemId, createdAt])
+}
+
+enum NotificationKind {
+  RACE_STARTED
+  BIRD_ARRIVED
+  RACE_ENDED
+  BETTING_OPEN
+  PAYMENT_DUE
+  EVENT_MESSAGE
+  BIRD_LOST
+  STORE_LISTING
+}
+
+model Notification {
+  id          Int              @id @default(autoincrement()) @map("ID_NOTIFICATION")
+  userId      String           @map("USER_ID")
+  kind        NotificationKind @map("KIND")
+  title       String           @map("TITLE")
+  body        String           @map("BODY")
+  link        String?          @map("LINK")
+  seasonId    Int?             @map("SEASON_ID")
+  raceId      Int?             @map("ID_RACE")
+  readAt      DateTime?        @map("READ_AT")
+  // Set once a push has gone out; in-app delivery does not need it.
+  deliveredAt DateTime?        @map("DELIVERED_AT")
+  createdAt   DateTime         @default(now()) @map("CREATED_AT")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  season Season? @relation(fields: [seasonId], references: [id])
+  race   Race?   @relation(fields: [raceId], references: [id])
+
+  @@index([userId, createdAt])
+  @@map("Notifications")
 }

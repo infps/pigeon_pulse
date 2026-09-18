@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { notifyRaceStarted } from "@/lib/notifications";
 import { presetIdFor } from "@/lib/birdStatus";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -77,8 +78,12 @@ export async function POST(
       skipDuplicates: true,
     });
 
+    // Everyone with a bird in the air hears about it. Fire-and-forget: a
+    // failed announcement must not stop the race from starting.
+    const notified = await notifyRaceStarted(raceIdInt);
+
     return NextResponse.json(
-      { race: updatedRace, message: "Race started successfully" },
+      { race: updatedRace, notified, message: "Race started successfully" },
       { status: 200 }
     );
   } catch (error) {

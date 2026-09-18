@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { presetIdFor } from "@/lib/birdStatus";
 import { recalcRace } from "@/lib/race-results";
+import { notifyRaceEnded } from "@/lib/notifications";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -144,6 +145,9 @@ export async function POST(
     // Positions and prizes are only meaningful once the lost set is settled,
     // so this runs after the transaction above commits.
     const recalc = await recalcRace(raceIdInt);
+
+    // Results are final once the recalculation has run, so announce after it.
+    await notifyRaceEnded(raceIdInt, lostCount);
 
     return NextResponse.json(
       {

@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { notifyEventMessage } from "@/lib/notifications";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -126,8 +127,11 @@ export async function POST(
       },
     });
 
+    // Broadcasts reach the season as notifications too, not only the message list.
+    const notified = await notifyEventMessage(seasonId, title, messageBody, eventId);
+
     return NextResponse.json(
-      { message: created, status: "Message created" },
+      { message: created, notified, status: "Message created" },
       { status: 201 }
     );
   } catch (error) {
