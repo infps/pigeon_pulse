@@ -113,6 +113,7 @@ export async function recalcPositions(
              ON eii."ID_EVENT_INVENTORY_ITEM" = ri."ID_INVENTORY_ITEM"
       WHERE ri."ID_RACE" = ${raceId}
         AND COALESCE(ri."IS_LOST", 0) <> 1
+        AND ri."status" NOT IN ('IGNORED', 'STRAY', 'LOST')
         AND rir."ARRIVAL_TIME" IS NOT NULL
         AND NOT EXISTS (
           SELECT 1 FROM "RaceIgnoreBird" ib
@@ -147,6 +148,7 @@ export async function recalcPositions(
            ON eii."ID_EVENT_INVENTORY_ITEM" = ri."ID_INVENTORY_ITEM"
     WHERE ri."ID_RACE" = ${raceId}
       AND COALESCE(ri."IS_LOST", 0) <> 1
+      AND ri."status" NOT IN ('IGNORED', 'STRAY', 'LOST')
       AND rir."ARRIVAL_TIME" IS NOT NULL`;
 
   return {
@@ -187,6 +189,7 @@ export async function recalcHotspotPositions(
              ON eii."ID_EVENT_INVENTORY_ITEM" = ri."ID_INVENTORY_ITEM"
       WHERE ri."ID_RACE" = ${raceId}
         AND COALESCE(ri."IS_LOST", 0) <> 1
+        AND ri."status" NOT IN ('IGNORED', 'STRAY', 'LOST')
         AND rir."ARRIVAL_TIME" IS NOT NULL
         AND COALESCE(eii."HOT_SPOT_FEE_VALUE", 0) > 0
         AND NOT EXISTS (

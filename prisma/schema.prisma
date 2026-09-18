@@ -309,6 +309,19 @@ enum RaceItemStatus {
   RELEASED
   ARRIVED
   FOREIGN_BIRD
+  // A lost bird that reappears with a later flock. Carries no position.
+  STRAY
+  // The admin excluded this flight — the bird did not really fly.
+  IGNORED
+  // Lost as a persisted status rather than only a boolean on Bird.
+  LOST
+}
+
+enum BirdHealthStatus {
+  HEALTHY
+  INJURED
+  HOSPITALIZED
+  DEAD
 }
 
 enum BasketPhase {
@@ -935,6 +948,9 @@ model Bird {
   isActive           Int?      @map("IS_ACTIVE")
   isLost             Int?      @map("IS_LOST")
   isRaceVerified     Int?      @map("IS_RACE_VERIFIED")
+  healthStatus       BirdHealthStatus @default(HEALTHY) @map("HEALTH_STATUS")
+  healthNote         String?   @map("HEALTH_NOTE")
+  healthUpdatedAt    DateTime? @map("HEALTH_UPDATED_AT")
   playAttentionSound Int?      @map("PLAY_ATTENTION_SOUND")
   lostDate           DateTime? @map("LOST_DATE")
   lostRaceId         Int?      @map("LOST_ID_RACE")

@@ -60,7 +60,9 @@ export async function GET(req: NextRequest) {
 
     // Flatten nested relations for UI column accessors
     const flattenedRaceItems = raceItems.map((item) => {
-      // Compute CHECKED_IN overlay for REGISTERED birds
+      // CHECKED_IN is persisted when the RFID tag is linked. This overlay stays
+      // only to cover birds checked in before that became the case — it never
+      // overrides a status the workflow has already recorded.
       let computedStatus: string = item.status;
       if (computedStatus === "REGISTERED") {
         const hasRfid = item.inventoryItem?.bird?.rfid != null && item.inventoryItem.bird.rfid !== "";

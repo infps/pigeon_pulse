@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { presetIdFor } from "@/lib/birdStatus";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -62,16 +63,44 @@ export async function POST(
       );
     }
 
-    // Update Bird.rfid
-    await prisma.bird.update({
-      where: { id: item.bird.id },
-      data: { rfid: rfid.trim() },
+    const checkedInStatusId = await presetIdFor(seasonId, "CHECKIN");
+
+    // Linking the tag is what check-in means, so persist the status here
+    // instead of recomputing "has RFID and has paid" on every read. Only
+    // races that have not started yet move: a started race has already
+    // pushed its birds past this point.
+    const { promoted } = await prisma.$transaction(async (tx) => {
+      await tx.bird.update({
+        where: { id: item.bird!.id },
+        data: { rfid: rfid.trim() },
+      });
+
+      const result = await tx.raceItem.updateMany({
+        where: {
+          inventoryItemId: item.id,
+          status: "REGISTERED",
+          race: { status: "REGISTERING" },
+        },
+        data: { status: "CHECKED_IN", displayStatusId: checkedInStatusId },
+      });
+
+      await tx.birdEventHistory.create({
+        data: {
+          eventInventoryItemId: item.id,
+          action: "RFID_LINKED",
+          detail: `RFID ${rfid.trim()} linked at check-in`,
+          performedById: session.user.id ?? null,
+        },
+      });
+
+      return { promoted: result.count };
     });
 
     return NextResponse.json({
       message: "RFID linked successfully",
       birdId: item.bird.id,
       rfid: rfid.trim(),
+      checkedInRaces: promoted,
     });
   } catch (error) {
     console.error("Error linking RFID:", error);
@@ -137,14 +166,30 @@ export async function DELETE(
       );
     }
 
-    await prisma.bird.update({
-      where: { id: item.bird.id },
-      data: { rfid: null },
+    // Unlinking the tag undoes check-in for races that have not started.
+    const registeredStatusId = await presetIdFor(seasonId, "REGISTER");
+    const { reverted } = await prisma.$transaction(async (tx) => {
+      await tx.bird.update({
+        where: { id: item.bird!.id },
+        data: { rfid: null },
+      });
+
+      const result = await tx.raceItem.updateMany({
+        where: {
+          inventoryItemId: item.id,
+          status: "CHECKED_IN",
+          race: { status: "REGISTERING" },
+        },
+        data: { status: "REGISTERED", displayStatusId: registeredStatusId },
+      });
+
+      return { reverted: result.count };
     });
 
     return NextResponse.json({
       message: "RFID unlinked successfully",
       birdId: item.bird.id,
+      revertedRaces: reverted,
     });
   } catch (error) {
     console.error("Error unlinking RFID:", error);

@@ -28,6 +28,7 @@ const breeders = {
 };
 
 const adminBirds = {
+  health: (birdId: number | string) => `/api/admin/bird/${birdId}/health`,
   base: "/api/admin/birds",
   birdById: (birdId: number | string) => `/api/admin/bird/${birdId}`,
 };
@@ -63,6 +64,8 @@ const races = {
 };
 
 const raceItems = {
+  raceStatus: (raceItemId: number | string) =>
+    `/api/admin/race-item/${raceItemId}/race-status`,
   base: "/api/admin/race-item",
 };
 

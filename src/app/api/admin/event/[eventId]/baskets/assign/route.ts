@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { partitionByFitness } from "@/lib/bird-health";
 import { bfdAssign } from "@/lib/packingEngine";
 import type { BreederGroup, BasketSlot } from "@/lib/packingEngine";
 import { headers } from "next/headers";
@@ -44,10 +45,17 @@ export async function POST(
     const raceId = body.raceId ? parseInt(body.raceId) : undefined;
 
     // 1. Fetch birds for this season
-    const inventoryItems = await prisma.eventInventoryItem.findMany({
+    const candidates = await prisma.eventInventoryItem.findMany({
       where: {
         eventInventory: { seasonId },
         ...(mode === "assign" ? { basketAssignments: { none: {} } } : {}),
+        // A bird that is lost, scratched or replaced has no business in a
+        // basket. Legacy left these in and the operator had to spot them.
+        replacedItemId: null,
+        bird: {
+          NOT: { isLost: 1 },
+          OR: [{ isActive: 1 }, { isActive: null }],
+        },
       },
       select: {
         id: true,
@@ -57,8 +65,22 @@ export async function POST(
             breeder: { select: { id: true, lastName: true } },
           },
         },
+        bird: {
+          select: {
+            healthStatus: true,
+            band1: true,
+            band2: true,
+            band3: true,
+            band4: true,
+            band: true,
+          },
+        },
       },
     });
+
+    // Unfit birds are held back rather than silently dropped, so the operator
+    // sees which birds were excluded and why.
+    const { fit: inventoryItems, unfit } = partitionByFitness(candidates);
 
     if (inventoryItems.length === 0) {
       return NextResponse.json(
@@ -144,6 +166,7 @@ export async function POST(
     if (preview) {
       return NextResponse.json({
         preview: true,
+        heldBack: unfit,
         assigned: assigned.map((a) => ({
           groupKey: a.breederId,
           label: a.lastName,
@@ -202,6 +225,7 @@ export async function POST(
 
     return NextResponse.json({
       preview: false,
+        heldBack: unfit,
       assigned: assigned.map((a) => ({
         groupKey: a.breederId,
         label: a.lastName,
