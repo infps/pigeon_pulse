@@ -16,7 +16,8 @@ import type { EventInventoryItem } from "@/lib/types";
 export const createBirdsColumns = (
   onEdit: (item: EventInventoryItem) => void,
   onOpenBird: (id: number) => void,
-  eventId?: string | number
+  eventId?: string | number,
+  onSubstitute?: (item: EventInventoryItem) => void
 ): ColumnDef<EventInventoryItem>[] => [
   {
     id: "breeder",
@@ -200,10 +201,15 @@ export const createBirdsColumns = (
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            
+
             <DropdownMenuItem onClick={() => onEdit(item)}>
               Edit bird
             </DropdownMenuItem>
+            {onSubstitute ? (
+              <DropdownMenuItem onClick={() => onSubstitute(item)}>
+                {item.replacedItemId ? "Restore to lineup" : "Substitute backup"}
+              </DropdownMenuItem>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       );

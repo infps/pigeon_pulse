@@ -38,6 +38,7 @@ import { Plus, Wifi, WifiOff, Square, Usb, Upload, Download } from "lucide-react
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { createBirdsColumns } from "./birds-columns";
+import { SubstitutionDialog } from "./substitution-dialog";
 import { EditBirdDialog } from "@/components/edit-bird-dialog";
 import { BirdDetailDialog } from "@/components/bird-detail-dialog";
 import { ImportModal, ExportModal } from "@/components/csv-import-export";
@@ -100,6 +101,14 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
     toast.info("Poll scanner stopped");
   }, []);
 
+  const [substituteItem, setSubstituteItem] = useState<EventInventoryItem | null>(null);
+  const [isSubstituteOpen, setIsSubstituteOpen] = useState(false);
+
+  const handleSubstitute = (item: EventInventoryItem) => {
+    setSubstituteItem(item);
+    setIsSubstituteOpen(true);
+  };
+
   const handleEdit = (item: EventInventoryItem) => {
     setEditingItem(item);
     setIsEditDialogOpen(true);
@@ -115,7 +124,7 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
     queryClient.invalidateQueries({ queryKey: ["event-inventory"] });
   };
 
-  const columns = createBirdsColumns(handleEdit, setDetailBirdId, eventId);
+  const columns = createBirdsColumns(handleEdit, setDetailBirdId, eventId, handleSubstitute);
 
   const eventInventoryItems: EventInventoryItem[] =
     data?.eventInventoryItems || [];
@@ -252,6 +261,16 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
           { key: "color", label: "Color" },
         ]}
         onSuccess={() => { refetch(); queryClient.invalidateQueries({ queryKey: ["event-inventory"] }); }}
+      />
+
+      <SubstitutionDialog
+        item={substituteItem}
+        open={isSubstituteOpen}
+        onOpenChange={setIsSubstituteOpen}
+        onDone={() => {
+          refetch();
+          queryClient.invalidateQueries({ queryKey: ["event-inventory"] });
+        }}
       />
 
       <ExportModal
