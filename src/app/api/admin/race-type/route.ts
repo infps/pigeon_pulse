@@ -40,6 +40,7 @@ export async function POST(request: Request) {
         name: validatedData.name,
         color: validatedData.color ?? null,
         isPaymentRequired: validatedData.isPaymentRequired ?? false,
+        prizeRole: validatedData.prizeRole ?? "NONE",
       },
     });
     return NextResponse.json(
@@ -87,6 +88,7 @@ export async function PUT(request: Request) {
         name: validatedData.name,
         color: validatedData.color ?? null,
         isPaymentRequired: validatedData.isPaymentRequired ?? false,
+        prizeRole: validatedData.prizeRole ?? "NONE",
       },
     });
 

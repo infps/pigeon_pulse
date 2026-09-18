@@ -122,6 +122,41 @@ export const raceItemsColumns: ColumnDef<RaceItem>[] = [
     },
   },
   {
+    accessorKey: "birdPositionHotSpot",
+    sortingFn: nullsLast,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Hotspot" />
+    ),
+    cell: ({ row }) => {
+      const pos = row.original.birdPositionHotSpot;
+      return <span className="tabular-nums">{pos ?? "-"}</span>;
+    },
+  },
+  {
+    accessorKey: "prizeValue",
+    sortingFn: nullsLast,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Prize" />
+    ),
+    cell: ({ row }) => {
+      const prize = row.original.prizeValue;
+      const drop = row.original.birdDrop;
+      if (prize == null) return <span className="text-muted-foreground">-</span>;
+      return (
+        <span className="tabular-nums font-medium">
+          {prize.toLocaleString("en-US", {
+            style: "currency",
+            currency: "USD",
+            maximumFractionDigits: 2,
+          })}
+          {drop != null && (
+            <span className="ml-1 text-xs text-muted-foreground">drop {drop}</span>
+          )}
+        </span>
+      );
+    },
+  },
+  {
     accessorKey: "loftBasketLabel",
     sortingFn: nullsLast,
     header: ({ column }) => (

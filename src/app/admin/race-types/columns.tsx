@@ -2,6 +2,7 @@
 
 import { ColumnDef } from "@tanstack/react-table"
 import { MoreHorizontal } from "lucide-react"
+import type { RaceTypePrizeRole } from "@/lib/types"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -22,6 +23,7 @@ export type RaceType = {
   isPaid: boolean
   isPaymentRequired: boolean
   color: string | null
+  prizeRole?: RaceTypePrizeRole
   createdAt: string
 }
 

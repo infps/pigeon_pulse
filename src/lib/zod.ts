@@ -58,6 +58,12 @@ export const createRaceTypeSchema = z.object({
     name: z.string().min(1, "Name is required"),
     color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color must be a hex like #1d4ed8").optional().nullable(),
     isPaymentRequired: z.boolean().optional().default(false),
+    // Which season prize scheme races of this type pay from. NONE means the
+    // type never carries a prize, matching HayLoft's non-5/6/7/8 race types.
+    prizeRole: z
+        .enum(["NONE", "FINAL", "HOTSPOT_1", "HOTSPOT_2", "HOTSPOT_3", "AVERAGE"])
+        .optional()
+        .default("NONE"),
 })
 
 export const createEventTypeSchema = z.object({

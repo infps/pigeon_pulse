@@ -22,6 +22,7 @@ import { BasketTabs } from "./basket-tabs";
 // GPS disabled for now: import { TransportCard, RouteHistoryCard } from "./transport-card";
 import { raceItemsColumns } from "./race-items-columns";
 import { RaceStatusFilter } from "./race-status-filter";
+import { RecalculateDialog } from "./recalculate-dialog";
 import { getWeatherIcon } from "@/lib/weather-constants";
 import { StationsMap } from "@/components/map";
 import type { Race, Event, RaceItem } from "@/lib/types";
@@ -305,6 +306,9 @@ export default function RaceDetailsPage() {
                         <StopCircle className="h-4 w-4" />
                         {isEndingRace ? "Ending..." : "End Race"}
                       </Button>
+                    )}
+                    {race.status !== "REGISTERING" && (
+                      <RecalculateDialog raceId={raceId} />
                     )}
                     {isScanning ? (
                       <Button

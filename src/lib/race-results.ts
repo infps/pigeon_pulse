@@ -325,13 +325,19 @@ export async function calcRacePrizes(
     ),
     resolved AS (
       SELECT id,
-             CASE
-               -- Drop-splitting is FINAL-only. Legacy's hotspot branch never
-               -- looked at BIRD_DROP: it paid each bird its own position's
-               -- prize even when the whole race shared one drop number.
-               WHEN ${isFinal}::boolean = false OR drop_no IS NULL THEN prize
-               ELSE NULLIF(AVG(COALESCE(prize, 0)) OVER (PARTITION BY drop_no), 0)
-             END AS final_prize
+             -- Legacy stored prizes as NUMERIC(15,4); this column is double
+             -- precision, so an even split like 25000/24 would otherwise
+             -- differ from the legacy value in the far decimals.
+             ROUND(
+               (CASE
+                 -- Drop-splitting is FINAL-only. Legacy's hotspot branch never
+                 -- looked at BIRD_DROP: it paid each bird its own position's
+                 -- prize even when the whole race shared one drop number.
+                 WHEN ${isFinal}::boolean = false OR drop_no IS NULL THEN prize
+                 ELSE NULLIF(AVG(COALESCE(prize, 0)) OVER (PARTITION BY drop_no), 0)
+               END)::numeric,
+               4
+             )::double precision AS final_prize
       FROM banded
     )
     UPDATE "RaceItemResult" t
@@ -438,7 +444,14 @@ export async function recalcRace(
           const samePosition = (prev?.birdPosition ?? null) === (row.birdPosition ?? null);
           const sameHotspot =
             (prev?.birdPositionHotSpot ?? null) === (row.birdPositionHotSpot ?? null);
-          const samePrize = (prev?.prizeValue ?? null) === (row.prizeValue ?? null);
+          // Prize is a float; compare at legacy's stored precision so that
+          // representation noise is not reported as an operator-visible change.
+          const prevPrize = prev?.prizeValue ?? null;
+          const nextPrize = row.prizeValue ?? null;
+          const samePrize =
+            prevPrize == null || nextPrize == null
+              ? prevPrize === nextPrize
+              : Math.abs(prevPrize - nextPrize) < 0.00005;
           if (samePosition && sameHotspot && samePrize) continue;
 
           const bird = row.raceItem?.inventoryItem?.bird;

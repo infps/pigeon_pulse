@@ -51,6 +51,9 @@ const races = {
   base: "/api/admin/race",
   start: (raceId: number | string) => `/api/admin/race/${raceId}/start`,
   end: (raceId: number | string) => `/api/admin/race/${raceId}/end`,
+  recalculate: (raceId: number | string) => `/api/admin/race/${raceId}/recalculate`,
+  recalculatePreview: (raceId: number | string) =>
+    `/api/admin/race/${raceId}/recalculate?dryRun=1`,
 };
 
 const raceItems = {

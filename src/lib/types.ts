@@ -91,12 +91,21 @@ export interface OrganizerData {
 // SCHEMES
 // ============================================================
 
+export type RaceTypePrizeRole =
+  | "NONE"
+  | "FINAL"
+  | "HOTSPOT_1"
+  | "HOTSPOT_2"
+  | "HOTSPOT_3"
+  | "AVERAGE";
+
 export interface RaceType {
   id: number;
   name: string | null;
   color: string | null;
   numberGroupId: number | null;
   isPaymentRequired: boolean;
+  prizeRole?: RaceTypePrizeRole;
 }
 
 export interface FeeScheme {
@@ -396,6 +405,9 @@ export interface RaceItem {
   speed?: number | null;
   eventInventoryItem?: EventInventoryItem;
   birdPosition?: number | null;
+  birdPositionHotSpot?: number | null;
+  prizeValue?: number | null;
+  birdDrop?: number | null;
   arrivalTime?: string | null;
   previousPosition?: number | null;
   loftBasketLabel?: string | null;
