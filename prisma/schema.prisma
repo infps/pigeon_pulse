@@ -498,6 +498,7 @@ model EventRaceNumber {
 
 model Race {
   id                 Int       @id @default(autoincrement()) @map("ID_RACE")
+  isPrivate          Boolean   @default(false) @map("IS_PRIVATE")
   raceTypeId         Int?      @map("ID_RACE_TYPE")
   seasonId           Int?      @map("SEASON_ID")
   raceNumber         Int?      @map("RACE_NUMBER")
@@ -707,6 +708,7 @@ model Season {
 
 model Event {
   id                      Int       @id @default(autoincrement()) @map("ID_EVENT")
+  isPrivate               Boolean   @default(false) @map("IS_PRIVATE")
   name                    String?   @map("EVENT_NAME")
   shortName               String?   @map("EVENT_SHORT_NAME")
   eventDate               DateTime? @map("EVENT_DATE")

@@ -73,40 +73,76 @@ export async function recalcPerchFees(tx: Tx, eventInventoryId: number): Promise
     where: { id: eventInventoryId },
     select: { season: { select: { feeSchemeId: true } } },
   });
-  const feeSchemeId = inventory?.season?.feeSchemeId ?? null;
+  await repriceInventories(tx, { eventInventoryId }, inventory?.season?.feeSchemeId ?? null);
+}
 
-  // 1. Renumber sequentially, preserving the existing order.
-  const numbered = await tx.eventInventoryItem.findMany({
-    where: { eventInventoryId, birdNo: { not: null } },
-    select: { id: true },
-    orderBy: { birdNo: "asc" },
+/**
+ * Renumber and reprice every registration in a season at once.
+ *
+ * Used after bulk work such as a season clone, where doing it one registration
+ * at a time would mean thousands of round trips and blow the transaction budget.
+ */
+export async function recalcPerchFeesForSeason(tx: Tx, seasonId: number): Promise<void> {
+  const season = await tx.season.findUnique({
+    where: { id: seasonId },
+    select: { feeSchemeId: true },
   });
+  await repriceInventories(tx, { seasonId }, season?.feeSchemeId ?? null);
+}
 
-  for (const [index, item] of numbered.entries()) {
-    const birdNo = index + 1;
-    await tx.eventInventoryItem.update({ where: { id: item.id }, data: { birdNo } });
-  }
+/**
+ * The two statements behind both entry points, scoped either to one
+ * registration or to a whole season. Set-based on purpose: the legacy procedure
+ * looped row by row, which is free inside the database but not from here.
+ */
+async function repriceInventories(
+  tx: Tx,
+  scope: { eventInventoryId: number } | { seasonId: number },
+  feeSchemeId: number | null
+): Promise<void> {
+  const oneInventory = "eventInventoryId" in scope;
+  const inventoryId = oneInventory ? scope.eventInventoryId : 0;
+  const seasonId = oneInventory ? 0 : scope.seasonId;
+
+  // 1. Close gaps in the numbering, per registration, preserving order.
+  await tx.$executeRaw`
+    WITH ordered AS (
+      SELECT eii."ID_EVENT_INVENTORY_ITEM" AS id,
+             ROW_NUMBER() OVER (
+               PARTITION BY eii."ID_EVENT_INVENTORY"
+               ORDER BY eii."BIRD_NO" ASC, eii."ID_EVENT_INVENTORY_ITEM" ASC
+             ) AS rn
+      FROM "EventInventoryItem" eii
+      JOIN "EventInventory" ei ON ei."ID_EVENT_INVENTORY" = eii."ID_EVENT_INVENTORY"
+      WHERE eii."BIRD_NO" IS NOT NULL
+        AND (${oneInventory}::boolean = false OR eii."ID_EVENT_INVENTORY" = ${inventoryId})
+        AND (${oneInventory}::boolean = true  OR ei."SEASON_ID" = ${seasonId})
+    )
+    UPDATE "EventInventoryItem" t
+    SET "BIRD_NO" = ordered.rn
+    FROM ordered
+    WHERE t."ID_EVENT_INVENTORY_ITEM" = ordered.id
+      AND t."BIRD_NO" IS DISTINCT FROM ordered.rn`;
 
   if (feeSchemeId == null) return;
 
-  // 2. Reprice non-backup birds from the graduated table.
-  const feeItems = await tx.birdFeeItem.findMany({
-    where: { feeSchemeId },
-    select: { birdNo: true, birdFee: true },
-  });
-  const feeByBirdNo = new Map(feeItems.map((f) => [f.birdNo, f.birdFee]));
-
-  const priceable = await tx.eventInventoryItem.findMany({
-    where: { eventInventoryId, birdNo: { not: null }, NOT: { isBackup: 1 } },
-    select: { id: true, birdNo: true },
-  });
-
-  for (const item of priceable) {
-    await tx.eventInventoryItem.update({
-      where: { id: item.id },
-      data: { perchFeeValue: feeByBirdNo.get(item.birdNo) ?? null },
-    });
-  }
+  // 2. Reprice non-backup birds from the graduated table. A bird number with no
+  //    matching band gets NULL rather than zero.
+  await tx.$executeRaw`
+    UPDATE "EventInventoryItem" t
+    SET "PERCH_FEE_VALUE" = (
+      SELECT bfi."PERCH_FEE"
+      FROM "BirdFeeItems" bfi
+      WHERE bfi."ID_FEE_SCHEME" = ${feeSchemeId}
+        AND bfi."BIRD_NO" = t."BIRD_NO"
+      LIMIT 1
+    )
+    FROM "EventInventory" ei
+    WHERE ei."ID_EVENT_INVENTORY" = t."ID_EVENT_INVENTORY"
+      AND t."BIRD_NO" IS NOT NULL
+      AND COALESCE(t."IS_BACKUP", 0) <> 1
+      AND (${oneInventory}::boolean = false OR t."ID_EVENT_INVENTORY" = ${inventoryId})
+      AND (${oneInventory}::boolean = true  OR ei."SEASON_ID" = ${seasonId})`;
 }
 
 /**

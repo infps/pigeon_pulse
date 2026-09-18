@@ -130,6 +130,7 @@ export async function POST(request: Request) {
       isClosed,
       season,
       raceStationId,
+      isPrivate,
     } = body;
 
     const event = await prisma.event.findUnique({
@@ -165,6 +166,7 @@ export async function POST(request: Request) {
         data: {
           raceTypeId: raceTypeId ? parseInt(raceTypeId) : null,
           seasonId: activeSeason.id,
+          isPrivate: Boolean(isPrivate),
           raceNumber: raceNumber ? parseInt(raceNumber) : null,
           name: name || "",
           description,
@@ -273,6 +275,7 @@ export async function PUT(request: Request) {
     if (data.temperature !== undefined)
       updateData.temperature = data.temperature != null ? String(data.temperature) : null;
     if (data.wind !== undefined) updateData.wind = data.wind;
+    if (data.isPrivate !== undefined) updateData.isPrivate = Boolean(data.isPrivate);
     if (data.weather !== undefined) updateData.weather = data.weather;
     // Closed state is dual-tracked: `isClosed` flag + `status`/`endTime`.
     // Keep them in sync so unmarking "closed" actually re-opens the race.
