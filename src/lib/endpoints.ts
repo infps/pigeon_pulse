@@ -54,6 +54,12 @@ const races = {
   recalculate: (raceId: number | string) => `/api/admin/race/${raceId}/recalculate`,
   recalculatePreview: (raceId: number | string) =>
     `/api/admin/race/${raceId}/recalculate?dryRun=1`,
+  phantoms: (raceId: number | string) => `/api/admin/race/${raceId}/phantoms`,
+  phantom: (raceId: number | string, phantomId: number | string) =>
+    `/api/admin/race/${raceId}/phantoms/${phantomId}`,
+  ignoreBirds: (raceId: number | string) => `/api/admin/race/${raceId}/ignore-birds`,
+  ignoreBird: (raceId: number | string, inventoryItemId: number | string) =>
+    `/api/admin/race/${raceId}/ignore-birds?inventoryItemId=${inventoryItemId}`,
 };
 
 const raceItems = {

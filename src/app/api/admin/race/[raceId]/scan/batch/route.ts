@@ -52,7 +52,10 @@ export async function POST(
     const deduped = Array.from(dedupedMap.entries()).map(([ringNo, timestamp]) => ({ ringNo, timestamp }));
 
     // ── 2. Fetch race once ──────────────────────────────────────────────────
-    const race = await prisma.race.findUnique({ where: { id: raceIdInt } });
+    const race = await prisma.race.findUnique({
+      where: { id: raceIdInt },
+      include: { seasonRel: { select: { eventId: true } } },
+    });
     if (!race) return NextResponse.json({ message: "Race not found" }, { status: 404 });
 
     const isLive = race.status === "STARTED" || race.status === "ENDED";
@@ -241,19 +244,52 @@ export async function POST(
     }
 
     // ── 8b. Process foreign birds ───────────────────────────────────────────
-    if (toForeign.length > 0) {
+    //
+    // A tag that matches no bird at all is recorded as a phantom scan for an
+    // operator to match later, rather than fabricating a Bird plus a whole
+    // registration for an unreadable tag. Same rule as the single-scan route.
+    const unknownTags = toForeign.filter((f) => !f.bird);
+    if (unknownTags.length > 0) {
+      const existing = await prisma.racePhantomBird.findMany({
+        where: { raceId: raceIdInt, rfid: { in: unknownTags.map((u) => u.ringNo) } },
+        select: { rfid: true },
+      });
+      const alreadyQueued = new Set(existing.map((e) => e.rfid));
+      const fresh = unknownTags.filter((u) => !alreadyQueued.has(u.ringNo));
+
+      if (fresh.length > 0) {
+        await prisma.racePhantomBird.createMany({
+          data: fresh.map((u) => ({
+            raceId: raceIdInt,
+            eventId: race.seasonRel?.eventId ?? null,
+            rfid: u.ringNo,
+            arrivalTime: parseTimestamp(u.timestamp),
+          })),
+        });
+      }
+
+      for (const u of unknownTags) {
+        results.push({
+          ringNo: u.ringNo,
+          scanType: "phantom",
+          isNewScan: !alreadyQueued.has(u.ringNo),
+          message: alreadyQueued.has(u.ringNo)
+            ? "Already waiting to be matched"
+            : "No matching bird — saved for matching",
+        });
+      }
+    }
+
+    const knownForeign = toForeign.filter((f) => f.bird);
+    if (knownForeign.length > 0) {
       const dg = await getDefaulterGroup();
 
       await Promise.all(
-        toForeign.map(async ({ ringNo, timestamp, bird }) => {
+        knownForeign.map(async ({ ringNo, timestamp, bird }) => {
           const arrivalTime = parseTimestamp(timestamp);
 
           await prisma.$transaction(async (tx) => {
-            let birdId = bird?.id;
-            if (!birdId) {
-              const newBird = await tx.bird.create({ data: { band: ringNo, rfid: ringNo } });
-              birdId = newBird.id;
-            }
+            const birdId = bird!.id;
             const eventInv = await tx.eventInventory.create({ data: { seasonId: race.seasonId } });
             const invItem = await tx.eventInventoryItem.create({
               data: { birdId, eventInventoryId: eventInv.id, statusGroupId: dg.id },

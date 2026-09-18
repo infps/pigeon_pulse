@@ -73,6 +73,7 @@ export async function POST(
 
     const race = await prisma.race.findUnique({
       where: { id: raceIdInt },
+      include: { seasonRel: { select: { eventId: true } } },
     });
 
     if (!race) {
@@ -112,12 +113,42 @@ export async function POST(
       }
 
       const arrivalTime = parseTimestamp(timestamp);
+
+      // An RFID that matches no bird at all is a phantom scan: record the raw
+      // signal and let an admin reconcile it.
+      //
+      // Previously this fabricated a Bird, an EventInventory and an
+      // EventInventoryItem for every unreadable or foreign tag, which put junk
+      // rows in the bird list and in the registration tables. HayLoft kept
+      // these in RACE_PHANTOM_BIRD instead and made resolving them an
+      // operator task — 31,487 such rows came across in the migration.
+      if (!bird) {
+        const existingPhantom = await prisma.racePhantomBird.findFirst({
+          where: { raceId: raceIdInt, rfid: ringNo },
+        });
+
+        const phantom =
+          existingPhantom ??
+          (await prisma.racePhantomBird.create({
+            data: {
+              raceId: raceIdInt,
+              eventId: race.seasonRel?.eventId ?? null,
+              rfid: ringNo,
+              arrivalTime,
+            },
+          }));
+
+        return NextResponse.json({
+          phantom,
+          isNewScan: existingPhantom == null,
+          scanType: "phantom",
+          message: existingPhantom
+            ? `Tag ${ringNo} is already waiting to be matched to a bird.`
+            : `Tag ${ringNo} does not match any bird. Saved for matching.`,
+        });
+      }
+
       const { foreignRaceItem, invItemId } = await prisma.$transaction(async (tx) => {
-        if (!bird) {
-          bird = await tx.bird.create({
-            data: { band: ringNo, rfid: ringNo },
-          });
-        }
         const eventInv = await tx.eventInventory.create({
           data: { seasonId: race.seasonId },
         });

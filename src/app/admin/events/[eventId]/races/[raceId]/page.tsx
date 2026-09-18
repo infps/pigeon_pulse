@@ -23,6 +23,7 @@ import { BasketTabs } from "./basket-tabs";
 import { raceItemsColumns } from "./race-items-columns";
 import { RaceStatusFilter } from "./race-status-filter";
 import { RecalculateDialog } from "./recalculate-dialog";
+import { CorrectionsDialog } from "./corrections-dialog";
 import { getWeatherIcon } from "@/lib/weather-constants";
 import { StationsMap } from "@/components/map";
 import type { Race, Event, RaceItem } from "@/lib/types";
@@ -119,7 +120,10 @@ export default function RaceDetailsPage() {
 
       const birdName = data.raceItem?.bird?.birdName || rfid;
       if (data.isNewScan) {
-        if (data.scanType === "loft") {
+        if (data.scanType === "phantom") {
+          // Tag matched no bird — it is queued under Corrections for matching.
+          toast.warning(data.message || `Tag ${rfid} does not match any bird`);
+        } else if (data.scanType === "loft") {
           toast.success(`${birdName} added to loft basket`);
         } else {
           toast.success(`${birdName} arrived! Position: ${data.raceItem?.birdPosition}`);
@@ -308,7 +312,10 @@ export default function RaceDetailsPage() {
                       </Button>
                     )}
                     {race.status !== "REGISTERING" && (
-                      <RecalculateDialog raceId={raceId} />
+                      <>
+                        <CorrectionsDialog raceId={raceId} raceItems={allRaceItems} />
+                        <RecalculateDialog raceId={raceId} />
+                      </>
                     )}
                     {isScanning ? (
                       <Button
