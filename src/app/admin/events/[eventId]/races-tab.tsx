@@ -70,6 +70,7 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
     wind: "",
     weather: "",
     isClosed: 0 as number,
+    isPrivate: false,
     season: "",
   });
 
@@ -240,6 +241,7 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
         wind: formData.wind || undefined,
         weather: formData.weather || undefined,
         isClosed: formData.isClosed,
+        isPrivate: formData.isPrivate,
         season: formData.season || undefined,
       });
 
@@ -263,6 +265,7 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
         wind: "",
         weather: "",
         isClosed: 0,
+        isPrivate: false,
         season: "",
       });
     } catch (error) {
@@ -297,6 +300,7 @@ function toDateTimeLocal(iso: string) {
       wind: race.wind || "",
       weather: race.weather || "",
       isClosed: race.isClosed ?? 0,
+      isPrivate: race.isPrivate ?? false,
       season: race.season ?? "",
     });
     setIsDialogOpen(true);
@@ -355,6 +359,7 @@ function toDateTimeLocal(iso: string) {
         wind: formData.wind || undefined,
         weather: formData.weather || undefined,
         isClosed: formData.isClosed,
+        isPrivate: formData.isPrivate,
         season: formData.season || undefined,
       });
 
@@ -378,6 +383,7 @@ function toDateTimeLocal(iso: string) {
         wind: "",
         weather: "",
         isClosed: 0,
+        isPrivate: false,
         season: "",
       });
     } catch (error) {
@@ -424,6 +430,7 @@ function toDateTimeLocal(iso: string) {
             wind: "",
             weather: "",
             isClosed: 0,
+            isPrivate: false,
             season: "",
           });
           setIsDialogOpen(true);
@@ -800,6 +807,24 @@ function toDateTimeLocal(iso: string) {
                   Mark as Closed
                 </Label>
               </div>
+
+              <div className="flex items-start space-x-2">
+                <Checkbox
+                  id="isPrivate"
+                  checked={formData.isPrivate}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, isPrivate: checked === true })
+                  }
+                />
+                <div>
+                  <Label htmlFor="isPrivate" className="cursor-pointer">
+                    Private race
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Hidden from breeders who do not have a bird entered in it.
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Submit Buttons */}
@@ -827,6 +852,7 @@ function toDateTimeLocal(iso: string) {
                     wind: "",
                     weather: "",
                     isClosed: 0,
+                    isPrivate: false,
                     season: "",
                   });
                 }}

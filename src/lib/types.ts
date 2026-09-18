@@ -219,6 +219,7 @@ export interface EventType {
 
 export interface Event {
   id: number;
+  isPrivate?: boolean;
   name: string | null;
   shortName: string | null;
   eventDate: string | null;
@@ -348,6 +349,7 @@ export interface Payment {
 
 export interface Race {
   id: number;
+  isPrivate?: boolean;
   raceTypeId: number | null;
   eventId: number | null;
   raceNumber: number | null;
@@ -431,6 +433,9 @@ export interface RaceItemResult {
 
 export interface Bird {
   id: number;
+  healthStatus?: "HEALTHY" | "INJURED" | "HOSPITALIZED" | "DEAD" | null;
+  healthNote?: string | null;
+  healthUpdatedAt?: string | null;
   band: string | null;
   band1: string | null;
   band2: string | null;

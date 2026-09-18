@@ -21,6 +21,7 @@ import { BirdPropertiesCard } from "./bird-properties-card";
 import { BirdFeesCard } from "./bird-fees-card";
 import { BirdClassesCard } from "./bird-classes-card";
 import { BirdNotesCard } from "./bird-notes-card";
+import { BirdHealthCard } from "./bird-health-card";
 import type { InventoryItemView } from "./bird-event-section";
 import type { Bird, UserRole } from "@/lib/types";
 
@@ -244,6 +245,15 @@ export default function BirdDetailPage({
       </div>
 
       {isAdmin && <BirdEventHistoryPanel birdId={birdId} />}
+
+      <BirdHealthCard
+        birdId={birdId}
+        healthStatus={bird.healthStatus}
+        healthNote={bird.healthNote}
+        healthUpdatedAt={bird.healthUpdatedAt}
+        canEdit={isAdmin}
+        onUpdated={() => refetch()}
+      />
 
       <BirdNotesCard
         birdId={birdId}

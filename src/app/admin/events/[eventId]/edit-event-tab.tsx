@@ -42,6 +42,7 @@ export function EditEventTab({
     eventDate: event.eventDate ? new Date(event.eventDate).toISOString().split("T")[0] : "",
     endDate: event.endDate ? new Date(event.endDate).toISOString().split("T")[0] : "",
     isOpen: event.isOpen ?? 1,
+    isPrivate: event.isPrivate ?? false,
     eventTypeId: event.eventTypeId?.toString() || "",
     latitude: event.latitude ?? (null as number | null),
     longitude: event.longitude ?? (null as number | null),
@@ -246,6 +247,28 @@ export function EditEventTab({
             <SelectItem value="0">Closed</SelectItem>
           </SelectContent>
         </Select>
+      </div>
+
+      <div>
+        <Label htmlFor="isPrivate">Visibility</Label>
+        <Select
+          value={formData.isPrivate ? "private" : "public"}
+          onValueChange={(value) =>
+            setFormData({ ...formData, isPrivate: value === "private" })
+          }
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="public">Public — any breeder can see it</SelectItem>
+            <SelectItem value="private">Private — only registered breeders</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground mt-1.5">
+          A private event and its races are hidden from breeders who are not registered in one of
+          its seasons. Admins always see it.
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

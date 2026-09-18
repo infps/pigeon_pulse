@@ -3,6 +3,7 @@
 import { ColumnDef, SortingFn } from "@tanstack/react-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { RaceItem } from "@/lib/types";
 
 const nullsLast: SortingFn<RaceItem> = (a, b, colId) => {
@@ -15,7 +16,9 @@ const nullsLast: SortingFn<RaceItem> = (a, b, colId) => {
   return String(av).localeCompare(String(bv));
 };
 
-export const raceItemsColumns: ColumnDef<RaceItem>[] = [
+export const createRaceItemsColumns = (
+  onSetStatus?: (item: RaceItem) => void
+): ColumnDef<RaceItem>[] => [
   {
     accessorKey: "birdPosition",
     sortingFn: nullsLast,
@@ -186,4 +189,25 @@ export const raceItemsColumns: ColumnDef<RaceItem>[] = [
       );
     },
   },
+  {
+    id: "actions",
+    header: "",
+    enableSorting: false,
+    cell: ({ row }) => {
+      if (!onSetStatus) return null;
+      return (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs"
+          onClick={() => onSetStatus(row.original)}
+        >
+          Status
+        </Button>
+      );
+    },
+  },
 ];
+
+/** Columns without the status action, for read-only views. */
+export const raceItemsColumns = createRaceItemsColumns();

@@ -20,7 +20,8 @@ import {
 import { DataTable } from "@/components/ui/data-table";
 import { BasketTabs } from "./basket-tabs";
 // GPS disabled for now: import { TransportCard, RouteHistoryCard } from "./transport-card";
-import { raceItemsColumns } from "./race-items-columns";
+import { createRaceItemsColumns } from "./race-items-columns";
+import { RaceStatusDialog } from "./race-status-dialog";
 import { RaceStatusFilter } from "./race-status-filter";
 import { RecalculateDialog } from "./recalculate-dialog";
 import { CorrectionsDialog } from "./corrections-dialog";
@@ -45,6 +46,8 @@ export default function RaceDetailsPage() {
   const [arrivalTo, setArrivalTo] = useState<string>("");
   const [arrivalDefaultSet, setArrivalDefaultSet] = useState(false);
   const [tableResetKey, setTableResetKey] = useState(0);
+  const [statusItem, setStatusItem] = useState<RaceItem | null>(null);
+  const [statusOpen, setStatusOpen] = useState(false);
   const lastScannedRfidRef = useRef<string | null>(null);
   const scannerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pollStartedAtRef = useRef<string | null>(null);
@@ -561,7 +564,10 @@ export default function RaceDetailsPage() {
             {/* Row 3: search + clear — via DataTable toolbarExtra */}
             <DataTable
               tableId="race-items"
-              columns={raceItemsColumns}
+              columns={createRaceItemsColumns((item) => {
+                setStatusItem(item);
+                setStatusOpen(true);
+              })}
               data={raceItems}
               resetFiltersKey={tableResetKey}
               filterableColumns={[
@@ -615,6 +621,15 @@ export default function RaceDetailsPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      <RaceStatusDialog
+        item={statusItem}
+        open={statusOpen}
+        onOpenChange={setStatusOpen}
+        onDone={() => {
+          queryClient.invalidateQueries({ queryKey: ["raceItems", "list", `raceId-${raceId}`] });
+        }}
+      />
     </div>
   );
 }
