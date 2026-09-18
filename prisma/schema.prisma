@@ -545,6 +545,7 @@ model Race {
   averageConfigRaces  AverageConfigRace[]
   statusVisibility    RaceStatusVisibility[]
   notifications       Notification[]
+  tournamentRounds    TournamentRound[]
 }
 
 model TruckPing {
@@ -704,6 +705,7 @@ model Season {
   birdImages       BirdImage[]
   averageConfigs   AverageConfig[]
   notifications    Notification[]
+  tournaments      Tournament[]
 
   @@index([eventId])
   @@map("Seasons")
@@ -875,6 +877,7 @@ model EventInventoryItem {
   breederHistory       BirdBreederHistory[]
   vaccinationRecords   BirdVaccinationRecord[]
   birdEventHistory     BirdEventHistory[]
+  tournamentEntries    TournamentEntry[]
 }
 
 model Partner {
@@ -1420,4 +1423,74 @@ model Notification {
 
   @@index([userId, createdAt])
   @@map("Notifications")
+}
+
+enum TournamentCutMode {
+  TOP_PERCENT
+  TOP_N
+  MANUAL
+}
+
+enum TournamentStatus {
+  SETUP
+  RUNNING
+  COMPLETE
+}
+
+enum TournamentRoundStatus {
+  PENDING
+  FLYING
+  CUT_APPLIED
+}
+
+/// A knockout sitting over ordinary races: each round points at one Race, so
+/// scanning and results work as they already do. The tournament only decides
+/// which birds are still in.
+model Tournament {
+  id        Int               @id @default(autoincrement()) @map("ID_TOURNAMENT")
+  seasonId  Int               @map("SEASON_ID")
+  name      String            @map("NAME")
+  cutMode   TournamentCutMode @default(TOP_PERCENT) @map("CUT_MODE")
+  cutValue  Float             @default(50) @map("CUT_VALUE")
+  status    TournamentStatus  @default(SETUP) @map("STATUS")
+  createdAt DateTime          @default(now()) @map("CREATED_AT")
+
+  season  Season             @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  rounds  TournamentRound[]
+  entries TournamentEntry[]
+
+  @@index([seasonId])
+  @@map("Tournaments")
+}
+
+model TournamentRound {
+  id            Int                   @id @default(autoincrement()) @map("ID_TOURNAMENT_ROUND")
+  tournamentId  Int                   @map("ID_TOURNAMENT")
+  roundNumber   Int                   @map("ROUND_NUMBER")
+  raceId        Int?                  @map("ID_RACE")
+  cutMode       TournamentCutMode?    @map("CUT_MODE")
+  cutValue      Float?                @map("CUT_VALUE")
+  status        TournamentRoundStatus @default(PENDING) @map("STATUS")
+  survivorCount Int?                  @map("SURVIVOR_COUNT")
+  appliedAt     DateTime?             @map("APPLIED_AT")
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  race       Race?      @relation(fields: [raceId], references: [id])
+
+  @@unique([tournamentId, roundNumber])
+  @@map("TournamentRounds")
+}
+
+model TournamentEntry {
+  tournamentId     Int       @map("ID_TOURNAMENT")
+  inventoryItemId  Int       @map("ID_EVENT_INVENTORY_ITEM")
+  eliminatedRound  Int?      @map("ELIMINATED_ROUND")
+  eliminatedAt     DateTime? @map("ELIMINATED_AT")
+  finalPosition    Int?      @map("FINAL_POSITION")
+
+  tournament    Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  inventoryItem EventInventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@id([tournamentId, inventoryItemId])
+  @@map("TournamentEntries")
 }
