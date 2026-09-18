@@ -42,3 +42,6 @@ next-env.d.ts
 
 /src/generated/prisma
 .claude/worktrees/
+
+# generated report verification output
+.report-output/

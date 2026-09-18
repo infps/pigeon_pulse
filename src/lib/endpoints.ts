@@ -167,7 +167,24 @@ const calcutta = {
   state: (eventId: number | string) => `/api/calcutta/${eventId}/state`,
 };
 
+const reports = {
+  base: "/api/admin/reports",
+  /** Build a download URL for one report in one format. */
+  download: (
+    key: string,
+    format: "csv" | "xlsx" | "pdf" | "html",
+    params: Record<string, string | number | undefined> = {}
+  ) => {
+    const query = new URLSearchParams({ format });
+    for (const [name, value] of Object.entries(params)) {
+      if (value != null && value !== "") query.set(name, String(value));
+    }
+    return `/api/admin/reports/${key}?${query.toString()}`;
+  },
+};
+
 export const apiEndpoints = {
+  reports,
   averages,
   birdHistory,
   birdStatusCodes,

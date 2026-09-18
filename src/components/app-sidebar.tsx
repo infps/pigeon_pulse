@@ -11,6 +11,7 @@ import {
   Home,
   LogOut,
   Package,
+  Printer,
   Settings,
   Trophy,
   User2,
@@ -72,6 +73,12 @@ const mainMenuItems = [
     title: "Birds",
     url: "/admin/birds",
     icon: Bird,
+    roles: ["ADMIN", "SUPERADMIN"],
+  },
+  {
+    title: "Reports",
+    url: "/admin/reports",
+    icon: Printer,
     roles: ["ADMIN", "SUPERADMIN"],
   },
 ]
