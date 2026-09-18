@@ -285,6 +285,15 @@ enum RaceFeeMode {
   FLAT_PER_RACE
 }
 
+enum RaceTypePrizeRole {
+  NONE
+  FINAL
+  HOTSPOT_1
+  HOTSPOT_2
+  HOTSPOT_3
+  AVERAGE
+}
+
 enum PaymentStatus {
   PENDING
   PARTIAL
@@ -450,6 +459,9 @@ model RaceType {
   color             String? @map("COLOR")
   numberGroupId     Int?    @map("ID_NUMBER_GROUP")
   isPaymentRequired Boolean @default(false) @map("IS_PAYMENT_REQUIRED")
+  // Which season prize scheme this race type draws from. Only roles other than
+  // NONE can carry a prize — mirrors HayLoft's "race type in (5,6,7,8)" guard.
+  prizeRole         RaceTypePrizeRole @default(NONE) @map("PRIZE_ROLE")
 
   numberGroup      RaceNumberGroup?    @relation(fields: [numberGroupId], references: [id])
   races            Race[]

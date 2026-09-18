@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { lockRace } from "@/lib/race-results";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -172,51 +173,60 @@ export async function POST(
         // Assign positions sequentially (sorted by timestamp for correct order)
         toArrive.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 
-        const arrivalUpdates = toArrive.map((a) => {
-          positionCounter++;
-          const pos = positionCounter;
-          const arrivalTime = parseTimestamp(a.timestamp);
-          return { scan: a, pos, arrivalTime };
-        });
+        // Positions must be allocated under the race lock, and the ARRIVED
+        // count re-read inside it — the count taken at step 5 is stale the
+        // moment another scanner commits. Everything that depends on the
+        // position runs in the same transaction so a conflict rolls back the
+        // whole batch rather than leaving a half-numbered race.
+        const arrivalUpdates = await prisma.$transaction(
+          async (tx) => {
+            await lockRace(tx, raceIdInt);
 
-        // Bulk update raceItem statuses
-        await Promise.all(
-          arrivalUpdates.map(({ scan, arrivalTime }) =>
-            prisma.raceItem.update({
-              where: { id: scan.raceItem.id },
-              data: {
-                status: race.status === "ENDED" ? "FOREIGN_BIRD" : "ARRIVED",
-                raceBasketTime: arrivalTime,
-                displayStatusId: arrivedStatusId,
-              },
-            })
-          )
-        );
+            positionCounter = await tx.raceItem.count({
+              where: { raceId: raceIdInt, status: "ARRIVED" },
+            });
 
-        // Bulk upsert results + history in parallel
-        await Promise.all([
-          ...arrivalUpdates.map(({ scan, pos, arrivalTime }) =>
-            race.status === "ENDED"
-              ? Promise.resolve() // ended → foreign, no result row needed
-              : prisma.raceItemResult.upsert({
-                  where: { raceItemId: scan.raceItem.id },
-                  create: { raceItemId: scan.raceItem.id, arrivalTime, birdPosition: pos },
-                  update: { arrivalTime, birdPosition: pos },
-                })
-          ),
-          ...arrivalUpdates.map(({ scan, pos }) =>
-            prisma.birdEventHistory.create({
-              data: {
+            const updates = toArrive.map((a) => {
+              positionCounter++;
+              return { scan: a, pos: positionCounter, arrivalTime: parseTimestamp(a.timestamp) };
+            });
+
+            for (const { scan, arrivalTime } of updates) {
+              await tx.raceItem.update({
+                where: { id: scan.raceItem.id },
+                data: {
+                  status: race.status === "ENDED" ? "FOREIGN_BIRD" : "ARRIVED",
+                  raceBasketTime: arrivalTime,
+                  displayStatusId: arrivedStatusId,
+                },
+              });
+            }
+
+            for (const { scan, pos, arrivalTime } of updates) {
+              if (race.status === "ENDED") continue; // ended → foreign, no result row
+              await tx.raceItemResult.upsert({
+                where: { raceItemId: scan.raceItem.id },
+                create: { raceItemId: scan.raceItem.id, arrivalTime, birdPosition: pos },
+                update: { arrivalTime, birdPosition: pos },
+              });
+            }
+
+            await tx.birdEventHistory.createMany({
+              data: updates.map(({ scan, pos }) => ({
                 eventInventoryItemId: scan.raceItem.inventoryItemId!,
-                action: race.status === "ENDED" ? "STATUS_CHANGED" : "ARRIVED",
-                detail: race.status === "ENDED"
-                  ? "Marked as FOREIGN_BIRD (arrived after race ended)"
-                  : `Arrived at position ${pos}, race ${raceId}`,
+                action: race.status === "ENDED" ? ("STATUS_CHANGED" as const) : ("ARRIVED" as const),
+                detail:
+                  race.status === "ENDED"
+                    ? "Marked as FOREIGN_BIRD (arrived after race ended)"
+                    : `Arrived at position ${pos}, race ${raceId}`,
                 performedById: session.user.id ?? null,
-              },
-            })
-          ),
-        ]);
+              })),
+            });
+
+            return updates;
+          },
+          { maxWait: 20000, timeout: 180000 }
+        );
 
         for (const { scan, pos } of arrivalUpdates) {
           results.push({

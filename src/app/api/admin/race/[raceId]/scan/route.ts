@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { presetIdFor } from "@/lib/birdStatus";
+import { lockRace } from "@/lib/race-results";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -251,8 +252,15 @@ export async function POST(
     // Live race scan (STARTED) → arrival with ranking
     const arrivedStatusId = await presetIdFor(race.seasonId, "ARRIVE");
 
-    // Count + update in one transaction to avoid duplicate positions under concurrent scans
+    // Position assignment must be serialised per race.
+    //
+    // A transaction alone is not enough: at READ COMMITTED two concurrent scans
+    // both read the same ARRIVED count and both claim the same position, and
+    // nothing downstream rejects the collision. Locking the Race row makes the
+    // second scan wait for the first to commit before it counts.
     const { updatedRaceItem, birdPosition } = await prisma.$transaction(async (tx) => {
+      await lockRace(tx, raceIdInt);
+
       const arrivedCount = await tx.raceItem.count({
         where: { raceId: raceIdInt, status: "ARRIVED" },
       });
