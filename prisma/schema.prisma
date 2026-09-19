@@ -712,6 +712,7 @@ model Season {
   averageConfigs   AverageConfig[]
   notifications    Notification[]
   tournaments      Tournament[]
+  scannerMappings  ScannerMapping[]
 
   @@index([eventId])
   @@map("Seasons")
@@ -1163,6 +1164,7 @@ model EventGroup {
   @@index([seasonId, type])
   @@index([seasonId, status])
   @@index([seasonId, type, isActive])
+  scannerMappings ScannerMapping[]
 }
 
 model BirdGroupHistory {
@@ -1531,4 +1533,25 @@ model PaymentPenalty {
 
   @@index([eventInventoryId])
   @@map("PaymentPenalties")
+}
+
+/// Maps a physical scanner serial to a loft section, so scanning at a pen files
+/// the bird into that group without anybody typing.
+model ScannerMapping {
+  id            Int       @id @default(autoincrement()) @map("ID_SCANNER_MAPPING")
+  seasonId      Int       @map("SEASON_ID")
+  scannerSerial String    @map("SCANNER_SERIAL")
+  eventGroupId  Int?      @map("ID_EVENT_GROUP")
+  label         String?   @map("LABEL")
+  isActive      Boolean   @default(true) @map("IS_ACTIVE")
+  lastSeenAt    DateTime? @map("LAST_SEEN_AT")
+  scanCount     Int       @default(0) @map("SCAN_COUNT")
+  createdAt     DateTime  @default(now()) @map("CREATED_AT")
+
+  season     Season      @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  eventGroup EventGroup? @relation(fields: [eventGroupId], references: [id])
+
+  @@unique([seasonId, scannerSerial])
+  @@index([seasonId])
+  @@map("ScannerMappings")
 }
