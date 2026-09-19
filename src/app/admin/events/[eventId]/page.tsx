@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/tabs";
 import { ArrowLeft } from "lucide-react";
 import type { BettingScheme, Event, FeeScheme, PrizeScheme } from "@/lib/types";
-import { EventTabsList } from "./event-tabs";
 import { DetailsTab } from "./details-tab";
 import { BreedersTab } from "./breeders-tab";
 import { BirdsTab } from "./birds-tab";
@@ -114,7 +113,27 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
       </div>
 
       <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setVisitedTabs(prev => new Set(prev).add(val)); }} className="w-full">
-        <EventTabsList isAllowed={tabAllowed} />
+        <TabsList className="grid w-full grid-cols-19">
+          {tabAllowed("events.view") && <TabsTrigger value="details">Details</TabsTrigger>}
+          {tabAllowed("breeders.view") && <TabsTrigger value="breeders">Breeders</TabsTrigger>}
+          {tabAllowed("birds.view") && <TabsTrigger value="birds">Birds</TabsTrigger>}
+          {tabAllowed("groups.view") && <TabsTrigger value="groups">Groups</TabsTrigger>}
+          {tabAllowed("baskets.view") && <TabsTrigger value="baskets">Baskets</TabsTrigger>}
+          {tabAllowed("races.view") && <TabsTrigger value="races">Races</TabsTrigger>}
+          {tabAllowed("betting.view") && <TabsTrigger value="betting">Betting</TabsTrigger>}
+          {tabAllowed("races.view") && <TabsTrigger value="result">Result</TabsTrigger>}
+          {tabAllowed("stations.view") && <TabsTrigger value="stations">Stations</TabsTrigger>}
+          {tabAllowed("messages.view") && <TabsTrigger value="messages">Messages</TabsTrigger>}
+          {tabAllowed("birds.view") && <TabsTrigger value="history">History</TabsTrigger>}
+          {tabAllowed("payments.view") && <TabsTrigger value="defaulters">Defaulters</TabsTrigger>}
+          {tabAllowed("store.view") && <TabsTrigger value="store">Store</TabsTrigger>}
+          {tabAllowed("calcutta.view") && <TabsTrigger value="calcutta">Calcutta</TabsTrigger>}
+          {tabAllowed("races.view") && <TabsTrigger value="averages">Averages</TabsTrigger>}
+          {tabAllowed("tournaments.view") && <TabsTrigger value="tournaments">Knockout</TabsTrigger>}
+          {tabAllowed("classes.view") && <TabsTrigger value="classes">Classes</TabsTrigger>}
+          {tabAllowed("content.view") && <TabsTrigger value="content">Rules</TabsTrigger>}
+          {tabAllowed("accounting.view") && <TabsTrigger value="accounting">Accounting</TabsTrigger>}
+        </TabsList>
 
         <TabsContent value="details" className="mt-6">
           <DetailsTab
