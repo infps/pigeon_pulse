@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -29,10 +30,9 @@ export async function GET(
   }
 
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("baskets.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const { searchParams } = new URL(request.url);
     const seasonIdParam = searchParams.get("seasonId");
@@ -110,10 +110,9 @@ export async function POST(
   }
 
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("baskets.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const seasonResult = await resolveSeasonId(request, eventId);
     if (seasonResult instanceof NextResponse) return seasonResult;
@@ -181,10 +180,9 @@ export async function PATCH(
   }
 
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("baskets.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const seasonResult = await resolveSeasonId(request, eventId);
     if (seasonResult instanceof NextResponse) return seasonResult;
@@ -266,10 +264,9 @@ export async function DELETE(
   }
 
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("baskets.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const seasonResult = await resolveSeasonId(request, eventId);
     if (seasonResult instanceof NextResponse) return seasonResult;

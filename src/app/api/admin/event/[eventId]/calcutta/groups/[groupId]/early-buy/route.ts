@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { pusher } from "@/lib/pusher";
 import { headers } from "next/headers";
@@ -13,10 +14,9 @@ export async function POST(
   const groupId = parseInt(groupIdParam);
   if (isNaN(eventId) || isNaN(groupId)) return NextResponse.json({ message: "Invalid ID" }, { status: 400 });
 
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  }
+  const guard = await requirePermission("calcutta.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
   const url = new URL(request.url);
   const seasonIdParam = url.searchParams.get("seasonId");

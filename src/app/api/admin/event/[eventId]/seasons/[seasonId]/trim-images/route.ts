@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { deleteFromR2 } from "@/lib/r2";
 import { headers } from "next/headers";
@@ -13,6 +14,8 @@ type Params = { params: Promise<{ eventId: string; seasonId: string }> };
 export async function POST(_request: Request, { params }: Params) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
+    const guard = await requirePermission("events.manage");
+    if ("error" in guard) return guard.error;
     if (!session?.user || session.user.role !== "SUPERADMIN") {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }

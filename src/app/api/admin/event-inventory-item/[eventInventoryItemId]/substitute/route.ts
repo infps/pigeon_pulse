@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -15,10 +16,9 @@ export async function POST(
   { params }: { params: Promise<{ eventInventoryItemId: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("breeders.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const { eventInventoryItemId } = await params;
     const itemId = parseInt(eventInventoryItemId, 10);
@@ -56,10 +56,9 @@ export async function DELETE(
   { params }: { params: Promise<{ eventInventoryItemId: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("breeders.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const { eventInventoryItemId } = await params;
     const itemId = parseInt(eventInventoryItemId, 10);
@@ -86,10 +85,9 @@ export async function GET(
   { params }: { params: Promise<{ eventInventoryItemId: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("breeders.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const { eventInventoryItemId } = await params;
     const itemId = parseInt(eventInventoryItemId, 10);

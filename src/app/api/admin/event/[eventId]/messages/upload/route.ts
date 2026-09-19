@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { uploadToR2, generateImageKey } from "@/lib/r2";
@@ -9,10 +10,9 @@ export async function POST(
 ) {
   await params;
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("messages.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;

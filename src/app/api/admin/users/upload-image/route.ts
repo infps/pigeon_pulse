@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { uploadToR2, deleteFromR2, generateImageKey } from "@/lib/r2";
 
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
+  const guard = await requirePermission("users.manage");
+  if ("error" in guard) return guard.error;
   if (!session?.user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   if (session.user.role !== "ADMIN" && session.user.role !== "SUPERADMIN") {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });

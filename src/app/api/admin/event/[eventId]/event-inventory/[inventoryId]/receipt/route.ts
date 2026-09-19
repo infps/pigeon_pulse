@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
@@ -11,6 +12,8 @@ export async function GET(
   { params }: { params: Promise<{ eventId: string; inventoryId: string }> },
 ) {
   const session = await auth.api.getSession({ headers: await headers() });
+  const guard = await requirePermission("accounting.view");
+  if ("error" in guard) return guard.error;
   if (!session?.user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   if (session.user.role !== "ADMIN" && session.user.role !== "SUPERADMIN") {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });

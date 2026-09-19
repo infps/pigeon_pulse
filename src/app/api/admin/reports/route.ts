@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { REPORTS } from "@/lib/reports/definitions";
@@ -6,10 +7,9 @@ import { REPORT_FORMATS } from "@/lib/reports/render";
 
 /** Catalogue of available reports, for the admin Reports screen. */
 export async function GET() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  }
+  const guard = await requirePermission("reports.view");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
   return NextResponse.json({
     formats: REPORT_FORMATS,

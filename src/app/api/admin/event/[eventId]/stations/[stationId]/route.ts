@@ -1,14 +1,17 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { haversine } from "@/lib/geo";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 async function requireAccess(eventId: number) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-    return { error: NextResponse.json({ message: "Unauthorized" }, { status: 401 }) };
-  }
+  const guard = await requirePermission("stations.manage");
+  if ("error" in guard) return guard;
+  const session = guard.session;
+
+  // Holding the permission is not the whole story for an admin: they may only
+  // touch events they created. A super admin bypasses that.
   if (session.user.role === "ADMIN") {
     const organizer = await prisma.organizerData.findFirst({
       where: { email: session.user.email },
@@ -54,7 +57,7 @@ export async function PUT(
     }
 
     const access = await requireAccess(eventId);
-    if (access.error) return access.error;
+    if ("error" in access) return access.error;
 
     const seasonId = await resolveSeasonId(req, eventId);
     if (seasonId instanceof NextResponse) return seasonId;
@@ -129,7 +132,7 @@ export async function DELETE(
     }
 
     const access = await requireAccess(eventId);
-    if (access.error) return access.error;
+    if ("error" in access) return access.error;
 
     const seasonId = await resolveSeasonId(req, eventId);
     if (seasonId instanceof NextResponse) return seasonId;

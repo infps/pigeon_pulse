@@ -153,6 +153,7 @@ model User {
   calcuttaBids        CalcuttaBid[]
   ownedCalcuttaGroups CalcuttaBetGroup[]
   notifications       Notification[]
+  permissions         UserPermission[]
 
   @@map("Users")
 }
@@ -1697,4 +1698,32 @@ model EventTabVisibility {
 
   @@id([eventId, tab])
   @@map("EventTabVisibility")
+}
+
+/// A permission rule for everyone holding a role. ALLOWED false revokes a
+/// permission the built-in default would otherwise grant.
+model RolePermission {
+  role       String   @map("ROLE")
+  permission String   @map("PERMISSION")
+  allowed    Boolean  @default(true) @map("ALLOWED")
+  updatedAt  DateTime @default(now()) @map("UPDATED_AT")
+  updatedBy  String?  @map("UPDATED_BY")
+
+  @@id([role, permission])
+  @@map("RolePermissions")
+}
+
+/// A permission rule for one person, overriding their role.
+model UserPermission {
+  userId     String   @map("USER_ID")
+  permission String   @map("PERMISSION")
+  allowed    Boolean  @default(true) @map("ALLOWED")
+  updatedAt  DateTime @default(now()) @map("UPDATED_AT")
+  updatedBy  String?  @map("UPDATED_BY")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permission])
+  @@index([userId])
+  @@map("UserPermissions")
 }

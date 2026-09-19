@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 
 export async function GET(req: NextRequest) {
   try {
@@ -8,6 +9,8 @@ export async function GET(req: NextRequest) {
       headers: req.headers,
     });
 
+    const guard = await requirePermission("races.manage");
+    if ("error" in guard) return guard.error;
     if (!session || !session.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }

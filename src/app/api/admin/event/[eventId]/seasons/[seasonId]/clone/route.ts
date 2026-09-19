@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { cloneSeason } from "@/lib/season-clone";
 import { headers } from "next/headers";
@@ -37,10 +38,9 @@ export async function POST(
   { params }: { params: Promise<{ eventId: string; seasonId: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("events.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const { eventId, seasonId } = await params;
     const eventIdInt = parseInt(eventId, 10);

@@ -1,10 +1,13 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 async function requireRaceAccess(raceId: number) {
   const session = await auth.api.getSession({ headers: await headers() });
+  const guard = await requirePermission("races.manage");
+  if ("error" in guard) return guard.error;
   if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
     return { error: NextResponse.json({ message: "Unauthorized" }, { status: 401 }) };
   }
@@ -45,7 +48,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ raceId:
     }
 
     const access = await requireRaceAccess(raceId);
-    if (access.error) return access.error;
+    if ("error" in access) return access.error;
 
     const body = await req.json();
     const raw = body?.pings ?? body;

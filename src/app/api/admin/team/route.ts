@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -18,6 +19,8 @@ export async function GET(request: Request) {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
+    const guard = await requirePermission("breeders.manage");
+    if ("error" in guard) return guard.error;
     if (!session || !session.user) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
@@ -67,6 +70,8 @@ export async function POST(request: Request) {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
+    const guard2 = await requirePermission("breeders.manage");
+    if ("error" in guard2) return guard2.error;
 
     const body = await request.json();
     const validatedData = createTeamSchema.parse(body);
@@ -117,6 +122,8 @@ export async function PUT(request: Request) {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
+    const guard3 = await requirePermission("breeders.manage");
+    if ("error" in guard3) return guard3.error;
 
     if (!session || !session.user) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -182,6 +189,8 @@ export async function DELETE(request: Request) {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
+    const guard4 = await requirePermission("breeders.manage");
+    if ("error" in guard4) return guard4.error;
 
     if (!session || !session.user) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });

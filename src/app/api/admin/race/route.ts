@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { haversine } from "@/lib/geo";
 import { headers } from "next/headers";
@@ -30,13 +31,9 @@ async function deriveStationDistance(
 
 export async function GET(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("races.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const { searchParams } = new URL(request.url);
     const eventId = searchParams.get("eventId");
@@ -101,13 +98,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("races.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const body = await request.json();
     const {
@@ -217,13 +210,9 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("races.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const body = await request.json();
     const { raceId, ...data } = body;
@@ -328,13 +317,9 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("races.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const body = await request.json();
     const { raceId } = body;

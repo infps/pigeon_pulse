@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { PaymentStatus } from "@/generated/prisma/enums";
 import { calculateFees } from "@/lib/fee-calculator";
@@ -39,6 +40,8 @@ export async function POST(
       headers: await headers(),
     });
 
+    const guard = await requirePermission("breeders.manage");
+    if ("error" in guard) return guard.error;
     if (!session || !session.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
       return NextResponse.json(
         { message: "Unauthorized" },

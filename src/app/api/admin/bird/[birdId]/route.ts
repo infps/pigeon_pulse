@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -32,6 +33,8 @@ type UpdateBirdInput = z.infer<typeof updateBirdSchema>;
 
 async function requireAdmin() {
   const session = await auth.api.getSession({ headers: await headers() });
+  const guard = await requirePermission("birds.manage");
+  if ("error" in guard) return guard.error;
   if (
     !session ||
     !session.user ||

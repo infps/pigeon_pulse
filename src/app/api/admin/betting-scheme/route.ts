@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { createBettingSchemeSchema } from "@/lib/zod";
 import { headers } from "next/headers";
@@ -10,9 +11,8 @@ export async function GET() {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
-    if (!session || !session.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("schemes.manage");
+    if ("error" in guard) return guard.error;
 
     // TODO: createdById is now Int (OrganizerData), session.user.id is String. Skip ownership filter until auth bridge.
     const whereClause = {};
@@ -53,9 +53,8 @@ export async function POST(request: Request) {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
-    if (!session || !session.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("schemes.manage");
+    if ("error" in guard) return guard.error;
 
     const body = await request.json();
     const validatedData = createBettingSchemeSchema.parse(body);
@@ -124,9 +123,8 @@ export async function PUT(request: Request) {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
-    if (!session || !session.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("schemes.manage");
+    if ("error" in guard) return guard.error;
 
     const body = await request.json();
     const { id, ...updateData } = body;
@@ -209,9 +207,8 @@ export async function DELETE(request: Request) {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
-    if (!session || !session.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("schemes.manage");
+    if ("error" in guard) return guard.error;
 
     const body = await request.json();
     const { id } = body;

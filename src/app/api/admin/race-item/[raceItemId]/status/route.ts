@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { presetIdFor } from "@/lib/birdStatus";
 import { headers } from "next/headers";
@@ -7,10 +8,9 @@ import { NextResponse } from "next/server";
 // POST /api/admin/race-item/[raceItemId]/status
 // Body: { presetId } (direct) OR { trigger } (resolve the season's preset for that trigger, e.g. INJURED).
 export async function POST(req: Request, { params }: { params: Promise<{ raceItemId: string }> }) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  }
+  const guard = await requirePermission("races.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
   const { raceItemId } = await params;
   const id = parseInt(raceItemId);
   const b = await req.json().catch(() => ({}));

@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { uploadToR2, generateImageKey } from "@/lib/r2";
 import { headers } from "next/headers";
@@ -22,10 +23,9 @@ async function resolveSeasonId(eventId: number, seasonIdParam: string | null): P
 // GET /api/admin/event/[eventId]/birds/[birdId]/images?seasonId=X
 export async function GET(request: Request, { params }: Params) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("events.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const { eventId, birdId } = await params;
     const { searchParams } = new URL(request.url);
@@ -54,10 +54,9 @@ export async function GET(request: Request, { params }: Params) {
 // Body: formData with fields: image (File), type (ARRIVAL|RACE|FINAL), seasonId? (string)
 export async function POST(request: Request, { params }: Params) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("events.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const { eventId, birdId } = await params;
     const formData = await request.formData();

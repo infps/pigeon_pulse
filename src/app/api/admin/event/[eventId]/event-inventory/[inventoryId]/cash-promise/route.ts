@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -12,9 +13,8 @@ export async function POST(
   if (isNaN(inventoryId)) return NextResponse.json({ message: "Invalid ID" }, { status: 400 });
 
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  }
+  const guard = await requirePermission("breeders.manage");
+  if ("error" in guard) return guard.error;
 
   try {
     const inv = await prisma.eventInventory.findUnique({ where: { id: inventoryId }, select: { cashPromised: true } });
