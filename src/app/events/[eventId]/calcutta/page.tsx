@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiEndpoints } from "@/lib/endpoints";
-import { pusherClient } from "@/lib/pusher-client";
+import { getPusherClient } from "@/lib/pusher-client";
 
 type Bird = { band: string | null; name: string | null };
 
@@ -75,7 +75,12 @@ export default function CalcuttaBidPage({ params }: { params: Promise<{ eventId:
 
   // Pusher subscription
   useEffect(() => {
-    const channel = pusherClient.subscribe(`calcutta-${eventId}`);
+    // Realtime is optional. Without it the page still works from its own
+    // fetches and polling; it simply does not receive pushes.
+    const pusher = getPusherClient();
+    if (!pusher) return;
+
+    const channel = pusher.subscribe(`calcutta-${eventId}`);
 
     channel.bind("group-changed", (data: { groupId: number; groupNumber: number; birds: Bird[]; startingBid: number }) => {
       setActiveGroup((prev) => prev ? { ...prev, ...data, id: data.groupId, currentBid: null, bidderName: null, birdCount: data.birds.length, lastBidAt: null, recentBids: [], startingBid: data.startingBid } : {
@@ -112,7 +117,7 @@ export default function CalcuttaBidPage({ params }: { params: Promise<{ eventId:
       setLastBidAt(null);
     });
 
-    return () => { channel.unbind_all(); pusherClient.unsubscribe(`calcutta-${eventId}`); };
+    return () => { channel.unbind_all(); pusher.unsubscribe(`calcutta-${eventId}`); };
   }, [eventId]);
 
   const placeBid = async () => {
