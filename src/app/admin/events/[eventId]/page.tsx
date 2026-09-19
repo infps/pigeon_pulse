@@ -36,6 +36,7 @@ import { GroupsTab } from "./groups-tab";
 import { CalcuttaTab } from "./calcutta-tab";
 import { AveragesTab } from "./averages-tab";
 import { TournamentsTab } from "./tournaments-tab";
+import { ClassesTab } from "./classes-tab";
 
 export default function EventDetailsPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = use(params);
@@ -98,7 +99,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
       </div>
 
       <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setVisitedTabs(prev => new Set(prev).add(val)); }} className="w-full">
-        <TabsList className="grid w-full grid-cols-16">
+        <TabsList className="grid w-full grid-cols-17">
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="breeders">Breeders</TabsTrigger>
           <TabsTrigger value="birds">Birds</TabsTrigger>
@@ -115,6 +116,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
           <TabsTrigger value="calcutta">Calcutta</TabsTrigger>
           <TabsTrigger value="averages">Averages</TabsTrigger>
           <TabsTrigger value="tournaments">Knockout</TabsTrigger>
+          <TabsTrigger value="classes">Classes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details" className="mt-6">
@@ -185,6 +187,10 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
 
         <TabsContent value="tournaments" className="mt-6">
           {visitedTabs.has("tournaments") && <TournamentsTab eventId={eventId} />}
+        </TabsContent>
+
+        <TabsContent value="classes" className="mt-6">
+          {visitedTabs.has("classes") && <ClassesTab eventId={eventId} />}
         </TabsContent>
       </Tabs>
     </div>

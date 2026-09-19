@@ -728,6 +728,7 @@ model Season {
   notifications    Notification[]
   tournaments      Tournament[]
   scannerMappings  ScannerMapping[]
+  raceClasses      RaceClass[]
 
   @@index([eventId])
   @@map("Seasons")
@@ -901,6 +902,7 @@ model EventInventoryItem {
   vaccinationRecords   BirdVaccinationRecord[]
   birdEventHistory     BirdEventHistory[]
   tournamentEntries    TournamentEntry[]
+  raceClassEntries     RaceClassEntry[]
 }
 
 model Partner {
@@ -953,6 +955,7 @@ model Payment {
 
   eventInventory EventInventory? @relation(fields: [eventInventoryId], references: [id])
   breeder        Breeder?        @relation(fields: [breederId], references: [id])
+  classEntries   RaceClassEntry[]
   picture        Picture?        @relation(fields: [pictureId], references: [id])
   bettor         User?           @relation("BettorPayments", fields: [bettorId], references: [id])
 
@@ -1569,4 +1572,55 @@ model ScannerMapping {
   @@unique([seasonId, scannerSerial])
   @@index([seasonId])
   @@map("ScannerMappings")
+}
+
+enum ClassPayoutType {
+  /// One prize per PRZ_ENTRY entries — WinCompanion's "10 for 1".
+  RATIO
+  WTA
+  /// PRZ_ENTRY places, split by the betting scheme percentages.
+  PLACES
+}
+
+/// A class breeders buy into: a letter, a fee and a payout shape.
+/// Maps onto the existing payout engine rather than duplicating it.
+model RaceClass {
+  id          Int             @id @default(autoincrement()) @map("ID_RACE_CLASS")
+  seasonId    Int             @map("SEASON_ID")
+  code        String          @map("CODE")
+  description String?         @map("DESCRIPTION")
+  classFee    Float           @default(0) @map("CLASS_FEE")
+  payoutType  ClassPayoutType @default(WTA) @map("PAYOUT_TYPE")
+  przEntry    Int             @default(1) @map("PRZ_ENTRY")
+  cutPercent  Float?          @map("CUT_PERCENT")
+  sortOrder   Int             @default(0) @map("SORT_ORDER")
+  isActive    Boolean         @default(true) @map("IS_ACTIVE")
+  createdAt   DateTime        @default(now()) @map("CREATED_AT")
+
+  season  Season             @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  entries RaceClassEntry[]
+
+  @@unique([seasonId, code])
+  @@index([seasonId])
+  @@map("RaceClasses")
+}
+
+model RaceClassEntry {
+  id              Int      @id @default(autoincrement()) @map("ID_CLASS_ENTRY")
+  raceClassId     Int      @map("ID_RACE_CLASS")
+  inventoryItemId Int      @map("ID_EVENT_INVENTORY_ITEM")
+  /// Copied at entry time so a later price change cannot rewrite what was agreed.
+  feeCharged      Float    @default(0) @map("FEE_CHARGED")
+  paymentId       Int?     @map("ID_PAYMENT")
+  payoutValue     Float?   @map("PAYOUT_VALUE")
+  position        Int?     @map("POSITION")
+  createdAt       DateTime @default(now()) @map("CREATED_AT")
+
+  raceClass     RaceClass          @relation(fields: [raceClassId], references: [id], onDelete: Cascade)
+  inventoryItem EventInventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  payment       Payment?           @relation(fields: [paymentId], references: [id])
+
+  @@unique([raceClassId, inventoryItemId])
+  @@index([inventoryItemId])
+  @@map("RaceClassEntries")
 }
