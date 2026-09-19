@@ -101,6 +101,21 @@ export default function PublicRacePage() {
     refetchInterval: isLive ? (activeTab === "golive" ? 5000 : 15000) : false,
   });
 
+  // Compute early for sound effect (must be before any early return)
+  const earlyReturnedCount = ((raceItemsData?.raceItems || []) as RaceItem[])
+    .filter((it) => it.birdPosition != null).length;
+
+  useEffect(() => {
+    if (!isLive || !soundEnabled) {
+      prevArrivedCountRef.current = earlyReturnedCount;
+      return;
+    }
+    if (earlyReturnedCount > prevArrivedCountRef.current) {
+      audioRef.current?.play().catch(() => {});
+    }
+    prevArrivedCountRef.current = earlyReturnedCount;
+  }, [earlyReturnedCount, isLive, soundEnabled]);
+
   if (raceLoading || raceItemsLoading) {
     return (
       <div className="container mx-auto p-6 space-y-6">
@@ -178,18 +193,6 @@ export default function PublicRacePage() {
   ).size;
 
   const raceVelocity = enriched.find((e) => e.rank === 1)?.ypm ?? null;
-
-  // Play sound on new arrivals when race is live and sound enabled
-  useEffect(() => {
-    if (!isLive || !soundEnabled) {
-      prevArrivedCountRef.current = returned;
-      return;
-    }
-    if (returned > prevArrivedCountRef.current) {
-      audioRef.current?.play().catch(() => {});
-    }
-    prevArrivedCountRef.current = returned;
-  }, [returned, isLive, soundEnabled]);
 
   const completedTime = race.status === "ENDED" && race.endTime ? formatTime(race.endTime) : null;
 

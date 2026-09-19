@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select";
 import { DataTable } from "@/components/ui/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Radio, Square, CheckCircle2, Wifi } from "lucide-react";
+import { Radio, Square, CheckCircle2, Wifi, WifiOff, Usb } from "lucide-react";
 import { toast } from "sonner";
 import {
   useCheckinStatus,
@@ -36,6 +36,7 @@ import {
 } from "@/lib/api/event-baskets";
 import { createCheckinColumns } from "./checkin-columns";
 import type { CheckinStatusItem, CheckinSummary } from "@/lib/types";
+import { useWebSerial } from "@/hooks/useWebSerial";
 
 interface CheckinTabProps {
   eventId: string;
@@ -277,6 +278,10 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
     toast.info("Poll scanner stopped");
   }, []);
 
+  // Web Serial direct connection
+  const { isConnected: isSerial, error: serialError, connect: connectSerial, disconnect: disconnectSerial } =
+    useWebSerial({ onScan: handleScanResult });
+
   const columns = createCheckinColumns(handleLink, handleUnlink);
 
   if (isPending) {
@@ -379,6 +384,16 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
                   Start Scanner
                 </Button>
               )}
+              <Button
+                size="sm"
+                variant={isSerial ? "default" : "outline"}
+                onClick={isSerial ? disconnectSerial : connectSerial}
+                title="Web Serial (Chrome/Edge only)"
+                className="gap-2"
+              >
+                <Usb className="h-4 w-4" />
+                {isSerial ? "Serial Connected" : "Serial"}
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -431,6 +446,12 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
               </Badge>
             )}
           </div>
+          {isSerial && (
+            <p className="text-xs text-blue-600 animate-pulse">Web Serial active — scan to assign</p>
+          )}
+          {serialError && (
+            <p className="text-xs text-red-600">{serialError}</p>
+          )}
         </CardContent>
       </Card>
 

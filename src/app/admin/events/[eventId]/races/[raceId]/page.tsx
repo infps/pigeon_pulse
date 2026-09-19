@@ -26,10 +26,11 @@ import { getWeatherIcon } from "@/lib/weather-constants";
 import { StationsMap } from "@/components/map";
 import type { Race, Event, RaceItem } from "@/lib/types";
 import Image from "next/image";
-import { Play, Radio, Square, StopCircle } from "lucide-react";
+import { Play, Radio, Square, StopCircle, Usb } from "lucide-react";
 import { RaceWindButton } from "@/components/map/race-wind-dialog";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { useWebSerial } from "@/hooks/useWebSerial";
 
 export default function RaceDetailsPage() {
   const params = useParams();
@@ -94,14 +95,21 @@ export default function RaceDetailsPage() {
   });
 
   // Scanner functions
-  const handleScan = useCallback(async (rfid: string, scanTime?: Date) => {
-    const now = scanTime ?? new Date();
-    const timestamp = now.getFullYear().toString() +
-      (now.getMonth() + 1).toString().padStart(2, '0') +
-      now.getDate().toString().padStart(2, '0') +
-      now.getHours().toString().padStart(2, '0') +
-      now.getMinutes().toString().padStart(2, '0') +
-      now.getSeconds().toString().padStart(2, '0');
+  // timestamp: pre-built YYYYMMDDHHMMSSsss from scanner, or built from scanTime/now
+  const handleScan = useCallback(async (rfid: string, scanTime?: Date | string) => {
+    let timestamp: string;
+    if (typeof scanTime === "string") {
+      timestamp = scanTime;
+    } else {
+      const now = scanTime ?? new Date();
+      timestamp =
+        now.getFullYear().toString() +
+        (now.getMonth() + 1).toString().padStart(2, "0") +
+        now.getDate().toString().padStart(2, "0") +
+        now.getHours().toString().padStart(2, "0") +
+        now.getMinutes().toString().padStart(2, "0") +
+        now.getSeconds().toString().padStart(2, "0");
+    }
 
     try {
       const res = await fetch(`/api/admin/race/${raceId}/scan`, {
@@ -131,6 +139,10 @@ export default function RaceDetailsPage() {
       toast.error('Scan request failed');
     }
   }, [raceId, queryClient]);
+
+  // Web Serial — passes scanner timestamp directly so arrival time is precise
+  const { isConnected: isSerial, error: serialError, connect: connectSerial, disconnect: disconnectSerial } =
+    useWebSerial({ onScan: (rfid, ts) => handleScan(rfid, ts) });
 
   const stopScanner = useCallback(() => {
     if (scannerIntervalRef.current) {
@@ -324,6 +336,19 @@ export default function RaceDetailsPage() {
                         <Radio className="h-4 w-4" />
                         {race.status === "REGISTERING" ? "Loft Scanner" : "Start Scanner"}
                       </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant={isSerial ? "default" : "outline"}
+                      onClick={isSerial ? disconnectSerial : connectSerial}
+                      title="Web Serial — direct USB/COM (Chrome/Edge only)"
+                      className="gap-2"
+                    >
+                      <Usb className="h-4 w-4" />
+                      {isSerial ? "Serial On" : "Serial"}
+                    </Button>
+                    {serialError && (
+                      <span className="text-xs text-red-600">{serialError}</span>
                     )}
                   </div>
                   <div className="flex flex-wrap items-center gap-3 mt-1">

@@ -6,6 +6,22 @@ import { Badge } from "@/components/ui/badge";
 
 const VIEWS = [
   {
+    href: "/test/pageload",
+    label: "Infinite Scroll Table",
+    badge: "NEW",
+    badgeClass: "bg-green-100 text-green-800",
+    description: "Cursor-based infinite scroll: 200 rows/page, sentinel at row 150 triggers next fetch. Uses InfiniteTable component — reusable for all admin tables.",
+    noQuery: true,
+  },
+  {
+    href: "/test/basketing",
+    label: "Basketing Scanner Demo",
+    badge: "DEMO",
+    badgeClass: "bg-emerald-100 text-emerald-800",
+    description: "4 tabs: Check-in (loft group scan), Loft Scan to Place (hero card), Race Prescan (basket verify), Bird Prescan (read-only lookup). MC2100 8-char hex RFIDs, no API calls.",
+    noQuery: true,
+  },
+  {
     href: "/test/breeder-flow",
     label: "Breeder & Bird Registration Flow",
     badge: "NEW",
@@ -47,7 +63,7 @@ export default function TestIndexPage() {
 
       <div className="space-y-4">
         {VIEWS.map((v) => (
-          <Link key={v.href} href={`${v.href}?bird=0`}>
+          <Link key={v.href} href={(v as any).noQuery ? v.href : `${v.href}?bird=0`}>
             <Card className="hover:border-primary transition-colors cursor-pointer">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-3 text-base">

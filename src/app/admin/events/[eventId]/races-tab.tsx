@@ -73,6 +73,34 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
     season: "",
   });
 
+  // Derived early so useEffects below can reference them (must be before any early return)
+  const activeStationsEarly = (stationsData?.stations ?? []).filter((s) => s.isActive);
+  const selectedStation = activeStationsEarly.find((s) => String(s.id) === formData.raceStationId);
+  const hasLoft = event.latitude != null && event.longitude != null;
+
+  // Auto-fetch forecast when station + startTime are both set (create mode only)
+  useEffect(() => {
+    if (!isDialogOpen || editingRace) return;
+    if (!selectedStation?.latitude || !selectedStation?.longitude || !formData.startTime) return;
+    handleFetchForecast();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.raceStationId, isDialogOpen]);
+
+  // Auto-fetch sunrise/sunset when startTime or station changes (create mode only)
+  useEffect(() => {
+    if (!isDialogOpen || editingRace || !formData.startTime) return;
+    const date = formData.startTime.slice(0, 10);
+    const lat = selectedStation?.latitude ?? (hasLoft ? (event.latitude as number) : null);
+    const lon = selectedStation?.longitude ?? (hasLoft ? (event.longitude as number) : null);
+    if (lat == null || lon == null) return;
+    fetchSunriseSunset(lat, lon, date)
+      .then(({ sunrise, sunset }) =>
+        setFormData((prev) => ({ ...prev, sunrise, sunset }))
+      )
+      .catch(() => {}); // silent — user can fill manually
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.startTime, formData.raceStationId, isDialogOpen]);
+
   if (isPending) {
     return (
       <div className="space-y-4">
@@ -95,11 +123,7 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
   const raceTypes = raceTypesData?.raceTypes || [];
 
   // Launch-station picker: active stations + the loft base point from the event.
-  const activeStations = (stationsData?.stations ?? []).filter((s) => s.isActive);
-  const selectedStation = activeStations.find(
-    (s) => String(s.id) === formData.raceStationId,
-  );
-  const hasLoft = event.latitude != null && event.longitude != null;
+  const activeStations = activeStationsEarly;
   const loftBase = hasLoft
     ? { lat: event.latitude as number, lng: event.longitude as number, name: event.name ?? "Loft" }
     : null;
@@ -164,29 +188,6 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
       setFetchingWx(false);
     }
   };
-
-  // Auto-fetch forecast when station + startTime are both set (create mode only)
-  useEffect(() => {
-    if (!isDialogOpen || editingRace) return;
-    if (!selectedStation?.latitude || !selectedStation?.longitude || !formData.startTime) return;
-    handleFetchForecast();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.raceStationId, isDialogOpen]);
-
-  // Auto-fetch sunrise/sunset when startTime or station changes (create mode only)
-  useEffect(() => {
-    if (!isDialogOpen || editingRace || !formData.startTime) return;
-    const date = formData.startTime.slice(0, 10);
-    const lat = selectedStation?.latitude ?? (hasLoft ? (event.latitude as number) : null);
-    const lon = selectedStation?.longitude ?? (hasLoft ? (event.longitude as number) : null);
-    if (lat == null || lon == null) return;
-    fetchSunriseSunset(lat, lon, date)
-      .then(({ sunrise, sunset }) =>
-        setFormData((prev) => ({ ...prev, sunrise, sunset }))
-      )
-      .catch(() => {}); // silent — user can fill manually
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.startTime, formData.raceStationId, isDialogOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

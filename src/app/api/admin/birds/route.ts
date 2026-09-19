@@ -18,6 +18,10 @@ export async function GET(req: NextRequest) {
     const sexRaw = searchParams.get("sex");
     const status = searchParams.get("status");
     const search = searchParams.get("search");
+    const cursorRaw = searchParams.get("cursor");
+    const limitRaw = searchParams.get("limit");
+    const limit = limitRaw ? Math.min(Number(limitRaw) || 200, 500) : 200;
+    const cursor = cursorRaw ? Number(cursorRaw) : null;
 
     const AND: Prisma.BirdWhereInput[] = [];
 
@@ -54,7 +58,8 @@ export async function GET(req: NextRequest) {
     const birds = await prisma.bird.findMany({
       where,
       orderBy: { id: "desc" },
-      take: 500,
+      take: limit,
+      ...(cursor && Number.isFinite(cursor) ? { cursor: { id: cursor }, skip: 1 } : {}),
       include: {
         breeder: {
           select: {
@@ -84,7 +89,8 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ birds, message: "Birds fetched successfully" }, { status: 200 });
+    const nextCursor = birds.length === limit ? birds[birds.length - 1].id : null;
+    return NextResponse.json({ birds, nextCursor, message: "Birds fetched successfully" }, { status: 200 });
   } catch (error) {
     console.error("Error fetching birds:", error);
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });

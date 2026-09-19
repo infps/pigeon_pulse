@@ -58,7 +58,7 @@ export function GoLiveTab({ race, enriched, released, returned, velocityUnit }: 
     : "-";
 
   // Top 10 with arrival animation
-  const top10 = arrived.slice(0, 10);
+  const top10 = [...arrived].reverse().slice(0, 10);
 
   const rankColor = (r: number) =>
     r === 1 ? "text-yellow-400" : r === 2 ? "text-gray-300" : r === 3 ? "text-amber-600" : "text-muted-foreground";
