@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but the template belongs in the repo; it is what stops a fresh clone
+# booting with a blank frontend.
+!.env.example
 
 # vercel
 .vercel
