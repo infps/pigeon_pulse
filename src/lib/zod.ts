@@ -99,6 +99,7 @@ export const createFeeSchemeSchema = z.object({
     latePenaltyAmount: z.coerce.number().nonnegative().nullish(),
     latePenaltyCap: z.coerce.number().nonnegative().nullish(),
     latePenaltyGraceDays: z.coerce.number().int().nonnegative().default(0),
+    requirePaymentToRegister: z.coerce.boolean().default(false),
     birdFeeItems: z.array(birdFeeItemSchema).default([]),
     raceTypeFees: z.array(raceTypeFeeSchema).default([]),
 })

@@ -367,6 +367,8 @@ model FeeScheme {
   latePenaltyAmount    Float?          @map("LATE_PENALTY_AMOUNT")
   latePenaltyCap       Float?          @map("LATE_PENALTY_CAP")
   latePenaltyGraceDays Int             @default(0) @map("LATE_PENALTY_GRACE_DAYS")
+  // Club policy: when true a breeder must pay or commit to cash to register.
+  requirePaymentToRegister Boolean     @default(false) @map("REQUIRE_PAYMENT_TO_REGISTER")
   createdById        Int?         @map("CREATOR_ID")
 
   createdBy    OrganizerData? @relation(fields: [createdById], references: [id])

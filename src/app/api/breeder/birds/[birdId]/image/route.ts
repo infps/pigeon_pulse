@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requireBirdOwner } from "@/lib/roles";
 import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
 import { prisma } from "@/lib/prisma";
 import { uploadToR2, deleteFromR2, generateImageKey } from "@/lib/r2";
@@ -11,6 +12,8 @@ export async function POST(
 ) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
+    const notOwner = requireBirdOwner(session);
+    if (notOwner) return notOwner;
     if (!session?.user) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
@@ -67,6 +70,8 @@ export async function DELETE(
 ) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
+    const notOwner = requireBirdOwner(session);
+    if (notOwner) return notOwner;
     if (!session?.user) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }

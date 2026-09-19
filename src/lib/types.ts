@@ -114,6 +114,7 @@ export interface FeeScheme {
   latePenaltyAmount?: number | null;
   latePenaltyCap?: number | null;
   latePenaltyGraceDays?: number | null;
+  requirePaymentToRegister?: boolean | null;
   name: string | null;
   entryFee: number | null;
   isRefundable: number | null;

@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requireBirdOwner } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -14,6 +15,8 @@ export async function POST(
     return NextResponse.json({ message: "Invalid ID" }, { status: 400 });
 
   const session = await auth.api.getSession({ headers: await headers() });
+  const notOwner = requireBirdOwner(session);
+  if (notOwner) return notOwner;
   if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(request.url);

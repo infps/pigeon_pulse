@@ -86,6 +86,7 @@ export async function POST(request: Request) {
         latePenaltyAmount: validatedData.latePenaltyAmount ?? null,
         latePenaltyCap: validatedData.latePenaltyCap ?? null,
         latePenaltyGraceDays: validatedData.latePenaltyGraceDays,
+        requirePaymentToRegister: validatedData.requirePaymentToRegister,
         birdFeeItems: {
           create: validatedData.birdFeeItems.map((item) => ({
             birdNo: item.birdNo,
@@ -181,6 +182,7 @@ export async function PUT(request: Request) {
         latePenaltyAmount: validatedData.latePenaltyAmount ?? null,
         latePenaltyCap: validatedData.latePenaltyCap ?? null,
         latePenaltyGraceDays: validatedData.latePenaltyGraceDays,
+        requirePaymentToRegister: validatedData.requirePaymentToRegister,
         birdFeeItems: {
           create: validatedData.birdFeeItems.map((item) => ({
             birdNo: item.birdNo,
