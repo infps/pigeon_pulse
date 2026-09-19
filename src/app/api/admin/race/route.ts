@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { requirePermission } from "@/lib/authorize";
+import { requireAnyPermission, requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { haversine } from "@/lib/geo";
 import { headers } from "next/headers";
@@ -31,7 +31,7 @@ async function deriveStationDistance(
 
 export async function GET(request: Request) {
   try {
-    const guard = await requirePermission("races.manage");
+    const guard = await requireAnyPermission(["races.view", "races.manage"]);
     if ("error" in guard) return guard.error;
     const session = guard.session;
 

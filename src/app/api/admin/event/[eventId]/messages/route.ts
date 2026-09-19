@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { requirePermission } from "@/lib/authorize";
+import { requireAnyPermission, requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { notifyEventMessage } from "@/lib/notifications";
 import { headers } from "next/headers";
@@ -45,7 +45,7 @@ export async function GET(
   }
 
   try {
-    const guard = await requirePermission("messages.manage");
+    const guard = await requireAnyPermission(["messages.view", "messages.manage"]);
     if ("error" in guard) return guard.error;
     const session = guard.session;
 

@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { requirePermission } from "@/lib/authorize";
+import { requireAnyPermission, requirePermission } from "@/lib/authorize";
 import { advanceRound, tournamentState } from "@/lib/tournament";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -73,7 +73,7 @@ export async function GET(
   { params }: { params: Promise<{ tournamentId: string }> }
 ) {
   try {
-    const guard = await requirePermission("tournaments.manage");
+    const guard = await requireAnyPermission(["tournaments.view", "tournaments.manage"]);
     if ("error" in guard) return guard.error;
     const session = guard.session;
 

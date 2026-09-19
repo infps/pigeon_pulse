@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { requirePermission } from "@/lib/authorize";
+import { requireAnyPermission, requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { uploadToR2, generateImageKey } from "@/lib/r2";
 import { headers } from "next/headers";
@@ -23,7 +23,7 @@ async function resolveSeasonId(eventId: number, seasonIdParam: string | null): P
 // GET /api/admin/event/[eventId]/birds/[birdId]/images?seasonId=X
 export async function GET(request: Request, { params }: Params) {
   try {
-    const guard = await requirePermission("events.manage");
+    const guard = await requireAnyPermission(["events.view", "events.manage"]);
     if ("error" in guard) return guard.error;
     const session = guard.session;
 

@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { requirePermission } from "@/lib/authorize";
+import { requireAnyPermission, requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { assessLatePenalties } from "@/lib/late-penalty";
 import { headers } from "next/headers";
@@ -37,7 +37,7 @@ export async function GET(
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   try {
-    const guard = await requirePermission("penalties.manage");
+    const guard = await requireAnyPermission(["penalties.view", "penalties.manage"]);
     if ("error" in guard) return guard.error;
     const session = guard.session;
 

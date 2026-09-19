@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { requirePermission } from "@/lib/authorize";
+import { requireAnyPermission, requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -30,7 +30,7 @@ export async function GET(
   }
 
   try {
-    const guard = await requirePermission("baskets.manage");
+    const guard = await requireAnyPermission(["baskets.view", "baskets.manage"]);
     if ("error" in guard) return guard.error;
     const session = guard.session;
 

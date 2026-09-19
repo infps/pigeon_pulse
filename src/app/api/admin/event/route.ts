@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { requirePermission } from "@/lib/authorize";
+import { requireAnyPermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { createEventSchema, updateEventSchema } from "@/lib/zod";
 import { uploadToR2, deleteFromR2, generateImageKey } from "@/lib/r2";
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
-    const guard = await requirePermission("events.manage");
+    const guard = await requireAnyPermission(["events.view", "events.manage"]);
     if ("error" in guard) return guard.error;
 
     const { searchParams } = new URL(request.url);

@@ -94,7 +94,9 @@ export default function PublicEventPage({ params }: { params: Promise<{ eventId:
       </div>
 
       <Tabs defaultValue={initialTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-7">
+        {/* Auto-width and wrapping, so a short label like "Birds" is not
+            marooned in a seventh of the screen. Matches the admin event strip. */}
+        <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-xl border border-border/60 p-1.5 [&>button]:h-8 [&>button]:flex-none [&>button]:rounded-lg [&>button]:px-3">
           <TabsTrigger value="breeders">Breeders</TabsTrigger>
           <TabsTrigger value="birds">Birds</TabsTrigger>
           <TabsTrigger value="result">Result</TabsTrigger>

@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { requirePermission } from "@/lib/authorize";
+import { requireAnyPermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
@@ -8,7 +8,7 @@ import type { Prisma } from "@/generated/prisma/client";
 export async function GET(req: NextRequest) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
-    const guard = await requirePermission("birds.manage");
+    const guard = await requireAnyPermission(["birds.view", "birds.manage"]);
     if ("error" in guard) return guard.error;
 
     const { searchParams } = req.nextUrl;

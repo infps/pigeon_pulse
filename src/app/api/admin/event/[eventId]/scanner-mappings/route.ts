@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { requirePermission } from "@/lib/authorize";
+import { requireAnyPermission, requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -34,7 +34,7 @@ export async function GET(
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   try {
-    const guard = await requirePermission("scanners.manage");
+    const guard = await requireAnyPermission(["scanners.view", "scanners.manage"]);
     if ("error" in guard) return guard.error;
     const session = guard.session;
 

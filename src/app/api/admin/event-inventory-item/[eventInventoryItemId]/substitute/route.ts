@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { requirePermission } from "@/lib/authorize";
+import { requireAnyPermission, requirePermission } from "@/lib/authorize";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -85,7 +85,7 @@ export async function GET(
   { params }: { params: Promise<{ eventInventoryItemId: string }> }
 ) {
   try {
-    const guard = await requirePermission("breeders.manage");
+    const guard = await requireAnyPermission(["breeders.view", "breeders.manage"]);
     if ("error" in guard) return guard.error;
     const session = guard.session;
 
