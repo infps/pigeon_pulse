@@ -39,6 +39,7 @@ import { TournamentsTab } from "./tournaments-tab";
 import { ClassesTab } from "./classes-tab";
 import { ContentTab } from "./content-tab";
 import { AccountingTab } from "./accounting-tab";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export default function EventDetailsPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = use(params);
@@ -52,6 +53,17 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
   const { data: bettingSchemesData } = useListBettingSchemes({});
 
   const [activeTab, setActiveTab] = useState("details");
+
+
+  // Tabs are hidden when the viewer lacks the permission behind them. While
+
+  // permissions are still loading every tab shows, so the page does not flash
+
+  // empty for someone who does have access.
+
+  const { can, isPending: permissionsLoading } = usePermissions();
+
+  const tabAllowed = (permission: string) => permissionsLoading || can(permission);
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(["details"]));
   const event: Event | undefined = eventData?.event;
   const feeSchemes: FeeScheme[] = feeSchemesData?.feeSchemes || [];
@@ -102,25 +114,25 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
 
       <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setVisitedTabs(prev => new Set(prev).add(val)); }} className="w-full">
         <TabsList className="grid w-full grid-cols-19">
-          <TabsTrigger value="details">Details</TabsTrigger>
-          <TabsTrigger value="breeders">Breeders</TabsTrigger>
-          <TabsTrigger value="birds">Birds</TabsTrigger>
-          <TabsTrigger value="groups">Groups</TabsTrigger>
-          <TabsTrigger value="baskets">Baskets</TabsTrigger>
-          <TabsTrigger value="races">Races</TabsTrigger>
-          <TabsTrigger value="betting">Betting</TabsTrigger>
-          <TabsTrigger value="result">Result</TabsTrigger>
-          <TabsTrigger value="stations">Stations</TabsTrigger>
-          <TabsTrigger value="messages">Messages</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-          <TabsTrigger value="defaulters">Defaulters</TabsTrigger>
-          <TabsTrigger value="store">Store</TabsTrigger>
-          <TabsTrigger value="calcutta">Calcutta</TabsTrigger>
-          <TabsTrigger value="averages">Averages</TabsTrigger>
-          <TabsTrigger value="tournaments">Knockout</TabsTrigger>
-          <TabsTrigger value="classes">Classes</TabsTrigger>
-          <TabsTrigger value="content">Rules</TabsTrigger>
-          <TabsTrigger value="accounting">Accounting</TabsTrigger>
+          {tabAllowed("events.view") && <TabsTrigger value="details">Details</TabsTrigger>}
+          {tabAllowed("breeders.view") && <TabsTrigger value="breeders">Breeders</TabsTrigger>}
+          {tabAllowed("birds.view") && <TabsTrigger value="birds">Birds</TabsTrigger>}
+          {tabAllowed("groups.view") && <TabsTrigger value="groups">Groups</TabsTrigger>}
+          {tabAllowed("baskets.view") && <TabsTrigger value="baskets">Baskets</TabsTrigger>}
+          {tabAllowed("races.view") && <TabsTrigger value="races">Races</TabsTrigger>}
+          {tabAllowed("betting.view") && <TabsTrigger value="betting">Betting</TabsTrigger>}
+          {tabAllowed("races.view") && <TabsTrigger value="result">Result</TabsTrigger>}
+          {tabAllowed("stations.view") && <TabsTrigger value="stations">Stations</TabsTrigger>}
+          {tabAllowed("messages.view") && <TabsTrigger value="messages">Messages</TabsTrigger>}
+          {tabAllowed("birds.view") && <TabsTrigger value="history">History</TabsTrigger>}
+          {tabAllowed("payments.view") && <TabsTrigger value="defaulters">Defaulters</TabsTrigger>}
+          {tabAllowed("store.view") && <TabsTrigger value="store">Store</TabsTrigger>}
+          {tabAllowed("calcutta.view") && <TabsTrigger value="calcutta">Calcutta</TabsTrigger>}
+          {tabAllowed("races.view") && <TabsTrigger value="averages">Averages</TabsTrigger>}
+          {tabAllowed("tournaments.view") && <TabsTrigger value="tournaments">Knockout</TabsTrigger>}
+          {tabAllowed("classes.view") && <TabsTrigger value="classes">Classes</TabsTrigger>}
+          {tabAllowed("content.view") && <TabsTrigger value="content">Rules</TabsTrigger>}
+          {tabAllowed("accounting.view") && <TabsTrigger value="accounting">Accounting</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="details" className="mt-6">
