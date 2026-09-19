@@ -7,6 +7,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { prizeStatements, seasonLedger } from "@/lib/accounting";
 import type { ReportDefinition, ReportData, ReportParams } from "./types";
 import {
   bandOf,
@@ -694,6 +695,117 @@ async function buildLabels(params: ReportParams, seasonScoped: boolean): Promise
 
 /* ------------------------------------------------------------------ */
 
+
+/* ------------------------------------------------------------------ *
+ * Accounting — the Accounting column on WinCompanion's handler menu
+ * ------------------------------------------------------------------ */
+async function buildLedger(params: ReportParams, filter: "all" | "unpaid" | "earned"): Promise<ReportData> {
+  const seasonId = requireParam(params, "seasonId");
+  const ledger = await seasonLedger(seasonId);
+
+  const lines = ledger.lines.filter((l) =>
+    filter === "unpaid" ? l.balance > 0 : filter === "earned" ? l.owedOut > 0 : true
+  );
+
+  const rows = lines.map((l) => [
+    l.breederName || "—",
+    l.loft ?? "",
+    money(l.charged),
+    money(l.penalties),
+    money(l.paid),
+    money(l.refunded),
+    money(l.balance),
+    money(l.prizeEarned + l.classEarned),
+    money(l.owedOut),
+    l.cashPromised ? "Cash promised" : "",
+  ]);
+
+  const sum = (pick: (l: (typeof lines)[number]) => number) =>
+    lines.reduce((acc, l) => acc + pick(l), 0);
+
+  return {
+    title:
+      filter === "unpaid" ? "Unpaid Balances" : filter === "earned" ? "Earnings Owed" : "Season Ledger",
+    subtitle: await seasonSubtitle(seasonId),
+    columns: [
+      "Breeder", "Loft", "Charged", "Penalties", "Paid", "Refunded",
+      "Balance", "Won", "Owed Out", "Note",
+    ],
+    rows,
+    totals: [
+      "Total", "",
+      money(sum((l) => l.charged)),
+      money(sum((l) => l.penalties)),
+      money(sum((l) => l.paid)),
+      money(sum((l) => l.refunded)),
+      money(sum((l) => l.balance)),
+      money(sum((l) => l.prizeEarned + l.classEarned)),
+      money(sum((l) => l.owedOut)),
+      "",
+    ],
+    numericColumns: [2, 3, 4, 5, 6, 7, 8],
+  };
+}
+
+async function buildPrizeStatements(params: ReportParams): Promise<ReportData> {
+  const seasonId = requireParam(params, "seasonId");
+  const { rows, total } = await prizeStatements(seasonId);
+
+  return {
+    title: "Prize Statements",
+    subtitle: await seasonSubtitle(seasonId),
+    columns: ["Breeder", "Loft", "Band", "Source", "Position", "Amount"],
+    rows: rows.map((r) => [
+      r.breederName || "—",
+      r.loft ?? "",
+      r.band,
+      r.source,
+      r.position != null ? String(r.position) : "",
+      money(r.amount),
+    ]),
+    totals: ["Total", "", "", "", "", money(total)],
+    numericColumns: [4, 5],
+  };
+}
+
+async function buildRulesAndFees(params: ReportParams): Promise<ReportData> {
+  const seasonId = requireParam(params, "seasonId");
+  const sections = await prisma.eventRuleSection.findMany({
+    where: { seasonId, isPublished: true },
+    orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+    select: { title: true, body: true },
+  });
+
+  // Markdown bullets and headings carry no meaning in a table cell, so the
+  // body is flattened to plain lines here.
+  const rows: string[][] = [];
+  for (const section of sections) {
+    const lines = section.body
+      .split(/\r?\n/)
+      .map((l) =>
+        l
+          // Strip list bullets and blockquote markers from the line start.
+          .replace(/^[\s>*+-]+/, "")
+          // Then the inline markdown a table cell cannot render.
+          .replace(/[*_`#]/g, "")
+          .trim()
+      )
+      .filter(Boolean);
+    if (lines.length === 0) {
+      rows.push([section.title, ""]);
+      continue;
+    }
+    lines.forEach((line, i) => rows.push([i === 0 ? section.title : "", line]));
+  }
+
+  return {
+    title: "Event Rules and Fees",
+    subtitle: await seasonSubtitle(seasonId),
+    columns: ["Section", "Detail"],
+    rows,
+  };
+}
+
 export const REPORTS: ReportDefinition[] = [
   {
     key: "race-result",
@@ -775,6 +887,51 @@ export const REPORTS: ReportDefinition[] = [
     scope: "scheme",
     requires: "seasonId",
     build: (p) => buildBettingScheme(p),
+  },
+  {
+    key: "season-ledger",
+    title: "Season Ledger",
+    description: "Every registration: charged, paid, refunded, owed and won.",
+    legacyTemplate: "wincompanion: Accounting",
+    scope: "season",
+    requires: "seasonId",
+    build: (p) => buildLedger(p, "all"),
+  },
+  {
+    key: "unpaid-balances",
+    title: "Unpaid Balances",
+    description: "Only the registrations that still owe money.",
+    legacyTemplate: "wincompanion: Accounting > Unpaid",
+    scope: "season",
+    requires: "seasonId",
+    build: (p) => buildLedger(p, "unpaid"),
+  },
+  {
+    key: "earnings-owed",
+    title: "Earnings Owed",
+    description: "Prize and class money the organization still owes out.",
+    legacyTemplate: "wincompanion: Accounting > Earned",
+    scope: "season",
+    requires: "seasonId",
+    build: (p) => buildLedger(p, "earned"),
+  },
+  {
+    key: "prize-statements",
+    title: "Prize Statements",
+    description: "Every payout across the season, race prizes and class payouts together.",
+    legacyTemplate: "wincompanion: Accounting > Prize Stmts",
+    scope: "season",
+    requires: "seasonId",
+    build: (p) => buildPrizeStatements(p),
+  },
+  {
+    key: "rules-and-fees",
+    title: "Event Rules and Fees",
+    description: "The published rules and fee structure, as a printable sheet.",
+    legacyTemplate: "agn: Event Rules & Fees",
+    scope: "season",
+    requires: "seasonId",
+    build: (p) => buildRulesAndFees(p),
   },
   {
     key: "breeder-labels",

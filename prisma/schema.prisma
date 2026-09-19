@@ -567,6 +567,7 @@ model Race {
   notifications       Notification[]
   tournamentRounds    TournamentRound[]
   paymentPenalties    PaymentPenalty[]
+  videos              EventVideo[]
 }
 
 model TruckPing {
@@ -729,6 +730,8 @@ model Season {
   tournaments      Tournament[]
   scannerMappings  ScannerMapping[]
   raceClasses      RaceClass[]
+  ruleSections     EventRuleSection[]
+  videos           EventVideo[]
 
   @@index([eventId])
   @@map("Seasons")
@@ -768,6 +771,7 @@ model Event {
   phantomBirds     RacePhantomBird[]
 
   seasons          Season[]
+  tabVisibility    EventTabVisibility[]
 
   @@map("Events")
 }
@@ -839,6 +843,7 @@ model EventInventory {
   partners Partner[]
   payments Payment[]
   penalties PaymentPenalty[]
+  refunds   Refund[]
   calcuttaGroupMemberships CalcuttaBetGroupMember[]
 }
 
@@ -956,6 +961,7 @@ model Payment {
   eventInventory EventInventory? @relation(fields: [eventInventoryId], references: [id])
   breeder        Breeder?        @relation(fields: [breederId], references: [id])
   classEntries   RaceClassEntry[]
+  refunds        Refund[]
   picture        Picture?        @relation(fields: [pictureId], references: [id])
   bettor         User?           @relation("BettorPayments", fields: [bettorId], references: [id])
 
@@ -1623,4 +1629,72 @@ model RaceClassEntry {
   @@unique([raceClassId, inventoryItemId])
   @@index([inventoryItemId])
   @@map("RaceClassEntries")
+}
+
+/// One headed section of an event's rules and fees page.
+model EventRuleSection {
+  id          Int      @id @default(autoincrement()) @map("ID_RULE_SECTION")
+  seasonId    Int      @map("SEASON_ID")
+  title       String   @map("TITLE")
+  body        String   @default("") @map("BODY")
+  sortOrder   Int      @default(0) @map("SORT_ORDER")
+  isPublished Boolean  @default(true) @map("IS_PUBLISHED")
+  updatedAt   DateTime @default(now()) @map("UPDATED_AT")
+  updatedBy   String?  @map("UPDATED_BY")
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@index([seasonId, sortOrder])
+  @@map("EventRuleSections")
+}
+
+model EventVideo {
+  id          Int       @id @default(autoincrement()) @map("ID_VIDEO")
+  seasonId    Int       @map("SEASON_ID")
+  raceId      Int?      @map("ID_RACE")
+  title       String    @map("TITLE")
+  url         String    @map("URL")
+  description String?   @map("DESCRIPTION")
+  publishedAt DateTime? @map("PUBLISHED_AT")
+  sortOrder   Int       @default(0) @map("SORT_ORDER")
+  isPublic    Boolean   @default(true) @map("IS_PUBLIC")
+  createdAt   DateTime  @default(now()) @map("CREATED_AT")
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  race   Race?  @relation(fields: [raceId], references: [id])
+
+  @@index([seasonId])
+  @@map("EventVideos")
+}
+
+/// Money returned to a registration. Recorded as its own row rather than by
+/// mutating the original payment, so the history keeps both sides.
+model Refund {
+  id               Int      @id @default(autoincrement()) @map("ID_REFUND")
+  eventInventoryId Int      @map("ID_EVENT_INVENTORY")
+  paymentId        Int?     @map("ID_PAYMENT")
+  amount           Float    @map("AMOUNT")
+  reason           String?  @map("REASON")
+  method           String?  @map("METHOD")
+  reference        String?  @map("REFERENCE")
+  issuedAt         DateTime @default(now()) @map("ISSUED_AT")
+  issuedBy         String?  @map("ISSUED_BY")
+
+  eventInventory EventInventory @relation(fields: [eventInventoryId], references: [id], onDelete: Cascade)
+  payment        Payment?       @relation(fields: [paymentId], references: [id])
+
+  @@index([eventInventoryId])
+  @@map("Refunds")
+}
+
+/// A row means the tab needs an account; absence means public.
+model EventTabVisibility {
+  eventId        Int     @map("ID_EVENT")
+  tab            String  @map("TAB")
+  requiresSignIn Boolean @default(true) @map("REQUIRES_SIGNIN")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, tab])
+  @@map("EventTabVisibility")
 }
