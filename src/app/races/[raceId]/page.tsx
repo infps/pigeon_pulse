@@ -101,6 +101,29 @@ export default function PublicRacePage() {
     refetchInterval: isLive ? (activeTab === "golive" ? 5000 : 15000) : false,
   });
 
+  // Arrival count for the sound effect below.
+  //
+  // This has to be derived here, above the early returns, because the effect it
+  // feeds is a hook: on a loading render the component returns before reaching
+  // the bottom of the function, and a hook that only runs on some renders
+  // changes the hook order between renders. Deriving it from the query data
+  // rather than from the enriched list keeps the effect before every return.
+  const arrivedCount = ((raceItemsData?.raceItems ?? []) as RaceItem[]).filter(
+    (it) => it.birdPosition != null
+  ).length;
+
+  // Play a sound when a new bird lands, while the race is live.
+  useEffect(() => {
+    if (!isLive || !soundEnabled) {
+      prevArrivedCountRef.current = arrivedCount;
+      return;
+    }
+    if (arrivedCount > prevArrivedCountRef.current) {
+      audioRef.current?.play().catch(() => {});
+    }
+    prevArrivedCountRef.current = arrivedCount;
+  }, [arrivedCount, isLive, soundEnabled]);
+
   if (raceLoading || raceItemsLoading) {
     return (
       <div className="container mx-auto p-6 space-y-6">
@@ -178,18 +201,6 @@ export default function PublicRacePage() {
   ).size;
 
   const raceVelocity = enriched.find((e) => e.rank === 1)?.ypm ?? null;
-
-  // Play sound on new arrivals when race is live and sound enabled
-  useEffect(() => {
-    if (!isLive || !soundEnabled) {
-      prevArrivedCountRef.current = returned;
-      return;
-    }
-    if (returned > prevArrivedCountRef.current) {
-      audioRef.current?.play().catch(() => {});
-    }
-    prevArrivedCountRef.current = returned;
-  }, [returned, isLive, soundEnabled]);
 
   const completedTime = race.status === "ENDED" && race.endTime ? formatTime(race.endTime) : null;
 
