@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requireApproved } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -19,6 +20,8 @@ export async function POST(
 ) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
+    const notApproved = requireApproved(session);
+    if (notApproved) return notApproved;
     if (!session?.user || !["BREEDER", "BETTOR"].includes(session.user.role)) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }

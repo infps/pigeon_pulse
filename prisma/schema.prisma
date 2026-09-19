@@ -11,6 +11,12 @@ datasource db {
 // AUTH MODELS (better-auth, TEXT UUIDs — create tables in DB)
 // ============================================================
 
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  DECLINED
+}
+
 enum UserStatus {
   ACTIVE
   INACTIVE
@@ -124,6 +130,13 @@ model User {
   statusDate     DateTime   @default(now())
   note           String?
   role           UserRole   @default(BREEDER)
+  // Whether an organizer has vetted this account. Separate from status: a
+  // declined account still exists and can sign in, it just sees what a guest
+  // sees.
+  approvalStatus    ApprovalStatus @default(PENDING) @map("APPROVAL_STATUS")
+  approvalDecidedAt DateTime?      @map("APPROVAL_DECIDED_AT")
+  approvalDecidedBy String?        @map("APPROVAL_DECIDED_BY")
+  approvalNote      String?        @map("APPROVAL_NOTE")
   taxNumber      String?
   loftName       String?
   timezone       String?

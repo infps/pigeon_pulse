@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requireApproved } from "@/lib/roles";
 import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
 import { prisma } from "@/lib/prisma";
 import { PaymentStatus } from "@/generated/prisma/enums";
@@ -57,6 +58,8 @@ export async function POST(
     const session = await auth.api.getSession({
       headers: await headers(),
     });
+    const notApproved = requireApproved(session);
+    if (notApproved) return notApproved;
 
     if (!session || !session.user || session.user.role !== "BREEDER") {
       return NextResponse.json(

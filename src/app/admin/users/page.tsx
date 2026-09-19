@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { ApprovalQueue } from "./approval-queue";
+import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,6 +50,8 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [eventFilter, setEventFilter] = useState<string>("all");
   const [roleFilter, setRoleFilter] = useState<string>("all");
+  const { data: sessionData } = authClient.useSession();
+  const isSuperAdmin = sessionData?.user?.role === "SUPERADMIN";
   const [countryFilter, setCountryFilter] = useState<string>("all");
   const [cityFilter, setCityFilter] = useState<string>("");
   const [loftFilter, setLoftFilter] = useState<string>("");
@@ -280,6 +284,10 @@ export default function UsersPage() {
 
   return (
     <div className="p-8 w-full mx-auto">
+      <div className="mb-6">
+        <ApprovalQueue isSuperAdmin={isSuperAdmin} />
+      </div>
+
       <div className="flex items-center justify-between gap-4 mb-4">
         <div className="flex items-center gap-4">
           <Select

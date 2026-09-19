@@ -55,3 +55,44 @@ export function requireBirdOwner(
   }
   return null;
 }
+
+/**
+ * Approval gate.
+ *
+ * A pending or declined account is not blocked from signing in — the
+ * requirement is that a decline leaves the account intact and reduces it to
+ * what a guest sees. So reads stay open and only the acting surfaces close.
+ *
+ * Staff are exempt: an admin is vetted by virtue of being an admin.
+ */
+export function isApproved(user: { role?: string | null; approvalStatus?: string | null } | null | undefined): boolean {
+  if (!user) return false;
+  if (isStaff(user.role)) return true;
+  return (user.approvalStatus ?? "APPROVED") === "APPROVED";
+}
+
+/**
+ * Reject an action that requires a vetted account.
+ *
+ * Pending and declined get different wording because they are different
+ * situations: one is waiting on somebody, the other has been answered.
+ */
+export function requireApproved(
+  session: { user?: { role?: string | null; approvalStatus?: string | null } | null } | null | undefined
+): NextResponse | null {
+  if (!session?.user) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+  if (isApproved(session.user)) return null;
+
+  const declined = session.user.approvalStatus === "DECLINED";
+  return NextResponse.json(
+    {
+      message: declined
+        ? "This account has been declined by the organizer, so it has guest access only. Contact the organizer if you think that is wrong."
+        : "This account is waiting for an organizer to approve it. You can look around in the meantime.",
+      approvalStatus: session.user.approvalStatus ?? "PENDING",
+    },
+    { status: 403 }
+  );
+}
