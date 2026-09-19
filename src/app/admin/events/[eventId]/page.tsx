@@ -37,6 +37,8 @@ import { CalcuttaTab } from "./calcutta-tab";
 import { AveragesTab } from "./averages-tab";
 import { TournamentsTab } from "./tournaments-tab";
 import { ClassesTab } from "./classes-tab";
+import { ContentTab } from "./content-tab";
+import { AccountingTab } from "./accounting-tab";
 
 export default function EventDetailsPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = use(params);
@@ -99,7 +101,7 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
       </div>
 
       <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setVisitedTabs(prev => new Set(prev).add(val)); }} className="w-full">
-        <TabsList className="grid w-full grid-cols-17">
+        <TabsList className="grid w-full grid-cols-19">
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="breeders">Breeders</TabsTrigger>
           <TabsTrigger value="birds">Birds</TabsTrigger>
@@ -117,6 +119,8 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
           <TabsTrigger value="averages">Averages</TabsTrigger>
           <TabsTrigger value="tournaments">Knockout</TabsTrigger>
           <TabsTrigger value="classes">Classes</TabsTrigger>
+          <TabsTrigger value="content">Rules</TabsTrigger>
+          <TabsTrigger value="accounting">Accounting</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details" className="mt-6">
@@ -191,6 +195,14 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
 
         <TabsContent value="classes" className="mt-6">
           {visitedTabs.has("classes") && <ClassesTab eventId={eventId} />}
+        </TabsContent>
+
+        <TabsContent value="content" className="mt-6">
+          {visitedTabs.has("content") && <ContentTab eventId={eventId} />}
+        </TabsContent>
+
+        <TabsContent value="accounting" className="mt-6">
+          {visitedTabs.has("accounting") && <AccountingTab eventId={eventId} />}
         </TabsContent>
       </Tabs>
     </div>
