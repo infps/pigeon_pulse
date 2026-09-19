@@ -362,6 +362,11 @@ model FeeScheme {
   hotSpot3Fee        Int?         @map("HOT_SPOT3_FEE")
   hotSpotFinalFee    Int?         @map("HOT_SPOT_FINAL_FEE")
   raceFeeMode        RaceFeeMode  @default(PER_BIRD_PER_RACE) @map("RACE_FEE_MODE")
+  // Late-payment penalty. NONE keeps the old behaviour of charging nothing.
+  latePenaltyMode      LatePenaltyMode @default(NONE) @map("LATE_PENALTY_MODE")
+  latePenaltyAmount    Float?          @map("LATE_PENALTY_AMOUNT")
+  latePenaltyCap       Float?          @map("LATE_PENALTY_CAP")
+  latePenaltyGraceDays Int             @default(0) @map("LATE_PENALTY_GRACE_DAYS")
   createdById        Int?         @map("CREATOR_ID")
 
   createdBy    OrganizerData? @relation(fields: [createdById], references: [id])
@@ -546,6 +551,7 @@ model Race {
   statusVisibility    RaceStatusVisibility[]
   notifications       Notification[]
   tournamentRounds    TournamentRound[]
+  paymentPenalties    PaymentPenalty[]
 }
 
 model TruckPing {
@@ -815,6 +821,7 @@ model EventInventory {
   items    EventInventoryItem[]
   partners Partner[]
   payments Payment[]
+  penalties PaymentPenalty[]
   calcuttaGroupMemberships CalcuttaBetGroupMember[]
 }
 
@@ -1493,4 +1500,35 @@ model TournamentEntry {
 
   @@id([tournamentId, inventoryItemId])
   @@map("TournamentEntries")
+}
+
+enum LatePenaltyMode {
+  NONE
+  FLAT
+  PER_DAY
+  PER_WEEK
+}
+
+/// An assessed late-payment penalty. Rows rather than a computed number, so a
+/// penalty can be waived, audited and reversed without recomputing history.
+model PaymentPenalty {
+  id                      Int       @id @default(autoincrement()) @map("ID_PENALTY")
+  eventInventoryId        Int       @map("ID_EVENT_INVENTORY")
+  raceId                  Int?      @map("ID_RACE")
+  daysLate                Int       @map("DAYS_LATE")
+  amount                  Float     @map("AMOUNT")
+  outstandingAtAssessment Float?    @map("OUTSTANDING_AT_ASSESSMENT")
+  assessedAt              DateTime  @default(now()) @map("ASSESSED_AT")
+  assessedBy              String?   @map("ASSESSED_BY")
+  waivedAt                DateTime? @map("WAIVED_AT")
+  waivedBy                String?   @map("WAIVED_BY")
+  waiverReason            String?   @map("WAIVER_REASON")
+  waiverProofUrl          String?   @map("WAIVER_PROOF_URL")
+  waiverProofKey          String?   @map("WAIVER_PROOF_KEY")
+
+  eventInventory EventInventory @relation(fields: [eventInventoryId], references: [id], onDelete: Cascade)
+  race           Race?          @relation(fields: [raceId], references: [id])
+
+  @@index([eventInventoryId])
+  @@map("PaymentPenalties")
 }

@@ -110,6 +110,10 @@ export interface RaceType {
 
 export interface FeeScheme {
   id: number;
+  latePenaltyMode?: "NONE" | "FLAT" | "PER_DAY" | "PER_WEEK" | null;
+  latePenaltyAmount?: number | null;
+  latePenaltyCap?: number | null;
+  latePenaltyGraceDays?: number | null;
   name: string | null;
   entryFee: number | null;
   isRefundable: number | null;

@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSeasonContext } from "@/lib/season-context";
+import { LatePenaltiesCard } from "./late-penalties-card";
 import type { DefaulterBreeder, EventInventoryItem, Event } from "@/lib/types";
 import {
   Dialog,
@@ -228,6 +229,8 @@ export function DefaultersTab({ eventId, event }: DefaultersTabProps) {
 
   return (
     <div className="space-y-6">
+      <LatePenaltiesCard eventId={eventId} seasonId={selectedSeasonId} />
+
       {actionable.length === 0 && cashPromised.length === 0 && (
         <p className="text-center py-12 text-muted-foreground">No defaulters for this event.</p>
       )}

@@ -48,6 +48,10 @@ export default function FeeSchemeComponent() {
     hotSpot3Fee: 0,
     hotSpotFinalFee: 0,
     raceFeeMode: "PER_BIRD_PER_RACE" as "PER_BIRD_PER_RACE" | "FLAT_PER_RACE",
+    latePenaltyMode: "NONE" as "NONE" | "FLAT" | "PER_DAY" | "PER_WEEK",
+    latePenaltyAmount: 0,
+    latePenaltyCap: 0,
+    latePenaltyGraceDays: 0,
     birdFeeItems: [] as { birdNo: number; birdFee: number }[],
     raceTypeFees: [] as { raceTypeId: number; fee: number }[],
   });
@@ -127,6 +131,10 @@ export default function FeeSchemeComponent() {
       hotSpot2Fee: feeScheme.hotSpot2Fee ?? 0,
       hotSpot3Fee: feeScheme.hotSpot3Fee ?? 0,
       hotSpotFinalFee: feeScheme.hotSpotFinalFee ?? 0,
+      latePenaltyMode: feeScheme.latePenaltyMode ?? "NONE",
+      latePenaltyAmount: feeScheme.latePenaltyAmount ?? 0,
+      latePenaltyCap: feeScheme.latePenaltyCap ?? 0,
+      latePenaltyGraceDays: feeScheme.latePenaltyGraceDays ?? 0,
       raceFeeMode: feeScheme.raceFeeMode ?? "PER_BIRD_PER_RACE",
       birdFeeItems: (feeScheme.birdFeeItems || []).map((item) => ({
         birdNo: item.birdNo ?? 0,
@@ -169,6 +177,10 @@ export default function FeeSchemeComponent() {
       hotSpot2Fee: 0,
       hotSpot3Fee: 0,
       hotSpotFinalFee: 0,
+      latePenaltyMode: "NONE",
+      latePenaltyAmount: 0,
+      latePenaltyCap: 0,
+      latePenaltyGraceDays: 0,
       raceFeeMode: "PER_BIRD_PER_RACE",
       birdFeeItems: [],
       raceTypeFees: [],
@@ -355,6 +367,87 @@ export default function FeeSchemeComponent() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Late payment penalty */}
+            <div className="space-y-3 rounded-md border p-3">
+              <div>
+                <Label htmlFor="latePenaltyMode">Late payment penalty</Label>
+                <p className="text-xs text-muted-foreground">
+                  Charged once the payment deadline and grace period have passed. The deadline is
+                  the first race that requires payment.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-4 gap-4">
+                <div>
+                  <Label htmlFor="latePenaltyMode">Mode</Label>
+                  <select
+                    id="latePenaltyMode"
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
+                    value={formData.latePenaltyMode}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        latePenaltyMode: e.target.value as typeof formData.latePenaltyMode,
+                      })
+                    }
+                  >
+                    <option value="NONE">No penalty</option>
+                    <option value="FLAT">Flat charge</option>
+                    <option value="PER_DAY">Per day late</option>
+                    <option value="PER_WEEK">Per week late</option>
+                  </select>
+                </div>
+
+                <div>
+                  <Label htmlFor="latePenaltyAmount">Amount</Label>
+                  <Input
+                    id="latePenaltyAmount"
+                    type="text"
+                    value={formData.latePenaltyAmount}
+                    disabled={formData.latePenaltyMode === "NONE"}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        latePenaltyAmount: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="latePenaltyCap">Cap (0 = none)</Label>
+                  <Input
+                    id="latePenaltyCap"
+                    type="text"
+                    value={formData.latePenaltyCap}
+                    disabled={formData.latePenaltyMode === "NONE"}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        latePenaltyCap: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="latePenaltyGraceDays">Grace days</Label>
+                  <Input
+                    id="latePenaltyGraceDays"
+                    type="text"
+                    value={formData.latePenaltyGraceDays}
+                    disabled={formData.latePenaltyMode === "NONE"}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        latePenaltyGraceDays: parseInt(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Max Birds + Max Backup Birds */}

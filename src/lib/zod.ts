@@ -95,6 +95,10 @@ export const createFeeSchemeSchema = z.object({
     hotSpot3Fee: z.number().int().nonnegative().default(0),
     hotSpotFinalFee: z.number().int().nonnegative().default(0),
     raceFeeMode: z.enum(["PER_BIRD_PER_RACE", "FLAT_PER_RACE"]).default("PER_BIRD_PER_RACE"),
+    latePenaltyMode: z.enum(["NONE", "FLAT", "PER_DAY", "PER_WEEK"]).default("NONE"),
+    latePenaltyAmount: z.coerce.number().nonnegative().nullish(),
+    latePenaltyCap: z.coerce.number().nonnegative().nullish(),
+    latePenaltyGraceDays: z.coerce.number().int().nonnegative().default(0),
     birdFeeItems: z.array(birdFeeItemSchema).default([]),
     raceTypeFees: z.array(raceTypeFeeSchema).default([]),
 })
