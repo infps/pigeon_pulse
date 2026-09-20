@@ -10,6 +10,7 @@ import {
   FileText,
   Home,
   LogOut,
+  Megaphone,
   Package,
   Printer,
   Settings,
@@ -86,6 +87,13 @@ const mainMenuItems = [
     url: "/admin/reports",
     permission: "reports.view",
     icon: Printer,
+    roles: ["ADMIN", "SUPERADMIN"],
+  },
+  {
+    title: "Notifications",
+    url: "/admin/notifications",
+    permission: "notifications.view",
+    icon: Megaphone,
     roles: ["ADMIN", "SUPERADMIN"],
   },
 ]

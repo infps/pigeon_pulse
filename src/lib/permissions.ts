@@ -119,6 +119,14 @@ export const MODULES: ModuleDef[] = [
   mod("tournaments", "Knockout", "Run knockout tournaments and apply cuts."),
   mod("calcutta", "Calcutta", "Run the Calcutta auction."),
   mod("messages", "Messages", "Broadcast messages to breeders."),
+  mod("notifications", "Notifications", "Send push notifications to people who have the app.", [
+    {
+      action: "send",
+      label: "Send to everybody",
+      description:
+        "Push an announcement to every device with the app installed. Cannot be recalled.",
+    },
+  ]),
   mod("content", "Rules & videos", "Publish event rules, fees and videos."),
   mod("reports", "Reports", "Generate and download reports."),
   mod("scanners", "Scanners", "Map scanners to loft sections."),
