@@ -28,17 +28,20 @@ against a shadow database because it references `PerchFeeItem`, a model since
 renamed to `BirdFeeItem`. That is why `db push` was used. **The migration history
 cannot be replayed onto a fresh database.** Needs fixing separately.
 
-**3. One contested business rule is a single constant.** See
+**3. The contested cascade rule is settled — it is `SINGLE`.** See
 [`payment-spec-questions.md`](./payment-spec-questions.md), question 1.
 
 ```ts
 // src/lib/fee-calculator.ts
-export const HOTSPOT_CASCADE: "CUMULATIVE" | "SINGLE" = "CUMULATIVE";
+export const HOTSPOT_CASCADE: "CUMULATIVE" | "SINGLE" = "SINGLE";
 ```
 
-The spec states the hotspot cascade two different ways. This follows Task B4's
-"Cascade rule". Flipping the constant switches billing, amount owed, the
-breeder's fee table and the settle-on-capture path — one edit, nothing else.
+The spec stated the hotspot cascade two different ways. The organiser confirmed
+on 2026-09-21: a breeder pays at any one of the four gates, a missed gate rolls
+the obligation to the next, and the final race is the last chance. So it is one
+obligation with four escalating prices, not four separate charges. The constant
+drives billing, amount owed, the breeder's fee table and the settle-on-capture
+path together — it was flipped from `CUMULATIVE`, and nothing else changed.
 
 **4. `scripts/probe-login.ts` was committed by accident.** It is a pre-existing
 untracked file from before this session, swept up by a `git add -A`. Harmless,

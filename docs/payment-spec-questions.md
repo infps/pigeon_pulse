@@ -9,9 +9,21 @@ changes one line in a named place — no rework.
 
 ---
 
-## Q1 — Hotspot cascade: does paying one gate settle the others?
+## Q1 — Hotspot cascade: does paying one gate settle the others? — **ANSWERED**
 
-**This is the one that matters.** The spec answers it twice, differently.
+> **Answered by the organiser, 2026-09-21:**
+> *"Pays either of the 4 gates, if 1 is missed the following will be set the
+> next gate, and final race is the final gate, if none of the previous one is
+> paid then they must pay for the final race."*
+>
+> → **`SINGLE`.** One obligation, four chances to settle it, the price
+> escalating for leaving it. Built and in the code as of this commit; a full
+> 10-bird entry on fee scheme 4 now comes to **$3,500**, not $15,500.
+
+The rest of this section is kept for the record — it is why the question was
+asked.
+
+**The spec answers it twice, differently.**
 
 **Task B4, under "Cascade rule":**
 > If breeder pays HS1 → HS2, HS3, FINAL are still owed. If pays FINAL, earlier
@@ -25,16 +37,16 @@ changes one line in a named place — no rework.
 B4 says paying HS1 leaves HS2 owed. The D table says paying HS1 lets you skip
 it. Both cannot hold.
 
-### What I built
+### What is built
 
-**B4's reading — `CUMULATIVE`.** It sits under a heading that says "Cascade
-rule", which reads as the deliberate statement.
+**The D table's reading — `SINGLE`**, per the answer above. It was first built
+as `CUMULATIVE` (B4's wording) and flipped once the organiser confirmed.
 
 One constant controls it:
 
 ```ts
 // src/lib/fee-calculator.ts
-export const HOTSPOT_CASCADE: "CUMULATIVE" | "SINGLE" = "CUMULATIVE";
+export const HOTSPOT_CASCADE: "CUMULATIVE" | "SINGLE" = "SINGLE";
 ```
 
 Flip it to `"SINGLE"` and billing, the amount owed, the breeder's fee table and
@@ -59,18 +71,16 @@ Under each reading, a full 10-bird entry comes to:
 
 | | Entry | Perch | Hotspot | **Total** |
 |---|---|---|---|---|
-| `CUMULATIVE` (built) | $500 | $1,000 | $14,000 | **$15,500** |
-| `SINGLE` | $500 | $1,000 | $2,000 | **$3,500** |
+| `CUMULATIVE` | $500 | $1,000 | $14,000 | **$15,500** |
+| `SINGLE` **(built)** | $500 | $1,000 | $2,000 | **$3,500** |
 
 The prices double at each gate. That is the shape of a late fee — a penalty for
 leaving it — which only bites if paying early ends the obligation. If all four
 are owed regardless, escalating them charges the most to whoever pays on time.
 
-I may be reading the domain wrong, and you know what breeders were actually
-charged. **If $15,500 is right for a full entry, leave it as built.**
-
-> ☐ Cumulative — every gate its own charge *(as built)*
-> ☐ Single — one fee, four prices, paying any ends it
+> ☐ Cumulative — every gate its own charge
+> ☑ **Single — one fee, four prices, paying any ends it** *(confirmed
+>   2026-09-21; as built)*
 
 ---
 

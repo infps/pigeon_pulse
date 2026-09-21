@@ -71,11 +71,15 @@ export interface FeeBreakdown {
  *                   settle it, priced to escalate. Paying at any gate finishes
  *                   it, and the breeder pays that gate's price only.
  *
- * Set to the spec's explicit "Cascade rule" heading. See
- * docs/payment-spec-questions.md — answering question 1 is a one-line change
- * here and nowhere else.
+ * Set to SINGLE, confirmed by the organiser on 2026-09-21: "Pays either of the
+ * 4 gates, if 1 is missed the following will be set the next gate, and final
+ * race is the final gate, if none of the previous one is paid then they must
+ * pay for the final race." One obligation, four chances to meet it, the price
+ * escalating for leaving it. This settles the contradiction in the spec — the
+ * Task B4 "Cascade rule" wording read the other way. See
+ * docs/payment-spec-questions.md Q1.
  */
-export const HOTSPOT_CASCADE: "CUMULATIVE" | "SINGLE" = "CUMULATIVE";
+export const HOTSPOT_CASCADE: "CUMULATIVE" | "SINGLE" = "SINGLE";
 
 /** The four hotspot gates, in the order they fall. */
 export const HOTSPOT_GATES = ["HS1", "HS2", "HS3", "FINAL"] as const;
