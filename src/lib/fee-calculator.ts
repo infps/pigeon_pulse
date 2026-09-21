@@ -115,6 +115,34 @@ export function maskAfterPaying(gate: HotspotGate): number {
   return 1 << GATE_BIT[gate];
 }
 
+/**
+ * Which gate a bird is actually billed at, given the gates its scheme prices
+ * and how far the season has run.
+ *
+ * `openGate` is the earliest gate still payable — see `openHotspotGate` in
+ * `hotspot-gates.ts`, which derives it from basketing. Anything before it was
+ * missed, and the price has moved on.
+ *
+ * A gate with no price is not a gate, so the charge lands on the first priced
+ * gate at or after the open one. If every priced gate is already behind — a
+ * scheme that stops at HS3 in a season that has reached the final — the last
+ * priced gate stands. The obligation does not evaporate because the organiser
+ * left Final blank; it just stops climbing.
+ *
+ * Returns null when the scheme prices no gate at all.
+ */
+export function chargeableGate(
+  gates: Record<HotspotGate, number>,
+  openGate: HotspotGate
+): HotspotGate | null {
+  const from = HOTSPOT_GATES.indexOf(openGate);
+  const atOrAfter = HOTSPOT_GATES.slice(from).find((g) => gates[g] > 0);
+  if (atOrAfter) return atOrAfter;
+
+  const priced = HOTSPOT_GATES.filter((g) => gates[g] > 0);
+  return priced.length > 0 ? priced[priced.length - 1] : null;
+}
+
 /** What one bird owes at a given gate, from its stored per-gate values. */
 export function gateAmount(
   item: {

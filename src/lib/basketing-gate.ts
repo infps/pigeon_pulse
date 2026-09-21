@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { computePaymentTotals } from "@/lib/paymentStatus";
+import { openHotspotGate } from "@/lib/hotspot-gates";
 
 /**
  * Refuse to basket a bird whose registration has not been settled.
@@ -55,10 +56,14 @@ export async function requirePaidBeforeBasketing(
 
   if (inventory.cashPromised) return null;
 
+  // Priced at the gate the season has actually reached. A breeder who let HS1
+  // go by owes HS2's price, and the figure quoted at the basketing table has
+  // to be the one they will be asked for.
   const totals = computePaymentTotals(
     inventory.items,
     inventory.payments,
-    inventory.hotspotsPaidMask
+    inventory.hotspotsPaidMask,
+    await openHotspotGate(seasonId)
   );
 
   if (totals.balance <= 0) return null;

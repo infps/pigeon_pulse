@@ -19,6 +19,18 @@ changes one line in a named place — no rework.
 > → **`SINGLE`.** One obligation, four chances to settle it, the price
 > escalating for leaving it. Built and in the code as of this commit; a full
 > 10-bird entry on fee scheme 4 now comes to **$3,500**, not $15,500.
+>
+> **A gate shuts when basketing opens for its race** (organiser's choice, same
+> date). Miss HS1 and the fee becomes HS2's price, and so on; the final race is
+> the last gate and the price stops climbing there. `openHotspotGate` in
+> `src/lib/hotspot-gates.ts` derives this from `RaceType.prizeRole`, so a
+> season only escalates once its hotspot races are mapped to the right race
+> types.
+>
+> Scheme 4 leaves **Final unpriced**, so a breeder who misses all three
+> hotspots pays HS3's $800 — the last gate the scheme actually prices. If the
+> intent is that they should pay a *final* amount instead, set Final on the
+> scheme and it will be charged.
 
 The rest of this section is kept for the record — it is why the question was
 asked.

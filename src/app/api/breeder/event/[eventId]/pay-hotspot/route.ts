@@ -9,6 +9,7 @@ import {
   maskAfterPaying,
   type HotspotGate,
 } from "@/lib/fee-calculator";
+import { openHotspotGate } from "@/lib/hotspot-gates";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -121,6 +122,23 @@ export async function POST(
         {
           message: `The hotspot fee is already settled${already ? ` at ${already}` : ""}. Nothing further is owed.`,
           alreadySettled: true,
+        },
+        { status: 409 }
+      );
+    }
+
+    // A gate shuts when basketing opens for its race. Paying into one that has
+    // closed would buy the early price after the deadline it was early for,
+    // which is the whole thing the escalation exists to prevent.
+    const openGate = await openHotspotGate(active.id);
+    if (HOTSPOT_GATES.indexOf(gate) < HOTSPOT_GATES.indexOf(openGate)) {
+      return NextResponse.json(
+        {
+          message:
+            `${gate} closed when basketing opened for its race. ` +
+            `The hotspot fee is now payable at ${openGate}.`,
+          gateClosed: true,
+          openGate,
         },
         { status: 409 }
       );

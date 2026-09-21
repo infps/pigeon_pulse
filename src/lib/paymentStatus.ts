@@ -1,4 +1,9 @@
-import { HOTSPOT_CASCADE } from "@/lib/fee-calculator";
+import {
+    chargeableGate,
+    GATE_BIT,
+    HOTSPOT_CASCADE,
+    type HotspotGate,
+} from "@/lib/fee-calculator";
 
 export type PaymentStatus = "PAID" | "OVERPAID" | "PENDING" | "PARTIAL" | "NA";
 
@@ -36,13 +41,19 @@ export interface PaymentStatusPayment {
  * it, which `maskAfterPaying` encodes, so it needs no special case here.
  *
  * Single — one obligation with four prices, so exactly one gate is owed: the
- * one already settled, or the cheapest still on offer.
+ * one already settled, or the one the season has reached. `openGate` is that
+ * one; it defaults to HS1, which is the scheme as written and what callers
+ * with no season to hand should charge.
  *
  * Registrations written before the gates were split have only the old bucket
  * column filled. Those fall back to it, because the alternative is their
  * hotspot charge silently becoming zero.
  */
-export function hotspotOwedFor(item: PaymentStatusItem, hotspotsPaidMask = 0): number {
+export function hotspotOwedFor(
+    item: PaymentStatusItem,
+    hotspotsPaidMask = 0,
+    openGate: HotspotGate = "HS1"
+): number {
     const gates = [
         item.hotSpot1FeeValue ?? 0,
         item.hotSpot2FeeValue ?? 0,
@@ -64,7 +75,11 @@ export function hotspotOwedFor(item: PaymentStatusItem, hotspotsPaidMask = 0): n
         if (settledAt >= 0) return gates[settledAt];
     }
 
-    return gates.find((g) => g > 0) ?? 0;
+    const gate = chargeableGate(
+        { HS1: gates[0], HS2: gates[1], HS3: gates[2], FINAL: gates[3] },
+        openGate
+    );
+    return gate ? gates[GATE_BIT[gate]] : 0;
 }
 
 export interface PaymentTotals {
@@ -85,7 +100,8 @@ export interface PaymentTotals {
 export function computePaymentTotals(
     items: ReadonlyArray<PaymentStatusItem>,
     payments: ReadonlyArray<PaymentStatusPayment>,
-    hotspotsPaidMask = 0
+    hotspotsPaidMask = 0,
+    openGate: HotspotGate = "HS1"
 ): PaymentTotals {
     const owed = items.reduce(
         (s, i) =>
@@ -93,7 +109,7 @@ export function computePaymentTotals(
             (i.entryFeeValue ?? 0) +
             (i.perchFeeValue ?? 0) +
             (i.raceFeeValue ?? 0) +
-            hotspotOwedFor(i, hotspotsPaidMask),
+            hotspotOwedFor(i, hotspotsPaidMask, openGate),
         0
     );
 
@@ -124,7 +140,8 @@ export function computePaymentTotals(
 export function computePaymentStatus(
     items: ReadonlyArray<PaymentStatusItem>,
     payments: ReadonlyArray<PaymentStatusPayment>,
-    hotspotsPaidMask = 0
+    hotspotsPaidMask = 0,
+    openGate: HotspotGate = "HS1"
 ): PaymentStatus {
-    return computePaymentTotals(items, payments, hotspotsPaidMask).status;
+    return computePaymentTotals(items, payments, hotspotsPaidMask, openGate).status;
 }

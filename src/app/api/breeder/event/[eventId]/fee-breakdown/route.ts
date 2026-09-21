@@ -2,7 +2,14 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireBirdOwner } from "@/lib/roles";
 import { computePaymentTotals } from "@/lib/paymentStatus";
-import { GATE_BIT, HOTSPOT_GATES, hotspotSettled, type HotspotGate } from "@/lib/fee-calculator";
+import {
+  chargeableGate,
+  GATE_BIT,
+  HOTSPOT_GATES,
+  hotspotSettled,
+  type HotspotGate,
+} from "@/lib/fee-calculator";
+import { openHotspotGate } from "@/lib/hotspot-gates";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -119,13 +126,17 @@ export async function GET(
 
     const settled = hotspotSettled(inventory.hotspotsPaidMask);
 
+    // Which gate the season has reached. A breeder who let HS1 go by is shown
+    // HS2's price, because that is now what they will be asked for.
+    const openGate = await openHotspotGate(seasonId);
+
     const items = inventory.items.map((item) => {
       const entry = item.entryFeeValue ?? 0;
       const perch = item.perchFeeValue ?? 0;
       const race = item.raceFeeValue ?? 0;
 
       // Only one hotspot gate is ever charged, so the bird's hotspot cost is
-      // the gate it settled at — or, while unsettled, the cheapest on offer.
+      // the gate it settled at — or, while unsettled, the gate now open.
       const gates = {
         HS1: item.hotSpot1FeeValue ?? 0,
         HS2: item.hotSpot2FeeValue ?? 0,
@@ -135,7 +146,7 @@ export async function GET(
       const paidGate = HOTSPOT_GATES.find(
         (g) => (inventory.hotspotsPaidMask & (1 << GATE_BIT[g])) !== 0
       );
-      const nextGate = HOTSPOT_GATES.find((g) => gates[g] > 0) ?? null;
+      const nextGate = chargeableGate(gates, openGate);
       const hotspotDue = paidGate ? gates[paidGate] : nextGate ? gates[nextGate] : 0;
 
       return {
@@ -167,7 +178,8 @@ export async function GET(
     const status = computePaymentTotals(
       inventory.items,
       inventory.payments,
-      inventory.hotspotsPaidMask
+      inventory.hotspotsPaidMask,
+      openGate
     );
 
     const hotspots = HOTSPOT_GATES.map((gate: HotspotGate) => ({
@@ -184,6 +196,7 @@ export async function GET(
       balance: Math.round((totalOwed - status.totalPaid) * 100) / 100,
       cashPromised: inventory.cashPromised,
       hotspotSettled: settled,
+      openGate,
       hotspots,
       items,
       payments: inventory.payments.map((p) => ({
