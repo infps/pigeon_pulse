@@ -3,15 +3,18 @@
 Everything done in this session, across both repositories. Written for a
 developer picking this up cold.
 
-**Both branches are pushed and in sync with their remotes. Nothing is
-uncommitted.**
+**Everything is committed. Neither branch has been pushed yet** — the work is
+local only, so it needs a `git push` from a machine with repo credentials
+before anyone else can see it.
 
-| Repo | Branch | Head | Changes |
-|---|---|---|---|
-| `infps/pigeon_pulse` | `Roger-8-portal-parity` | `0044b20` | 34 files, +12,434 / −483 |
-| `infps/agn-mobile` | `Roger-mobile-apps` | `e63fc85` | 50 files, +7,741 / −380 |
+| Repo | Branch | Local head | On remote | This session's changes |
+|---|---|---|---|---|
+| `infps/pigeon_pulse` | `Roger-8-portal-parity` | `d064ad1` | **branch does not exist there** | 36 files, +12,908 / −483 |
+| `infps/agn-mobile` | `Roger-mobile-apps` | `e63fc85` | `f7bf939` — **3 commits behind** | 50 files, +7,741 / −380 |
 
-`main` was not touched in either repo.
+`main` was not touched in either repo. Note that the portal branch carries
+earlier work as well — it sits **31 commits ahead of `main`**, so the first
+push publishes all of it, not just this session's six.
 
 ---
 
@@ -56,7 +59,7 @@ page header on connect; the file size is byte-identical and fee scheme 4
 
 # Portal — `pigeon_pulse`
 
-Three commits.
+Five commits.
 
 ## `c6a2c57` — Push notifications
 
@@ -174,6 +177,65 @@ bit-ors rather than overwrites — a breeder paying gate by gate keeps what they
 settled, and simultaneous captures no longer erase each other.
 
 Added `docs/payment-spec-questions.md`.
+
+---
+
+## `17827ff` — Charge the hotspot once, not four times
+
+The organiser answered Q1: **one obligation, four chances to pay it**, not four
+separate charges. `HOTSPOT_CASCADE` flipped to `"SINGLE"`. Everything downstream
+already read the constant, so this is a one-line behaviour change.
+
+**The number that moves:** a full 10-bird entry on fee scheme 4 goes from
+**$15,500 to $3,500**. If any ledger or report was reconciled against the
+higher figure, it will now disagree.
+
+---
+
+## `d064ad1` — A missed gate actually costs more
+
+The four gates were priced to escalate — 200 / 400 / 800 — but nothing ever
+closed one, so an unpaid breeder was quoted HS1's $200 indefinitely. The
+escalation never bit.
+
+**A gate now shuts when basketing opens for its race.** That is the organiser's
+deadline. `RaceType.prizeRole` already maps races to `HOTSPOT_1/2/3/FINAL`, so
+this needed no new columns.
+
+### New file
+
+| File | What |
+|---|---|
+| `src/lib/hotspot-gates.ts` | `openHotspotGate(seasonId)` — the earliest gate whose race has not been basketed |
+
+### Rules it encodes
+
+- A gate with no price is not a gate. The charge lands on the first **priced**
+  gate at or after the open one.
+- If a scheme stops short — **scheme 4 leaves Final blank** — the last priced
+  gate stands. A breeder who misses everything pays HS3's $800, not zero. Set
+  Final on the scheme if they should pay a final amount instead.
+- The final race is the last gate. The price stops climbing there.
+
+### Modified
+
+- `computePaymentTotals` / `computePaymentStatus` / `hotspotOwedFor` take an
+  `openGate` argument, **defaulting to `HS1`** — so callers that do not know
+  the season keep billing exactly as before. Only the three call sites that do
+  know it were changed.
+- `basketing-gate.ts`, the breeder fee-breakdown route and `pay-hotspot` all
+  pass the real gate, so the scanner, the breeder's table and the payment form
+  quote the same figure.
+- `pay-hotspot` now returns **409 `gateClosed`** rather than selling the early
+  price after its deadline. The response carries `openGate` so the UI can say
+  what is owed instead.
+
+### Needs a look
+
+**A season only escalates once its hotspot races are mapped to race types with
+the right `prizeRole`.** If they are left `NONE`, every gate stays open and
+billing sits at HS1 — which is the old behaviour, so it fails quietly rather
+than loudly. Worth checking on any live season before the first hotspot.
 
 ---
 
