@@ -450,10 +450,10 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                       <span className="font-medium">${fees.perchFees.toFixed(2)}</span>
                     </div>
                   )}
-                  {fees && fees.hotspotDue > 0 && (
+                  {fees && fees.hotspotBilled > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Hotspot Fee:</span>
-                      <span className="font-medium">${fees.hotspotDue.toFixed(2)}</span>
+                      <span className="font-medium">${fees.hotspotBilled.toFixed(2)}</span>
                     </div>
                   )}
                   {fees && fees.raceFees > 0 && (
@@ -484,9 +484,9 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                     home is not billed for a race it did not fly.
                   </p>
                 )}
-                {fees && fees.hotspotDue > 0 && (
+                {fees && fees.hotspotBilled > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    One hotspot fee covers the season. Paying later costs more.
+                    Hotspot fees can be paid gate by gate, or in full at the Final.
                   </p>
                 )}
 
@@ -505,7 +505,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                       </thead>
                       <tbody>
                         {fees.perBirdBreakdown.map((b, i) => {
-                          const hotspot = i === 0 ? fees.hotspotDue / fees.perBirdBreakdown.length : fees.hotspotDue / fees.perBirdBreakdown.length;
+                          const hotspot = i === 0 ? fees.hotspotBilled / fees.perBirdBreakdown.length : fees.hotspotBilled / fees.perBirdBreakdown.length;
                           const purge = i === 0 ? fees.purgeFee : 0;
                           return (
                             <tr key={b.position} className="border-t">

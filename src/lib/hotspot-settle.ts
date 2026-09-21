@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { ALL_GATES_MASK } from "@/lib/fee-calculator";
+import { maskAfterPaying, type HotspotGate } from "@/lib/fee-calculator";
 
 /**
  * Mark the hotspot obligation settled for whatever these payments belong to.
@@ -29,23 +29,30 @@ export async function settleHotspotsForPayments(paymentIds: number[]): Promise<n
         hotspotGate: { not: null },
         eventInventoryId: { not: null },
       },
-      select: { eventInventoryId: true },
+      select: { eventInventoryId: true, hotspotGate: true },
     });
+    if (hotspotPayments.length === 0) return 0;
 
-    const inventoryIds = Array.from(
-      new Set(
-        hotspotPayments
-          .map((p) => p.eventInventoryId)
-          .filter((id): id is number => id != null)
-      )
-    );
-    if (inventoryIds.length === 0) return 0;
-
-    const result = await prisma.eventInventory.updateMany({
-      where: { id: { in: inventoryIds } },
-      data: { hotspotsPaidMask: ALL_GATES_MASK },
-    });
-    return result.count;
+    // Bit-or rather than overwrite: a breeder paying gates one at a time must
+    // keep the ones already settled, and two captures landing together must
+    // not erase each other.
+    let touched = 0;
+    for (const payment of hotspotPayments) {
+      if (payment.eventInventoryId == null || !payment.hotspotGate) continue;
+      const current = await prisma.eventInventory.findUnique({
+        where: { id: payment.eventInventoryId },
+        select: { hotspotsPaidMask: true },
+      });
+      if (!current) continue;
+      const next = current.hotspotsPaidMask | maskAfterPaying(payment.hotspotGate as HotspotGate);
+      if (next === current.hotspotsPaidMask) continue;
+      await prisma.eventInventory.update({
+        where: { id: payment.eventInventoryId },
+        data: { hotspotsPaidMask: next },
+      });
+      touched += 1;
+    }
+    return touched;
   } catch (error) {
     console.error("Failed to settle hotspot gates after payment:", error);
     return 0;

@@ -1,3 +1,5 @@
+import { HOTSPOT_CASCADE } from "@/lib/fee-calculator";
+
 export type PaymentStatus = "PAID" | "OVERPAID" | "PENDING" | "PARTIAL" | "NA";
 
 export const VALID_PAYMENT_STATUS: ReadonlyArray<PaymentStatus> = [
@@ -27,11 +29,14 @@ export interface PaymentStatusPayment {
 }
 
 /**
- * What one bird owes for hotspots.
+ * What one bird owes for hotspots, under the active cascade rule.
  *
- * The four gate prices are four chances to settle one obligation, not four
- * charges — so exactly one of them is owed: the gate already settled, or the
- * cheapest still on offer.
+ * Cumulative — every priced gate is its own charge, so the bird owes the sum of
+ * the gates, less any already settled. Paying Final settles everything before
+ * it, which `maskAfterPaying` encodes, so it needs no special case here.
+ *
+ * Single — one obligation with four prices, so exactly one gate is owed: the
+ * one already settled, or the cheapest still on offer.
  *
  * Registrations written before the gates were split have only the old bucket
  * column filled. Those fall back to it, because the alternative is their
@@ -46,6 +51,13 @@ export function hotspotOwedFor(item: PaymentStatusItem, hotspotsPaidMask = 0): n
     ];
 
     if (gates.every((g) => g === 0)) return item.hotSpotFeeValue ?? 0;
+
+    if (HOTSPOT_CASCADE === "CUMULATIVE") {
+        return gates.reduce(
+            (sum, amount, i) => sum + ((hotspotsPaidMask & (1 << i)) !== 0 ? 0 : amount),
+            0
+        );
+    }
 
     if (hotspotsPaidMask !== 0) {
         const settledAt = gates.findIndex((_, i) => (hotspotsPaidMask & (1 << i)) !== 0);

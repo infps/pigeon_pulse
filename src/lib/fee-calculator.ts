@@ -44,20 +44,38 @@ export interface FeeBreakdown {
   hotspot2Fees: number;
   hotspot3Fees: number;
   hotspotFinalFees: number;
-  /** Sum of the four. Not what a breeder owes — see `hotspotDue`. */
+  /** Sum of the four gates — what a cumulative scheme eventually collects. */
   hotspotFees: number;
   /**
-   * What the hotspot obligation actually costs, at the cheapest gate on offer.
-   *
-   * The four gate prices escalate — a real scheme in the legacy data runs
-   * 200 / 400 / 800 — because they are four chances to settle one obligation,
-   * not four separate charges. Summing them would bill a ten-bird entry
-   * $14,000 against a $1,500 base, which is not what anybody was charged.
+   * The cheapest gate still on offer — what a SINGLE-rule scheme would charge.
+   * Reported either way so the two readings can be compared without a rebuild.
    */
   hotspotDue: number;
+  /** What the breeder is billed for hotspots right now, under the active rule. */
+  hotspotBilled: number;
   total: number;
   perBirdBreakdown: PerBirdFees[];
 }
+
+/**
+ * How the four hotspot gates relate to each other.
+ *
+ * The spec says both things in different places, so it is a setting rather than
+ * an assumption:
+ *
+ *   "CUMULATIVE"  — Task B4. Each gate is its own charge. Paying HS1 leaves
+ *                   HS2, HS3 and Final still owed; paying Final settles the lot.
+ *                   The breeder eventually pays the sum of the gates.
+ *
+ *   "SINGLE"      — the Task D table. One obligation with four chances to
+ *                   settle it, priced to escalate. Paying at any gate finishes
+ *                   it, and the breeder pays that gate's price only.
+ *
+ * Set to the spec's explicit "Cascade rule" heading. See
+ * docs/payment-spec-questions.md — answering question 1 is a one-line change
+ * here and nowhere else.
+ */
+export const HOTSPOT_CASCADE: "CUMULATIVE" | "SINGLE" = "CUMULATIVE";
 
 /** The four hotspot gates, in the order they fall. */
 export const HOTSPOT_GATES = ["HS1", "HS2", "HS3", "FINAL"] as const;
@@ -71,21 +89,27 @@ export const GATE_BIT: Record<HotspotGate, number> = {
   FINAL: 3,
 };
 
-/**
- * Has the hotspot obligation been settled?
- *
- * One obligation, four chances to pay it — so *any* bit set means settled, and
- * paying at one gate marks them all. The alternative reading, where each gate
- * is its own charge, is contradicted both by the escalating prices and by the
- * rule that a breeder who paid nothing earlier "must pay at Final": there would
- * be nothing to catch up on if each gate stood alone.
- */
+/** Has the hotspot obligation been settled, under the active cascade rule? */
 export function hotspotSettled(mask: number): boolean {
-  return mask !== 0;
+  if (HOTSPOT_CASCADE === "SINGLE") return mask !== 0;
+  // Cumulative: settled only once every priced gate has been met. Paying Final
+  // is the exception the spec calls out — it clears whatever came before.
+  return (mask & (1 << GATE_BIT.FINAL)) !== 0 || mask === ALL_GATES_MASK;
 }
 
-/** Every gate marked, since settling at one settles the obligation. */
+/** Every gate marked. Paying Final sets this, because it clears the earlier ones. */
 export const ALL_GATES_MASK = 0b1111;
+
+/**
+ * What paying at `gate` marks as settled.
+ *
+ * Cumulative: only that gate, unless it is Final — which the spec says settles
+ * everything earlier too. Single: all of them, since one payment ends it.
+ */
+export function maskAfterPaying(gate: HotspotGate): number {
+  if (HOTSPOT_CASCADE === "SINGLE" || gate === "FINAL") return ALL_GATES_MASK;
+  return 1 << GATE_BIT[gate];
+}
 
 /** What one bird owes at a given gate, from its stored per-gate values. */
 export function gateAmount(
@@ -158,6 +182,8 @@ export function calculateFees(input: FeeCalculationInput): FeeBreakdown {
 
   const hotspotFees = hotspotPerBird * numBirds;
   const hotspotDue = duePerBird * numBirds;
+  // Cumulative bills every gate; single bills only the one being settled.
+  const hotspotBilled = HOTSPOT_CASCADE === "SINGLE" ? hotspotDue : hotspotFees;
 
   return {
     purgeFee,
@@ -169,9 +195,10 @@ export function calculateFees(input: FeeCalculationInput): FeeBreakdown {
     hotspotFinalFees: hsF * numBirds,
     hotspotFees,
     hotspotDue,
-    // What is actually billed: one hotspot gate, not all four. Race fees are
-    // no longer included here — they are charged per bird at basketing.
-    total: purgeFee + perchFees + hotspotDue,
+    hotspotBilled,
+    // The spec's total, unchanged. Race fees stay in it as a preview: Task C
+    // moves where they are *written*, not whether a breeder is shown them.
+    total: purgeFee + perchFees + raceFees + hotspotBilled,
     perBirdBreakdown,
   };
 }

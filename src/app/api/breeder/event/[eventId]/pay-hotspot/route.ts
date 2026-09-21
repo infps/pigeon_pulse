@@ -2,11 +2,11 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireApproved, requireBirdOwner } from "@/lib/roles";
 import {
-  ALL_GATES_MASK,
   GATE_BIT,
   HOTSPOT_GATES,
   gateAmount,
   hotspotSettled,
+  maskAfterPaying,
   type HotspotGate,
 } from "@/lib/fee-calculator";
 import { headers } from "next/headers";
@@ -105,6 +105,14 @@ export async function POST(
       );
     }
 
+    // Already paid this particular gate?
+    if ((inventory.hotspotsPaidMask & (1 << GATE_BIT[gate])) !== 0) {
+      return NextResponse.json(
+        { message: `${gate} is already paid.`, alreadySettled: true },
+        { status: 409 }
+      );
+    }
+
     if (hotspotSettled(inventory.hotspotsPaidMask)) {
       const already = HOTSPOT_GATES.find(
         (g) => (inventory.hotspotsPaidMask & (1 << GATE_BIT[g])) !== 0
@@ -160,7 +168,7 @@ export async function POST(
       if (method === "CASH") {
         await tx.eventInventory.update({
           where: { id: inventory.id },
-          data: { hotspotsPaidMask: ALL_GATES_MASK },
+          data: { hotspotsPaidMask: inventory.hotspotsPaidMask | maskAfterPaying(gate) },
         });
       }
 
@@ -177,7 +185,7 @@ export async function POST(
       settled: method === "CASH",
       message:
         method === "CASH"
-          ? `${label} fee of $${amount.toFixed(2)} recorded. The hotspot fee is now settled for the season.`
+          ? `${label} fee of ${amount.toFixed(2)} recorded.`
           : `${label} fee of $${amount.toFixed(2)} is ready to pay. It settles once the payment captures.`,
     });
   } catch (error) {
