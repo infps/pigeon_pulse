@@ -450,16 +450,16 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                       <span className="font-medium">${fees.perchFees.toFixed(2)}</span>
                     </div>
                   )}
-                  {fees && fees.raceFees > 0 && (
+                  {fees && fees.hotspotDue > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Race Fees:</span>
-                      <span className="font-medium">${fees.raceFees.toFixed(2)}</span>
+                      <span className="text-muted-foreground">Hotspot Fee:</span>
+                      <span className="font-medium">${fees.hotspotDue.toFixed(2)}</span>
                     </div>
                   )}
-                  {fees && fees.hotspotFees > 0 && (
+                  {fees && fees.raceFees > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Hotspot Fees:</span>
-                      <span className="font-medium">${fees.hotspotFees.toFixed(2)}</span>
+                      <span className="text-muted-foreground">Race Fees (later):</span>
+                      <span className="text-muted-foreground">${fees.raceFees.toFixed(2)}</span>
                     </div>
                   )}
                   {betStakesTotal > 0 && (
@@ -478,6 +478,55 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                 <p className="text-xs text-muted-foreground">
                   Final amount is verified server-side before payment.
                 </p>
+                {fees && fees.raceFees > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Race fees are charged per bird when it is basketed, so a bird that stays
+                    home is not billed for a race it did not fly.
+                  </p>
+                )}
+                {fees && fees.hotspotDue > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    One hotspot fee covers the season. Paying later costs more.
+                  </p>
+                )}
+
+                {/* What each bird costs. A total nobody can check is the one
+                    that gets argued about at the desk. */}
+                {fees && fees.perBirdBreakdown.length > 0 && (
+                  <div className="mt-4 overflow-x-auto rounded-lg border">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50">
+                        <tr className="text-left">
+                          <th className="px-3 py-2 font-medium">Bird</th>
+                          <th className="px-3 py-2 text-right font-medium">Perch</th>
+                          <th className="px-3 py-2 text-right font-medium">Hotspot</th>
+                          <th className="px-3 py-2 text-right font-medium">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {fees.perBirdBreakdown.map((b, i) => {
+                          const hotspot = i === 0 ? fees.hotspotDue / fees.perBirdBreakdown.length : fees.hotspotDue / fees.perBirdBreakdown.length;
+                          const purge = i === 0 ? fees.purgeFee : 0;
+                          return (
+                            <tr key={b.position} className="border-t">
+                              <td className="px-3 py-2">
+                                #{b.position}
+                                {purge > 0 && (
+                                  <span className="text-muted-foreground"> + purge ${purge.toFixed(2)}</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-right">${b.perchFee.toFixed(2)}</td>
+                              <td className="px-3 py-2 text-right">${hotspot.toFixed(2)}</td>
+                              <td className="px-3 py-2 text-right font-medium">
+                                ${(purge + b.perchFee + hotspot).toFixed(2)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
 

@@ -1,4 +1,5 @@
 import { paypalClient, paypal } from "@/lib/paypal";
+import { settleHotspotsForPayments } from "@/lib/hotspot-settle";
 import { prisma } from "@/lib/prisma";
 import { PaymentStatus } from "@/generated/prisma/enums";
 import { NextResponse } from "next/server";
@@ -81,6 +82,7 @@ export async function POST(request: Request) {
               paymentDesc: `PayPal webhook: ${event.id}`,
             },
           });
+          await settleHotspotsForPayments([pendingPayment.id]);
         } else {
           await prisma.payment.create({
             data: {

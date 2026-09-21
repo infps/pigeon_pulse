@@ -383,6 +383,9 @@ model FeeScheme {
   latePenaltyGraceDays     Int             @default(0) @map("LATE_PENALTY_GRACE_DAYS")
   // Club policy: when true a breeder must pay or commit to cash to register.
   requirePaymentToRegister Boolean         @default(false) @map("REQUIRE_PAYMENT_TO_REGISTER")
+  /// When set, entry + perch + the hotspot gate must be settled before a bird
+  /// can be basketed for Hotspot 1.
+  priorToHotspot1Required  Boolean         @default(false) @map("PRIOR_TO_HS1_REQUIRED")
   createdById              Int?            @map("CREATOR_ID")
 
   createdBy    OrganizerData?      @relation(fields: [createdById], references: [id])
@@ -548,6 +551,9 @@ model Race {
   transportEndedAt   DateTime?       @map("TRANSPORT_ENDED_AT")
   bettingOpen        Boolean         @default(false) @map("BETTING_OPEN")
   youtubeUrl         String?         @map("YOUTUBE_URL")
+  /// Embeddable Facebook video URL, and the page to send viewers to.
+  facebookStreamUrl  String?         @map("FACEBOOK_STREAM_URL")
+  facebookPageUrl    String?         @map("FACEBOOK_PAGE_URL")
 
   seasonRel          Season?                @relation(fields: [seasonId], references: [id])
   raceType           RaceType?              @relation(fields: [raceTypeId], references: [id])
@@ -824,17 +830,24 @@ model EventMessage {
 }
 
 model EventInventory {
-  id            Int       @id @default(autoincrement()) @map("ID_EVENT_INVENTORY")
-  seasonId      Int?      @map("SEASON_ID")
-  breederId     Int?      @map("ID_BREEDER")
-  teamId        Int?      @map("ID_TEAM")
-  reservedBirds Int?      @map("RESERVED_BIRDS")
-  loft          String?   @map("LOFT")
-  note          String?   @map("NOTE")
-  signInDate    DateTime? @map("SIGN_IN_DATE")
-  isWaiting     Int?      @map("IS_WAITING")
-  waitingDate   DateTime? @map("WAITING_DATE")
-  cashPromised  Boolean   @default(false) @map("CASH_PROMISED")
+  id               Int       @id @default(autoincrement()) @map("ID_EVENT_INVENTORY")
+  seasonId         Int?      @map("SEASON_ID")
+  breederId        Int?      @map("ID_BREEDER")
+  teamId           Int?      @map("ID_TEAM")
+  reservedBirds    Int?      @map("RESERVED_BIRDS")
+  loft             String?   @map("LOFT")
+  note             String?   @map("NOTE")
+  signInDate       DateTime? @map("SIGN_IN_DATE")
+  isWaiting        Int?      @map("IS_WAITING")
+  waitingDate      DateTime? @map("WAITING_DATE")
+  cashPromised     Boolean   @default(false) @map("CASH_PROMISED")
+  /// Which hotspot gates this registration has settled.
+  /// bit 0 = HS1, bit 1 = HS2, bit 2 = HS3, bit 3 = Final.
+  ///
+  /// A mask rather than a scan of payment descriptions: PAYMENT_DESC is a free
+  /// text memo in the legacy data — "ZELLE", "SHIPPING", somebody's name — and
+  /// was never a tag. Parsing it would be building on sand.
+  hotspotsPaidMask Int       @default(0) @map("HOTSPOTS_PAID_MASK")
 
   season  Season?  @relation(fields: [seasonId], references: [id])
   breeder Breeder? @relation(fields: [breederId], references: [id])
@@ -849,42 +862,50 @@ model EventInventory {
 }
 
 model EventInventoryItem {
-  id               Int       @id @default(autoincrement()) @map("ID_EVENT_INVENTORY_ITEM")
-  birdId           Int?      @map("ID_BIRD")
-  eventInventoryId Int?      @map("ID_EVENT_INVENTORY")
-  replacedItemId   Int?      @map("ID_REPLACED_ITEM")
-  birdNo           Int?      @map("BIRD_NO")
-  arrivalDate      DateTime? @map("ARRIVAL_DATE")
-  departureDate    DateTime? @map("DEPARTURE_DATE")
-  entryFeeValue    Float?    @map("ENTRY_FEE_VALUE")
-  entryFeePaid     Int?      @map("ENTRY_FEE_PAID")
-  entryRefund      Float?    @map("ENTRY_REFUND")
-  perchFeeValue    Float?    @map("PERCH_FEE_VALUE")
-  hotSpotFeeValue  Float?    @map("HOT_SPOT_FEE_VALUE")
-  raceFeeValue     Float?    @map("RACE_FEE_VALUE")
-  hotSpotRefund    Float?    @map("HOT_SPOT_REFUND")
-  betsRefund       Float?    @map("BETS_REFUND")
-  isBackup         Int?      @map("IS_BACKUP")
-  isBetActive      Float?    @map("IS_BET_ACTIVE")
-  transferDue      Int?      @map("TRANSFER_DUE")
-  belgianShowBet1  Float?    @map("BELGIAN_SHOW_BET_1")
-  belgianShowBet2  Float?    @map("BELGIAN_SHOW_BET_2")
-  belgianShowBet3  Float?    @map("BELGIAN_SHOW_BET_3")
-  belgianShowBet4  Float?    @map("BELGIAN_SHOW_BET_4")
-  belgianShowBet5  Float?    @map("BELGIAN_SHOW_BET_5")
-  belgianShowBet6  Float?    @map("BELGIAN_SHOW_BET_6")
-  belgianShowBet7  Float?    @map("BELGIAN_SHOW_BET_7")
-  standardShowBet1 Float?    @map("STANDARD_SHOW_BET_1")
-  standardShowBet2 Float?    @map("STANDARD_SHOW_BET_2")
-  standardShowBet3 Float?    @map("STANDARD_SHOW_BET_3")
-  standardShowBet4 Float?    @map("STANDARD_SHOW_BET_4")
-  standardShowBet5 Float?    @map("STANDARD_SHOW_BET_5")
-  standardShowBet6 Float?    @map("STANDARD_SHOW_BET_6")
-  wtaBet1          Float?    @map("WTA_BET_1")
-  wtaBet2          Float?    @map("WTA_BET_2")
-  wtaBet3          Float?    @map("WTA_BET_3")
-  wtaBet4          Float?    @map("WTA_BET_4")
-  wtaBet5          Float?    @map("WTA_BET_5")
+  id                   Int       @id @default(autoincrement()) @map("ID_EVENT_INVENTORY_ITEM")
+  birdId               Int?      @map("ID_BIRD")
+  eventInventoryId     Int?      @map("ID_EVENT_INVENTORY")
+  replacedItemId       Int?      @map("ID_REPLACED_ITEM")
+  birdNo               Int?      @map("BIRD_NO")
+  arrivalDate          DateTime? @map("ARRIVAL_DATE")
+  departureDate        DateTime? @map("DEPARTURE_DATE")
+  entryFeeValue        Float?    @map("ENTRY_FEE_VALUE")
+  entryFeePaid         Int?      @map("ENTRY_FEE_PAID")
+  entryRefund          Float?    @map("ENTRY_REFUND")
+  perchFeeValue        Float?    @map("PERCH_FEE_VALUE")
+  /// Kept as the total of the four gates below, for anything still reading it.
+  /// Written as their sum rather than as a bucket of its own.
+  hotSpotFeeValue      Float?    @map("HOT_SPOT_FEE_VALUE")
+  /// What this bird owes if the hotspot obligation is settled at each gate.
+  /// Only one of these is ever actually charged — see hotspotsPaidMask.
+  hotSpot1FeeValue     Float?    @map("HOT_SPOT1_FEE_VALUE")
+  hotSpot2FeeValue     Float?    @map("HOT_SPOT2_FEE_VALUE")
+  hotSpot3FeeValue     Float?    @map("HOT_SPOT3_FEE_VALUE")
+  hotSpotFinalFeeValue Float?    @map("HOT_SPOT_FINAL_FEE_VALUE")
+  raceFeeValue         Float?    @map("RACE_FEE_VALUE")
+  hotSpotRefund        Float?    @map("HOT_SPOT_REFUND")
+  betsRefund           Float?    @map("BETS_REFUND")
+  isBackup             Int?      @map("IS_BACKUP")
+  isBetActive          Float?    @map("IS_BET_ACTIVE")
+  transferDue          Int?      @map("TRANSFER_DUE")
+  belgianShowBet1      Float?    @map("BELGIAN_SHOW_BET_1")
+  belgianShowBet2      Float?    @map("BELGIAN_SHOW_BET_2")
+  belgianShowBet3      Float?    @map("BELGIAN_SHOW_BET_3")
+  belgianShowBet4      Float?    @map("BELGIAN_SHOW_BET_4")
+  belgianShowBet5      Float?    @map("BELGIAN_SHOW_BET_5")
+  belgianShowBet6      Float?    @map("BELGIAN_SHOW_BET_6")
+  belgianShowBet7      Float?    @map("BELGIAN_SHOW_BET_7")
+  standardShowBet1     Float?    @map("STANDARD_SHOW_BET_1")
+  standardShowBet2     Float?    @map("STANDARD_SHOW_BET_2")
+  standardShowBet3     Float?    @map("STANDARD_SHOW_BET_3")
+  standardShowBet4     Float?    @map("STANDARD_SHOW_BET_4")
+  standardShowBet5     Float?    @map("STANDARD_SHOW_BET_5")
+  standardShowBet6     Float?    @map("STANDARD_SHOW_BET_6")
+  wtaBet1              Float?    @map("WTA_BET_1")
+  wtaBet2              Float?    @map("WTA_BET_2")
+  wtaBet3              Float?    @map("WTA_BET_3")
+  wtaBet4              Float?    @map("WTA_BET_4")
+  wtaBet5              Float?    @map("WTA_BET_5")
 
   currentGroupId  Int? @map("ID_CURRENT_GROUP")
   tagColorGroupId Int?
@@ -958,6 +979,14 @@ model Payment {
   legacyStatus     Int?          @map("STATUS")
   status           PaymentStatus @default(PENDING)
   bettorId         String?       @map("BETTOR_ID")
+  /// Which hotspot gate this payment settles, when it is one: HS1/HS2/HS3/FINAL.
+  ///
+  /// A column rather than a description convention. PAYMENT_DESC is a free-text
+  /// memo — the legacy data holds "ZELLE", "SHIPPING", operators' names and
+  /// 1,332 blanks — and the PayPal capture handler overwrites it with the
+  /// transaction reference, so anything encoded there would not survive the
+  /// round trip.
+  hotspotGate      String?       @map("HOTSPOT_GATE")
 
   eventInventory EventInventory?  @relation(fields: [eventInventoryId], references: [id])
   breeder        Breeder?         @relation(fields: [breederId], references: [id])

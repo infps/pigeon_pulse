@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { settleHotspotsForPayments } from "@/lib/hotspot-settle";
 import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
 import { paypalClient, paypal } from "@/lib/paypal";
 import { prisma } from "@/lib/prisma";
@@ -95,6 +96,9 @@ export async function POST(request: Request) {
     });
 
     console.log("[PayPal Capture Bulk] Updated", updateResult.count, "payments");
+
+    // Any of those payments may have been a hotspot gate.
+    await settleHotspotsForPayments(paymentIds);
 
     return NextResponse.json({
       message: "Payments successful",

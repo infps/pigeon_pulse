@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { ObsSourceField } from "@/components/obs-source-field";
 import {
   Select,
   SelectContent,
@@ -72,6 +73,9 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
     isClosed: 0 as number,
     isPrivate: false,
     season: "",
+    youtubeUrl: "",
+    facebookStreamUrl: "",
+    facebookPageUrl: "",
   });
 
   if (isPending) {
@@ -243,6 +247,9 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
         isClosed: formData.isClosed,
         isPrivate: formData.isPrivate,
         season: formData.season || undefined,
+        youtubeUrl: formData.youtubeUrl || undefined,
+        facebookStreamUrl: formData.facebookStreamUrl || undefined,
+        facebookPageUrl: formData.facebookPageUrl || undefined,
       });
 
       toast.success("Race created successfully");
@@ -267,6 +274,9 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
         isClosed: 0,
         isPrivate: false,
         season: "",
+        youtubeUrl: "",
+        facebookStreamUrl: "",
+        facebookPageUrl: "",
       });
     } catch (error) {
       toast.error("Failed to create race");
@@ -290,6 +300,9 @@ function toDateTimeLocal(iso: string) {
       description: race.description || "",
       distance: race.distance?.toString() ?? "",
       location: race.location || "",
+      youtubeUrl: race.youtubeUrl || "",
+      facebookStreamUrl: race.facebookStreamUrl || "",
+      facebookPageUrl: race.facebookPageUrl || "",
       startTime: race.startTime ? toDateTimeLocal(race.startTime) : "",
       sunrise: sunriseTime ? sunriseTime.toTimeString().slice(0, 5) : "",
       sunset: sunsetTime ? sunsetTime.toTimeString().slice(0, 5) : "",
@@ -361,6 +374,9 @@ function toDateTimeLocal(iso: string) {
         isClosed: formData.isClosed,
         isPrivate: formData.isPrivate,
         season: formData.season || undefined,
+        youtubeUrl: formData.youtubeUrl || undefined,
+        facebookStreamUrl: formData.facebookStreamUrl || undefined,
+        facebookPageUrl: formData.facebookPageUrl || undefined,
       });
 
       toast.success("Race updated successfully");
@@ -385,6 +401,9 @@ function toDateTimeLocal(iso: string) {
         isClosed: 0,
         isPrivate: false,
         season: "",
+        youtubeUrl: "",
+        facebookStreamUrl: "",
+        facebookPageUrl: "",
       });
     } catch (error) {
       toast.error("Failed to update race");
@@ -432,6 +451,9 @@ function toDateTimeLocal(iso: string) {
             isClosed: 0,
             isPrivate: false,
             season: "",
+            youtubeUrl: "",
+            facebookStreamUrl: "",
+            facebookPageUrl: "",
           });
           setIsDialogOpen(true);
         }}>
@@ -510,6 +532,54 @@ function toDateTimeLocal(iso: string) {
                     required
                   />
                 </div>
+
+                {/* Streaming. Two Facebook fields because the embeddable video
+                    URL and the page a viewer should be sent to are not the same
+                    link, and using one for both silently breaks whichever is
+                    wrong. */}
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="youtubeUrl">YouTube URL</Label>
+                  <Input
+                    id="youtubeUrl"
+                    value={formData.youtubeUrl}
+                    placeholder="https://youtube.com/live/…"
+                    onChange={(e) =>
+                      setFormData({ ...formData, youtubeUrl: e.target.value })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="facebookStreamUrl">Facebook video URL</Label>
+                  <Input
+                    id="facebookStreamUrl"
+                    value={formData.facebookStreamUrl}
+                    placeholder="https://facebook.com/…/videos/…"
+                    onChange={(e) =>
+                      setFormData({ ...formData, facebookStreamUrl: e.target.value })
+                    }
+                  />
+                  <p className="text-muted-foreground text-xs">
+                    The post itself. Used to embed the player.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="facebookPageUrl">Facebook page URL</Label>
+                  <Input
+                    id="facebookPageUrl"
+                    value={formData.facebookPageUrl}
+                    placeholder="https://facebook.com/yourpage"
+                    onChange={(e) =>
+                      setFormData({ ...formData, facebookPageUrl: e.target.value })
+                    }
+                  />
+                  <p className="text-muted-foreground text-xs">
+                    Where the &ldquo;Watch on Facebook&rdquo; link goes.
+                  </p>
+                </div>
+
+                {editingRace ? <ObsSourceField raceId={editingRace.id} /> : null}
                 <div className="space-y-2">
                   <Label htmlFor="launchStation">Launch Station</Label>
                   <Select
@@ -854,6 +924,9 @@ function toDateTimeLocal(iso: string) {
                     isClosed: 0,
                     isPrivate: false,
                     season: "",
+                    youtubeUrl: "",
+                    facebookStreamUrl: "",
+                    facebookPageUrl: "",
                   });
                 }}
               >

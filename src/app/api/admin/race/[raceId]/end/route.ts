@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { clearRaceFeeForLostBirds, writeRaceFeeForBasketedBird } from "@/lib/race-fees";
 import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { presetIdFor } from "@/lib/birdStatus";
@@ -72,6 +73,7 @@ export async function POST(
           select: {
             id: true,
             isLost: true,
+            inventoryItemId: true,
             inventoryItem: { select: { birdId: true } },
             result: { select: { arrivalTime: true } },
           },
@@ -81,6 +83,10 @@ export async function POST(
         const toRecover: number[] = [];
         const birdsToLose: number[] = [];
         const birdsToRecover: number[] = [];
+        // Registrations behind the lost and recovered birds, so their race fee
+        // can follow the bird rather than outliving it.
+        const itemsToLose: number[] = [];
+        const itemsToRecover: number[] = [];
 
         for (const item of items) {
           const arrived = item.result?.arrivalTime != null;
@@ -90,9 +96,11 @@ export async function POST(
           if (!isLost && !arrived) {
             toLose.push(item.id);
             if (birdId != null) birdsToLose.push(birdId);
+            if (item.inventoryItemId != null) itemsToLose.push(item.inventoryItemId);
           } else if (isLost && arrived) {
             toRecover.push(item.id);
             if (birdId != null) birdsToRecover.push(birdId);
+            if (item.inventoryItemId != null) itemsToRecover.push(item.inventoryItemId);
           }
         }
 
@@ -134,7 +142,20 @@ export async function POST(
           });
         }
 
-        return { updatedRace, lostCount: toLose.length, recoveredCount: toRecover.length };
+        // A lost bird stops owing for races it will not fly. A recovered one
+        // starts owing again — running the close twice must correct an earlier
+        // mistake in both directions, not just one.
+        const feesCleared = await clearRaceFeeForLostBirds(tx, itemsToLose);
+        for (const itemId of itemsToRecover) {
+          await writeRaceFeeForBasketedBird(tx, race.seasonId!, itemId);
+        }
+
+        return {
+          updatedRace,
+          lostCount: toLose.length,
+          recoveredCount: toRecover.length,
+          feesCleared,
+        };
       },
       { maxWait: 20000, timeout: 180000 }
     );

@@ -380,6 +380,9 @@ export interface Race {
   transportStartedAt?: string | null;
   transportEndedAt?: string | null;
   youtubeUrl?: string | null;
+  /** Embeddable Facebook video URL, and the page to send viewers to. */
+  facebookStreamUrl?: string | null;
+  facebookPageUrl?: string | null;
   raceStationId: number | null;
   event?: Event;
   raceType?: RaceType;

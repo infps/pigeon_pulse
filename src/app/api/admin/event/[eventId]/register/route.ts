@@ -221,9 +221,6 @@ export async function POST(
         });
 
         // Update each inventory item with per-bird fees
-        const raceFeePerBird = validatedData.reservedBirds > 0
-          ? fees.raceFees / validatedData.reservedBirds
-          : 0;
 
         for (let i = 0; i < inventoryItems.length; i++) {
           const birdBreakdown = fees.perBirdBreakdown[i];
@@ -233,7 +230,14 @@ export async function POST(
               entryFeeValue: i === 0 ? fees.purgeFee : 0, // purge fee on first bird only
               perchFeeValue: birdBreakdown?.perchFee ?? 0,
               hotSpotFeeValue: birdBreakdown?.hotspotFee ?? 0,
-              raceFeeValue: raceFeePerBird,
+              hotSpot1FeeValue: birdBreakdown?.hotspot1Fee ?? 0,
+              hotSpot2FeeValue: birdBreakdown?.hotspot2Fee ?? 0,
+              hotSpot3FeeValue: birdBreakdown?.hotspot3Fee ?? 0,
+              hotSpotFinalFeeValue: birdBreakdown?.hotspotFinalFee ?? 0,
+              // Zero until the bird is actually basketed. A bird that never
+              // leaves the loft never flies a race and must not be billed for
+              // one; scan-loft writes the real figure when it goes in.
+              raceFeeValue: 0,
             },
           });
         }

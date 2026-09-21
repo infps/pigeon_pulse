@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { settleHotspotsForPayments } from "@/lib/hotspot-settle";
 import { paypalClient, paypal } from "@/lib/paypal";
 import { prisma } from "@/lib/prisma";
 import { PaymentStatus } from "@/generated/prisma/enums";
@@ -64,9 +65,16 @@ export async function POST(request: Request) {
           transactionId: capture.id,
           paymentDate: new Date(),
           paymentTimestamp: new Date(),
-          paymentDesc: `PayPal: ${captureData.id}`,
+          // The reference is appended rather than substituted: overwriting it
+          // threw away whatever the payment was raised for.
+          paymentDesc: pendingPayment.paymentDesc
+            ? `${pendingPayment.paymentDesc} · PayPal: ${captureData.id}`
+            : `PayPal: ${captureData.id}`,
         },
       });
+
+      // A captured hotspot payment settles the obligation for the season.
+      await settleHotspotsForPayments([pendingPayment.id]);
     } else {
       // Create new payment record (fallback)
       await prisma.payment.create({
