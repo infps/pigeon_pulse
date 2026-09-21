@@ -3,18 +3,17 @@
 Everything done in this session, across both repositories. Written for a
 developer picking this up cold.
 
-**Everything is committed. Neither branch has been pushed yet** — the work is
-local only, so it needs a `git push` from a machine with repo credentials
-before anyone else can see it.
+**Both branches are pushed and in sync with their remotes. Nothing is
+uncommitted.**
 
-| Repo | Branch | Local head | On remote | This session's changes |
-|---|---|---|---|---|
-| `infps/pigeon_pulse` | `Roger-8-portal-parity` | `d064ad1` | **branch does not exist there** | 36 files, +12,908 / −483 |
-| `infps/agn-mobile` | `Roger-mobile-apps` | `e63fc85` | `f7bf939` — **3 commits behind** | 50 files, +7,741 / −380 |
+| Repo | Branch | This session's changes |
+|---|---|---|
+| `infps/pigeon_pulse` | `Roger-8-portal-parity` | 36 files, +12,908 / −483 |
+| `infps/agn-mobile` | `Roger-mobile-apps` | 50 files, +7,741 / −380 |
 
-`main` was not touched in either repo. Note that the portal branch carries
-earlier work as well — it sits **31 commits ahead of `main`**, so the first
-push publishes all of it, not just this session's six.
+`main` was not touched in either repo. The portal branch carries earlier work
+as well — it is **31 commits ahead of `main`**, so a review of the branch
+against `main` shows more than this session.
 
 ---
 
