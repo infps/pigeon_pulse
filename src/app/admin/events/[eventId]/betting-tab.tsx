@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -92,6 +93,33 @@ function AdminPlaceBetsSection({ raceId }: { raceId: string }) {
   const [selectedBreeder, setSelectedBreeder] = useState<string>("");
   const [cart, setCart] = useState<Map<CartKey, Selection>>(new Map());
 
+  // Searches over the bird × pool matrix.
+  const [birdSearch, setBirdSearch] = useState("");
+  const [ownerSearch, setOwnerSearch] = useState("");
+  // Search over the "breeder paying cash" list (all users/bettors).
+  const [payerSearch, setPayerSearch] = useState("");
+
+  const visibleBirds = useMemo(() => {
+    const b = birdSearch.trim().toLowerCase();
+    const o = ownerSearch.trim().toLowerCase();
+    return birds.filter(
+      (bird) =>
+        (!b || (bird.band ?? "").toLowerCase().includes(b)) &&
+        (!o || (bird.ownerName ?? "").toLowerCase().includes(o))
+    );
+  }, [birds, birdSearch, ownerSearch]);
+
+  const visiblePayers = useMemo(() => {
+    const q = payerSearch.trim().toLowerCase();
+    if (!q) return breeders;
+    return breeders.filter((b) => b.name.toLowerCase().includes(q));
+  }, [breeders, payerSearch]);
+
+  const selectedPayerName = useMemo(
+    () => breeders.find((b) => b.userId === selectedBreeder)?.name ?? "",
+    [breeders, selectedBreeder]
+  );
+
   const cartTotal = useMemo(() => Array.from(cart.values()).reduce((s, v) => s + v.amount, 0), [cart]);
   const cartSelections = useMemo(() => Array.from(cart.values()), [cart]);
 
@@ -140,6 +168,22 @@ function AdminPlaceBetsSection({ raceId }: { raceId: string }) {
 
   return (
     <div className="space-y-4">
+      {/* Searches over the bird matrix */}
+      <div className="flex flex-wrap gap-3">
+        <Input
+          className="w-56"
+          placeholder="Search bird band…"
+          value={birdSearch}
+          onChange={(e) => setBirdSearch(e.target.value)}
+        />
+        <Input
+          className="w-56"
+          placeholder="Search bird owner…"
+          value={ownerSearch}
+          onChange={(e) => setOwnerSearch(e.target.value)}
+        />
+      </div>
+
       {/* Bird × pool matrix — ALL birds (open pool). Select bets first. */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
@@ -156,7 +200,14 @@ function AdminPlaceBetsSection({ raceId }: { raceId: string }) {
             </tr>
           </thead>
           <tbody>
-            {birds.map((bird) => (
+            {visibleBirds.length === 0 && (
+              <tr>
+                <td colSpan={2 + pools.length} className="p-3 text-center text-muted-foreground">
+                  No birds match your search.
+                </td>
+              </tr>
+            )}
+            {visibleBirds.map((bird) => (
               <tr key={bird.raceItemId} className="border-b hover:bg-muted/40">
                 <td className="p-2 font-medium">{bird.band ?? "-"}</td>
                 <td className="p-2 text-muted-foreground">{bird.ownerName ?? "-"}</td>
@@ -208,16 +259,40 @@ function AdminPlaceBetsSection({ raceId }: { raceId: string }) {
           <div className="flex flex-wrap items-end gap-3">
             <div className="w-72">
               <label className="text-sm font-medium mb-1 block">Breeder paying cash</label>
-              <Select value={selectedBreeder} onValueChange={setSelectedBreeder}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select breeder" />
-                </SelectTrigger>
-                <SelectContent>
-                  {breeders.map((b) => (
-                    <SelectItem key={b.userId} value={b.userId}>{b.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {selectedBreeder ? (
+                <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                  <span className="text-sm truncate flex-1">{selectedPayerName}</span>
+                  <Button variant="ghost" size="sm" className="h-6 px-2"
+                    onClick={() => { setSelectedBreeder(""); setPayerSearch(""); }}>
+                    Change
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <Input
+                    placeholder="Search breeder / bettor…"
+                    value={payerSearch}
+                    onChange={(e) => setPayerSearch(e.target.value)}
+                  />
+                  {payerSearch.trim() && (
+                    <div className="mt-1 max-h-48 overflow-y-auto rounded-md border">
+                      {visiblePayers.length === 0 && (
+                        <p className="p-2 text-sm text-muted-foreground">No match.</p>
+                      )}
+                      {visiblePayers.map((b) => (
+                        <button
+                          key={b.userId}
+                          type="button"
+                          className="block w-full text-left px-3 py-1.5 text-sm hover:bg-muted"
+                          onClick={() => { setSelectedBreeder(b.userId); setPayerSearch(""); }}
+                        >
+                          {b.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
             <Button onClick={handleCashRegister} disabled={!selectedBreeder || placeCash.isPending}>
               {placeCash.isPending ? "Registering…" : `Register Cash Payment — $${cartTotal.toFixed(2)}`}
