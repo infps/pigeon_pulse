@@ -42,7 +42,8 @@ export async function POST(
     const body = await request.json();
     const preview = body.preview === true;
     const mode: "shuffle" | "assign" = body.mode === "assign" ? "assign" : "shuffle";
-    const raceId = body.raceId ? parseInt(body.raceId) : undefined;
+    // body.raceId is accepted and ignored. This route assigns LOFT baskets,
+    // which belong to the season rather than to a race — see below.
 
     // body.seasonId takes precedence over query param
     if (body.seasonId) seasonId = parseInt(body.seasonId);
@@ -129,12 +130,22 @@ export async function POST(
     }
     const groups: BreederGroup[] = [...groupMap.values()];
 
-    // 4. Fetch LOFT baskets scoped to season (+ raceId if provided)
+    // 4. Fetch LOFT baskets — scoped to the season, and only the season.
+    //
+    // A loft basket is never tied to a race: the create route forces
+    // `raceId: phase === "RACE" ? raceId : null`, so every LOFT row has a null
+    // raceId. Filtering these by a raceId was therefore unsatisfiable — it
+    // could only ever return zero rows, and did, because the basket panel
+    // auto-selects the first race on mount and sends it every time. The result
+    // was "No loft baskets found" on events whose baskets plainly existed.
+    //
+    // The list endpoint already has this right: it applies the raceId filter
+    // only when phase is RACE. That asymmetry is why the baskets were visible
+    // but unassignable. Race baskets are assigned by assign-race instead.
     const eventBaskets = await prisma.eventBasket.findMany({
       where: {
         seasonId,
         phase: "LOFT",
-        ...(raceId ? { raceId } : {}),
       },
       include: { _count: { select: { assignments: true } } },
       orderBy: { basketNo: "asc" },
