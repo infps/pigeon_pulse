@@ -78,24 +78,6 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
     facebookPageUrl: "",
   });
 
-  if (isPending) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="text-center py-12 text-red-500">
-        <p>Error loading races</p>
-      </div>
-    );
-  }
-
   const races: Race[] = data?.races || [];
   const raceTypes = raceTypesData?.raceTypes || [];
 
@@ -423,6 +405,24 @@ function toDateTimeLocal(iso: string) {
       console.error("Error deleting race:", error);
     }
   };
+
+  if (isPending) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12 text-red-500">
+        <p>Error loading races</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

@@ -44,6 +44,9 @@ export async function POST(
     const mode: "shuffle" | "assign" = body.mode === "assign" ? "assign" : "shuffle";
     const raceId = body.raceId ? parseInt(body.raceId) : undefined;
 
+    // body.seasonId takes precedence over query param
+    if (body.seasonId) seasonId = parseInt(body.seasonId);
+
     // 1. Fetch birds for this season
     const candidates = await prisma.eventInventoryItem.findMany({
       where: {

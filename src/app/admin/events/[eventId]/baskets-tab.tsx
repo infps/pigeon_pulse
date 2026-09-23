@@ -231,7 +231,8 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
   const handlePreviewAssign = async (mode: "shuffle" | "assign") => {
     try {
       const raceIdPayload = selectedRaceId ? { raceId: parseInt(selectedRaceId) } : {};
-      const res = await assignMutation.mutateAsync({ preview: true, mode, ...raceIdPayload });
+      const seasonPayload = selectedSeasonId ? { seasonId: selectedSeasonId } : {};
+      const res = await assignMutation.mutateAsync({ preview: true, mode, ...raceIdPayload, ...seasonPayload });
       const result = (res as { data?: unknown })?.data || res;
       const r = result as { assigned?: AssignPreviewItem[]; unassigned?: UnassignedItem[]; summary?: AssignSummary; message?: string };
       if (!r?.assigned?.length && !r?.unassigned?.length) {
@@ -250,7 +251,8 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
   const handleConfirmAssign = async () => {
     try {
       const raceIdPayload = selectedRaceId ? { raceId: parseInt(selectedRaceId) } : {};
-      await assignMutation.mutateAsync({ preview: false, mode: assignMode ?? "shuffle", ...raceIdPayload });
+      const seasonPayload = selectedSeasonId ? { seasonId: selectedSeasonId } : {};
+      await assignMutation.mutateAsync({ preview: false, mode: assignMode ?? "shuffle", ...raceIdPayload, ...seasonPayload });
       toast.success("Birds assigned to baskets");
       setAssignPreview(null);
       setAssignUnassigned([]);

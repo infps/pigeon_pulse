@@ -8,6 +8,7 @@ import {
   CreditCard,
   Database,
   FileText,
+  HelpCircle,
   Home,
   LogOut,
   Megaphone,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import { SettingsDialog } from "@/components/settings-dialog"
+import { HelpDialog } from "@/components/help-dialog"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -139,6 +141,7 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const router = useRouter()
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
   // Menus are filtered by permission as well as role, so an admin who has had a
   // module revoked stops seeing the door to it rather than finding it locked.
   const { can, isPending: permissionsLoading } = usePermissions()
@@ -208,6 +211,21 @@ export function AppSidebar({
             </SidebarGroup>
           </>
         )}
+
+        {/* Help — always available */}
+        <SidebarSeparator />
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={() => setHelpOpen(true)}>
+                  <HelpCircle />
+                  <span>Help & Guide</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
 
       {/* User Profile Footer */}
@@ -272,6 +290,7 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarFooter>
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
     </Sidebar>
   )
 }

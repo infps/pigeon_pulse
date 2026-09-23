@@ -732,6 +732,7 @@ model Season {
   calcuttaConfig    CalcuttaConfig?
   calcuttaBetGroups CalcuttaBetGroup[]
   birdImages        BirdImage[]
+  birdNotes         BirdNote[]
   averageConfigs    AverageConfig[]
   notifications     Notification[]
   tournaments       Tournament[]
@@ -1047,6 +1048,7 @@ model Bird {
   rfidScans      RfidScan[]
   phantomBirds   RacePhantomBird[]
   birdImages     BirdImage[]
+  birdNotes      BirdNote[]
 
   @@map("Birds")
 }
@@ -1065,6 +1067,25 @@ model BirdImage {
 
   @@index([birdId, seasonId, type])
   @@map("BirdImages")
+}
+
+// Freeform note timeline per bird per season. Append-only from the UI: each
+// entry is one note someone left, kept so the dialog can show the full history
+// instead of overwriting a single field.
+model BirdNote {
+  id         Int      @id @default(autoincrement())
+  birdId     Int      @map("BIRD_ID")
+  seasonId   Int      @map("SEASON_ID")
+  text       String   @map("TEXT")
+  authorId   String?  @map("AUTHOR_ID")
+  authorName String?  @map("AUTHOR_NAME")
+  createdAt  DateTime @default(now()) @map("CREATED_AT")
+
+  bird   Bird   @relation(fields: [birdId], references: [id], onDelete: Cascade)
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@index([birdId, seasonId])
+  @@map("BirdNotes")
 }
 
 model AverageConfig {
