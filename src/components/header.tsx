@@ -57,6 +57,9 @@ export function Header() {
           </Link>
           {session?.user && (
             <nav className="hidden md:flex items-center gap-1">
+              <Link href="/events">
+                <Button variant="ghost" size="sm">Events</Button>
+              </Link>
               <Link href="/birds">
                 <Button variant="ghost" size="sm">Birds</Button>
               </Link>

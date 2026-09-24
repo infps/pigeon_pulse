@@ -1485,6 +1485,9 @@ enum NotificationKind {
   EVENT_MESSAGE
   BIRD_LOST
   STORE_LISTING
+  RACE_REMINDER
+  BET_PROMPT
+  PAYMENT_RISK
 }
 
 model Notification {

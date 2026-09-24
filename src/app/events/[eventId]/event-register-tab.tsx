@@ -35,6 +35,50 @@ import { useSettings } from "@/lib/settings-context";
 import { Checkbox } from "@/components/ui/checkbox";
 import { schemePools, poolKey, type BetCategory } from "@/lib/betting-pools";
 
+// Register with paymentIntent=CASH — breeders pay later via /payments page.
+function CashRegisterButton({
+  eventId, loftName, reservedBirds, birdIds, bets, disabled, onDone,
+}: {
+  eventId: string; loftName: string; reservedBirds: number; birdIds: number[];
+  bets: { birdId: number; pools: { category: BetCategory; tierIndex: number }[] }[];
+  disabled?: boolean; onDone?: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  const handle = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/breeder/event/${eventId}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          loftName, reservedBirds,
+          birds: birdIds.map((id) => ({ birdId: id })),
+          bets,
+          paymentIntent: "CASH",
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.message || "Registration failed");
+      toast.success("Registered. Pay via Payments page when ready.");
+      onDone?.();
+      router.push("/payments");
+    } catch (err: any) {
+      toast.error(err?.message || "Registration failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button variant="outline" disabled={disabled || loading} onClick={handle}>
+      {loading ? "Registering…" : "Register & Pay Later"}
+    </Button>
+  );
+}
+
 interface EventRegisterTabProps {
   event: Event;
   eventId: string;
@@ -532,7 +576,16 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
 
             {/* Submit */}
             {reservedBirds > 0 && (
-              <div className="flex justify-end">
+              <div className="flex flex-col sm:flex-row justify-end gap-2">
+                <CashRegisterButton
+                  eventId={eventId}
+                  loftName={selectedLoft}
+                  reservedBirds={reservedBirds}
+                  birdIds={selectedBirds.map((b) => b.id)}
+                  bets={betsPayload}
+                  disabled={!canSubmit}
+                  onDone={resetForm}
+                />
                 <PayPalButton
                   eventId={eventId}
                   loftName={selectedLoft}

@@ -24,6 +24,11 @@ export async function GET() {
         items: {
           include: {
             bird: true,
+            basketAssignments: {
+              select: {
+                eventBasket: { select: { phase: true, label: true } },
+              },
+            },
           },
         },
       },

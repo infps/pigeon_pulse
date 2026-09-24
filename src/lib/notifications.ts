@@ -235,6 +235,67 @@ export async function notifyPaymentDue(
   );
 }
 
+/** Race is tomorrow — remind every enrolled breeder. */
+export async function notifyRaceUpcoming(raceId: number): Promise<number> {
+  const [{ name, seasonId }, userIds] = await Promise.all([raceLabel(raceId), usersInRace(raceId)]);
+  return notifySafely(
+    userIds.map((userId) => ({
+      userId,
+      kind: "RACE_REMINDER" as const,
+      title: `${name} is tomorrow`,
+      body: `Make sure your birds are ready. The race starts tomorrow.`,
+      link: `/races/${raceId}`,
+      seasonId,
+      raceId,
+    }))
+  );
+}
+
+/** Betting is open and race is tomorrow — prompt breeders who haven't bet yet. */
+export async function notifyBetPrompt(raceId: number, unbettedUserIds: string[]): Promise<number> {
+  if (unbettedUserIds.length === 0) return 0;
+  const { name, seasonId } = await raceLabel(raceId);
+  return notifySafely(
+    unbettedUserIds.map((userId) => ({
+      userId,
+      kind: "BET_PROMPT" as const,
+      title: `Place your bet on ${name}`,
+      body: `Betting is open and the race is tomorrow. Don't miss your chance.`,
+      link: `/races/${raceId}`,
+      seasonId,
+      raceId,
+    }))
+  );
+}
+
+/** Breeder has unpaid fees and is at risk of defaulting before an upcoming race. */
+export async function notifyPaymentRisk(
+  breederIds: number[],
+  seasonId: number,
+  raceId: number | null,
+  raceName: string,
+  eventId: number | null
+): Promise<number> {
+  if (breederIds.length === 0) return 0;
+  const breeders = await prisma.breeder.findMany({
+    where: { id: { in: breederIds }, userId: { not: null } },
+    select: { userId: true },
+  });
+  return notifySafely(
+    breeders
+      .filter((b): b is { userId: string } => b.userId != null)
+      .map((b) => ({
+        userId: b.userId,
+        kind: "PAYMENT_RISK" as const,
+        title: `Risk of defaulting before ${raceName}`,
+        body: `You have outstanding payments. Birds with unpaid fees may be listed in the store.`,
+        link: eventId != null ? `/events/${eventId}` : "/payments",
+        seasonId,
+        raceId,
+      }))
+  );
+}
+
 /** Defaulter birds have been listed in the event store. */
 export async function notifyStoreListing(
   seasonId: number,

@@ -84,7 +84,7 @@ export async function GET(request: Request) {
                   select: { vaccinations: { select: { id: true } } },
                 },
                 basketAssignments: {
-                  select: { eventBasket: { select: { phase: true } } },
+                  select: { eventBasket: { select: { phase: true, label: true } } },
                 },
                 raceItems: {
                   select: {
@@ -112,6 +112,7 @@ export async function GET(request: Request) {
       position: number | null;
       vaccinated: boolean;
       eventId: number | null;
+      basketLabel: string | null;
     };
     const statsByTeam = new Map<
       number,
@@ -139,6 +140,10 @@ export async function GET(request: Request) {
         const hasRaceBasket = item.basketAssignments.some(
           (a) => a.eventBasket.phase === "RACE"
         );
+        const basketLabel =
+          item.basketAssignments.find((a) => a.eventBasket.phase === "LOFT")?.eventBasket.label ??
+          item.basketAssignments.find((a) => a.eventBasket.phase === "RACE")?.eventBasket.label ??
+          null;
         let bestStatus: string | null = null;
         let bestPriority = 0;
         let position: number | null = null;
@@ -166,9 +171,9 @@ export async function GET(request: Request) {
             [b.band1, b.band2, b.band3, b.band4].filter(Boolean).join("-") ||
             "No band";
           const sex = b.sex === 1 ? "Cock" : b.sex === 2 ? "Hen" : null;
-          stat.birds.push({ id: b.id, band, name: b.birdName, note: b.note ?? null, color: b.color ?? null, sex, status: effectiveStatus, position, vaccinated, eventId });
+          stat.birds.push({ id: b.id, band, name: b.birdName, note: b.note ?? null, color: b.color ?? null, sex, status: effectiveStatus, position, vaccinated, eventId, basketLabel });
         } else if (item.birdId != null) {
-          stat.birds.push({ id: item.birdId, band: "No band", name: null, note: null, color: null, sex: null, status: effectiveStatus, position, vaccinated, eventId });
+          stat.birds.push({ id: item.birdId, band: "No band", name: null, note: null, color: null, sex: null, status: effectiveStatus, position, vaccinated, eventId, basketLabel });
         }
       }
       statsByTeam.set(inv.teamId, stat);
