@@ -46,45 +46,47 @@ export async function GET(
       return NextResponse.json({ message: "Race not found" }, { status: 404 });
     }
 
-    const items = await prisma.raceItem.findMany({
-      where: { raceId, result: { arrivalTime: { not: null } } },
-      select: {
-        id: true,
-        result: { select: { birdPosition: true, arrivalTime: true } },
-        inventoryItem: {
-          select: {
-            bird: {
-              select: {
-                band: true,
-                birdName: true,
-                breeder: {
-                  select: {
-                    firstName: true,
-                    lastName: true,
-                    country: true,
-                    user: { select: { loftName: true, image: true } },
-                  },
+    const itemSelect = {
+      id: true,
+      status: true,
+      result: { select: { birdPosition: true, arrivalTime: true } },
+      inventoryItem: {
+        select: {
+          bird: {
+            select: {
+              band: true,
+              birdName: true,
+              breeder: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                  country: true,
+                  user: { select: { loftName: true, image: true } },
                 },
               },
             },
           },
         },
       },
+    } as const;
+
+    const items = await prisma.raceItem.findMany({
+      where: { raceId },
+      select: itemSelect,
     });
 
-    const arrived = items
-      .filter((i) => i.result?.birdPosition != null)
-      .sort(
-        (a, b) => (a.result!.birdPosition as number) - (b.result!.birdPosition as number)
-      );
-
     const startMs = race.startTime ? new Date(race.startTime).getTime() : null;
-    const leaderMs = arrived[0]?.result?.arrivalTime
-      ? new Date(arrived[0].result.arrivalTime).getTime()
-      : null;
     const distanceYards = (race.distance ?? 0) * 1760;
 
-    const arrivals = arrived.map((item) => {
+    const arrivedItems = items
+      .filter((i) => i.result?.birdPosition != null)
+      .sort((a, b) => (a.result!.birdPosition as number) - (b.result!.birdPosition as number));
+
+    const leaderMs = arrivedItems[0]?.result?.arrivalTime
+      ? new Date(arrivedItems[0].result.arrivalTime).getTime()
+      : null;
+
+    const toEntry = (item: typeof items[number], rank: number | null) => {
       const arrivalMs = item.result?.arrivalTime
         ? new Date(item.result.arrivalTime).getTime()
         : null;
@@ -103,7 +105,8 @@ export async function GET(
 
       return {
         id: item.id,
-        rank: item.result?.birdPosition ?? null,
+        rank,
+        status: item.status,
         band: item.inventoryItem?.bird?.band ?? "",
         birdName: item.inventoryItem?.bird?.birdName ?? null,
         loftName,
@@ -111,10 +114,30 @@ export async function GET(
         countryCode: breeder?.country ?? null,
         arrivalTime: item.result?.arrivalTime ?? null,
         ypm,
-        // Behind the leader, which is the number a commentator says out loud.
         gapMs: arrivalMs && leaderMs ? arrivalMs - leaderMs : null,
       };
-    });
+    };
+
+    const arrivals = arrivedItems.map((item) => toEntry(item, item.result!.birdPosition as number));
+
+    // Non-finishers appended after ranked arrivals — shown dimmed in the overlay.
+    const nonFinished = items
+      .filter((i) => i.result?.birdPosition == null)
+      .filter((i) => ["FOREIGN_BIRD", "STRAY", "LOST"].includes(i.status))
+      .map((item) => toEntry(item, null));
+
+    const allEntries = [...arrivals, ...nonFinished];
+
+    // latestId = the most recently arrived bird by arrivalTime, not by rank.
+    // Using rank-order last would flash the slowest finisher every poll cycle.
+    let latestId: number | null = null;
+    let latestMs = -Infinity;
+    for (const a of arrivals) {
+      if (a.arrivalTime) {
+        const t = new Date(a.arrivalTime).getTime();
+        if (t > latestMs) { latestMs = t; latestId = a.id; }
+      }
+    }
 
     return NextResponse.json({
       race: {
@@ -127,10 +150,9 @@ export async function GET(
         eventName: race.seasonRel?.event?.name ?? null,
         eventLogo: race.seasonRel?.event?.logoImage ?? null,
       },
-      arrivals,
-      // The overlay uses this to notice a new bird without diffing the list.
-      latestId: arrivals.length > 0 ? arrivals[arrivals.length - 1].id : null,
-      count: arrivals.length,
+      arrivals: allEntries,
+      latestId,
+      count: arrivals.length, // only ranked finishers count
     });
   } catch (error) {
     console.error("Failed to build race overlay data:", error);

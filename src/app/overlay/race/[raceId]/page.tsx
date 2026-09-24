@@ -5,6 +5,7 @@ import { use, useEffect, useRef, useState } from "react";
 interface Arrival {
   id: number;
   rank: number | null;
+  status: string;
   band: string;
   birdName: string | null;
   loftName: string;
@@ -13,6 +14,7 @@ interface Arrival {
   arrivalTime: string | null;
   ypm: number | null;
   gapMs: number | null;
+  prevRank?: number | null; // client-computed, not from API
 }
 
 interface OverlayData {
@@ -82,6 +84,8 @@ export default function RaceOverlay({
   const [flash, setFlash] = useState<Arrival | null>(null);
   const lastSeen = useRef<number | null>(null);
   const firstLoad = useRef(true);
+  // ponytail: prev rank map keyed by arrival id, updated each poll
+  const prevRankMap = useRef<Map<number, number>>(new Map());
 
   useEffect(() => {
     let cancelled = false;
@@ -94,6 +98,14 @@ export default function RaceOverlay({
         });
         if (res.ok && !cancelled) {
           const next: OverlayData = await res.json();
+          // Annotate each arrival with its previous rank before updating the map
+          next.arrivals = next.arrivals.map((a) => ({
+            ...a,
+            prevRank: prevRankMap.current.get(a.id) ?? null,
+          }));
+          next.arrivals.forEach((a) => {
+            if (a.rank != null) prevRankMap.current.set(a.id, a.rank);
+          });
           setData(next);
 
           // A bird that arrived while the overlay was already running gets the
@@ -129,8 +141,10 @@ export default function RaceOverlay({
 
   if (!data) return null;
 
-  const top = data.arrivals.slice(0, 10);
-  const rest = data.arrivals.slice(10, 30);
+  const ranked = data.arrivals.filter((a) => a.rank != null);
+  const nonFinished = data.arrivals.filter((a) => a.rank == null);
+  const top = ranked.slice(0, 10);
+  const rest = ranked.slice(10, 28);
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100vh", overflow: "hidden" }}>
@@ -170,7 +184,16 @@ export default function RaceOverlay({
           {rest.map((a) => (
             <Row key={a.id} a={a} />
           ))}
-          {data.arrivals.length === 0 && (
+          {/* Non-finishers: foreign / stray / lost at the bottom */}
+          {nonFinished.length > 0 && (
+            <>
+              <div style={{ height: 1, background: "rgba(255,100,100,0.25)", margin: "8px 14px" }} />
+              {nonFinished.map((a) => (
+                <Row key={a.id} a={a} nonFinish />
+              ))}
+            </>
+          )}
+          {ranked.length === 0 && nonFinished.length === 0 && (
             <div style={{ padding: 20, opacity: 0.5, fontSize: 13 }}>No birds home yet.</div>
           )}
         </div>
@@ -232,8 +255,8 @@ export default function RaceOverlay({
         </div>
       )}
 
-      {/* BOTTOM — the ticker */}
-      {data.arrivals.length > 0 && (
+      {/* BOTTOM — the ticker (ranked birds only) */}
+      {ranked.length > 0 && (
         <div
           style={{
             position: "absolute",
@@ -254,14 +277,12 @@ export default function RaceOverlay({
             style={{
               display: "inline-flex",
               whiteSpace: "nowrap",
-              // Duration scales with the list so a long field does not become a
-              // blur and a short one does not crawl.
-              animation: `overlayTicker ${Math.max(28, data.arrivals.length * 3.2)}s linear infinite`,
+              animation: `overlayTicker ${Math.max(28, ranked.length * 3.2)}s linear infinite`,
             }}
           >
             {[0, 1].map((copy) => (
               <span key={copy} style={{ display: "inline-flex" }}>
-                {data.arrivals.map((a) => (
+                {ranked.map((a) => (
                   <span
                     key={`${copy}-${a.id}`}
                     style={{ padding: "0 26px", fontSize: 15, opacity: 0.92 }}
@@ -294,7 +315,30 @@ export default function RaceOverlay({
   );
 }
 
-function Row({ a, bright = false }: { a: Arrival; bright?: boolean }) {
+function rankDiff(rank: number | null | undefined, prevRank: number | null | undefined) {
+  if (rank == null || prevRank == null) return null;
+  const diff = prevRank - rank; // positive = moved up
+  if (diff === 0) return { label: "–", color: "rgba(255,255,255,0.4)" };
+  if (diff > 0) return { label: `▲${diff}`, color: "#4ade80" };
+  return { label: `▼${Math.abs(diff)}`, color: "#f87171" };
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  FOREIGN_BIRD: "FOREIGN",
+  STRAY: "STRAY",
+  LOST: "LOST",
+};
+
+function Row({
+  a,
+  bright = false,
+  nonFinish = false,
+}: {
+  a: Arrival;
+  bright?: boolean;
+  nonFinish?: boolean;
+}) {
+  const diff = rankDiff(a.rank, a.prevRank);
   return (
     <div
       style={{
@@ -302,21 +346,36 @@ function Row({ a, bright = false }: { a: Arrival; bright?: boolean }) {
         alignItems: "center",
         gap: 10,
         padding: "6px 16px",
-        opacity: bright ? 1 : 0.58,
+        opacity: nonFinish ? 0.45 : bright ? 1 : 0.58,
         background: bright && (a.rank ?? 99) <= 3 ? "rgba(34,211,238,0.10)" : "transparent",
       }}
     >
-      <div
-        style={{
-          width: 24,
-          fontSize: 13,
-          fontWeight: 800,
-          color: (a.rank ?? 99) <= 3 ? "#22d3ee" : "#fff",
-          fontVariantNumeric: "tabular-nums",
-          flexShrink: 0,
-        }}
-      >
-        {a.rank ?? "—"}
+      {/* rank + movement */}
+      <div style={{ width: 42, flexShrink: 0, textAlign: "center" }}>
+        {nonFinish ? (
+          <div style={{ fontSize: 9, fontWeight: 700, color: "#f87171", letterSpacing: 0.5 }}>
+            {STATUS_LABEL[a.status] ?? a.status}
+          </div>
+        ) : (
+          <>
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 800,
+                color: (a.rank ?? 99) <= 3 ? "#22d3ee" : "#fff",
+                fontVariantNumeric: "tabular-nums",
+                lineHeight: 1,
+              }}
+            >
+              {a.rank ?? "—"}
+            </div>
+            {diff && (
+              <div style={{ fontSize: 9, fontWeight: 700, color: diff.color, marginTop: 1 }}>
+                {diff.label}
+              </div>
+            )}
+          </>
+        )}
       </div>
       <div style={{ minWidth: 0, flex: 1 }}>
         <div
@@ -335,12 +394,14 @@ function Row({ a, bright = false }: { a: Arrival; bright?: boolean }) {
         </div>
       </div>
       <div style={{ textAlign: "right", flexShrink: 0 }}>
-        <div style={{ fontSize: 11.5, fontVariantNumeric: "tabular-nums" }}>
+        {a.ypm ? (
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#22d3ee", fontVariantNumeric: "tabular-nums" }}>
+            {a.ypm.toLocaleString()} <span style={{ fontSize: 9, opacity: 0.7 }}>YPM</span>
+          </div>
+        ) : null}
+        <div style={{ fontSize: 11, opacity: 0.6, fontVariantNumeric: "tabular-nums" }}>
           {clockTime(a.arrivalTime)}
         </div>
-        {a.ypm ? (
-          <div style={{ fontSize: 10, opacity: 0.55 }}>{a.ypm.toLocaleString()}</div>
-        ) : null}
       </div>
     </div>
   );
