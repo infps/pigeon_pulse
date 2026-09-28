@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -37,6 +38,8 @@ function toRow(u: any): string[] {
 
 export async function GET(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
+  const guard = await requirePermission("users.view");
+  if ("error" in guard) return guard.error;
   if (!session?.user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   if (session.user.role !== "ADMIN" && session.user.role !== "SUPERADMIN") {
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });

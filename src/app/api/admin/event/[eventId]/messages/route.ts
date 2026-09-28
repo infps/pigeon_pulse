@@ -1,5 +1,7 @@
 import { auth } from "@/lib/auth";
+import { requireAnyPermission, requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
+import { notifyEventMessage } from "@/lib/notifications";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -43,10 +45,9 @@ export async function GET(
   }
 
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requireAnyPermission(["messages.view", "messages.manage"]);
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const seasonId = await resolveSeasonId(request, eventId);
     if (seasonId instanceof NextResponse) return seasonId;
@@ -86,10 +87,9 @@ export async function POST(
   }
 
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("messages.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const allowed = await isEventCreator(eventId, session.user.email, session.user.role);
     if (!allowed) {
@@ -126,8 +126,11 @@ export async function POST(
       },
     });
 
+    // Broadcasts reach the season as notifications too, not only the message list.
+    const notified = await notifyEventMessage(seasonId, title, messageBody, eventId);
+
     return NextResponse.json(
-      { message: created, status: "Message created" },
+      { message: created, notified, status: "Message created" },
       { status: 201 }
     );
   } catch (error) {

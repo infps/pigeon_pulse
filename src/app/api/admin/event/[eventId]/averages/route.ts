@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -21,10 +22,9 @@ async function resolveSeasonId(eventId: number, seasonIdParam: string | null): P
 // GET /api/admin/event/[eventId]/averages?seasonId=X
 export async function GET(request: Request, { params }: Params) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("races.view");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
     const { eventId } = await params;
     const { searchParams } = new URL(request.url);
     const seasonId = await resolveSeasonId(parseInt(eventId), searchParams.get("seasonId"));
@@ -50,10 +50,9 @@ export async function GET(request: Request, { params }: Params) {
 // Body: { name, isPublic?, filterMode, seasonId?, raceTypeIds?, raceIds? }
 export async function POST(request: Request, { params }: Params) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("races.view");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
     const { eventId } = await params;
     const body = await request.json();
     const { name, isPublic, filterMode, seasonId: seasonIdParam, raceTypeIds, raceIds } = body;

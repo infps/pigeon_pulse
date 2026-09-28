@@ -20,6 +20,7 @@ import { useBird, useUpdateBird } from "@/lib/api/bird";
 import { useBirdHistory } from "@/lib/api/birds";
 import { apiEndpoints } from "@/lib/endpoints";
 import { ImageCapture } from "@/components/image-capture";
+import { BirdMediaSection } from "@/components/bird-media-section";
 import { BirdPropertiesCard } from "@/app/admin/birds/[birdId]/bird-properties-card";
 import { BirdLocationCard } from "@/app/admin/birds/[birdId]/bird-location-card";
 import { BirdFeesCard } from "@/app/admin/birds/[birdId]/bird-fees-card";
@@ -418,6 +419,11 @@ export function BirdDetailDialog({ open, onOpenChange, birdId, eventId }: Props)
                     <h2 className="text-base font-semibold">{eventName}</h2>
                     {signIn && <span className="text-xs text-muted-foreground">Sign-in: {fmtDate(signIn)}</span>}
                   </div>
+
+                  {/* Per-event images (incl. scan captures) + notes timeline */}
+                  {eventId != null && (
+                    <BirdMediaSection eventId={eventId} birdId={birdId} canEdit={isAdmin} />
+                  )}
 
                   {/* Row A: Fees + Basket (2 col) */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requireAnyPermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { createEventSchema, updateEventSchema } from "@/lib/zod";
 import { uploadToR2, deleteFromR2, generateImageKey } from "@/lib/r2";
@@ -11,9 +12,8 @@ export async function GET(request: Request) {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
-    if (!session || !session.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requireAnyPermission(["events.view", "events.manage"]);
+    if ("error" in guard) return guard.error;
 
     const { searchParams } = new URL(request.url);
     const eventIdParam = searchParams.get("eventId");
@@ -155,6 +155,7 @@ export async function POST(request: Request) {
         endDate: validatedData.endDate ? new Date(validatedData.endDate) : null,
         description: validatedData.description ?? null,
         isOpen: validatedData.isOpen ?? 1,
+        isPrivate: validatedData.isPrivate ?? false,
         eventTypeId: validatedData.eventTypeId ?? null,
         latitude: validatedData.latitude ?? null,
         longitude: validatedData.longitude ?? null,
@@ -292,6 +293,7 @@ export async function PUT(request: Request) {
         ...(validatedData.contactPhone !== undefined && { contactPhone: validatedData.contactPhone }),
         ...(validatedData.contactWebsite !== undefined && { contactWebsite: validatedData.contactWebsite }),
         ...(validatedData.contactAddress !== undefined && { contactAddress: validatedData.contactAddress }),
+        ...(validatedData.isPrivate !== undefined && { isPrivate: validatedData.isPrivate }),
         ...(validatedData.socialYt !== undefined && { socialYt: validatedData.socialYt }),
         ...(validatedData.socialFb !== undefined && { socialFb: validatedData.socialFb }),
         ...(validatedData.socialTwitter !== undefined && { socialTwitter: validatedData.socialTwitter }),

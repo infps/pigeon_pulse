@@ -91,16 +91,26 @@ export interface OrganizerData {
 // SCHEMES
 // ============================================================
 
+export type RaceTypePrizeRole =
+  | "NONE"
+  | "FINAL"
+  | "HOTSPOT_1"
+  | "HOTSPOT_2"
+  | "HOTSPOT_3"
+  | "AVERAGE";
+
 export interface RaceType {
   id: number;
   name: string | null;
   color: string | null;
   numberGroupId: number | null;
   isPaymentRequired: boolean;
+  prizeRole?: RaceTypePrizeRole;
 }
 
 export interface FeeScheme {
   id: number;
+  requirePaymentToRegister?: boolean | null;
   name: string | null;
   entryFee: number | null;
   isRefundable: number | null;
@@ -155,6 +165,7 @@ export interface PrizeScheme {
 export interface PrizeSchemeItem {
   id: number;
   prizeSchemeId: number | null;
+  raceTypeId: number | null;
   fromPosition: number | null;
   toPosition: number | null;
   prizeValue: number | null;
@@ -210,6 +221,7 @@ export interface EventType {
 
 export interface Event {
   id: number;
+  isPrivate?: boolean;
   name: string | null;
   shortName: string | null;
   eventDate: string | null;
@@ -339,6 +351,7 @@ export interface Payment {
 
 export interface Race {
   id: number;
+  isPrivate?: boolean;
   raceTypeId: number | null;
   eventId: number | null;
   raceNumber: number | null;
@@ -364,6 +377,9 @@ export interface Race {
   transportStartedAt?: string | null;
   transportEndedAt?: string | null;
   youtubeUrl?: string | null;
+  /** Embeddable Facebook video URL, and the page to send viewers to. */
+  facebookStreamUrl?: string | null;
+  facebookPageUrl?: string | null;
   raceStationId: number | null;
   event?: Event;
   raceType?: RaceType;
@@ -396,6 +412,9 @@ export interface RaceItem {
   speed?: number | null;
   eventInventoryItem?: EventInventoryItem;
   birdPosition?: number | null;
+  birdPositionHotSpot?: number | null;
+  prizeValue?: number | null;
+  birdDrop?: number | null;
   arrivalTime?: string | null;
   previousPosition?: number | null;
   loftBasketLabel?: string | null;
@@ -419,6 +438,9 @@ export interface RaceItemResult {
 
 export interface Bird {
   id: number;
+  healthStatus?: "HEALTHY" | "INJURED" | "HOSPITALIZED" | "DEAD" | null;
+  healthNote?: string | null;
+  healthUpdatedAt?: string | null;
   band: string | null;
   band1: string | null;
   band2: string | null;

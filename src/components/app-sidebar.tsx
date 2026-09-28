@@ -8,16 +8,21 @@ import {
   CreditCard,
   Database,
   FileText,
+  HelpCircle,
   Home,
   LogOut,
+  Megaphone,
   Package,
+  Printer,
   Settings,
+  ShieldCheck,
   Trophy,
   User2,
   Users,
 } from "lucide-react"
 import { useState } from "react"
 import { SettingsDialog } from "@/components/settings-dialog"
+import { HelpDialog } from "@/components/help-dialog"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 
@@ -40,6 +45,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { authClient } from "@/lib/auth-client"
+import { usePermissions } from "@/hooks/usePermissions"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   userRole?: "BREEDER" | "ADMIN" | "SUPERADMIN"
@@ -53,25 +59,43 @@ const mainMenuItems = [
   {
     title: "Breeders",
     url: "/admin/users",
+    permission: "users.view",
     icon: Users,
     roles: ["ADMIN", "SUPERADMIN"],
   },
   {
     title: "Schemes",
     url: "/admin/schemes",
+    permission: "schemes.manage",
     icon: FileText,
     roles: ["ADMIN", "SUPERADMIN"],
   },
   {
     title: "Events",
     url: "/admin/events",
+    permission: "events.view",
     icon: CalendarDays,
     roles: ["ADMIN", "SUPERADMIN"],
   },
   {
     title: "Birds",
     url: "/admin/birds",
+    permission: "birds.view",
     icon: Bird,
+    roles: ["ADMIN", "SUPERADMIN"],
+  },
+  {
+    title: "Reports",
+    url: "/admin/reports",
+    permission: "reports.view",
+    icon: Printer,
+    roles: ["ADMIN", "SUPERADMIN"],
+  },
+  {
+    title: "Notifications",
+    url: "/admin/notifications",
+    permission: "notifications.view",
+    icon: Megaphone,
     roles: ["ADMIN", "SUPERADMIN"],
   },
 ]
@@ -81,18 +105,28 @@ const superAdminMenuItems = [
   {
     title: "Race Types",
     url: "/admin/race-types",
+    permission: "schemes.manage",
     icon: BadgeCheck,
     roles: ["SUPERADMIN"],
   },
   {
     title: "Event Types",
     url: "/admin/event-types",
+    permission: "events.manage",
     icon: CreditCard,
+    roles: ["SUPERADMIN"],
+  },
+  {
+    title: "Permissions",
+    url: "/admin/permissions",
+    permission: "users.permissions",
+    icon: ShieldCheck,
     roles: ["SUPERADMIN"],
   },
   {
     title: "Schema",
     url: "/admin/schema",
+    permission: "users.permissions",
     icon: Database,
     roles: ["SUPERADMIN"],
   },
@@ -107,6 +141,10 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const router = useRouter()
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+  // Menus are filtered by permission as well as role, so an admin who has had a
+  // module revoked stops seeing the door to it rather than finding it locked.
+  const { can, isPending: permissionsLoading } = usePermissions()
 
   const handleLogout = async () => {
     await authClient.signOut({
@@ -120,10 +158,12 @@ export function AppSidebar({
 
   // Filter menu items based on user role
   const filteredMainMenu = mainMenuItems.filter((item) =>
-    item.roles.includes(userRole)
+    item.roles.includes(userRole) &&
+      (permissionsLoading || !item.permission || can(item.permission))
   )
   const filteredSuperAdminMenu = superAdminMenuItems.filter((item) =>
-    item.roles.includes(userRole)
+    item.roles.includes(userRole) &&
+      (permissionsLoading || !item.permission || can(item.permission))
   )
 
   return (
@@ -171,6 +211,21 @@ export function AppSidebar({
             </SidebarGroup>
           </>
         )}
+
+        {/* Help — always available */}
+        <SidebarSeparator />
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={() => setHelpOpen(true)}>
+                  <HelpCircle />
+                  <span>Help & Guide</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
 
       {/* User Profile Footer */}
@@ -235,6 +290,7 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarFooter>
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <HelpDialog open={helpOpen} onOpenChange={setHelpOpen} />
     </Sidebar>
   )
 }

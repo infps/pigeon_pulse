@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select";
 import { DataTable } from "@/components/ui/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Radio, Square, CheckCircle2, Wifi, WifiOff, Usb } from "lucide-react";
+import { Radio, Square, CheckCircle2, Wifi, Usb } from "lucide-react";
 import { toast } from "sonner";
 import {
   useCheckinStatus,
@@ -278,8 +278,7 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
     toast.info("Poll scanner stopped");
   }, []);
 
-  // Web Serial direct connection
-  const { isConnected: isSerial, error: serialError, connect: connectSerial, disconnect: disconnectSerial } =
+  const { isConnected: isSerial, connect: connectSerial, disconnect: disconnectSerial } =
     useWebSerial({ onScan: handleScanResult });
 
   const columns = createCheckinColumns(handleLink, handleUnlink);
@@ -379,20 +378,19 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
                   View Scanner
                 </Button>
               ) : (
-                <Button onClick={startPollScanner} size="sm" variant="outline" className="gap-2">
+                <Button onClick={() => { disconnectSerial(); startPollScanner(); }} size="sm" variant="outline" className="gap-2">
                   <Wifi className="h-4 w-4" />
                   Start Scanner
                 </Button>
               )}
               <Button
+                onClick={isSerial ? disconnectSerial : () => { stopPollScanner(); connectSerial(); }}
                 size="sm"
                 variant={isSerial ? "default" : "outline"}
-                onClick={isSerial ? disconnectSerial : connectSerial}
-                title="Web Serial (Chrome/Edge only)"
                 className="gap-2"
               >
                 <Usb className="h-4 w-4" />
-                {isSerial ? "Serial Connected" : "Serial"}
+                {isSerial ? "USB Connected" : "USB Serial"}
               </Button>
             </div>
           </div>
@@ -449,9 +447,6 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
           {isSerial && (
             <p className="text-xs text-blue-600 animate-pulse">Web Serial active — scan to assign</p>
           )}
-          {serialError && (
-            <p className="text-xs text-red-600">{serialError}</p>
-          )}
         </CardContent>
       </Card>
 
@@ -484,7 +479,7 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
       )}
 
       {/* Scan Dialog */}
-      <Dialog open={scanDialogOpen} onOpenChange={(o) => { if (!o) stopPollScanner(); setScanDialogOpen(o); }}>
+      <Dialog open={scanDialogOpen} onOpenChange={(o) => { if (!o) { stopPollScanner(); disconnectSerial(); } setScanDialogOpen(o); }}>
         <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
@@ -561,7 +556,18 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
             </div>
           </div>
 
-          <DialogFooter className="border-t pt-3">
+          <DialogFooter className="border-t pt-3 gap-2">
+            {isSerial ? (
+              <Button variant="destructive" onClick={disconnectSerial} className="gap-2">
+                <Square className="h-4 w-4" />
+                Stop USB
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={() => { stopPollScanner(); connectSerial(); }} className="gap-2">
+                <Usb className="h-4 w-4" />
+                USB Serial
+              </Button>
+            )}
             {isPollActive ? (
               <Button variant="destructive" onClick={() => { stopPollScanner(); setScanDialogOpen(false); }} className="gap-2">
                 <Square className="h-4 w-4" />

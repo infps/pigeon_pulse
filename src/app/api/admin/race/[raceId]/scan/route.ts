@@ -1,6 +1,9 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { presetIdFor } from "@/lib/birdStatus";
+import { lockRace } from "@/lib/race-results";
+import { notifyBirdArrived } from "@/lib/notifications";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -55,13 +58,9 @@ export async function POST(
   { params }: { params: Promise<{ raceId: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("races.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const { raceId } = await params;
     const raceIdInt = parseInt(raceId);
@@ -72,6 +71,7 @@ export async function POST(
 
     const race = await prisma.race.findUnique({
       where: { id: raceIdInt },
+      include: { seasonRel: { select: { eventId: true } } },
     });
 
     if (!race) {
@@ -111,12 +111,42 @@ export async function POST(
       }
 
       const arrivalTime = parseTimestamp(timestamp);
+
+      // An RFID that matches no bird at all is a phantom scan: record the raw
+      // signal and let an admin reconcile it.
+      //
+      // Previously this fabricated a Bird, an EventInventory and an
+      // EventInventoryItem for every unreadable or foreign tag, which put junk
+      // rows in the bird list and in the registration tables. HayLoft kept
+      // these in RACE_PHANTOM_BIRD instead and made resolving them an
+      // operator task — 31,487 such rows came across in the migration.
+      if (!bird) {
+        const existingPhantom = await prisma.racePhantomBird.findFirst({
+          where: { raceId: raceIdInt, rfid: ringNo },
+        });
+
+        const phantom =
+          existingPhantom ??
+          (await prisma.racePhantomBird.create({
+            data: {
+              raceId: raceIdInt,
+              eventId: race.seasonRel?.eventId ?? null,
+              rfid: ringNo,
+              arrivalTime,
+            },
+          }));
+
+        return NextResponse.json({
+          phantom,
+          isNewScan: existingPhantom == null,
+          scanType: "phantom",
+          message: existingPhantom
+            ? `Tag ${ringNo} is already waiting to be matched to a bird.`
+            : `Tag ${ringNo} does not match any bird. Saved for matching.`,
+        });
+      }
+
       const { foreignRaceItem, invItemId } = await prisma.$transaction(async (tx) => {
-        if (!bird) {
-          bird = await tx.bird.create({
-            data: { band: ringNo, rfid: ringNo },
-          });
-        }
         const eventInv = await tx.eventInventory.create({
           data: { seasonId: race.seasonId },
         });
@@ -251,8 +281,15 @@ export async function POST(
     // Live race scan (STARTED) → arrival with ranking
     const arrivedStatusId = await presetIdFor(race.seasonId, "ARRIVE");
 
-    // Count + update in one transaction to avoid duplicate positions under concurrent scans
+    // Position assignment must be serialised per race.
+    //
+    // A transaction alone is not enough: at READ COMMITTED two concurrent scans
+    // both read the same ARRIVED count and both claim the same position, and
+    // nothing downstream rejects the collision. Locking the Race row makes the
+    // second scan wait for the first to commit before it counts.
     const { updatedRaceItem, birdPosition } = await prisma.$transaction(async (tx) => {
+      await lockRace(tx, raceIdInt);
+
       const arrivedCount = await tx.raceItem.count({
         where: { raceId: raceIdInt, status: "ARRIVED" },
       });
@@ -290,6 +327,14 @@ export async function POST(
         performedById: session?.user?.id ?? null,
       },
     });
+
+    // Tell the owner their bird is home, with the place it took.
+    await notifyBirdArrived(
+      raceIdInt,
+      raceItem.inventoryItemId,
+      bird.band ?? bird.rfid ?? ringNo,
+      birdPosition
+    );
 
     // Auto STATUS group: if birdPosition matches a BirdStatusCode, assign it
     const statusCode = await prisma.birdStatusCode.findFirst({

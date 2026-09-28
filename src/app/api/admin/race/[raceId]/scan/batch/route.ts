@@ -1,5 +1,7 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
+import { lockRace } from "@/lib/race-results";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -30,10 +32,9 @@ export async function POST(
   { params }: { params: Promise<{ raceId: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("races.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const { raceId } = await params;
     const raceIdInt = parseInt(raceId);
@@ -51,7 +52,10 @@ export async function POST(
     const deduped = Array.from(dedupedMap.entries()).map(([ringNo, timestamp]) => ({ ringNo, timestamp }));
 
     // ── 2. Fetch race once ──────────────────────────────────────────────────
-    const race = await prisma.race.findUnique({ where: { id: raceIdInt } });
+    const race = await prisma.race.findUnique({
+      where: { id: raceIdInt },
+      include: { seasonRel: { select: { eventId: true } } },
+    });
     if (!race) return NextResponse.json({ message: "Race not found" }, { status: 404 });
 
     const isLive = race.status === "STARTED" || race.status === "ENDED";
@@ -172,51 +176,60 @@ export async function POST(
         // Assign positions sequentially (sorted by timestamp for correct order)
         toArrive.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 
-        const arrivalUpdates = toArrive.map((a) => {
-          positionCounter++;
-          const pos = positionCounter;
-          const arrivalTime = parseTimestamp(a.timestamp);
-          return { scan: a, pos, arrivalTime };
-        });
+        // Positions must be allocated under the race lock, and the ARRIVED
+        // count re-read inside it — the count taken at step 5 is stale the
+        // moment another scanner commits. Everything that depends on the
+        // position runs in the same transaction so a conflict rolls back the
+        // whole batch rather than leaving a half-numbered race.
+        const arrivalUpdates = await prisma.$transaction(
+          async (tx) => {
+            await lockRace(tx, raceIdInt);
 
-        // Bulk update raceItem statuses
-        await Promise.all(
-          arrivalUpdates.map(({ scan, arrivalTime }) =>
-            prisma.raceItem.update({
-              where: { id: scan.raceItem.id },
-              data: {
-                status: race.status === "ENDED" ? "FOREIGN_BIRD" : "ARRIVED",
-                raceBasketTime: arrivalTime,
-                displayStatusId: arrivedStatusId,
-              },
-            })
-          )
-        );
+            positionCounter = await tx.raceItem.count({
+              where: { raceId: raceIdInt, status: "ARRIVED" },
+            });
 
-        // Bulk upsert results + history in parallel
-        await Promise.all([
-          ...arrivalUpdates.map(({ scan, pos, arrivalTime }) =>
-            race.status === "ENDED"
-              ? Promise.resolve() // ended → foreign, no result row needed
-              : prisma.raceItemResult.upsert({
-                  where: { raceItemId: scan.raceItem.id },
-                  create: { raceItemId: scan.raceItem.id, arrivalTime, birdPosition: pos },
-                  update: { arrivalTime, birdPosition: pos },
-                })
-          ),
-          ...arrivalUpdates.map(({ scan, pos }) =>
-            prisma.birdEventHistory.create({
-              data: {
+            const updates = toArrive.map((a) => {
+              positionCounter++;
+              return { scan: a, pos: positionCounter, arrivalTime: parseTimestamp(a.timestamp) };
+            });
+
+            for (const { scan, arrivalTime } of updates) {
+              await tx.raceItem.update({
+                where: { id: scan.raceItem.id },
+                data: {
+                  status: race.status === "ENDED" ? "FOREIGN_BIRD" : "ARRIVED",
+                  raceBasketTime: arrivalTime,
+                  displayStatusId: arrivedStatusId,
+                },
+              });
+            }
+
+            for (const { scan, pos, arrivalTime } of updates) {
+              if (race.status === "ENDED") continue; // ended → foreign, no result row
+              await tx.raceItemResult.upsert({
+                where: { raceItemId: scan.raceItem.id },
+                create: { raceItemId: scan.raceItem.id, arrivalTime, birdPosition: pos },
+                update: { arrivalTime, birdPosition: pos },
+              });
+            }
+
+            await tx.birdEventHistory.createMany({
+              data: updates.map(({ scan, pos }) => ({
                 eventInventoryItemId: scan.raceItem.inventoryItemId!,
-                action: race.status === "ENDED" ? "STATUS_CHANGED" : "ARRIVED",
-                detail: race.status === "ENDED"
-                  ? "Marked as FOREIGN_BIRD (arrived after race ended)"
-                  : `Arrived at position ${pos}, race ${raceId}`,
+                action: race.status === "ENDED" ? ("STATUS_CHANGED" as const) : ("ARRIVED" as const),
+                detail:
+                  race.status === "ENDED"
+                    ? "Marked as FOREIGN_BIRD (arrived after race ended)"
+                    : `Arrived at position ${pos}, race ${raceId}`,
                 performedById: session.user.id ?? null,
-              },
-            })
-          ),
-        ]);
+              })),
+            });
+
+            return updates;
+          },
+          { maxWait: 20000, timeout: 180000 }
+        );
 
         for (const { scan, pos } of arrivalUpdates) {
           results.push({
@@ -231,19 +244,52 @@ export async function POST(
     }
 
     // ── 8b. Process foreign birds ───────────────────────────────────────────
-    if (toForeign.length > 0) {
+    //
+    // A tag that matches no bird at all is recorded as a phantom scan for an
+    // operator to match later, rather than fabricating a Bird plus a whole
+    // registration for an unreadable tag. Same rule as the single-scan route.
+    const unknownTags = toForeign.filter((f) => !f.bird);
+    if (unknownTags.length > 0) {
+      const existing = await prisma.racePhantomBird.findMany({
+        where: { raceId: raceIdInt, rfid: { in: unknownTags.map((u) => u.ringNo) } },
+        select: { rfid: true },
+      });
+      const alreadyQueued = new Set(existing.map((e) => e.rfid));
+      const fresh = unknownTags.filter((u) => !alreadyQueued.has(u.ringNo));
+
+      if (fresh.length > 0) {
+        await prisma.racePhantomBird.createMany({
+          data: fresh.map((u) => ({
+            raceId: raceIdInt,
+            eventId: race.seasonRel?.eventId ?? null,
+            rfid: u.ringNo,
+            arrivalTime: parseTimestamp(u.timestamp),
+          })),
+        });
+      }
+
+      for (const u of unknownTags) {
+        results.push({
+          ringNo: u.ringNo,
+          scanType: "phantom",
+          isNewScan: !alreadyQueued.has(u.ringNo),
+          message: alreadyQueued.has(u.ringNo)
+            ? "Already waiting to be matched"
+            : "No matching bird — saved for matching",
+        });
+      }
+    }
+
+    const knownForeign = toForeign.filter((f) => f.bird);
+    if (knownForeign.length > 0) {
       const dg = await getDefaulterGroup();
 
       await Promise.all(
-        toForeign.map(async ({ ringNo, timestamp, bird }) => {
+        knownForeign.map(async ({ ringNo, timestamp, bird }) => {
           const arrivalTime = parseTimestamp(timestamp);
 
           await prisma.$transaction(async (tx) => {
-            let birdId = bird?.id;
-            if (!birdId) {
-              const newBird = await tx.bird.create({ data: { band: ringNo, rfid: ringNo } });
-              birdId = newBird.id;
-            }
+            const birdId = bird!.id;
             const eventInv = await tx.eventInventory.create({ data: { seasonId: race.seasonId } });
             const invItem = await tx.eventInventoryItem.create({
               data: { birdId, eventInventoryId: eventInv.id, statusGroupId: dg.id },

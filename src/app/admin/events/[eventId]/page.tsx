@@ -17,7 +17,9 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, HelpCircle } from "lucide-react";
+import { GuidedTour } from "@/components/guided-tour";
+import { tabHelp } from "@/lib/help-content";
 import type { BettingScheme, Event, FeeScheme, PrizeScheme } from "@/lib/types";
 import { DetailsTab } from "./details-tab";
 import { BreedersTab } from "./breeders-tab";
@@ -35,6 +37,11 @@ import { EventStoreTab } from "./event-store-tab";
 import { GroupsTab } from "./groups-tab";
 import { CalcuttaTab } from "./calcutta-tab";
 import { AveragesTab } from "./averages-tab";
+import { TournamentsTab } from "./tournaments-tab";
+import { ClassesTab } from "./classes-tab";
+import { ContentTab } from "./content-tab";
+import { AccountingTab } from "./accounting-tab";
+import { usePermissions } from "@/hooks/usePermissions";
 
 export default function EventDetailsPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = use(params);
@@ -48,6 +55,18 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
   const { data: bettingSchemesData } = useListBettingSchemes({});
 
   const [activeTab, setActiveTab] = useState("details");
+  const [tourOpen, setTourOpen] = useState(false);
+
+
+  // Tabs are hidden when the viewer lacks the permission behind them. While
+
+  // permissions are still loading every tab shows, so the page does not flash
+
+  // empty for someone who does have access.
+
+  const { can, isPending: permissionsLoading } = usePermissions();
+
+  const tabAllowed = (permission: string) => permissionsLoading || can(permission);
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(["details"]));
   const event: Event | undefined = eventData?.event;
   const feeSchemes: FeeScheme[] = feeSchemesData?.feeSchemes || [];
@@ -93,26 +112,46 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Events
         </Button>
-        <SeasonSelector eventId={eventId} isSuperAdmin={isSuperAdmin} />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setTourOpen(true)}>
+            <HelpCircle className="h-4 w-4 mr-2" />
+            Take a tour
+          </Button>
+          <SeasonSelector eventId={eventId} isSuperAdmin={isSuperAdmin} />
+        </div>
       </div>
 
+      {tourOpen && (
+        <GuidedTour
+          onGoToTab={(tab) => {
+            setActiveTab(tab);
+            setVisitedTabs((prev) => new Set(prev).add(tab));
+          }}
+          onClose={() => setTourOpen(false)}
+        />
+      )}
+
       <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); setVisitedTabs(prev => new Set(prev).add(val)); }} className="w-full">
-        <TabsList className="grid w-full grid-cols-15">
-          <TabsTrigger value="details">Details</TabsTrigger>
-          <TabsTrigger value="breeders">Breeders</TabsTrigger>
-          <TabsTrigger value="birds">Birds</TabsTrigger>
-          <TabsTrigger value="groups">Groups</TabsTrigger>
-          <TabsTrigger value="baskets">Baskets</TabsTrigger>
-          <TabsTrigger value="races">Races</TabsTrigger>
-          <TabsTrigger value="betting">Betting</TabsTrigger>
-          <TabsTrigger value="result">Result</TabsTrigger>
-          <TabsTrigger value="stations">Stations</TabsTrigger>
-          <TabsTrigger value="messages">Messages</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-          <TabsTrigger value="defaulters">Defaulters</TabsTrigger>
-          <TabsTrigger value="store">Store</TabsTrigger>
-          <TabsTrigger value="calcutta">Calcutta</TabsTrigger>
-          <TabsTrigger value="averages">Averages</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-19">
+          {tabAllowed("events.view") && <TabsTrigger value="details" data-tour="details" title={tabHelp.details.blurb}>Details</TabsTrigger>}
+          {tabAllowed("breeders.view") && <TabsTrigger value="breeders" data-tour="breeders" title={tabHelp.breeders.blurb}>Breeders</TabsTrigger>}
+          {tabAllowed("birds.view") && <TabsTrigger value="birds" data-tour="birds" title={tabHelp.birds.blurb}>Birds</TabsTrigger>}
+          {tabAllowed("groups.view") && <TabsTrigger value="groups" data-tour="groups" title={tabHelp.groups.blurb}>Groups</TabsTrigger>}
+          {tabAllowed("baskets.view") && <TabsTrigger value="baskets" data-tour="baskets" title={tabHelp.baskets.blurb}>Baskets</TabsTrigger>}
+          {tabAllowed("races.view") && <TabsTrigger value="races" data-tour="races" title={tabHelp.races.blurb}>Races</TabsTrigger>}
+          {tabAllowed("betting.view") && <TabsTrigger value="betting" data-tour="betting" title={tabHelp.betting.blurb}>Betting</TabsTrigger>}
+          {tabAllowed("races.view") && <TabsTrigger value="result" data-tour="result" title={tabHelp.result.blurb}>Result</TabsTrigger>}
+          {tabAllowed("stations.view") && <TabsTrigger value="stations" data-tour="stations" title={tabHelp.stations.blurb}>Stations</TabsTrigger>}
+          {tabAllowed("messages.view") && <TabsTrigger value="messages" data-tour="messages" title={tabHelp.messages.blurb}>Messages</TabsTrigger>}
+          {tabAllowed("birds.view") && <TabsTrigger value="history" data-tour="history" title={tabHelp.history.blurb}>History</TabsTrigger>}
+          {tabAllowed("payments.view") && <TabsTrigger value="defaulters" data-tour="defaulters" title={tabHelp.defaulters.blurb}>Defaulters</TabsTrigger>}
+          {tabAllowed("store.view") && <TabsTrigger value="store" data-tour="store" title={tabHelp.store.blurb}>Store</TabsTrigger>}
+          {tabAllowed("calcutta.view") && <TabsTrigger value="calcutta" data-tour="calcutta" title={tabHelp.calcutta.blurb}>Calcutta</TabsTrigger>}
+          {tabAllowed("races.view") && <TabsTrigger value="averages" data-tour="averages" title={tabHelp.averages.blurb}>Averages</TabsTrigger>}
+          {tabAllowed("tournaments.view") && <TabsTrigger value="tournaments" data-tour="tournaments" title={tabHelp.tournaments.blurb}>Knockout</TabsTrigger>}
+          {tabAllowed("classes.view") && <TabsTrigger value="classes" data-tour="classes" title={tabHelp.classes.blurb}>Classes</TabsTrigger>}
+          {tabAllowed("content.view") && <TabsTrigger value="content" data-tour="content" title={tabHelp.content.blurb}>Rules</TabsTrigger>}
+          {tabAllowed("accounting.view") && <TabsTrigger value="accounting" data-tour="accounting" title={tabHelp.accounting.blurb}>Accounting</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="details" className="mt-6">
@@ -179,6 +218,22 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
 
         <TabsContent value="averages" className="mt-6">
           {visitedTabs.has("averages") && <AveragesTab eventId={eventId} />}
+        </TabsContent>
+
+        <TabsContent value="tournaments" className="mt-6">
+          {visitedTabs.has("tournaments") && <TournamentsTab eventId={eventId} />}
+        </TabsContent>
+
+        <TabsContent value="classes" className="mt-6">
+          {visitedTabs.has("classes") && <ClassesTab eventId={eventId} />}
+        </TabsContent>
+
+        <TabsContent value="content" className="mt-6">
+          {visitedTabs.has("content") && <ContentTab eventId={eventId} />}
+        </TabsContent>
+
+        <TabsContent value="accounting" className="mt-6">
+          {visitedTabs.has("accounting") && <AccountingTab eventId={eventId} />}
         </TabsContent>
       </Tabs>
     </div>

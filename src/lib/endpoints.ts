@@ -28,6 +28,7 @@ const breeders = {
 };
 
 const adminBirds = {
+  health: (birdId: number | string) => `/api/admin/bird/${birdId}/health`,
   base: "/api/admin/birds",
   birdById: (birdId: number | string) => `/api/admin/bird/${birdId}`,
 };
@@ -51,9 +52,20 @@ const races = {
   base: "/api/admin/race",
   start: (raceId: number | string) => `/api/admin/race/${raceId}/start`,
   end: (raceId: number | string) => `/api/admin/race/${raceId}/end`,
+  recalculate: (raceId: number | string) => `/api/admin/race/${raceId}/recalculate`,
+  recalculatePreview: (raceId: number | string) =>
+    `/api/admin/race/${raceId}/recalculate?dryRun=1`,
+  phantoms: (raceId: number | string) => `/api/admin/race/${raceId}/phantoms`,
+  phantom: (raceId: number | string, phantomId: number | string) =>
+    `/api/admin/race/${raceId}/phantoms/${phantomId}`,
+  ignoreBirds: (raceId: number | string) => `/api/admin/race/${raceId}/ignore-birds`,
+  ignoreBird: (raceId: number | string, inventoryItemId: number | string) =>
+    `/api/admin/race/${raceId}/ignore-birds?inventoryItemId=${inventoryItemId}`,
 };
 
 const raceItems = {
+  raceStatus: (raceItemId: number | string) =>
+    `/api/admin/race-item/${raceItemId}/race-status`,
   base: "/api/admin/race-item",
 };
 
@@ -158,7 +170,24 @@ const calcutta = {
   state: (eventId: number | string) => `/api/calcutta/${eventId}/state`,
 };
 
+const reports = {
+  base: "/api/admin/reports",
+  /** Build a download URL for one report in one format. */
+  download: (
+    key: string,
+    format: "csv" | "xlsx" | "pdf" | "html",
+    params: Record<string, string | number | undefined> = {}
+  ) => {
+    const query = new URLSearchParams({ format });
+    for (const [name, value] of Object.entries(params)) {
+      if (value != null && value !== "") query.set(name, String(value));
+    }
+    return `/api/admin/reports/${key}?${query.toString()}`;
+  },
+};
+
 export const apiEndpoints = {
+  reports,
   averages,
   birdHistory,
   birdStatusCodes,

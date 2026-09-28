@@ -30,6 +30,7 @@ interface TeamBird {
   color?: string | null;
   sex?: string | null;
   eventId?: number | null;
+  basketLabel?: string | null;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
@@ -351,6 +352,7 @@ export default function TeamsPage() {
                       <th className="px-4 py-2 text-left">Color</th>
                       <th className="px-4 py-2 text-left">Name</th>
                       <th className="px-4 py-2 text-left">Note</th>
+                      <th className="px-4 py-2 text-left">Basket</th>
                       <th className="px-4 py-2 text-left">Status</th>
                     </tr>
                   </thead>
@@ -426,6 +428,9 @@ export default function TeamsPage() {
                                 </button>
                               </div>
                             )}
+                          </td>
+                          <td className="px-4 py-2 font-mono text-xs text-muted-foreground">
+                            {bird.basketLabel ?? "—"}
                           </td>
                           <td className="px-4 py-2">
                             {sc ? (

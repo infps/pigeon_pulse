@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useDialogHotkeys } from "@/lib/use-dialog-hotkeys";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -53,6 +54,7 @@ export function CreateBirdDialog({
   const [state, dispatch] = useReducer(formReducer, createAddBirdFormState());
   const setters = makeSetters(dispatch);
   const bandNumberRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const addAnotherRef = useRef(false);
@@ -180,6 +182,16 @@ export function CreateBirdDialog({
     if (createdBirdId && imageFile) await uploadImage(createdBirdId, imageFile);
   };
 
+  useDialogHotkeys({
+    open: open ?? false,
+    onSave: () => { addAnotherRef.current = false; formRef.current?.requestSubmit(); },
+    onSaveAndNew: onAddAnother
+      ? () => { addAnotherRef.current = true; formRef.current?.requestSubmit(); }
+      : undefined,
+    onClose: inline ? undefined : () => onOpenChange(false),
+    disabled: createMutation.isPending,
+  });
+
   const bs = event.bettingScheme ?? null;
   const fs = event.feeScheme ?? null;
   const schemeDefaults = fs ? {
@@ -192,7 +204,7 @@ export function CreateBirdDialog({
   } : null;
 
   const form = (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
       <AddBirdForm
         state={state}
         setters={setters}

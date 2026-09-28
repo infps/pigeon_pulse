@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -10,10 +11,9 @@ type Params = { params: Promise<{ eventId: string; avgId: string }> };
 // Body: { name?, isPublic?, filterMode?, raceTypeIds?, raceIds? }
 export async function PATCH(request: Request, { params }: Params) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("races.view");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
     const { avgId } = await params;
     const configId = parseInt(avgId);
     const body = await request.json();
@@ -69,10 +69,9 @@ export async function PATCH(request: Request, { params }: Params) {
 // DELETE /api/admin/event/[eventId]/averages/[avgId]
 export async function DELETE(_request: Request, { params }: Params) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("races.view");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
     const { avgId } = await params;
     const configId = parseInt(avgId);
 

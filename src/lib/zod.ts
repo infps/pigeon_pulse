@@ -58,6 +58,12 @@ export const createRaceTypeSchema = z.object({
     name: z.string().min(1, "Name is required"),
     color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color must be a hex like #1d4ed8").optional().nullable(),
     isPaymentRequired: z.boolean().optional().default(false),
+    // Which season prize scheme races of this type pay from. NONE means the
+    // type never carries a prize, matching HayLoft's non-5/6/7/8 race types.
+    prizeRole: z
+        .enum(["NONE", "FINAL", "HOTSPOT_1", "HOTSPOT_2", "HOTSPOT_3", "AVERAGE"])
+        .optional()
+        .default("NONE"),
 })
 
 export const createEventTypeSchema = z.object({
@@ -89,6 +95,7 @@ export const createFeeSchemeSchema = z.object({
     hotSpot3Fee: z.number().int().nonnegative().default(0),
     hotSpotFinalFee: z.number().int().nonnegative().default(0),
     raceFeeMode: z.enum(["PER_BIRD_PER_RACE", "FLAT_PER_RACE"]).default("PER_BIRD_PER_RACE"),
+    requirePaymentToRegister: z.coerce.boolean().default(false),
     birdFeeItems: z.array(birdFeeItemSchema).default([]),
     raceTypeFees: z.array(raceTypeFeeSchema).default([]),
 })
@@ -147,6 +154,7 @@ export const createEventSchema = z.object({
     eventDate: z.string().optional(),
     eventTypeId: z.coerce.number().int().optional(),
     isOpen: z.coerce.number().int().min(0).max(1).default(1),
+    isPrivate: z.coerce.boolean().optional(),
     endDate: z.string().optional(),
     description: z.string().optional(),
     latitude: z.coerce.number().min(-90).max(90).optional(),
@@ -161,6 +169,7 @@ export const updateEventSchema = z.object({
     description: z.string().optional(),
     eventTypeId: z.coerce.number().int().optional(),
     isOpen: z.coerce.number().int().min(0).max(1).optional(),
+    isPrivate: z.coerce.boolean().optional(),
     latitude: z.coerce.number().min(-90).max(90).optional(),
     longitude: z.coerce.number().min(-180).max(180).optional(),
     locationAddress: z.string().optional(),

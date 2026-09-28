@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { apiEndpoints } from "@/lib/endpoints";
-import { pusherClient } from "@/lib/pusher-client";
+import { getPusherClient } from "@/lib/pusher-client";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -389,7 +389,12 @@ function AuctionTab({
 
   // Pusher subscription
   useEffect(() => {
-    const channel = pusherClient.subscribe(`calcutta-${eventId}`);
+    // Realtime is optional. Without it the page still works from its own
+    // fetches and polling; it simply does not receive pushes.
+    const pusher = getPusherClient();
+    if (!pusher) return;
+
+    const channel = pusher.subscribe(`calcutta-${eventId}`);
 
     channel.bind("bid-placed", (data: { groupId: number; amount: number; bidderName: string; timestamp: string }) => {
       if (activeGroup && data.groupId === activeGroup.id) {
@@ -415,7 +420,7 @@ function AuctionTab({
       onRefresh();
     });
 
-    return () => { channel.unbind_all(); pusherClient.unsubscribe(`calcutta-${eventId}`); };
+    return () => { channel.unbind_all(); pusher.unsubscribe(`calcutta-${eventId}`); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId, activeGroup?.id]);
 

@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -12,10 +13,9 @@ export async function POST(
   if (isNaN(eventId)) return NextResponse.json({ message: "Invalid event ID" }, { status: 400 });
 
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("baskets.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const url = new URL(request.url);
     const seasonIdParam = url.searchParams.get("seasonId");
@@ -138,10 +138,9 @@ export async function DELETE(
   if (isNaN(parseInt(eventIdParam))) return NextResponse.json({ message: "Invalid event ID" }, { status: 400 });
 
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("baskets.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const { raceItemId } = await request.json();
     if (!raceItemId) return NextResponse.json({ message: "raceItemId required" }, { status: 400 });

@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { randomAssign } from "@/lib/packingEngine";
 import type { RaceItem, BasketSlot } from "@/lib/packingEngine";
@@ -17,10 +18,9 @@ export async function POST(
   }
 
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("baskets.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const url = new URL(request.url);
     const seasonIdParam = url.searchParams.get("seasonId");

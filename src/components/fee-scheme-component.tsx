@@ -48,6 +48,7 @@ export default function FeeSchemeComponent() {
     hotSpot3Fee: 0,
     hotSpotFinalFee: 0,
     raceFeeMode: "PER_BIRD_PER_RACE" as "PER_BIRD_PER_RACE" | "FLAT_PER_RACE",
+    requirePaymentToRegister: false,
     birdFeeItems: [] as { birdNo: number; birdFee: number }[],
     raceTypeFees: [] as { raceTypeId: number; fee: number }[],
   });
@@ -127,6 +128,7 @@ export default function FeeSchemeComponent() {
       hotSpot2Fee: feeScheme.hotSpot2Fee ?? 0,
       hotSpot3Fee: feeScheme.hotSpot3Fee ?? 0,
       hotSpotFinalFee: feeScheme.hotSpotFinalFee ?? 0,
+      requirePaymentToRegister: feeScheme.requirePaymentToRegister ?? false,
       raceFeeMode: feeScheme.raceFeeMode ?? "PER_BIRD_PER_RACE",
       birdFeeItems: (feeScheme.birdFeeItems || []).map((item) => ({
         birdNo: item.birdNo ?? 0,
@@ -169,6 +171,7 @@ export default function FeeSchemeComponent() {
       hotSpot2Fee: 0,
       hotSpot3Fee: 0,
       hotSpotFinalFee: 0,
+      requirePaymentToRegister: false,
       raceFeeMode: "PER_BIRD_PER_RACE",
       birdFeeItems: [],
       raceTypeFees: [],
@@ -355,6 +358,26 @@ export default function FeeSchemeComponent() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div className="flex items-start space-x-2">
+              <Checkbox
+                id="requirePaymentToRegister"
+                checked={formData.requirePaymentToRegister}
+                onCheckedChange={(checked) =>
+                  setFormData({ ...formData, requirePaymentToRegister: checked === true })
+                }
+              />
+              <div>
+                <Label htmlFor="requirePaymentToRegister" className="cursor-pointer">
+                  Require payment to register
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Breeders must pay by PayPal or commit to cash before a registration is accepted.
+                  Leave off to keep the current behaviour, where registration succeeds and leaves a
+                  pending payment.
+                </p>
+              </div>
             </div>
 
             {/* Max Birds + Max Backup Birds */}

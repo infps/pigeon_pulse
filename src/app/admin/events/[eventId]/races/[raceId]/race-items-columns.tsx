@@ -3,6 +3,7 @@
 import { ColumnDef, SortingFn } from "@tanstack/react-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { RaceItem } from "@/lib/types";
 
 const nullsLast: SortingFn<RaceItem> = (a, b, colId) => {
@@ -15,7 +16,9 @@ const nullsLast: SortingFn<RaceItem> = (a, b, colId) => {
   return String(av).localeCompare(String(bv));
 };
 
-export const raceItemsColumns: ColumnDef<RaceItem>[] = [
+export const createRaceItemsColumns = (
+  onSetStatus?: (item: RaceItem) => void
+): ColumnDef<RaceItem>[] => [
   {
     accessorKey: "birdPosition",
     sortingFn: nullsLast,
@@ -122,6 +125,41 @@ export const raceItemsColumns: ColumnDef<RaceItem>[] = [
     },
   },
   {
+    accessorKey: "birdPositionHotSpot",
+    sortingFn: nullsLast,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Hotspot" />
+    ),
+    cell: ({ row }) => {
+      const pos = row.original.birdPositionHotSpot;
+      return <span className="tabular-nums">{pos ?? "-"}</span>;
+    },
+  },
+  {
+    accessorKey: "prizeValue",
+    sortingFn: nullsLast,
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Prize" />
+    ),
+    cell: ({ row }) => {
+      const prize = row.original.prizeValue;
+      const drop = row.original.birdDrop;
+      if (prize == null) return <span className="text-muted-foreground">-</span>;
+      return (
+        <span className="tabular-nums font-medium">
+          {prize.toLocaleString("en-US", {
+            style: "currency",
+            currency: "USD",
+            maximumFractionDigits: 2,
+          })}
+          {drop != null && (
+            <span className="ml-1 text-xs text-muted-foreground">drop {drop}</span>
+          )}
+        </span>
+      );
+    },
+  },
+  {
     accessorKey: "loftBasketLabel",
     sortingFn: nullsLast,
     header: ({ column }) => (
@@ -151,4 +189,25 @@ export const raceItemsColumns: ColumnDef<RaceItem>[] = [
       );
     },
   },
+  {
+    id: "actions",
+    header: "",
+    enableSorting: false,
+    cell: ({ row }) => {
+      if (!onSetStatus) return null;
+      return (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs"
+          onClick={() => onSetStatus(row.original)}
+        >
+          Status
+        </Button>
+      );
+    },
+  },
 ];
+
+/** Columns without the status action, for read-only views. */
+export const raceItemsColumns = createRaceItemsColumns();

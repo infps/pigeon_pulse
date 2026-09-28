@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requireApproved } from "@/lib/roles";
 import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
 import { prisma } from "@/lib/prisma";
 import { PaymentStatus } from "@/generated/prisma/enums";
@@ -44,6 +45,9 @@ const registrationSchema = z.object({
   birds: z.array(birdSchema).optional().default([]),
   bets: z.array(betSelectionSchema).optional().default([]),
   note: z.string().optional(),
+  // How the breeder intends to settle. Only consulted when the season fee
+  // scheme has requirePaymentToRegister turned on.
+  paymentIntent: z.enum(["PAYPAL", "CASH"]).optional(),
 });
 
 export async function POST(
@@ -54,6 +58,8 @@ export async function POST(
     const session = await auth.api.getSession({
       headers: await headers(),
     });
+    const notApproved = requireApproved(session);
+    if (notApproved) return notApproved;
 
     if (!session || !session.user || session.user.role !== "BREEDER") {
       return NextResponse.json(
@@ -120,6 +126,19 @@ export async function POST(
       );
     }
 
+    // Payment gate — club policy, off by default. When on, a breeder must either
+    // pay now or commit to cash; registering and settling later is not allowed.
+    if (season?.feeScheme?.requirePaymentToRegister && !validatedData.paymentIntent) {
+      return NextResponse.json(
+        {
+          message:
+            "This event requires payment to register. Choose PayPal to pay now, or commit to paying cash.",
+          requiresPayment: true,
+        },
+        { status: 402 }
+      );
+    }
+
     // Check if breeder has already registered for this season with same loft
     const existingRegistration = await prisma.eventInventory.findFirst({
       where: {
@@ -142,6 +161,8 @@ export async function POST(
       const teamId = await resolveTeamId(tx, breederId, validatedData.loftName);
 
       // Create EventInventory
+      const promisedCash = validatedData.paymentIntent === "CASH";
+
       const eventInventory = await tx.eventInventory.create({
         data: {
           seasonId,
@@ -150,6 +171,9 @@ export async function POST(
           loft: validatedData.loftName,
           reservedBirds: validatedData.reservedBirds,
           note: validatedData.note,
+          // Recorded so the defaulter list treats them as trusted rather than
+          // chasing them, exactly as an admin-set cash promise does.
+          cashPromised: promisedCash,
         },
       });
 
@@ -273,9 +297,6 @@ export async function POST(
         });
         feeTotal = fees.total;
 
-        const raceFeePerBird = validatedData.reservedBirds > 0
-          ? fees.raceFees / validatedData.reservedBirds
-          : 0;
 
         for (let i = 0; i < inventoryItems.length; i++) {
           const birdBreakdown = fees.perBirdBreakdown[i];
@@ -285,7 +306,14 @@ export async function POST(
               entryFeeValue: i === 0 ? fees.purgeFee : 0,
               perchFeeValue: birdBreakdown?.perchFee ?? 0,
               hotSpotFeeValue: birdBreakdown?.hotspotFee ?? 0,
-              raceFeeValue: raceFeePerBird,
+              hotSpot1FeeValue: birdBreakdown?.hotspot1Fee ?? 0,
+              hotSpot2FeeValue: birdBreakdown?.hotspot2Fee ?? 0,
+              hotSpot3FeeValue: birdBreakdown?.hotspot3Fee ?? 0,
+              hotSpotFinalFeeValue: birdBreakdown?.hotspotFinalFee ?? 0,
+              // Zero until the bird is actually basketed. A bird that never
+              // leaves the loft never flies a race and must not be billed for
+              // one; scan-loft writes the real figure when it goes in.
+              raceFeeValue: 0,
             },
           });
         }

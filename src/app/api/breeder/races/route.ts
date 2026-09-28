@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { raceVisibilityFilter } from "@/lib/visibility";
 
 export async function GET(request: Request) {
   try {
@@ -7,10 +10,19 @@ export async function GET(request: Request) {
     const eventId = searchParams.get("eventId");
     const raceId = searchParams.get("raceId");
 
+    const session = await auth.api.getSession({ headers: await headers() });
+
+    // A private race, or any race under a private event, is hidden unless this
+    // breeder has a bird in it.
+    const visibility = await raceVisibilityFilter(
+      session?.user?.id,
+      session?.user?.role
+    );
+
     // If raceId is provided, return single race
     if (raceId) {
-      const race = await prisma.race.findUnique({
-        where: { id: parseInt(raceId) },
+      const race = await prisma.race.findFirst({
+        where: { AND: [{ id: parseInt(raceId) }, visibility] },
         include: {
           raceType: true,
           seasonRel: { include: { event: true } },
@@ -32,10 +44,8 @@ export async function GET(request: Request) {
 
     // ponytail: resolve eventId→seasonIds then filter; races no longer have eventId
     const whereClause = eventId
-      ? {
-          seasonRel: { eventId: parseInt(eventId) },
-        }
-      : {};
+      ? { AND: [{ seasonRel: { eventId: parseInt(eventId) } }, visibility] }
+      : visibility;
 
     const races = await prisma.race.findMany({
       where: whereClause,

@@ -21,6 +21,23 @@ function getYouTubeEmbedUrl(url: string): string | null {
   }
 }
 
+/**
+ * Facebook has no id to extract — its player takes the whole post URL as a
+ * parameter, so anything that parses as a URL is worth handing over. Muted
+ * because a stream that starts making noise on page load is a stream people
+ * close.
+ */
+function getFacebookEmbedUrl(url: string): string | null {
+  try {
+    new URL(url);
+    return `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(
+      url
+    )}&autoplay=true&mute=true`;
+  } catch {
+    return null;
+  }
+}
+
 function formatArrivalTime(d: string): string {
   const dt = new Date(d);
   return `${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}:${String(dt.getSeconds()).padStart(2, "0")}.${String(dt.getMilliseconds()).padStart(3, "0")}`;
@@ -45,7 +62,11 @@ interface GoLiveTabProps {
 }
 
 export function GoLiveTab({ race, enriched, released, returned, velocityUnit }: GoLiveTabProps) {
-  const embedUrl = race.youtubeUrl ? getYouTubeEmbedUrl(race.youtubeUrl) : null;
+  // YouTube first, then Facebook, then the placeholder. An organiser who has
+  // filled in both is streaming to both, and YouTube embeds more reliably.
+  const embedUrl =
+    (race.youtubeUrl ? getYouTubeEmbedUrl(race.youtubeUrl) : null) ??
+    (race.facebookStreamUrl ? getFacebookEmbedUrl(race.facebookStreamUrl) : null);
 
   // Stats for filter bar
   const arrived = enriched.filter((e) => e.rank != null);
@@ -107,6 +128,16 @@ export function GoLiveTab({ race, enriched, released, returned, velocityUnit }: 
             </div>
           )}
         </div>
+        {race.facebookPageUrl ? (
+          <a
+            href={race.facebookPageUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-sm font-medium text-blue-600 hover:underline md:col-start-1"
+          >
+            Watch on Facebook →
+          </a>
+        ) : null}
 
         {/* Right: top 10 arrivals */}
         <div className="rounded-xl border border-border bg-card overflow-hidden flex flex-col">

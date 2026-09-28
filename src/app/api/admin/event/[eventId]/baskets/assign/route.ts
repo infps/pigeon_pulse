@@ -1,5 +1,7 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
+import { partitionByFitness } from "@/lib/bird-health";
 import { bfdAssign } from "@/lib/packingEngine";
 import type { BreederGroup, BasketSlot } from "@/lib/packingEngine";
 import { headers } from "next/headers";
@@ -17,10 +19,9 @@ export async function POST(
   }
 
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("baskets.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const url = new URL(request.url);
     const seasonIdParam = url.searchParams.get("seasonId");
@@ -41,13 +42,24 @@ export async function POST(
     const body = await request.json();
     const preview = body.preview === true;
     const mode: "shuffle" | "assign" = body.mode === "assign" ? "assign" : "shuffle";
-    const raceId = body.raceId ? parseInt(body.raceId) : undefined;
+    // body.raceId is accepted and ignored. This route assigns LOFT baskets,
+    // which belong to the season rather than to a race — see below.
+
+    // body.seasonId takes precedence over query param
+    if (body.seasonId) seasonId = parseInt(body.seasonId);
 
     // 1. Fetch birds for this season
-    const inventoryItems = await prisma.eventInventoryItem.findMany({
+    const candidates = await prisma.eventInventoryItem.findMany({
       where: {
         eventInventory: { seasonId },
         ...(mode === "assign" ? { basketAssignments: { none: {} } } : {}),
+        // A bird that is lost, scratched or replaced has no business in a
+        // basket. Legacy left these in and the operator had to spot them.
+        replacedItemId: null,
+        bird: {
+          NOT: { isLost: 1 },
+          OR: [{ isActive: 1 }, { isActive: null }],
+        },
       },
       select: {
         id: true,
@@ -57,8 +69,22 @@ export async function POST(
             breeder: { select: { id: true, lastName: true } },
           },
         },
+        bird: {
+          select: {
+            healthStatus: true,
+            band1: true,
+            band2: true,
+            band3: true,
+            band4: true,
+            band: true,
+          },
+        },
       },
     });
+
+    // Unfit birds are held back rather than silently dropped, so the operator
+    // sees which birds were excluded and why.
+    const { fit: inventoryItems, unfit } = partitionByFitness(candidates);
 
     if (inventoryItems.length === 0) {
       return NextResponse.json(
@@ -104,12 +130,22 @@ export async function POST(
     }
     const groups: BreederGroup[] = [...groupMap.values()];
 
-    // 4. Fetch LOFT baskets scoped to season (+ raceId if provided)
+    // 4. Fetch LOFT baskets — scoped to the season, and only the season.
+    //
+    // A loft basket is never tied to a race: the create route forces
+    // `raceId: phase === "RACE" ? raceId : null`, so every LOFT row has a null
+    // raceId. Filtering these by a raceId was therefore unsatisfiable — it
+    // could only ever return zero rows, and did, because the basket panel
+    // auto-selects the first race on mount and sends it every time. The result
+    // was "No loft baskets found" on events whose baskets plainly existed.
+    //
+    // The list endpoint already has this right: it applies the raceId filter
+    // only when phase is RACE. That asymmetry is why the baskets were visible
+    // but unassignable. Race baskets are assigned by assign-race instead.
     const eventBaskets = await prisma.eventBasket.findMany({
       where: {
         seasonId,
         phase: "LOFT",
-        ...(raceId ? { raceId } : {}),
       },
       include: { _count: { select: { assignments: true } } },
       orderBy: { basketNo: "asc" },
@@ -144,6 +180,7 @@ export async function POST(
     if (preview) {
       return NextResponse.json({
         preview: true,
+        heldBack: unfit,
         assigned: assigned.map((a) => ({
           groupKey: a.breederId,
           label: a.lastName,
@@ -202,6 +239,7 @@ export async function POST(
 
     return NextResponse.json({
       preview: false,
+        heldBack: unfit,
       assigned: assigned.map((a) => ({
         groupKey: a.breederId,
         label: a.lastName,

@@ -20,8 +20,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, Plus, Settings } from "lucide-react";
+import { Copy, Pencil, Trash2, Plus, Settings } from "lucide-react";
 import { toast } from "sonner";
+import { SeasonCloneDialog } from "@/components/season-clone-dialog";
 
 function seasonLabel(s: Season) {
   const y1 = new Date(s.startDate).getFullYear();
@@ -168,6 +169,7 @@ export function SeasonSelector({ eventId, isSuperAdmin }: { eventId: string; isS
   const { seasons, selectedSeasonId, setSelectedSeasonId, refetchSeasons } = useSeasonContext();
 
   const [manageOpen, setManageOpen] = useState(false);
+  const [cloneSeason, setCloneSeason] = useState<Season | null>(null);
   const [bank, setBank] = useState<SchemeBank>({ feeSchemes: [], bettingSchemes: [], prizeSchemes: [] });
   const [bankLoaded, setBankLoaded] = useState(false);
 
@@ -359,6 +361,15 @@ export function SeasonSelector({ eventId, isSuperAdmin }: { eventId: string; isS
                               variant="ghost"
                               size="icon"
                               className="h-6 w-6"
+                              title="Copy this season into a new one"
+                              onClick={() => setCloneSeason(s)}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
                               onClick={() => editingId === s.id ? setEditingId(null) : startEdit(s)}
                             >
                               <Pencil className="h-3 w-3" />
@@ -448,6 +459,14 @@ export function SeasonSelector({ eventId, isSuperAdmin }: { eventId: string; isS
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          <SeasonCloneDialog
+            eventId={eventId}
+            season={cloneSeason}
+            open={cloneSeason !== null}
+            onOpenChange={(o) => { if (!o) setCloneSeason(null); }}
+            onDone={() => { setCloneSeason(null); refetchSeasons(); }}
+          />
         </>
       )}
     </div>

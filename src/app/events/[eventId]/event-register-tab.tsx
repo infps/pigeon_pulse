@@ -35,6 +35,50 @@ import { useSettings } from "@/lib/settings-context";
 import { Checkbox } from "@/components/ui/checkbox";
 import { schemePools, poolKey, type BetCategory } from "@/lib/betting-pools";
 
+// Register with paymentIntent=CASH — breeders pay later via /payments page.
+function CashRegisterButton({
+  eventId, loftName, reservedBirds, birdIds, bets, disabled, onDone,
+}: {
+  eventId: string; loftName: string; reservedBirds: number; birdIds: number[];
+  bets: { birdId: number; pools: { category: BetCategory; tierIndex: number }[] }[];
+  disabled?: boolean; onDone?: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  const handle = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/breeder/event/${eventId}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          loftName, reservedBirds,
+          birds: birdIds.map((id) => ({ birdId: id })),
+          bets,
+          paymentIntent: "CASH",
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.message || "Registration failed");
+      toast.success("Registered. Pay via Payments page when ready.");
+      onDone?.();
+      router.push("/payments");
+    } catch (err: any) {
+      toast.error(err?.message || "Registration failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button variant="outline" disabled={disabled || loading} onClick={handle}>
+      {loading ? "Registering…" : "Register & Pay Later"}
+    </Button>
+  );
+}
+
 interface EventRegisterTabProps {
   event: Event;
   eventId: string;
@@ -450,16 +494,16 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                       <span className="font-medium">${fees.perchFees.toFixed(2)}</span>
                     </div>
                   )}
-                  {fees && fees.raceFees > 0 && (
+                  {fees && fees.hotspotBilled > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Race Fees:</span>
-                      <span className="font-medium">${fees.raceFees.toFixed(2)}</span>
+                      <span className="text-muted-foreground">Hotspot Fee:</span>
+                      <span className="font-medium">${fees.hotspotBilled.toFixed(2)}</span>
                     </div>
                   )}
-                  {fees && fees.hotspotFees > 0 && (
+                  {fees && fees.raceFees > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Hotspot Fees:</span>
-                      <span className="font-medium">${fees.hotspotFees.toFixed(2)}</span>
+                      <span className="text-muted-foreground">Race Fees (later):</span>
+                      <span className="text-muted-foreground">${fees.raceFees.toFixed(2)}</span>
                     </div>
                   )}
                   {betStakesTotal > 0 && (
@@ -478,12 +522,70 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                 <p className="text-xs text-muted-foreground">
                   Final amount is verified server-side before payment.
                 </p>
+                {fees && fees.raceFees > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Race fees are charged per bird when it is basketed, so a bird that stays
+                    home is not billed for a race it did not fly.
+                  </p>
+                )}
+                {fees && fees.hotspotBilled > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Hotspot fees can be paid gate by gate, or in full at the Final.
+                  </p>
+                )}
+
+                {/* What each bird costs. A total nobody can check is the one
+                    that gets argued about at the desk. */}
+                {fees && fees.perBirdBreakdown.length > 0 && (
+                  <div className="mt-4 overflow-x-auto rounded-lg border">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50">
+                        <tr className="text-left">
+                          <th className="px-3 py-2 font-medium">Bird</th>
+                          <th className="px-3 py-2 text-right font-medium">Perch</th>
+                          <th className="px-3 py-2 text-right font-medium">Hotspot</th>
+                          <th className="px-3 py-2 text-right font-medium">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {fees.perBirdBreakdown.map((b, i) => {
+                          const hotspot = i === 0 ? fees.hotspotBilled / fees.perBirdBreakdown.length : fees.hotspotBilled / fees.perBirdBreakdown.length;
+                          const purge = i === 0 ? fees.purgeFee : 0;
+                          return (
+                            <tr key={b.position} className="border-t">
+                              <td className="px-3 py-2">
+                                #{b.position}
+                                {purge > 0 && (
+                                  <span className="text-muted-foreground"> + purge ${purge.toFixed(2)}</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-right">${b.perchFee.toFixed(2)}</td>
+                              <td className="px-3 py-2 text-right">${hotspot.toFixed(2)}</td>
+                              <td className="px-3 py-2 text-right font-medium">
+                                ${(purge + b.perchFee + hotspot).toFixed(2)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
 
             {/* Submit */}
             {reservedBirds > 0 && (
-              <div className="flex justify-end">
+              <div className="flex flex-col sm:flex-row justify-end gap-2">
+                <CashRegisterButton
+                  eventId={eventId}
+                  loftName={selectedLoft}
+                  reservedBirds={reservedBirds}
+                  birdIds={selectedBirds.map((b) => b.id)}
+                  bets={betsPayload}
+                  disabled={!canSubmit}
+                  onDone={resetForm}
+                />
                 <PayPalButton
                   eventId={eventId}
                   loftName={selectedLoft}

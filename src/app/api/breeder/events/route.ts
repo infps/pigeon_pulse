@@ -1,12 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { eventVisibilityFilter } from "@/lib/visibility";
 
 export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
     const isOpen = searchParams.get("isOpen");
 
-    const whereClause: any = {};
+    const session = await auth.api.getSession({ headers: await headers() });
+
+    // Private events are hidden unless this breeder is registered in one.
+    const visibility = await eventVisibilityFilter(
+      session?.user?.id,
+      session?.user?.role
+    );
+
+    const whereClause: any = { ...visibility };
 
     // Filter by open/closed status if specified
     if (isOpen !== null) {

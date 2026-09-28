@@ -20,8 +20,11 @@ import {
 import { DataTable } from "@/components/ui/data-table";
 import { BasketTabs } from "./basket-tabs";
 // GPS disabled for now: import { TransportCard, RouteHistoryCard } from "./transport-card";
-import { raceItemsColumns } from "./race-items-columns";
+import { createRaceItemsColumns } from "./race-items-columns";
+import { RaceStatusDialog } from "./race-status-dialog";
 import { RaceStatusFilter } from "./race-status-filter";
+import { RecalculateDialog } from "./recalculate-dialog";
+import { CorrectionsDialog } from "./corrections-dialog";
 import { getWeatherIcon } from "@/lib/weather-constants";
 import { StationsMap } from "@/components/map";
 import type { Race, Event, RaceItem } from "@/lib/types";
@@ -44,6 +47,8 @@ export default function RaceDetailsPage() {
   const [arrivalTo, setArrivalTo] = useState<string>("");
   const [arrivalDefaultSet, setArrivalDefaultSet] = useState(false);
   const [tableResetKey, setTableResetKey] = useState(0);
+  const [statusItem, setStatusItem] = useState<RaceItem | null>(null);
+  const [statusOpen, setStatusOpen] = useState(false);
   const lastScannedRfidRef = useRef<string | null>(null);
   const scannerIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pollStartedAtRef = useRef<string | null>(null);
@@ -126,7 +131,10 @@ export default function RaceDetailsPage() {
 
       const birdName = data.raceItem?.bird?.birdName || rfid;
       if (data.isNewScan) {
-        if (data.scanType === "loft") {
+        if (data.scanType === "phantom") {
+          // Tag matched no bird — it is queued under Corrections for matching.
+          toast.warning(data.message || `Tag ${rfid} does not match any bird`);
+        } else if (data.scanType === "loft") {
           toast.success(`${birdName} added to loft basket`);
         } else {
           toast.success(`${birdName} arrived! Position: ${data.raceItem?.birdPosition}`);
@@ -140,9 +148,8 @@ export default function RaceDetailsPage() {
     }
   }, [raceId, queryClient]);
 
-  // Web Serial — passes scanner timestamp directly so arrival time is precise
-  const { isConnected: isSerial, error: serialError, connect: connectSerial, disconnect: disconnectSerial } =
-    useWebSerial({ onScan: (rfid, ts) => handleScan(rfid, ts) });
+  const { isConnected: isSerial, connect: connectSerial, disconnect: disconnectSerial } =
+    useWebSerial({ onScan: handleScan });
 
   const stopScanner = useCallback(() => {
     if (scannerIntervalRef.current) {
@@ -156,6 +163,7 @@ export default function RaceDetailsPage() {
   }, []);
 
   const startScanner = useCallback(() => {
+    if (isSerial) disconnectSerial();
     setIsScanning(true);
     lastScannedRfidRef.current = null;
     pollStartedAtRef.current = new Date().toISOString();
@@ -318,6 +326,12 @@ export default function RaceDetailsPage() {
                         {isEndingRace ? "Ending..." : "End Race"}
                       </Button>
                     )}
+                    {race.status !== "REGISTERING" && (
+                      <>
+                        <CorrectionsDialog raceId={raceId} raceItems={allRaceItems} />
+                        <RecalculateDialog raceId={raceId} />
+                      </>
+                    )}
                     {isScanning ? (
                       <Button
                         onClick={stopScanner}
@@ -338,18 +352,14 @@ export default function RaceDetailsPage() {
                       </Button>
                     )}
                     <Button
+                      onClick={isSerial ? disconnectSerial : () => { stopScanner(); connectSerial(); }}
                       size="sm"
                       variant={isSerial ? "default" : "outline"}
-                      onClick={isSerial ? disconnectSerial : connectSerial}
-                      title="Web Serial — direct USB/COM (Chrome/Edge only)"
                       className="gap-2"
                     >
                       <Usb className="h-4 w-4" />
-                      {isSerial ? "Serial On" : "Serial"}
+                      {isSerial ? "USB Connected" : "USB Serial"}
                     </Button>
-                    {serialError && (
-                      <span className="text-xs text-red-600">{serialError}</span>
-                    )}
                   </div>
                   <div className="flex flex-wrap items-center gap-3 mt-1">
                     <p className="text-sm md:text-base text-blue-600">
@@ -575,7 +585,10 @@ export default function RaceDetailsPage() {
             {/* Row 3: search + clear — via DataTable toolbarExtra */}
             <DataTable
               tableId="race-items"
-              columns={raceItemsColumns}
+              columns={createRaceItemsColumns((item) => {
+                setStatusItem(item);
+                setStatusOpen(true);
+              })}
               data={raceItems}
               resetFiltersKey={tableResetKey}
               filterableColumns={[
@@ -629,6 +642,15 @@ export default function RaceDetailsPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      <RaceStatusDialog
+        item={statusItem}
+        open={statusOpen}
+        onOpenChange={setStatusOpen}
+        onDone={() => {
+          queryClient.invalidateQueries({ queryKey: ["raceItems", "list", `raceId-${raceId}`] });
+        }}
+      />
     </div>
   );
 }

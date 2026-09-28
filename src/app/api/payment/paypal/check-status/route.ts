@@ -14,7 +14,11 @@ const checkStatusSchema = z.object({
 export async function POST(request: Request) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || session.user.role !== "BREEDER") {
+    // Bettors poll this too. create-bet-order and capture-bet-order both admit
+    // BREEDER and BETTOR; this route admitted only BREEDER, so a bettor could
+    // open an order and capture one, but every poll in between returned 401 —
+    // which reads as a payment that never approves.
+    if (!session?.user || !["BREEDER", "BETTOR"].includes(session.user.role)) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 

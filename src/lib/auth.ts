@@ -58,28 +58,44 @@ const auth = betterAuth({
     },
     plugins:[bearer(),username(),
         customSession(async({user,session})=>{
-            // Avoid extra DB round-trip if role is already on the session user
+            // Role and approval both ride on the session: every guard reads them
+            // on each request, so fetching them here avoids a query per check.
             const existingRole = (user as any).role as string | undefined;
-            if (existingRole) {
-                return { ...session, user: { ...user, role: existingRole } };
+            const existingApproval = (user as any).approvalStatus as string | undefined;
+            if (existingRole && existingApproval) {
+                return {
+                    ...session,
+                    user: { ...user, role: existingRole, approvalStatus: existingApproval },
+                };
             }
 
-            const fetchRole = () => prisma.user.findUnique({ where: { id: user.id }, select: { role: true } });
+            const fetchUser = () =>
+                prisma.user.findUnique({
+                    where: { id: user.id },
+                    select: { role: true, approvalStatus: true },
+                });
             try {
-                let dbUser = await fetchRole().catch(async (e: any) => {
+                let dbUser = await fetchUser().catch(async (e: any) => {
                     // Retry once on Neon cold-start timeout
                     if (e?.code === "ETIMEDOUT" || e?.code === "P1001") {
                         await new Promise(r => setTimeout(r, 1500));
-                        return fetchRole();
+                        return fetchUser();
                     }
                     throw e;
                 });
                 return {
                     ...session,
-                    user: { ...user, role: dbUser?.role ?? "BREEDER" }
+                    user: {
+                        ...user,
+                        role: dbUser?.role ?? "BREEDER",
+                        // An account whose row we could not read is treated as
+                        // approved rather than locked out; the guards fail open
+                        // for reads and closed for actions either way.
+                        approvalStatus: dbUser?.approvalStatus ?? "APPROVED",
+                    },
                 };
             } catch (e) {
-                console.error("[customSession] failed to fetch role for user", user.id, e);
+                console.error("[customSession] failed to fetch user for", user.id, e);
                 throw e;
             }
         })

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useDialogHotkeys } from "@/lib/use-dialog-hotkeys";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -158,6 +159,13 @@ function ConfigFormDialog({ open, onOpenChange, eventId, seasonId, editing, onSa
   };
 
   const isPending = createMutation.isPending || patchMutation.isPending;
+
+  useDialogHotkeys({
+    open,
+    onSave: handleSave,
+    onClose: () => onOpenChange(false),
+    disabled: isPending,
+  });
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) resetTo(editing); onOpenChange(o); }}>

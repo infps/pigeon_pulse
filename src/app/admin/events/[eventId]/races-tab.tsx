@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { ObsSourceField } from "@/components/obs-source-field";
 import {
   Select,
   SelectContent,
@@ -70,54 +71,17 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
     wind: "",
     weather: "",
     isClosed: 0 as number,
+    isPrivate: false,
     season: "",
+    youtubeUrl: "",
+    facebookStreamUrl: "",
+    facebookPageUrl: "",
   });
 
-  // Derived early so useEffects below can reference them (must be before any early return)
   const activeStationsEarly = (stationsData?.stations ?? []).filter((s) => s.isActive);
   const selectedStation = activeStationsEarly.find((s) => String(s.id) === formData.raceStationId);
   const hasLoft = event.latitude != null && event.longitude != null;
 
-  // Auto-fetch forecast when station + startTime are both set (create mode only)
-  useEffect(() => {
-    if (!isDialogOpen || editingRace) return;
-    if (!selectedStation?.latitude || !selectedStation?.longitude || !formData.startTime) return;
-    handleFetchForecast();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.raceStationId, isDialogOpen]);
-
-  // Auto-fetch sunrise/sunset when startTime or station changes (create mode only)
-  useEffect(() => {
-    if (!isDialogOpen || editingRace || !formData.startTime) return;
-    const date = formData.startTime.slice(0, 10);
-    const lat = selectedStation?.latitude ?? (hasLoft ? (event.latitude as number) : null);
-    const lon = selectedStation?.longitude ?? (hasLoft ? (event.longitude as number) : null);
-    if (lat == null || lon == null) return;
-    fetchSunriseSunset(lat, lon, date)
-      .then(({ sunrise, sunset }) =>
-        setFormData((prev) => ({ ...prev, sunrise, sunset }))
-      )
-      .catch(() => {}); // silent — user can fill manually
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.startTime, formData.raceStationId, isDialogOpen]);
-
-  if (isPending) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-8 w-full" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="text-center py-12 text-red-500">
-        <p>Error loading races</p>
-      </div>
-    );
-  }
 
   const races: Race[] = data?.races || [];
   const raceTypes = raceTypesData?.raceTypes || [];
@@ -241,7 +205,11 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
         wind: formData.wind || undefined,
         weather: formData.weather || undefined,
         isClosed: formData.isClosed,
+        isPrivate: formData.isPrivate,
         season: formData.season || undefined,
+        youtubeUrl: formData.youtubeUrl || undefined,
+        facebookStreamUrl: formData.facebookStreamUrl || undefined,
+        facebookPageUrl: formData.facebookPageUrl || undefined,
       });
 
       toast.success("Race created successfully");
@@ -264,7 +232,11 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
         wind: "",
         weather: "",
         isClosed: 0,
+        isPrivate: false,
         season: "",
+        youtubeUrl: "",
+        facebookStreamUrl: "",
+        facebookPageUrl: "",
       });
     } catch (error) {
       toast.error("Failed to create race");
@@ -288,6 +260,9 @@ function toDateTimeLocal(iso: string) {
       description: race.description || "",
       distance: race.distance?.toString() ?? "",
       location: race.location || "",
+      youtubeUrl: race.youtubeUrl || "",
+      facebookStreamUrl: race.facebookStreamUrl || "",
+      facebookPageUrl: race.facebookPageUrl || "",
       startTime: race.startTime ? toDateTimeLocal(race.startTime) : "",
       sunrise: sunriseTime ? sunriseTime.toTimeString().slice(0, 5) : "",
       sunset: sunsetTime ? sunsetTime.toTimeString().slice(0, 5) : "",
@@ -298,6 +273,7 @@ function toDateTimeLocal(iso: string) {
       wind: race.wind || "",
       weather: race.weather || "",
       isClosed: race.isClosed ?? 0,
+      isPrivate: race.isPrivate ?? false,
       season: race.season ?? "",
     });
     setIsDialogOpen(true);
@@ -356,7 +332,11 @@ function toDateTimeLocal(iso: string) {
         wind: formData.wind || undefined,
         weather: formData.weather || undefined,
         isClosed: formData.isClosed,
+        isPrivate: formData.isPrivate,
         season: formData.season || undefined,
+        youtubeUrl: formData.youtubeUrl || undefined,
+        facebookStreamUrl: formData.facebookStreamUrl || undefined,
+        facebookPageUrl: formData.facebookPageUrl || undefined,
       });
 
       toast.success("Race updated successfully");
@@ -379,7 +359,11 @@ function toDateTimeLocal(iso: string) {
         wind: "",
         weather: "",
         isClosed: 0,
+        isPrivate: false,
         season: "",
+        youtubeUrl: "",
+        facebookStreamUrl: "",
+        facebookPageUrl: "",
       });
     } catch (error) {
       toast.error("Failed to update race");
@@ -399,6 +383,24 @@ function toDateTimeLocal(iso: string) {
       console.error("Error deleting race:", error);
     }
   };
+
+  if (isPending) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12 text-red-500">
+        <p>Error loading races</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -425,7 +427,11 @@ function toDateTimeLocal(iso: string) {
             wind: "",
             weather: "",
             isClosed: 0,
+            isPrivate: false,
             season: "",
+            youtubeUrl: "",
+            facebookStreamUrl: "",
+            facebookPageUrl: "",
           });
           setIsDialogOpen(true);
         }}>
@@ -504,6 +510,54 @@ function toDateTimeLocal(iso: string) {
                     required
                   />
                 </div>
+
+                {/* Streaming. Two Facebook fields because the embeddable video
+                    URL and the page a viewer should be sent to are not the same
+                    link, and using one for both silently breaks whichever is
+                    wrong. */}
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="youtubeUrl">YouTube URL</Label>
+                  <Input
+                    id="youtubeUrl"
+                    value={formData.youtubeUrl}
+                    placeholder="https://youtube.com/live/…"
+                    onChange={(e) =>
+                      setFormData({ ...formData, youtubeUrl: e.target.value })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="facebookStreamUrl">Facebook video URL</Label>
+                  <Input
+                    id="facebookStreamUrl"
+                    value={formData.facebookStreamUrl}
+                    placeholder="https://facebook.com/…/videos/…"
+                    onChange={(e) =>
+                      setFormData({ ...formData, facebookStreamUrl: e.target.value })
+                    }
+                  />
+                  <p className="text-muted-foreground text-xs">
+                    The post itself. Used to embed the player.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="facebookPageUrl">Facebook page URL</Label>
+                  <Input
+                    id="facebookPageUrl"
+                    value={formData.facebookPageUrl}
+                    placeholder="https://facebook.com/yourpage"
+                    onChange={(e) =>
+                      setFormData({ ...formData, facebookPageUrl: e.target.value })
+                    }
+                  />
+                  <p className="text-muted-foreground text-xs">
+                    Where the &ldquo;Watch on Facebook&rdquo; link goes.
+                  </p>
+                </div>
+
+                {editingRace ? <ObsSourceField raceId={editingRace.id} /> : null}
                 <div className="space-y-2">
                   <Label htmlFor="launchStation">Launch Station</Label>
                   <Select
@@ -801,6 +855,24 @@ function toDateTimeLocal(iso: string) {
                   Mark as Closed
                 </Label>
               </div>
+
+              <div className="flex items-start space-x-2">
+                <Checkbox
+                  id="isPrivate"
+                  checked={formData.isPrivate}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, isPrivate: checked === true })
+                  }
+                />
+                <div>
+                  <Label htmlFor="isPrivate" className="cursor-pointer">
+                    Private race
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Hidden from breeders who do not have a bird entered in it.
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Submit Buttons */}
@@ -828,7 +900,11 @@ function toDateTimeLocal(iso: string) {
                     wind: "",
                     weather: "",
                     isClosed: 0,
+                    isPrivate: false,
                     season: "",
+                    youtubeUrl: "",
+                    facebookStreamUrl: "",
+                    facebookPageUrl: "",
                   });
                 }}
               >

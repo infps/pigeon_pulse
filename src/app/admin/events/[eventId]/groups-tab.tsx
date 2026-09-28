@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSeasonContext } from "@/lib/season-context";
+import { GroupStatsCard } from "./group-stats-card";
 import { BirdDetailDialog } from "@/components/bird-detail-dialog";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -921,6 +922,8 @@ export function GroupsTab({ eventId }: { eventId: string }) {
 
   return (
     <div className="space-y-4 p-4">
+      <GroupStatsCard eventId={eventId} seasonId={selectedSeasonId} />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

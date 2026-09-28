@@ -22,8 +22,13 @@ export function Header() {
   const { data: session } = authClient.useSession();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // Don't show header on admin pages
-  if (pathname?.startsWith("/admin")) {
+  // Don't show header on admin pages, or on the broadcast overlay.
+  //
+  // The overlay is a browser source composited over live video, so a nav bar
+  // and a Sign In button here would go out on air. Its own layout cannot
+  // prevent that — an App Router nested layout nests inside the root one
+  // rather than replacing it — so this is the only place to decline.
+  if (pathname?.startsWith("/admin") || pathname?.startsWith("/overlay")) {
     return null;
   }
 
@@ -52,6 +57,9 @@ export function Header() {
           </Link>
           {session?.user && (
             <nav className="hidden md:flex items-center gap-1">
+              <Link href="/events">
+                <Button variant="ghost" size="sm">Events</Button>
+              </Link>
               <Link href="/birds">
                 <Button variant="ghost" size="sm">Birds</Button>
               </Link>

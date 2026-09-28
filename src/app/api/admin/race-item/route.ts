@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { requireAnyPermission } from "@/lib/authorize";
 
 export async function GET(req: NextRequest) {
   try {
@@ -8,6 +9,8 @@ export async function GET(req: NextRequest) {
       headers: req.headers,
     });
 
+    const guard = await requireAnyPermission(["races.view", "races.manage"]);
+    if ("error" in guard) return guard.error;
     if (!session || !session.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -60,7 +63,9 @@ export async function GET(req: NextRequest) {
 
     // Flatten nested relations for UI column accessors
     const flattenedRaceItems = raceItems.map((item) => {
-      // Compute CHECKED_IN overlay for REGISTERED birds
+      // CHECKED_IN is persisted when the RFID tag is linked. This overlay stays
+      // only to cover birds checked in before that became the case — it never
+      // overrides a status the workflow has already recorded.
       let computedStatus: string = item.status;
       if (computedStatus === "REGISTERED") {
         const hasRfid = item.inventoryItem?.bird?.rfid != null && item.inventoryItem.bird.rfid !== "";
@@ -80,6 +85,9 @@ export async function GET(req: NextRequest) {
           : undefined,
         status: computedStatus,
         birdPosition: item.result?.birdPosition ?? null,
+        birdPositionHotSpot: item.result?.birdPositionHotSpot ?? null,
+        prizeValue: item.result?.prizeValue ?? null,
+        birdDrop: item.result?.birdDrop ?? null,
         arrivalTime: item.result?.arrivalTime ?? null,
         groupId: item.result?.groupId ?? null,
         speed: null,

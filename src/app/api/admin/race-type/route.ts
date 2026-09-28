@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { createRaceTypeSchema } from "@/lib/zod";
 import { headers } from "next/headers";
@@ -30,6 +31,8 @@ export async function POST(request: Request) {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
+    const guard = await requirePermission("schemes.manage");
+    if ("error" in guard) return guard.error;
     if (!session || !session.user.role || session.user.role !== "SUPERADMIN") {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
@@ -40,6 +43,7 @@ export async function POST(request: Request) {
         name: validatedData.name,
         color: validatedData.color ?? null,
         isPaymentRequired: validatedData.isPaymentRequired ?? false,
+        prizeRole: validatedData.prizeRole ?? "NONE",
       },
     });
     return NextResponse.json(
@@ -66,6 +70,8 @@ export async function PUT(request: Request) {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
+    const guard2 = await requirePermission("schemes.manage");
+    if ("error" in guard2) return guard2.error;
     if (!session || !session.user.role || session.user.role !== "SUPERADMIN") {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
@@ -87,6 +93,7 @@ export async function PUT(request: Request) {
         name: validatedData.name,
         color: validatedData.color ?? null,
         isPaymentRequired: validatedData.isPaymentRequired ?? false,
+        prizeRole: validatedData.prizeRole ?? "NONE",
       },
     });
 
@@ -114,6 +121,8 @@ export async function DELETE(request: Request) {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
+    const guard3 = await requirePermission("schemes.manage");
+    if ("error" in guard3) return guard3.error;
     if (!session || !session.user.role || session.user.role !== "SUPERADMIN") {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }

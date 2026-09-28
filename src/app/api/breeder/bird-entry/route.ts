@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import {requireBirdOwner, requireApproved } from "@/lib/roles";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 
@@ -9,6 +10,10 @@ export async function POST(req: NextRequest) {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
+    const notApproved = requireApproved(session);
+    if (notApproved) return notApproved;
+    const notOwner = requireBirdOwner(session);
+    if (notOwner) return notOwner;
 
     if (!session) {
       return NextResponse.json(

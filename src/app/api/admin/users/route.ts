@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
@@ -408,6 +409,8 @@ export async function PUT(request: Request) {
     });
 
     // When elevated to admin/superadmin, ensure they have an OrganizerData record
+    const guard = await requirePermission("users.manage");
+    if ("error" in guard) return guard.error;
     if (validatedData.role && ["ADMIN", "SUPERADMIN"].includes(validatedData.role)) {
       await prisma.organizerData.upsert({
         where: { userId: id },

@@ -1,4 +1,7 @@
 import { auth } from "@/lib/auth";
+import { requirePaidBeforeBasketing } from "@/lib/basketing-gate";
+import { writeRaceFeeForBasketedBird } from "@/lib/race-fees";
+import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -15,10 +18,9 @@ export async function POST(
   }
 
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user || !["ADMIN", "SUPERADMIN"].includes(session.user.role)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requirePermission("baskets.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
 
     const url = new URL(request.url);
     const seasonIdParam = url.searchParams.get("seasonId");
@@ -79,6 +81,16 @@ export async function POST(
       );
     }
 
+    // Gate on payment, when the season's fee scheme asks for it.
+    //
+    // Off by default: turning a scanner into a debt collector is a decision an
+    // organiser makes, not something a system should start doing on its own.
+    // When it is on, the refusal says the figure and the shortfall, because
+    // "payment required" at a basketing table with forty people waiting is not
+    // an answer anybody can act on.
+    const gate = await requirePaidBeforeBasketing(item.eventInventoryId, seasonId);
+    if (gate) return gate;
+
     // Already assigned to a group?
     if (item.currentGroupId !== null) {
       return NextResponse.json({
@@ -124,6 +136,15 @@ export async function POST(
         },
         data: { status: "LOFT_BASKETED" },
       });
+
+      // 3b. Now the bird is going, it owes its race fees.
+      //
+      // Registration writes zero: a bird that never leaves the loft never flies
+      // and must not be billed for a race it was not in. The charge lands here,
+      // at the moment it is actually basketed, and is the sum of the per-race
+      // rate for every race this season holds — the same figure the fee
+      // calculator previews, but only for birds that earned it.
+      await writeRaceFeeForBasketedBird(tx, seasonId, item.id);
 
       // 4. Write BirdEventHistory entries
       if (rfidChanged) {

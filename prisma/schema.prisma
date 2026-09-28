@@ -11,6 +11,12 @@ datasource db {
 // AUTH MODELS (better-auth, TEXT UUIDs — create tables in DB)
 // ============================================================
 
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  DECLINED
+}
+
 enum UserStatus {
   ACTIVE
   INACTIVE
@@ -101,44 +107,54 @@ enum CalcuttaGroupStatus {
 }
 
 model User {
-  id             String     @id
-  name           String
-  lastName       String?
-  email          String     @unique
-  emailVerified  Boolean    @default(false)
-  image          String?
-  imageKey       String?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
-  username       String?    @unique
-  displayUsername String?
-  country        String?
-  state          String?
-  city           String?
-  address        String?
-  postalCode     String?
-  phoneNumber    String?
-  webAddress     String?
-  ssn            String?
-  status         UserStatus @default(ACTIVE)
-  statusDate     DateTime   @default(now())
-  note           String?
-  role           UserRole   @default(BREEDER)
-  taxNumber      String?
-  loftName       String?
-  timezone       String?
-  legalName      String?
-  ssnDocKey      String?
-  taxDocKey      String?
-  sessions       Session[]
-  accounts       Account[]
-  breeder        Breeder?
-  organizerData  OrganizerData?
-  eventMessages  EventMessage[]
+  id                  String             @id
+  name                String
+  lastName            String?
+  email               String             @unique
+  emailVerified       Boolean            @default(false)
+  image               String?
+  imageKey            String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  username            String?            @unique
+  displayUsername     String?
+  country             String?
+  state               String?
+  city                String?
+  address             String?
+  postalCode          String?
+  phoneNumber         String?
+  webAddress          String?
+  ssn                 String?
+  status              UserStatus         @default(ACTIVE)
+  statusDate          DateTime           @default(now())
+  note                String?
+  role                UserRole           @default(BREEDER)
+  // Whether an organizer has vetted this account. Separate from status: a
+  // declined account still exists and can sign in, it just sees what a guest
+  // sees.
+  approvalStatus      ApprovalStatus     @default(PENDING) @map("APPROVAL_STATUS")
+  approvalDecidedAt   DateTime?          @map("APPROVAL_DECIDED_AT")
+  approvalDecidedBy   String?            @map("APPROVAL_DECIDED_BY")
+  approvalNote        String?            @map("APPROVAL_NOTE")
+  taxNumber           String?
+  loftName            String?
+  timezone            String?
+  legalName           String?
+  ssnDocKey           String?
+  taxDocKey           String?
+  sessions            Session[]
+  accounts            Account[]
+  breeder             Breeder?
+  organizerData       OrganizerData?
+  eventMessages       EventMessage[]
   betsPlaced          Bet[]              @relation("BetsPlaced")
   bettorPayments      Payment[]          @relation("BettorPayments")
   calcuttaBids        CalcuttaBid[]
   ownedCalcuttaGroups CalcuttaBetGroup[]
+  notifications       Notification[]
+  permissions         UserPermission[]
+  pushDevices         PushDevice[]
 
   @@map("Users")
 }
@@ -200,9 +216,9 @@ model Picture {
   pictureLayout String? @map("PICTURE_LAYOUT")
   pictureType   String? @map("PICTURE_TYPE")
 
-  breeders  Breeder[]
-  birds     Bird[]
-  payments  Payment[]
+  breeders Breeder[]
+  birds    Bird[]
+  payments Payment[]
 }
 
 model OrganizerData {
@@ -262,19 +278,18 @@ model Breeder {
   defNameAs      String?   @map("DEF_NAME_AS")
   userId         String?   @unique @map("USER_ID")
 
-  user             User?            @relation(fields: [userId], references: [id])
-  picture          Picture?         @relation(fields: [pictureId], references: [id])
-  birds            Bird[]
-  eventInventories EventInventory[]
-  partners         Partner[]
-  teams            Team[]
-  payments         Payment[]
-  storeListingsOriginal   EventStoreListing[] @relation("OriginalBreeder")
-  storeListingsPurchased  EventStoreListing[] @relation("PurchasedByBreeder")
+  user                   User?               @relation(fields: [userId], references: [id])
+  picture                Picture?            @relation(fields: [pictureId], references: [id])
+  birds                  Bird[]
+  eventInventories       EventInventory[]
+  partners               Partner[]
+  teams                  Team[]
+  payments               Payment[]
+  storeListingsOriginal  EventStoreListing[] @relation("OriginalBreeder")
+  storeListingsPurchased EventStoreListing[] @relation("PurchasedByBreeder")
 
   @@map("Breeders")
 }
-
 
 // ============================================================
 // SCHEMES
@@ -283,6 +298,15 @@ model Breeder {
 enum RaceFeeMode {
   PER_BIRD_PER_RACE
   FLAT_PER_RACE
+}
+
+enum RaceTypePrizeRole {
+  NONE
+  FINAL
+  HOTSPOT_1
+  HOTSPOT_2
+  HOTSPOT_3
+  AVERAGE
 }
 
 enum PaymentStatus {
@@ -300,6 +324,19 @@ enum RaceItemStatus {
   RELEASED
   ARRIVED
   FOREIGN_BIRD
+  // A lost bird that reappears with a later flock. Carries no position.
+  STRAY
+  // The admin excluded this flight — the bird did not really fly.
+  IGNORED
+  // Lost as a persisted status rather than only a boolean on Bird.
+  LOST
+}
+
+enum BirdHealthStatus {
+  HEALTHY
+  INJURED
+  HOSPITALIZED
+  DEAD
 }
 
 enum BasketPhase {
@@ -325,23 +362,33 @@ enum TransportStatus {
 }
 
 model FeeScheme {
-  id                 Int          @id @default(autoincrement()) @map("ID_FEE_SCHEME")
-  name               String?      @map("FEE_SCHEME_NAME")
-  entryFee           Int?         @map("ENTRY_FEE")
-  isRefundable       Int?         @map("IS_REFUNDABLE")
-  maxBirdCount       Int?         @map("MAX_BIRD_COUNT")
-  feesCutPercent     Int?         @map("FEES_CUT_PERCENT")
-  minEntryFees       Int?         @map("MIN_ENTRY_FEES")
-  maxBackupBirdCount Int?         @map("MAX_BACKUP_BIRD_COUNT")
-  isFloatingBackup   Int?         @map("IS_FLOATING_BACKUP")
-  hotSpot1Fee        Int?         @map("HOT_SPOT1_FEE")
-  hotSpot2Fee        Int?         @map("HOT_SPOT2_FEE")
-  hotSpot3Fee        Int?         @map("HOT_SPOT3_FEE")
-  hotSpotFinalFee    Int?         @map("HOT_SPOT_FINAL_FEE")
-  raceFeeMode        RaceFeeMode  @default(PER_BIRD_PER_RACE) @map("RACE_FEE_MODE")
-  createdById        Int?         @map("CREATOR_ID")
+  id                       Int             @id @default(autoincrement()) @map("ID_FEE_SCHEME")
+  name                     String?         @map("FEE_SCHEME_NAME")
+  entryFee                 Int?            @map("ENTRY_FEE")
+  isRefundable             Int?            @map("IS_REFUNDABLE")
+  maxBirdCount             Int?            @map("MAX_BIRD_COUNT")
+  feesCutPercent           Int?            @map("FEES_CUT_PERCENT")
+  minEntryFees             Int?            @map("MIN_ENTRY_FEES")
+  maxBackupBirdCount       Int?            @map("MAX_BACKUP_BIRD_COUNT")
+  isFloatingBackup         Int?            @map("IS_FLOATING_BACKUP")
+  hotSpot1Fee              Int?            @map("HOT_SPOT1_FEE")
+  hotSpot2Fee              Int?            @map("HOT_SPOT2_FEE")
+  hotSpot3Fee              Int?            @map("HOT_SPOT3_FEE")
+  hotSpotFinalFee          Int?            @map("HOT_SPOT_FINAL_FEE")
+  raceFeeMode              RaceFeeMode     @default(PER_BIRD_PER_RACE) @map("RACE_FEE_MODE")
+  // Late-payment penalty. NONE keeps the old behaviour of charging nothing.
+  latePenaltyMode          LatePenaltyMode @default(NONE) @map("LATE_PENALTY_MODE")
+  latePenaltyAmount        Float?          @map("LATE_PENALTY_AMOUNT")
+  latePenaltyCap           Float?          @map("LATE_PENALTY_CAP")
+  latePenaltyGraceDays     Int             @default(0) @map("LATE_PENALTY_GRACE_DAYS")
+  // Club policy: when true a breeder must pay or commit to cash to register.
+  requirePaymentToRegister Boolean         @default(false) @map("REQUIRE_PAYMENT_TO_REGISTER")
+  /// When set, entry + perch + the hotspot gate must be settled before a bird
+  /// can be basketed for Hotspot 1.
+  priorToHotspot1Required  Boolean         @default(false) @map("PRIOR_TO_HS1_REQUIRED")
+  createdById              Int?            @map("CREATOR_ID")
 
-  createdBy    OrganizerData? @relation(fields: [createdById], references: [id])
+  createdBy    OrganizerData?      @relation(fields: [createdById], references: [id])
   birdFeeItems BirdFeeItem[]
   seasons      Season[]
   raceTypeFees RaceTypeFeeScheme[]
@@ -374,54 +421,56 @@ model PrizeScheme {
   name        String? @map("PRIZE_NAME")
   createdById Int?    @map("CREATOR_ID")
 
-  createdBy       OrganizerData?   @relation(fields: [createdById], references: [id])
-  prizeSchemeItems PrizeSchemeItem[]
-  finalPrizeSeasons Season[]         @relation("SeasonFinalPrize")
-  hotSpot1Seasons  Season[]          @relation("SeasonHotSpot1Prize")
-  hotSpot2Seasons  Season[]          @relation("SeasonHotSpot2Prize")
-  hotSpot3Seasons  Season[]          @relation("SeasonHotSpot3Prize")
-  hotSpotAvgSeasons Season[]         @relation("SeasonHotSpotAvgPrize")
+  createdBy         OrganizerData?    @relation(fields: [createdById], references: [id])
+  prizeSchemeItems  PrizeSchemeItem[]
+  finalPrizeSeasons Season[]          @relation("SeasonFinalPrize")
+  hotSpot1Seasons   Season[]          @relation("SeasonHotSpot1Prize")
+  hotSpot2Seasons   Season[]          @relation("SeasonHotSpot2Prize")
+  hotSpot3Seasons   Season[]          @relation("SeasonHotSpot3Prize")
+  hotSpotAvgSeasons Season[]          @relation("SeasonHotSpotAvgPrize")
 }
 
 model PrizeSchemeItem {
   id            Int    @id @default(autoincrement()) @map("ID_PRIZE_SCHEME_ITEM")
   prizeSchemeId Int?   @map("ID_PRIZE_SCHEME")
+  raceTypeId    Int?   @map("ID_RACE_TYPE")
   fromPosition  Int?   @map("FROM_POSITION")
   toPosition    Int?   @map("TO_POSITION")
   prizeValue    Float? @map("PRIZE_VALUE")
 
   prizeScheme PrizeScheme? @relation(fields: [prizeSchemeId], references: [id])
+  raceType    RaceType?    @relation(fields: [raceTypeId], references: [id])
   prizeValues PrizeValue[]
 }
 
 model BettingScheme {
-  id                Int    @id @default(autoincrement()) @map("ID_BETTING_SCHEME")
+  id                Int     @id @default(autoincrement()) @map("ID_BETTING_SCHEME")
   name              String? @map("BETTING_SCHEME_NAME")
-  bettingCutPercent Float? @map("BETTING_CUT_PERCENT")
-  belgianRatio      Int?   @map("BELGIAN_RATIO")
-  belgianShow1      Float? @map("BELGIAN_SHOW_1")
-  belgianShow2      Float? @map("BELGIAN_SHOW_2")
-  belgianShow3      Float? @map("BELGIAN_SHOW_3")
-  belgianShow4      Float? @map("BELGIAN_SHOW_4")
-  belgianShow5      Float? @map("BELGIAN_SHOW_5")
-  belgianShow6      Float? @map("BELGIAN_SHOW_6")
-  belgianShow7      Float? @map("BELGIAN_SHOW_7")
-  standardShow1     Float? @map("STANDARD_SHOW_1")
-  standardShow2     Float? @map("STANDARD_SHOW_2")
-  standardShow3     Float? @map("STANDARD_SHOW_3")
-  standardShow4     Float? @map("STANDARD_SHOW_4")
-  standardShow5     Float? @map("STANDARD_SHOW_5")
-  standardShow6     Float? @map("STANDARD_SHOW_6")
-  wta1              Float? @map("WTA_1")
-  wta2              Float? @map("WTA_2")
-  wta3              Float? @map("WTA_3")
-  wta4              Float? @map("WTA_4")
-  wta5              Float? @map("WTA_5")
-  createdById       Int?   @map("CREATOR_ID")
+  bettingCutPercent Float?  @map("BETTING_CUT_PERCENT")
+  belgianRatio      Int?    @map("BELGIAN_RATIO")
+  belgianShow1      Float?  @map("BELGIAN_SHOW_1")
+  belgianShow2      Float?  @map("BELGIAN_SHOW_2")
+  belgianShow3      Float?  @map("BELGIAN_SHOW_3")
+  belgianShow4      Float?  @map("BELGIAN_SHOW_4")
+  belgianShow5      Float?  @map("BELGIAN_SHOW_5")
+  belgianShow6      Float?  @map("BELGIAN_SHOW_6")
+  belgianShow7      Float?  @map("BELGIAN_SHOW_7")
+  standardShow1     Float?  @map("STANDARD_SHOW_1")
+  standardShow2     Float?  @map("STANDARD_SHOW_2")
+  standardShow3     Float?  @map("STANDARD_SHOW_3")
+  standardShow4     Float?  @map("STANDARD_SHOW_4")
+  standardShow5     Float?  @map("STANDARD_SHOW_5")
+  standardShow6     Float?  @map("STANDARD_SHOW_6")
+  wta1              Float?  @map("WTA_1")
+  wta2              Float?  @map("WTA_2")
+  wta3              Float?  @map("WTA_3")
+  wta4              Float?  @map("WTA_4")
+  wta5              Float?  @map("WTA_5")
+  createdById       Int?    @map("CREATOR_ID")
 
-  createdBy               OrganizerData?          @relation(fields: [createdById], references: [id])
+  createdBy               OrganizerData?           @relation(fields: [createdById], references: [id])
   standardShowPercentages StandardShowPercentage[]
-  seasons      Season[]
+  seasons                 Season[]
 }
 
 model StandardShowPercentage {
@@ -445,23 +494,27 @@ model RaceNumberGroup {
 }
 
 model RaceType {
-  id                Int     @id @default(autoincrement()) @map("ID_RACE_TYPE")
-  name              String? @map("TYPE_NAME")
-  color             String? @map("COLOR")
-  numberGroupId     Int?    @map("ID_NUMBER_GROUP")
-  isPaymentRequired Boolean @default(false) @map("IS_PAYMENT_REQUIRED")
+  id                Int               @id @default(autoincrement()) @map("ID_RACE_TYPE")
+  name              String?           @map("TYPE_NAME")
+  color             String?           @map("COLOR")
+  numberGroupId     Int?              @map("ID_NUMBER_GROUP")
+  isPaymentRequired Boolean           @default(false) @map("IS_PAYMENT_REQUIRED")
+  // Which season prize scheme this race type draws from. Only roles other than
+  // NONE can carry a prize — mirrors HayLoft's "race type in (5,6,7,8)" guard.
+  prizeRole         RaceTypePrizeRole @default(NONE) @map("PRIZE_ROLE")
 
-  numberGroup      RaceNumberGroup?    @relation(fields: [numberGroupId], references: [id])
-  races            Race[]
-  prizeValues      PrizeValue[]
-  raceTypeFees     RaceTypeFeeScheme[]
-  stationRaceTypes RaceStationRaceType[]
+  numberGroup            RaceNumberGroup?        @relation(fields: [numberGroupId], references: [id])
+  races                  Race[]
+  prizeValues            PrizeValue[]
+  prizeSchemeItems       PrizeSchemeItem[]
+  raceTypeFees           RaceTypeFeeScheme[]
+  stationRaceTypes       RaceStationRaceType[]
   averageConfigRaceTypes AverageConfigRaceType[]
 }
 
 model EventRaceNumber {
-  seasonId       Int @map("SEASON_ID")
-  numberGroupId  Int @map("ID_NUMBER_GROUP")
+  seasonId        Int  @map("SEASON_ID")
+  numberGroupId   Int  @map("ID_NUMBER_GROUP")
   numberRangeFrom Int? @map("NUMBER_RANGE_FROM")
   numberRangeTo   Int? @map("NUMBER_RANGE_TO")
 
@@ -472,51 +525,59 @@ model EventRaceNumber {
 }
 
 model Race {
-  id                 Int       @id @default(autoincrement()) @map("ID_RACE")
-  raceTypeId         Int?      @map("ID_RACE_TYPE")
-  seasonId           Int?      @map("SEASON_ID")
-  raceNumber         Int?      @map("RACE_NUMBER")
-  description        String?   @map("DESCRIPTION")
-  distance           Int?      @map("DISTANCE")
-  location           String?   @map("LOCATION")
-  startTime          DateTime? @map("START_TIME")
-  endTime            DateTime? @map("END_TIME")
-  sunrise            DateTime? @map("SUNRISE")
-  sunset             DateTime? @map("SUNSET")
-  temperature        String?   @map("TEMPERATURE")
-  weather            String?   @map("WEATHER")
-  wind               String?   @map("WIND")
-  arrivalTemperature String?   @map("ARRIVAL_TEMPERATURE")
-  arrivalWeather     String?   @map("ARRIVAL_WEATHER")
-  arrivalWind        String?   @map("ARRIVAL_WIND")
-  isClosed           Int?      @map("IS_CLOSED")
-  season             String?   @map("SEASON")
-  name               String    @default("")
-  isLive             Boolean   @default(false)
-  status             RaceStatus @default(REGISTERING) @map("STATUS")
-  raceStationId      Int?      @map("ID_RACE_STATION")
+  id                 Int             @id @default(autoincrement()) @map("ID_RACE")
+  isPrivate          Boolean         @default(false) @map("IS_PRIVATE")
+  raceTypeId         Int?            @map("ID_RACE_TYPE")
+  seasonId           Int?            @map("SEASON_ID")
+  raceNumber         Int?            @map("RACE_NUMBER")
+  description        String?         @map("DESCRIPTION")
+  distance           Int?            @map("DISTANCE")
+  location           String?         @map("LOCATION")
+  startTime          DateTime?       @map("START_TIME")
+  endTime            DateTime?       @map("END_TIME")
+  sunrise            DateTime?       @map("SUNRISE")
+  sunset             DateTime?       @map("SUNSET")
+  temperature        String?         @map("TEMPERATURE")
+  weather            String?         @map("WEATHER")
+  wind               String?         @map("WIND")
+  arrivalTemperature String?         @map("ARRIVAL_TEMPERATURE")
+  arrivalWeather     String?         @map("ARRIVAL_WEATHER")
+  arrivalWind        String?         @map("ARRIVAL_WIND")
+  isClosed           Int?            @map("IS_CLOSED")
+  season             String?         @map("SEASON")
+  name               String          @default("")
+  isLive             Boolean         @default(false)
+  status             RaceStatus      @default(REGISTERING) @map("STATUS")
+  raceStationId      Int?            @map("ID_RACE_STATION")
   transportStatus    TransportStatus @default(IDLE) @map("TRANSPORT_STATUS")
   transportStartedAt DateTime?       @map("TRANSPORT_STARTED_AT")
   transportEndedAt   DateTime?       @map("TRANSPORT_ENDED_AT")
   bettingOpen        Boolean         @default(false) @map("BETTING_OPEN")
   youtubeUrl         String?         @map("YOUTUBE_URL")
+  /// Embeddable Facebook video URL, and the page to send viewers to.
+  facebookStreamUrl  String?         @map("FACEBOOK_STREAM_URL")
+  facebookPageUrl    String?         @map("FACEBOOK_PAGE_URL")
 
-  seasonRel   Season?      @relation(fields: [seasonId], references: [id])
-  raceType    RaceType?    @relation(fields: [raceTypeId], references: [id])
-  raceStation RaceStation? @relation(fields: [raceStationId], references: [id])
-  truckPings  TruckPing[]
-  raceItems RaceItem[]
-  bets        Bet[]
-  lostBirds Bird[]
-  lostHistory    LostHistory[]
-  rfidScans      RfidScan[]
-  raceItemScans  RaceItemScan[]
-  phantomBirds   RacePhantomBird[]
-  ignoreBirds    RaceIgnoreBird[]
-  arrivalGroups       ArrivalGroup[]
-  eventBaskets        EventBasket[]
-  averageConfigRaces  AverageConfigRace[]
-  statusVisibility    RaceStatusVisibility[]
+  seasonRel          Season?                @relation(fields: [seasonId], references: [id])
+  raceType           RaceType?              @relation(fields: [raceTypeId], references: [id])
+  raceStation        RaceStation?           @relation(fields: [raceStationId], references: [id])
+  truckPings         TruckPing[]
+  raceItems          RaceItem[]
+  bets               Bet[]
+  lostBirds          Bird[]
+  lostHistory        LostHistory[]
+  rfidScans          RfidScan[]
+  raceItemScans      RaceItemScan[]
+  phantomBirds       RacePhantomBird[]
+  ignoreBirds        RaceIgnoreBird[]
+  arrivalGroups      ArrivalGroup[]
+  eventBaskets       EventBasket[]
+  averageConfigRaces AverageConfigRace[]
+  statusVisibility   RaceStatusVisibility[]
+  notifications      Notification[]
+  tournamentRounds   TournamentRound[]
+  paymentPenalties   PaymentPenalty[]
+  videos             EventVideo[]
 }
 
 model TruckPing {
@@ -536,12 +597,12 @@ model TruckPing {
 }
 
 model ArrivalGroup {
-  id               Int       @id @default(autoincrement())
+  id               Int              @id @default(autoincrement())
   raceId           Int
   name             String?
   arrivalTimeStart DateTime?
   arrivalTimeEnd   DateTime?
-  race             Race      @relation(fields: [raceId], references: [id])
+  race             Race             @relation(fields: [raceId], references: [id])
   results          RaceItemResult[]
 }
 
@@ -558,21 +619,21 @@ model RaceStatusVisibility {
 }
 
 model RaceItem {
-  id               Int       @id @default(autoincrement()) @map("ID_RACE_ITEM")
-  raceId           Int?      @map("ID_RACE")
-  inventoryItemId  Int?      @map("ID_INVENTORY_ITEM")
-  isLost           Int?      @map("IS_LOST")
-  lostRaceId       Int?      @map("LOST_ID_RACE")
-  raceBasketTime   DateTime? @map("RACE_BASKET_TIME")
-  status           RaceItemStatus      @default(REGISTERED)
-  displayStatusId  Int?                @map("ID_DISPLAY_STATUS")
+  id              Int            @id @default(autoincrement()) @map("ID_RACE_ITEM")
+  raceId          Int?           @map("ID_RACE")
+  inventoryItemId Int?           @map("ID_INVENTORY_ITEM")
+  isLost          Int?           @map("IS_LOST")
+  lostRaceId      Int?           @map("LOST_ID_RACE")
+  raceBasketTime  DateTime?      @map("RACE_BASKET_TIME")
+  status          RaceItemStatus @default(REGISTERED)
+  displayStatusId Int?           @map("ID_DISPLAY_STATUS")
 
-  race             Race?               @relation(fields: [raceId], references: [id])
-  inventoryItem    EventInventoryItem? @relation(fields: [inventoryItemId], references: [id])
-  result           RaceItemResult?
-  scans            RaceItemScan[]
-  bets             Bet[]
-  displayStatus    BirdStatusPreset?   @relation(fields: [displayStatusId], references: [id])
+  race          Race?               @relation(fields: [raceId], references: [id])
+  inventoryItem EventInventoryItem? @relation(fields: [inventoryItemId], references: [id])
+  result        RaceItemResult?
+  scans         RaceItemScan[]
+  bets          Bet[]
+  displayStatus BirdStatusPreset?   @relation(fields: [displayStatusId], references: [id])
 }
 
 model RaceItemResult {
@@ -613,10 +674,10 @@ model RacePhantomBird {
 }
 
 model RaceIgnoreBird {
-  id               Int     @id @default(autoincrement()) @map("ID_IGNORE_BIRD")
-  inventoryItemId  Int?    @map("ID_EVENT_INVENTORY_ITEM")
-  raceId           Int?    @map("ID_RACE")
-  note             String? @map("NOTE")
+  id              Int     @id @default(autoincrement()) @map("ID_IGNORE_BIRD")
+  inventoryItemId Int?    @map("ID_EVENT_INVENTORY_ITEM")
+  raceId          Int?    @map("ID_RACE")
+  note            String? @map("NOTE")
 
   inventoryItem EventInventoryItem? @relation(fields: [inventoryItemId], references: [id])
   race          Race?               @relation(fields: [raceId], references: [id])
@@ -637,82 +698,91 @@ model EventType {
 }
 
 model Season {
-  id                      Int       @id @default(autoincrement())
+  id                      Int      @id @default(autoincrement())
   name                    String
   startDate               DateTime
   endDate                 DateTime
-  isActive                Boolean   @default(false)
-  eventId                 Int       @map("EVENT_ID")
-  feeSchemeId             Int?      @map("ID_FEE_SCHEME")
-  bettingSchemeId         Int?      @map("ID_BETTING_SCHEME")
-  finalPrizeSchemeId      Int?      @map("ID_FINAL_PRIZE_SCHEME")
-  hotSpot1PrizeSchemeId   Int?      @map("ID_HOT_SPOT1_PRIZE_SCHEME")
-  hotSpot2PrizeSchemeId   Int?      @map("ID_HOT_SPOT2_PRIZE_SCHEME")
-  hotSpot3PrizeSchemeId   Int?      @map("ID_HOT_SPOT3_PRIZE_SCHEME")
-  hotSpotAvgPrizeSchemeId Int?      @map("ID_HOT_SPOT_AVG_PRIZE_SCHEME")
+  isActive                Boolean  @default(false)
+  eventId                 Int      @map("EVENT_ID")
+  feeSchemeId             Int?     @map("ID_FEE_SCHEME")
+  bettingSchemeId         Int?     @map("ID_BETTING_SCHEME")
+  finalPrizeSchemeId      Int?     @map("ID_FINAL_PRIZE_SCHEME")
+  hotSpot1PrizeSchemeId   Int?     @map("ID_HOT_SPOT1_PRIZE_SCHEME")
+  hotSpot2PrizeSchemeId   Int?     @map("ID_HOT_SPOT2_PRIZE_SCHEME")
+  hotSpot3PrizeSchemeId   Int?     @map("ID_HOT_SPOT3_PRIZE_SCHEME")
+  hotSpotAvgPrizeSchemeId Int?     @map("ID_HOT_SPOT_AVG_PRIZE_SCHEME")
 
-  event            Event          @relation(fields: [eventId], references: [id])
-  feeScheme        FeeScheme?     @relation(fields: [feeSchemeId], references: [id])
-  bettingScheme    BettingScheme? @relation(fields: [bettingSchemeId], references: [id])
-  finalPrize       PrizeScheme?   @relation("SeasonFinalPrize", fields: [finalPrizeSchemeId], references: [id])
-  hotSpot1Prize    PrizeScheme?   @relation("SeasonHotSpot1Prize", fields: [hotSpot1PrizeSchemeId], references: [id])
-  hotSpot2Prize    PrizeScheme?   @relation("SeasonHotSpot2Prize", fields: [hotSpot2PrizeSchemeId], references: [id])
-  hotSpot3Prize    PrizeScheme?   @relation("SeasonHotSpot3Prize", fields: [hotSpot3PrizeSchemeId], references: [id])
-  hotSpotAvgPrize  PrizeScheme?   @relation("SeasonHotSpotAvgPrize", fields: [hotSpotAvgPrizeSchemeId], references: [id])
+  event           Event          @relation(fields: [eventId], references: [id])
+  feeScheme       FeeScheme?     @relation(fields: [feeSchemeId], references: [id])
+  bettingScheme   BettingScheme? @relation(fields: [bettingSchemeId], references: [id])
+  finalPrize      PrizeScheme?   @relation("SeasonFinalPrize", fields: [finalPrizeSchemeId], references: [id])
+  hotSpot1Prize   PrizeScheme?   @relation("SeasonHotSpot1Prize", fields: [hotSpot1PrizeSchemeId], references: [id])
+  hotSpot2Prize   PrizeScheme?   @relation("SeasonHotSpot2Prize", fields: [hotSpot2PrizeSchemeId], references: [id])
+  hotSpot3Prize   PrizeScheme?   @relation("SeasonHotSpot3Prize", fields: [hotSpot3PrizeSchemeId], references: [id])
+  hotSpotAvgPrize PrizeScheme?   @relation("SeasonHotSpotAvgPrize", fields: [hotSpotAvgPrizeSchemeId], references: [id])
 
-  races            Race[]
-  eventInventories EventInventory[]
-  eventBaskets     EventBasket[]
-  eventRaceNumbers EventRaceNumber[]
-  avgWinnerPrizes  AvgWinnerPrizes[]
-  prizeValues      PrizeValue[]
-  messages         EventMessage[]
-  raceStations     RaceStation[]
-  storeListings    EventStoreListing[]
-  groups           EventGroup[]
-  statusPresets    BirdStatusPreset[]
-  calcuttaConfig   CalcuttaConfig?
+  races             Race[]
+  eventInventories  EventInventory[]
+  eventBaskets      EventBasket[]
+  eventRaceNumbers  EventRaceNumber[]
+  avgWinnerPrizes   AvgWinnerPrizes[]
+  prizeValues       PrizeValue[]
+  messages          EventMessage[]
+  raceStations      RaceStation[]
+  storeListings     EventStoreListing[]
+  groups            EventGroup[]
+  statusPresets     BirdStatusPreset[]
+  calcuttaConfig    CalcuttaConfig?
   calcuttaBetGroups CalcuttaBetGroup[]
-  birdImages       BirdImage[]
-  averageConfigs   AverageConfig[]
+  birdImages        BirdImage[]
+  birdNotes         BirdNote[]
+  averageConfigs    AverageConfig[]
+  notifications     Notification[]
+  tournaments       Tournament[]
+  scannerMappings   ScannerMapping[]
+  raceClasses       RaceClass[]
+  ruleSections      EventRuleSection[]
+  videos            EventVideo[]
 
   @@index([eventId])
   @@map("Seasons")
 }
 
 model Event {
-  id                      Int       @id @default(autoincrement()) @map("ID_EVENT")
-  name                    String?   @map("EVENT_NAME")
-  shortName               String?   @map("EVENT_SHORT_NAME")
-  eventDate               DateTime? @map("EVENT_DATE")
-  eventTypeId             Int?      @map("EVENT_TYPE")
-  isOpen                  Int?      @map("IS_OPEN")
-  createdById             Int?      @map("CREATOR_ID")
-  latitude                Float?    @map("LATITUDE")
-  longitude               Float?    @map("LONGITUDE")
-  locationAddress         String?   @map("LOCATION_ADDRESS")
-  description             String?   @map("DESCRIPTION")
-  endDate                 DateTime? @map("END_DATE")
-  contactName             String?   @map("CONTACT_NAME")
-  contactEmail            String?   @map("CONTACT_EMAIL")
-  contactPhone            String?   @map("CONTACT_PHONE")
-  contactWebsite          String?   @map("CONTACT_WEBSITE")
-  contactAddress          String?   @map("CONTACT_ADDRESS")
-  socialYt                String?   @map("SOCIAL_YT")
-  socialFb                String?   @map("SOCIAL_FB")
-  socialTwitter           String?   @map("SOCIAL_TWITTER")
-  socialInsta             String?   @map("SOCIAL_INSTA")
-  logoImage               String?   @map("LOGO_IMAGE")
-  logoImageKey            String?   @map("LOGO_IMAGE_KEY")
-  bannerImage             String?   @map("BANNER_IMAGE")
-  bannerImageKey          String?   @map("BANNER_IMAGE_KEY")
-  raceFormat              RaceFormat @default(STANDARD)
+  id              Int        @id @default(autoincrement()) @map("ID_EVENT")
+  isPrivate       Boolean    @default(false) @map("IS_PRIVATE")
+  name            String?    @map("EVENT_NAME")
+  shortName       String?    @map("EVENT_SHORT_NAME")
+  eventDate       DateTime?  @map("EVENT_DATE")
+  eventTypeId     Int?       @map("EVENT_TYPE")
+  isOpen          Int?       @map("IS_OPEN")
+  createdById     Int?       @map("CREATOR_ID")
+  latitude        Float?     @map("LATITUDE")
+  longitude       Float?     @map("LONGITUDE")
+  locationAddress String?    @map("LOCATION_ADDRESS")
+  description     String?    @map("DESCRIPTION")
+  endDate         DateTime?  @map("END_DATE")
+  contactName     String?    @map("CONTACT_NAME")
+  contactEmail    String?    @map("CONTACT_EMAIL")
+  contactPhone    String?    @map("CONTACT_PHONE")
+  contactWebsite  String?    @map("CONTACT_WEBSITE")
+  contactAddress  String?    @map("CONTACT_ADDRESS")
+  socialYt        String?    @map("SOCIAL_YT")
+  socialFb        String?    @map("SOCIAL_FB")
+  socialTwitter   String?    @map("SOCIAL_TWITTER")
+  socialInsta     String?    @map("SOCIAL_INSTA")
+  logoImage       String?    @map("LOGO_IMAGE")
+  logoImageKey    String?    @map("LOGO_IMAGE_KEY")
+  bannerImage     String?    @map("BANNER_IMAGE")
+  bannerImageKey  String?    @map("BANNER_IMAGE_KEY")
+  raceFormat      RaceFormat @default(STANDARD)
 
-  eventType        EventType?     @relation(fields: [eventTypeId], references: [id])
-  createdBy        OrganizerData? @relation(fields: [createdById], references: [id])
-  phantomBirds     RacePhantomBird[]
+  eventType    EventType?        @relation(fields: [eventTypeId], references: [id])
+  createdBy    OrganizerData?    @relation(fields: [createdById], references: [id])
+  phantomBirds RacePhantomBird[]
 
-  seasons          Season[]
+  seasons       Season[]
+  tabVisibility EventTabVisibility[]
 
   @@map("Events")
 }
@@ -723,13 +793,13 @@ model RaceStation {
   name      String
   miles     Float?
   km        Float?
-  latitude   Float?
-  longitude  Float?
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  latitude  Float?
+  longitude Float?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  season           Season               @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  season           Season                @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   races            Race[]
   stationRaceTypes RaceStationRaceType[]
 
@@ -757,94 +827,113 @@ model EventMessage {
   updatedAt DateTime @updatedAt @map("UPDATED_AT")
 
   season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  author User  @relation(fields: [authorId], references: [id])
+  author User   @relation(fields: [authorId], references: [id])
 
   @@index([seasonId, createdAt])
   @@map("EventMessages")
 }
 
 model EventInventory {
-  id             Int       @id @default(autoincrement()) @map("ID_EVENT_INVENTORY")
-  seasonId       Int?      @map("SEASON_ID")
-  breederId      Int?      @map("ID_BREEDER")
-  teamId         Int?      @map("ID_TEAM")
-  reservedBirds  Int?      @map("RESERVED_BIRDS")
-  loft           String?   @map("LOFT")
-  note           String?   @map("NOTE")
-  signInDate     DateTime? @map("SIGN_IN_DATE")
-  isWaiting      Int?      @map("IS_WAITING")
-  waitingDate    DateTime? @map("WAITING_DATE")
-  cashPromised   Boolean   @default(false) @map("CASH_PROMISED")
+  id               Int       @id @default(autoincrement()) @map("ID_EVENT_INVENTORY")
+  seasonId         Int?      @map("SEASON_ID")
+  breederId        Int?      @map("ID_BREEDER")
+  teamId           Int?      @map("ID_TEAM")
+  reservedBirds    Int?      @map("RESERVED_BIRDS")
+  loft             String?   @map("LOFT")
+  note             String?   @map("NOTE")
+  signInDate       DateTime? @map("SIGN_IN_DATE")
+  isWaiting        Int?      @map("IS_WAITING")
+  waitingDate      DateTime? @map("WAITING_DATE")
+  cashPromised     Boolean   @default(false) @map("CASH_PROMISED")
+  /// Which hotspot gates this registration has settled.
+  /// bit 0 = HS1, bit 1 = HS2, bit 2 = HS3, bit 3 = Final.
+  ///
+  /// A mask rather than a scan of payment descriptions: PAYMENT_DESC is a free
+  /// text memo in the legacy data — "ZELLE", "SHIPPING", somebody's name — and
+  /// was never a tag. Parsing it would be building on sand.
+  hotspotsPaidMask Int       @default(0) @map("HOTSPOTS_PAID_MASK")
 
   season  Season?  @relation(fields: [seasonId], references: [id])
   breeder Breeder? @relation(fields: [breederId], references: [id])
   team    Team?    @relation(fields: [teamId], references: [id])
 
-  items    EventInventoryItem[]
-  partners Partner[]
-  payments Payment[]
+  items                    EventInventoryItem[]
+  partners                 Partner[]
+  payments                 Payment[]
+  penalties                PaymentPenalty[]
+  refunds                  Refund[]
   calcuttaGroupMemberships CalcuttaBetGroupMember[]
 }
 
 model EventInventoryItem {
-  id                Int       @id @default(autoincrement()) @map("ID_EVENT_INVENTORY_ITEM")
-  birdId            Int?      @map("ID_BIRD")
-  eventInventoryId  Int?      @map("ID_EVENT_INVENTORY")
-  replacedItemId    Int?      @map("ID_REPLACED_ITEM")
-  birdNo            Int?      @map("BIRD_NO")
-  arrivalDate       DateTime? @map("ARRIVAL_DATE")
-  departureDate     DateTime? @map("DEPARTURE_DATE")
-  entryFeeValue     Float?    @map("ENTRY_FEE_VALUE")
-  entryFeePaid      Int?      @map("ENTRY_FEE_PAID")
-  entryRefund       Float?    @map("ENTRY_REFUND")
-  perchFeeValue     Float?    @map("PERCH_FEE_VALUE")
-  hotSpotFeeValue   Float?    @map("HOT_SPOT_FEE_VALUE")
-  raceFeeValue      Float?    @map("RACE_FEE_VALUE")
-  hotSpotRefund     Float?    @map("HOT_SPOT_REFUND")
-  betsRefund        Float?    @map("BETS_REFUND")
-  isBackup          Int?      @map("IS_BACKUP")
-  isBetActive       Float?    @map("IS_BET_ACTIVE")
-  transferDue       Int?      @map("TRANSFER_DUE")
-  belgianShowBet1   Float?    @map("BELGIAN_SHOW_BET_1")
-  belgianShowBet2   Float?    @map("BELGIAN_SHOW_BET_2")
-  belgianShowBet3   Float?    @map("BELGIAN_SHOW_BET_3")
-  belgianShowBet4   Float?    @map("BELGIAN_SHOW_BET_4")
-  belgianShowBet5   Float?    @map("BELGIAN_SHOW_BET_5")
-  belgianShowBet6   Float?    @map("BELGIAN_SHOW_BET_6")
-  belgianShowBet7   Float?    @map("BELGIAN_SHOW_BET_7")
-  standardShowBet1  Float?    @map("STANDARD_SHOW_BET_1")
-  standardShowBet2  Float?    @map("STANDARD_SHOW_BET_2")
-  standardShowBet3  Float?    @map("STANDARD_SHOW_BET_3")
-  standardShowBet4  Float?    @map("STANDARD_SHOW_BET_4")
-  standardShowBet5  Float?    @map("STANDARD_SHOW_BET_5")
-  standardShowBet6  Float?    @map("STANDARD_SHOW_BET_6")
-  wtaBet1           Float?    @map("WTA_BET_1")
-  wtaBet2           Float?    @map("WTA_BET_2")
-  wtaBet3           Float?    @map("WTA_BET_3")
-  wtaBet4           Float?    @map("WTA_BET_4")
-  wtaBet5           Float?    @map("WTA_BET_5")
+  id                   Int       @id @default(autoincrement()) @map("ID_EVENT_INVENTORY_ITEM")
+  birdId               Int?      @map("ID_BIRD")
+  eventInventoryId     Int?      @map("ID_EVENT_INVENTORY")
+  replacedItemId       Int?      @map("ID_REPLACED_ITEM")
+  birdNo               Int?      @map("BIRD_NO")
+  arrivalDate          DateTime? @map("ARRIVAL_DATE")
+  departureDate        DateTime? @map("DEPARTURE_DATE")
+  entryFeeValue        Float?    @map("ENTRY_FEE_VALUE")
+  entryFeePaid         Int?      @map("ENTRY_FEE_PAID")
+  entryRefund          Float?    @map("ENTRY_REFUND")
+  perchFeeValue        Float?    @map("PERCH_FEE_VALUE")
+  /// Kept as the total of the four gates below, for anything still reading it.
+  /// Written as their sum rather than as a bucket of its own.
+  hotSpotFeeValue      Float?    @map("HOT_SPOT_FEE_VALUE")
+  /// What this bird owes if the hotspot obligation is settled at each gate.
+  /// Only one of these is ever actually charged — see hotspotsPaidMask.
+  hotSpot1FeeValue     Float?    @map("HOT_SPOT1_FEE_VALUE")
+  hotSpot2FeeValue     Float?    @map("HOT_SPOT2_FEE_VALUE")
+  hotSpot3FeeValue     Float?    @map("HOT_SPOT3_FEE_VALUE")
+  hotSpotFinalFeeValue Float?    @map("HOT_SPOT_FINAL_FEE_VALUE")
+  raceFeeValue         Float?    @map("RACE_FEE_VALUE")
+  hotSpotRefund        Float?    @map("HOT_SPOT_REFUND")
+  betsRefund           Float?    @map("BETS_REFUND")
+  isBackup             Int?      @map("IS_BACKUP")
+  isBetActive          Float?    @map("IS_BET_ACTIVE")
+  transferDue          Int?      @map("TRANSFER_DUE")
+  belgianShowBet1      Float?    @map("BELGIAN_SHOW_BET_1")
+  belgianShowBet2      Float?    @map("BELGIAN_SHOW_BET_2")
+  belgianShowBet3      Float?    @map("BELGIAN_SHOW_BET_3")
+  belgianShowBet4      Float?    @map("BELGIAN_SHOW_BET_4")
+  belgianShowBet5      Float?    @map("BELGIAN_SHOW_BET_5")
+  belgianShowBet6      Float?    @map("BELGIAN_SHOW_BET_6")
+  belgianShowBet7      Float?    @map("BELGIAN_SHOW_BET_7")
+  standardShowBet1     Float?    @map("STANDARD_SHOW_BET_1")
+  standardShowBet2     Float?    @map("STANDARD_SHOW_BET_2")
+  standardShowBet3     Float?    @map("STANDARD_SHOW_BET_3")
+  standardShowBet4     Float?    @map("STANDARD_SHOW_BET_4")
+  standardShowBet5     Float?    @map("STANDARD_SHOW_BET_5")
+  standardShowBet6     Float?    @map("STANDARD_SHOW_BET_6")
+  wtaBet1              Float?    @map("WTA_BET_1")
+  wtaBet2              Float?    @map("WTA_BET_2")
+  wtaBet3              Float?    @map("WTA_BET_3")
+  wtaBet4              Float?    @map("WTA_BET_4")
+  wtaBet5              Float?    @map("WTA_BET_5")
 
-  currentGroupId    Int?      @map("ID_CURRENT_GROUP")
-  tagColorGroupId   Int?
-  statusGroupId     Int?
+  currentGroupId  Int? @map("ID_CURRENT_GROUP")
+  tagColorGroupId Int?
+  statusGroupId   Int?
 
-  eventInventory EventInventory?     @relation(fields: [eventInventoryId], references: [id])
-  bird           Bird?               @relation(fields: [birdId], references: [id])
-  replacedItem   EventInventoryItem? @relation("ReplacedItem", fields: [replacedItemId], references: [id])
+  eventInventory EventInventory?      @relation(fields: [eventInventoryId], references: [id])
+  bird           Bird?                @relation(fields: [birdId], references: [id])
+  replacedItem   EventInventoryItem?  @relation("ReplacedItem", fields: [replacedItemId], references: [id])
   replacedBy     EventInventoryItem[] @relation("ReplacedItem")
-  currentGroup   EventGroup?         @relation("LoftGroupMembers", fields: [currentGroupId], references: [id])
-  tagColorGroup  EventGroup?         @relation("TagColorGroupMembers", fields: [tagColorGroupId], references: [id])
-  statusGroup    EventGroup?         @relation("StatusGroupMembers", fields: [statusGroupId], references: [id])
+  currentGroup   EventGroup?          @relation("LoftGroupMembers", fields: [currentGroupId], references: [id])
+  tagColorGroup  EventGroup?          @relation("TagColorGroupMembers", fields: [tagColorGroupId], references: [id])
+  statusGroup    EventGroup?          @relation("StatusGroupMembers", fields: [statusGroupId], references: [id])
 
-  raceItems            RaceItem[]
-  basketAssignments    BasketAssignment[]
-  ignoreBirds          RaceIgnoreBird[]
-  avgWinners           AvgWinnerPrizes[]
-  storeListingItems    EventStoreListingItem[]
-  groupHistory         BirdGroupHistory[]
-  breederHistory       BirdBreederHistory[]
-  vaccinationRecords   BirdVaccinationRecord[]
-  birdEventHistory     BirdEventHistory[]
+  raceItems          RaceItem[]
+  basketAssignments  BasketAssignment[]
+  ignoreBirds        RaceIgnoreBird[]
+  avgWinners         AvgWinnerPrizes[]
+  storeListingItems  EventStoreListingItem[]
+  groupHistory       BirdGroupHistory[]
+  breederHistory     BirdBreederHistory[]
+  vaccinationRecords BirdVaccinationRecord[]
+  birdEventHistory   BirdEventHistory[]
+  tournamentEntries  TournamentEntry[]
+  raceClassEntries   RaceClassEntry[]
 }
 
 model Partner {
@@ -863,16 +952,16 @@ model AvgWinnerPrizes {
   seasonId        Int? @map("SEASON_ID")
   prizeValue      Int? @map("PRIZE_VALUE")
 
-  season        Season?             @relation(fields: [seasonId], references: [id])
-  inventoryItem EventInventoryItem  @relation(fields: [inventoryItemId], references: [id])
+  season        Season?            @relation(fields: [seasonId], references: [id])
+  inventoryItem EventInventoryItem @relation(fields: [inventoryItemId], references: [id])
 }
 
 model PrizeValue {
-  id               Int    @id @default(autoincrement()) @map("ID_PRIZE_VALUE")
-  seasonId         Int?   @map("SEASON_ID")
-  prizeSchemeItemId Int?  @map("ID_PRIZE_SCHEME_ITEM")
-  raceTypeId       Int?   @map("ID_RACE_TYPE")
-  prizeValue       Float? @map("PRIZE_VALUE")
+  id                Int    @id @default(autoincrement()) @map("ID_PRIZE_VALUE")
+  seasonId          Int?   @map("SEASON_ID")
+  prizeSchemeItemId Int?   @map("ID_PRIZE_SCHEME_ITEM")
+  raceTypeId        Int?   @map("ID_RACE_TYPE")
+  prizeValue        Float? @map("PRIZE_VALUE")
 
   season          Season?          @relation(fields: [seasonId], references: [id])
   prizeSchemeItem PrizeSchemeItem? @relation(fields: [prizeSchemeItemId], references: [id])
@@ -880,25 +969,35 @@ model PrizeValue {
 }
 
 model Payment {
-  id               Int       @id @default(autoincrement()) @map("ID_PAYMENT")
-  eventInventoryId Int?      @map("ID_EVENT_INVENTORY")
-  breederId        Int?      @map("ID_BREEDER")
-  pictureId        Int?      @map("ID_PICTURE")
-  paymentValue     Float?    @map("PAYMENT_VALUE")
-  paymentMethod    Int?      @map("PAYMENT_METHOD")
-  paymentType      Int?      @map("PAYMENT_TYPE")
-  paymentDate      DateTime? @map("PAYMENT_DATE")
-  paymentTimestamp DateTime? @map("PAYMENT_TIMESTAMP")
-  paymentDesc      String?   @map("PAYMENT_DESC")
-  transactionId    String?   @map("TRANSACTION_ID")
+  id               Int           @id @default(autoincrement()) @map("ID_PAYMENT")
+  eventInventoryId Int?          @map("ID_EVENT_INVENTORY")
+  breederId        Int?          @map("ID_BREEDER")
+  pictureId        Int?          @map("ID_PICTURE")
+  paymentValue     Float?        @map("PAYMENT_VALUE")
+  paymentMethod    Int?          @map("PAYMENT_METHOD")
+  paymentType      Int?          @map("PAYMENT_TYPE")
+  paymentDate      DateTime?     @map("PAYMENT_DATE")
+  paymentTimestamp DateTime?     @map("PAYMENT_TIMESTAMP")
+  paymentDesc      String?       @map("PAYMENT_DESC")
+  transactionId    String?       @map("TRANSACTION_ID")
   legacyStatus     Int?          @map("STATUS")
   status           PaymentStatus @default(PENDING)
   bettorId         String?       @map("BETTOR_ID")
+  /// Which hotspot gate this payment settles, when it is one: HS1/HS2/HS3/FINAL.
+  ///
+  /// A column rather than a description convention. PAYMENT_DESC is a free-text
+  /// memo — the legacy data holds "ZELLE", "SHIPPING", operators' names and
+  /// 1,332 blanks — and the PayPal capture handler overwrites it with the
+  /// transaction reference, so anything encoded there would not survive the
+  /// round trip.
+  hotspotGate      String?       @map("HOTSPOT_GATE")
 
-  eventInventory EventInventory? @relation(fields: [eventInventoryId], references: [id])
-  breeder        Breeder?        @relation(fields: [breederId], references: [id])
-  picture        Picture?        @relation(fields: [pictureId], references: [id])
-  bettor         User?           @relation("BettorPayments", fields: [bettorId], references: [id])
+  eventInventory EventInventory?  @relation(fields: [eventInventoryId], references: [id])
+  breeder        Breeder?         @relation(fields: [breederId], references: [id])
+  classEntries   RaceClassEntry[]
+  refunds        Refund[]
+  picture        Picture?         @relation(fields: [pictureId], references: [id])
+  bettor         User?            @relation("BettorPayments", fields: [bettorId], references: [id])
 
   @@unique([transactionId])
   @@map("Payments")
@@ -909,46 +1008,50 @@ model Payment {
 // ============================================================
 
 model Bird {
-  id                 Int       @id @default(autoincrement()) @map("ID_BIRD")
-  band               String?   @map("BAND")
-  band1              String?   @map("BAND_1")
-  band2              String?   @map("BAND_2")
-  band3              String?   @map("BAND_3")
-  band4              String?   @map("BAND_4")
-  codeMasked         String?   @map("CODE_MASKED")
-  birdName           String?   @map("BIRD_NAME")
-  color              String?   @map("COLOR")
-  rfid               String?   @map("RF_ID")
-  sex                Int?      @map("SEX")
-  isActive           Int?      @map("IS_ACTIVE")
-  isLost             Int?      @map("IS_LOST")
-  isRaceVerified     Int?      @map("IS_RACE_VERIFIED")
-  playAttentionSound Int?      @map("PLAY_ATTENTION_SOUND")
-  lostDate           DateTime? @map("LOST_DATE")
-  lostRaceId         Int?      @map("LOST_ID_RACE")
-  note               String?   @map("NOTE")
-  pictureId          Int?      @map("ID_PICTURE")
-  breederId          Int?      @map("breederId")
-  fatherId           Int?      @map("ID_FATHER")
-  motherId           Int?      @map("ID_MOTHER")
-  isPublic           Int?      @default(1) @map("IS_PUBLIC")
-  image              String?   @map("IMAGE")
-  imageKey           String?   @map("IMAGE_KEY")
-  attention          Boolean   @default(false) @map("ATTENTION")
+  id                 Int              @id @default(autoincrement()) @map("ID_BIRD")
+  band               String?          @map("BAND")
+  band1              String?          @map("BAND_1")
+  band2              String?          @map("BAND_2")
+  band3              String?          @map("BAND_3")
+  band4              String?          @map("BAND_4")
+  codeMasked         String?          @map("CODE_MASKED")
+  birdName           String?          @map("BIRD_NAME")
+  color              String?          @map("COLOR")
+  rfid               String?          @map("RF_ID")
+  sex                Int?             @map("SEX")
+  isActive           Int?             @map("IS_ACTIVE")
+  isLost             Int?             @map("IS_LOST")
+  isRaceVerified     Int?             @map("IS_RACE_VERIFIED")
+  healthStatus       BirdHealthStatus @default(HEALTHY) @map("HEALTH_STATUS")
+  healthNote         String?          @map("HEALTH_NOTE")
+  healthUpdatedAt    DateTime?        @map("HEALTH_UPDATED_AT")
+  playAttentionSound Int?             @map("PLAY_ATTENTION_SOUND")
+  lostDate           DateTime?        @map("LOST_DATE")
+  lostRaceId         Int?             @map("LOST_ID_RACE")
+  note               String?          @map("NOTE")
+  pictureId          Int?             @map("ID_PICTURE")
+  breederId          Int?             @map("breederId")
+  fatherId           Int?             @map("ID_FATHER")
+  motherId           Int?             @map("ID_MOTHER")
+  isPublic           Int?             @default(1) @map("IS_PUBLIC")
+  image              String?          @map("IMAGE")
+  imageKey           String?          @map("IMAGE_KEY")
+  attention          Boolean          @default(false) @map("ATTENTION")
 
-  picture          Picture?  @relation(fields: [pictureId], references: [id])
-  breeder          Breeder?  @relation(fields: [breederId], references: [id])
-  lostRace         Race?     @relation(fields: [lostRaceId], references: [id])
-  father           Bird?     @relation("FatherChildren", fields: [fatherId], references: [id])
-  mother           Bird?     @relation("MotherChildren", fields: [motherId], references: [id])
-  childrenAsFather Bird[]    @relation("FatherChildren")
-  childrenAsMother Bird[]    @relation("MotherChildren")
+  picture          Picture? @relation(fields: [pictureId], references: [id])
+  breeder          Breeder? @relation(fields: [breederId], references: [id])
+  lostRace         Race?    @relation(fields: [lostRaceId], references: [id])
+  father           Bird?    @relation("FatherChildren", fields: [fatherId], references: [id])
+  mother           Bird?    @relation("MotherChildren", fields: [motherId], references: [id])
+  childrenAsFather Bird[]   @relation("FatherChildren")
+  childrenAsMother Bird[]   @relation("MotherChildren")
 
   inventoryItems EventInventoryItem[]
   lostHistory    LostHistory[]
   rfidScans      RfidScan[]
   phantomBirds   RacePhantomBird[]
   birdImages     BirdImage[]
+  birdNotes      BirdNote[]
 
   @@map("Birds")
 }
@@ -967,6 +1070,25 @@ model BirdImage {
 
   @@index([birdId, seasonId, type])
   @@map("BirdImages")
+}
+
+// Freeform note timeline per bird per season. Append-only from the UI: each
+// entry is one note someone left, kept so the dialog can show the full history
+// instead of overwriting a single field.
+model BirdNote {
+  id         Int      @id @default(autoincrement())
+  birdId     Int      @map("BIRD_ID")
+  seasonId   Int      @map("SEASON_ID")
+  text       String   @map("TEXT")
+  authorId   String?  @map("AUTHOR_ID")
+  authorName String?  @map("AUTHOR_NAME")
+  createdAt  DateTime @default(now()) @map("CREATED_AT")
+
+  bird   Bird   @relation(fields: [birdId], references: [id], onDelete: Cascade)
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@index([birdId, seasonId])
+  @@map("BirdNotes")
 }
 
 model AverageConfig {
@@ -1008,7 +1130,6 @@ model AverageConfigRace {
   @@map("AverageConfigRaces")
 }
 
-
 model LostHistory {
   id       Int       @id @default(autoincrement()) @map("ID_LOST_HISTORY")
   birdId   Int?      @map("ID_BIRD")
@@ -1048,13 +1169,13 @@ model RfidScan {
 // ============================================================
 
 model EventBasket {
-  id        Int         @id @default(autoincrement()) @map("ID_EVENT_BASKET")
-  seasonId  Int         @map("SEASON_ID")
-  basketNo  Int         @map("BASKET_NO")
-  capacity  Int         @map("CAPACITY")
-  phase     BasketPhase @map("PHASE")
-  label     String?     @map("LABEL")
-  raceId    Int?        @map("ID_RACE")
+  id       Int         @id @default(autoincrement()) @map("ID_EVENT_BASKET")
+  seasonId Int         @map("SEASON_ID")
+  basketNo Int         @map("BASKET_NO")
+  capacity Int         @map("CAPACITY")
+  phase    BasketPhase @map("PHASE")
+  label    String?     @map("LABEL")
+  raceId   Int?        @map("ID_RACE")
 
   season      Season             @relation(fields: [seasonId], references: [id])
   race        Race?              @relation(fields: [raceId], references: [id])
@@ -1091,7 +1212,7 @@ model VaccinationRecord {
   documentKey     String?
   createdAt       DateTime @default(now())
 
-  eventGroup  EventGroup             @relation(fields: [eventGroupId], references: [id], onDelete: Cascade)
+  eventGroup  EventGroup              @relation(fields: [eventGroupId], references: [id], onDelete: Cascade)
   birdRecords BirdVaccinationRecord[]
 }
 
@@ -1110,12 +1231,13 @@ model EventGroup {
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 
-  season            Season               @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  statusCode        BirdStatusCode?      @relation(fields: [statusCodeId], references: [id])
-  members           EventInventoryItem[] @relation("LoftGroupMembers")
-  tagColorMembers   EventInventoryItem[] @relation("TagColorGroupMembers")
-  statusGroupMems   EventInventoryItem[] @relation("StatusGroupMembers")
-  vaccinations      VaccinationRecord[]
+  season          Season               @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  statusCode      BirdStatusCode?      @relation(fields: [statusCodeId], references: [id])
+  members         EventInventoryItem[] @relation("LoftGroupMembers")
+  tagColorMembers EventInventoryItem[] @relation("TagColorGroupMembers")
+  statusGroupMems EventInventoryItem[] @relation("StatusGroupMembers")
+  vaccinations    VaccinationRecord[]
+  scannerMappings ScannerMapping[]
 
   @@index([seasonId, type])
   @@index([seasonId, status])
@@ -1196,18 +1318,18 @@ model Bet {
 // ============================================================
 
 model EventStoreListing {
-  id                   Int                      @id @default(autoincrement()) @map("ID_EVENT_STORE_LISTING")
-  seasonId             Int                      @map("SEASON_ID")
-  originalBreederId    Int                      @map("ID_ORIGINAL_BREEDER")
-  listingPrice         Float                    @map("LISTING_PRICE")
-  status               EventStoreListingStatus  @default(AVAILABLE) @map("STATUS")
-  purchasedByBreederId Int?                     @map("ID_PURCHASED_BY")
-  purchasedAt          DateTime?                @map("PURCHASED_AT")
-  createdAt            DateTime                 @default(now()) @map("CREATED_AT")
+  id                   Int                     @id @default(autoincrement()) @map("ID_EVENT_STORE_LISTING")
+  seasonId             Int                     @map("SEASON_ID")
+  originalBreederId    Int                     @map("ID_ORIGINAL_BREEDER")
+  listingPrice         Float                   @map("LISTING_PRICE")
+  status               EventStoreListingStatus @default(AVAILABLE) @map("STATUS")
+  purchasedByBreederId Int?                    @map("ID_PURCHASED_BY")
+  purchasedAt          DateTime?               @map("PURCHASED_AT")
+  createdAt            DateTime                @default(now()) @map("CREATED_AT")
 
-  season          Season  @relation(fields: [seasonId], references: [id])
-  originalBreeder Breeder @relation("OriginalBreeder", fields: [originalBreederId], references: [id])
-  purchasedBy     Breeder? @relation("PurchasedByBreeder", fields: [purchasedByBreederId], references: [id])
+  season          Season                  @relation(fields: [seasonId], references: [id])
+  originalBreeder Breeder                 @relation("OriginalBreeder", fields: [originalBreederId], references: [id])
+  purchasedBy     Breeder?                @relation("PurchasedByBreeder", fields: [purchasedByBreederId], references: [id])
   items           EventStoreListingItem[]
 
   @@map("EventStoreListings")
@@ -1230,10 +1352,10 @@ model EventStoreListingItem {
 
 model BirdStatusCode {
   id        Int      @id @default(autoincrement()) @map("ID_BIRD_STATUS_CODE")
-  code      Int      @unique                       @map("CODE")
-  label     String                                  @map("LABEL")
-  color     String?                                 @map("COLOR")
-  createdAt DateTime @default(now())                @map("CREATED_AT")
+  code      Int      @unique @map("CODE")
+  label     String   @map("LABEL")
+  color     String?  @map("COLOR")
+  createdAt DateTime @default(now()) @map("CREATED_AT")
 
   eventGroups EventGroup[]
 
@@ -1259,17 +1381,16 @@ model BirdStatusPreset {
   label     String        @map("LABEL")
   color     String?       @map("COLOR")
   trigger   StatusTrigger @default(MANUAL) @map("TRIGGER")
-  sortOrder Int           @default(0)      @map("SORT_ORDER")
-  isActive  Boolean       @default(true)   @map("IS_ACTIVE")
-  createdAt DateTime      @default(now())  @map("CREATED_AT")
+  sortOrder Int           @default(0) @map("SORT_ORDER")
+  isActive  Boolean       @default(true) @map("IS_ACTIVE")
+  createdAt DateTime      @default(now()) @map("CREATED_AT")
 
-  season    Season?       @relation(fields: [seasonId], references: [id])
+  season    Season?    @relation(fields: [seasonId], references: [id])
   raceItems RaceItem[]
 
   @@index([seasonId, trigger])
   @@map("BirdStatusPresets")
 }
-
 
 // ============================================================
 // CALCUTTA RACE
@@ -1304,8 +1425,8 @@ model CalcuttaBetGroup {
   lastBidAt       DateTime?
   createdAt       DateTime            @default(now())
 
-  season  Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  owner   User?  @relation(fields: [ownerId], references: [id])
+  season  Season                   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  owner   User?                    @relation(fields: [ownerId], references: [id])
   members CalcuttaBetGroupMember[]
   bids    CalcuttaBid[]
 
@@ -1354,4 +1475,337 @@ model BirdEventHistory {
   inventoryItem EventInventoryItem @relation(fields: [eventInventoryItemId], references: [id], onDelete: Cascade)
 
   @@index([eventInventoryItemId, createdAt])
+}
+
+enum NotificationKind {
+  /// Sent by an operator rather than raised by something happening.
+  ANNOUNCEMENT
+  RACE_STARTED
+  BIRD_ARRIVED
+  RACE_ENDED
+  BETTING_OPEN
+  PAYMENT_DUE
+  EVENT_MESSAGE
+  BIRD_LOST
+  STORE_LISTING
+  RACE_REMINDER
+  BET_PROMPT
+  PAYMENT_RISK
+}
+
+model Notification {
+  id          Int              @id @default(autoincrement()) @map("ID_NOTIFICATION")
+  userId      String           @map("USER_ID")
+  kind        NotificationKind @map("KIND")
+  title       String           @map("TITLE")
+  body        String           @map("BODY")
+  link        String?          @map("LINK")
+  seasonId    Int?             @map("SEASON_ID")
+  raceId      Int?             @map("ID_RACE")
+  readAt      DateTime?        @map("READ_AT")
+  // Set once a push has gone out; in-app delivery does not need it.
+  deliveredAt DateTime?        @map("DELIVERED_AT")
+  createdAt   DateTime         @default(now()) @map("CREATED_AT")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  season Season? @relation(fields: [seasonId], references: [id])
+  race   Race?   @relation(fields: [raceId], references: [id])
+
+  @@index([userId, createdAt])
+  @@map("Notifications")
+}
+
+/// One installation of the mobile app that has agreed to receive push.
+///
+/// Keyed on the Expo push token rather than a device id: the token is what the
+/// push service addresses, it is what changes when an app is reinstalled, and
+/// it is the only identifier the client can be sure of. A token can move
+/// between accounts on a shared handset, so ownership is overwritten on
+/// registration rather than duplicated.
+model PushDevice {
+  id         Int      @id @default(autoincrement()) @map("ID_PUSH_DEVICE")
+  userId     String   @map("USER_ID")
+  /// The ExponentPushToken[...] string the app reports.
+  token      String   @unique @map("TOKEN")
+  platform   String?  @map("PLATFORM")
+  deviceName String?  @map("DEVICE_NAME")
+  /// Cleared to false when the push service says the token is dead, so a
+  /// stale install stops being counted and stops being sent to.
+  isActive   Boolean  @default(true) @map("IS_ACTIVE")
+  lastSeenAt DateTime @default(now()) @map("LAST_SEEN_AT")
+  createdAt  DateTime @default(now()) @map("CREATED_AT")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+  @@map("PushDevices")
+}
+
+enum TournamentCutMode {
+  TOP_PERCENT
+  TOP_N
+  MANUAL
+}
+
+enum TournamentStatus {
+  SETUP
+  RUNNING
+  COMPLETE
+}
+
+enum TournamentRoundStatus {
+  PENDING
+  FLYING
+  CUT_APPLIED
+}
+
+/// A knockout sitting over ordinary races: each round points at one Race, so
+/// scanning and results work as they already do. The tournament only decides
+/// which birds are still in.
+model Tournament {
+  id        Int               @id @default(autoincrement()) @map("ID_TOURNAMENT")
+  seasonId  Int               @map("SEASON_ID")
+  name      String            @map("NAME")
+  cutMode   TournamentCutMode @default(TOP_PERCENT) @map("CUT_MODE")
+  cutValue  Float             @default(50) @map("CUT_VALUE")
+  status    TournamentStatus  @default(SETUP) @map("STATUS")
+  createdAt DateTime          @default(now()) @map("CREATED_AT")
+
+  season  Season            @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  rounds  TournamentRound[]
+  entries TournamentEntry[]
+
+  @@index([seasonId])
+  @@map("Tournaments")
+}
+
+model TournamentRound {
+  id            Int                   @id @default(autoincrement()) @map("ID_TOURNAMENT_ROUND")
+  tournamentId  Int                   @map("ID_TOURNAMENT")
+  roundNumber   Int                   @map("ROUND_NUMBER")
+  raceId        Int?                  @map("ID_RACE")
+  cutMode       TournamentCutMode?    @map("CUT_MODE")
+  cutValue      Float?                @map("CUT_VALUE")
+  status        TournamentRoundStatus @default(PENDING) @map("STATUS")
+  survivorCount Int?                  @map("SURVIVOR_COUNT")
+  appliedAt     DateTime?             @map("APPLIED_AT")
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  race       Race?      @relation(fields: [raceId], references: [id])
+
+  @@unique([tournamentId, roundNumber])
+  @@map("TournamentRounds")
+}
+
+model TournamentEntry {
+  tournamentId    Int       @map("ID_TOURNAMENT")
+  inventoryItemId Int       @map("ID_EVENT_INVENTORY_ITEM")
+  eliminatedRound Int?      @map("ELIMINATED_ROUND")
+  eliminatedAt    DateTime? @map("ELIMINATED_AT")
+  finalPosition   Int?      @map("FINAL_POSITION")
+
+  tournament    Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  inventoryItem EventInventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@id([tournamentId, inventoryItemId])
+  @@map("TournamentEntries")
+}
+
+enum LatePenaltyMode {
+  NONE
+  FLAT
+  PER_DAY
+  PER_WEEK
+}
+
+/// An assessed late-payment penalty. Rows rather than a computed number, so a
+/// penalty can be waived, audited and reversed without recomputing history.
+model PaymentPenalty {
+  id                      Int       @id @default(autoincrement()) @map("ID_PENALTY")
+  eventInventoryId        Int       @map("ID_EVENT_INVENTORY")
+  raceId                  Int?      @map("ID_RACE")
+  daysLate                Int       @map("DAYS_LATE")
+  amount                  Float     @map("AMOUNT")
+  outstandingAtAssessment Float?    @map("OUTSTANDING_AT_ASSESSMENT")
+  assessedAt              DateTime  @default(now()) @map("ASSESSED_AT")
+  assessedBy              String?   @map("ASSESSED_BY")
+  waivedAt                DateTime? @map("WAIVED_AT")
+  waivedBy                String?   @map("WAIVED_BY")
+  waiverReason            String?   @map("WAIVER_REASON")
+  waiverProofUrl          String?   @map("WAIVER_PROOF_URL")
+  waiverProofKey          String?   @map("WAIVER_PROOF_KEY")
+
+  eventInventory EventInventory @relation(fields: [eventInventoryId], references: [id], onDelete: Cascade)
+  race           Race?          @relation(fields: [raceId], references: [id])
+
+  @@index([eventInventoryId])
+  @@map("PaymentPenalties")
+}
+
+/// Maps a physical scanner serial to a loft section, so scanning at a pen files
+/// the bird into that group without anybody typing.
+model ScannerMapping {
+  id            Int       @id @default(autoincrement()) @map("ID_SCANNER_MAPPING")
+  seasonId      Int       @map("SEASON_ID")
+  scannerSerial String    @map("SCANNER_SERIAL")
+  eventGroupId  Int?      @map("ID_EVENT_GROUP")
+  label         String?   @map("LABEL")
+  isActive      Boolean   @default(true) @map("IS_ACTIVE")
+  lastSeenAt    DateTime? @map("LAST_SEEN_AT")
+  scanCount     Int       @default(0) @map("SCAN_COUNT")
+  createdAt     DateTime  @default(now()) @map("CREATED_AT")
+
+  season     Season      @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  eventGroup EventGroup? @relation(fields: [eventGroupId], references: [id])
+
+  @@unique([seasonId, scannerSerial])
+  @@index([seasonId])
+  @@map("ScannerMappings")
+}
+
+enum ClassPayoutType {
+  /// One prize per PRZ_ENTRY entries — WinCompanion's "10 for 1".
+  RATIO
+  WTA
+  /// PRZ_ENTRY places, split by the betting scheme percentages.
+  PLACES
+}
+
+/// A class breeders buy into: a letter, a fee and a payout shape.
+/// Maps onto the existing payout engine rather than duplicating it.
+model RaceClass {
+  id          Int             @id @default(autoincrement()) @map("ID_RACE_CLASS")
+  seasonId    Int             @map("SEASON_ID")
+  code        String          @map("CODE")
+  description String?         @map("DESCRIPTION")
+  classFee    Float           @default(0) @map("CLASS_FEE")
+  payoutType  ClassPayoutType @default(WTA) @map("PAYOUT_TYPE")
+  przEntry    Int             @default(1) @map("PRZ_ENTRY")
+  cutPercent  Float?          @map("CUT_PERCENT")
+  sortOrder   Int             @default(0) @map("SORT_ORDER")
+  isActive    Boolean         @default(true) @map("IS_ACTIVE")
+  createdAt   DateTime        @default(now()) @map("CREATED_AT")
+
+  season  Season           @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  entries RaceClassEntry[]
+
+  @@unique([seasonId, code])
+  @@index([seasonId])
+  @@map("RaceClasses")
+}
+
+model RaceClassEntry {
+  id              Int      @id @default(autoincrement()) @map("ID_CLASS_ENTRY")
+  raceClassId     Int      @map("ID_RACE_CLASS")
+  inventoryItemId Int      @map("ID_EVENT_INVENTORY_ITEM")
+  /// Copied at entry time so a later price change cannot rewrite what was agreed.
+  feeCharged      Float    @default(0) @map("FEE_CHARGED")
+  paymentId       Int?     @map("ID_PAYMENT")
+  payoutValue     Float?   @map("PAYOUT_VALUE")
+  position        Int?     @map("POSITION")
+  createdAt       DateTime @default(now()) @map("CREATED_AT")
+
+  raceClass     RaceClass          @relation(fields: [raceClassId], references: [id], onDelete: Cascade)
+  inventoryItem EventInventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  payment       Payment?           @relation(fields: [paymentId], references: [id])
+
+  @@unique([raceClassId, inventoryItemId])
+  @@index([inventoryItemId])
+  @@map("RaceClassEntries")
+}
+
+/// One headed section of an event's rules and fees page.
+model EventRuleSection {
+  id          Int      @id @default(autoincrement()) @map("ID_RULE_SECTION")
+  seasonId    Int      @map("SEASON_ID")
+  title       String   @map("TITLE")
+  body        String   @default("") @map("BODY")
+  sortOrder   Int      @default(0) @map("SORT_ORDER")
+  isPublished Boolean  @default(true) @map("IS_PUBLISHED")
+  updatedAt   DateTime @default(now()) @map("UPDATED_AT")
+  updatedBy   String?  @map("UPDATED_BY")
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@index([seasonId, sortOrder])
+  @@map("EventRuleSections")
+}
+
+model EventVideo {
+  id          Int       @id @default(autoincrement()) @map("ID_VIDEO")
+  seasonId    Int       @map("SEASON_ID")
+  raceId      Int?      @map("ID_RACE")
+  title       String    @map("TITLE")
+  url         String    @map("URL")
+  description String?   @map("DESCRIPTION")
+  publishedAt DateTime? @map("PUBLISHED_AT")
+  sortOrder   Int       @default(0) @map("SORT_ORDER")
+  isPublic    Boolean   @default(true) @map("IS_PUBLIC")
+  createdAt   DateTime  @default(now()) @map("CREATED_AT")
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  race   Race?  @relation(fields: [raceId], references: [id])
+
+  @@index([seasonId])
+  @@map("EventVideos")
+}
+
+/// Money returned to a registration. Recorded as its own row rather than by
+/// mutating the original payment, so the history keeps both sides.
+model Refund {
+  id               Int      @id @default(autoincrement()) @map("ID_REFUND")
+  eventInventoryId Int      @map("ID_EVENT_INVENTORY")
+  paymentId        Int?     @map("ID_PAYMENT")
+  amount           Float    @map("AMOUNT")
+  reason           String?  @map("REASON")
+  method           String?  @map("METHOD")
+  reference        String?  @map("REFERENCE")
+  issuedAt         DateTime @default(now()) @map("ISSUED_AT")
+  issuedBy         String?  @map("ISSUED_BY")
+
+  eventInventory EventInventory @relation(fields: [eventInventoryId], references: [id], onDelete: Cascade)
+  payment        Payment?       @relation(fields: [paymentId], references: [id])
+
+  @@index([eventInventoryId])
+  @@map("Refunds")
+}
+
+/// A row means the tab needs an account; absence means public.
+model EventTabVisibility {
+  eventId        Int     @map("ID_EVENT")
+  tab            String  @map("TAB")
+  requiresSignIn Boolean @default(true) @map("REQUIRES_SIGNIN")
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, tab])
+  @@map("EventTabVisibility")
+}
+
+/// A permission rule for everyone holding a role. ALLOWED false revokes a
+/// permission the built-in default would otherwise grant.
+model RolePermission {
+  role       String   @map("ROLE")
+  permission String   @map("PERMISSION")
+  allowed    Boolean  @default(true) @map("ALLOWED")
+  updatedAt  DateTime @default(now()) @map("UPDATED_AT")
+  updatedBy  String?  @map("UPDATED_BY")
+
+  @@id([role, permission])
+  @@map("RolePermissions")
+}
+
+/// A permission rule for one person, overriding their role.
+model UserPermission {
+  userId     String   @map("USER_ID")
+  permission String   @map("PERMISSION")
+  allowed    Boolean  @default(true) @map("ALLOWED")
+  updatedAt  DateTime @default(now()) @map("UPDATED_AT")
+  updatedBy  String?  @map("UPDATED_BY")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permission])
+  @@index([userId])
+  @@map("UserPermissions")
 }

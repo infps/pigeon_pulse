@@ -1,5 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "pnpm exec prisma generate && pnpm exec next build",
-  "installCommand": "pnpm install && node scripts/migrate.js"
+  "installCommand": "pnpm install && node scripts/migrate.js",
+  "crons": [
+    { "path": "/api/cron/notify-daily", "schedule": "0 9 * * *" }
+  ]
 }
