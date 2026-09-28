@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useDialogHotkeys } from "@/lib/use-dialog-hotkeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -69,6 +70,7 @@ export function AddEditBreederDialog({
   const [ssnDocFile, setSsnDocFile] = useState<File | null>(null);
   const [taxDocFile, setTaxDocFile] = useState<File | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const formRef = useRef<HTMLFormElement>(null);
   const setField = (key: string, value: string) => {
     setFormData((f) => ({ ...f, [key]: value }));
     setFieldErrors((e) => { const n = { ...e }; delete n[key]; return n; });
@@ -76,6 +78,13 @@ export function AddEditBreederDialog({
 
   const createMutation = useCreateUser({});
   const updateMutation = useUpdateUser({});
+
+  useDialogHotkeys({
+    open,
+    onSave: () => formRef.current?.requestSubmit(),
+    onClose: () => onOpenChange(false),
+    disabled: createMutation.isPending || updateMutation.isPending,
+  });
 
   const availableStates = useMemo(
     () => getStatesForCountry(formData.country),
@@ -286,7 +295,7 @@ export function AddEditBreederDialog({
             {editingUser ? "Edit Breeder" : copyUser ? "Copy Breeder" : "Add New Breeder"}
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+        <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <div className="flex-1 overflow-y-auto space-y-4 pr-1">
           <div>
             <Label>Profile Picture</Label>

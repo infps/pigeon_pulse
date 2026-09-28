@@ -81,10 +81,6 @@ export async function POST(request: Request) {
         hotSpot3Fee: validatedData.hotSpot3Fee,
         hotSpotFinalFee: validatedData.hotSpotFinalFee,
         raceFeeMode: validatedData.raceFeeMode,
-        latePenaltyMode: validatedData.latePenaltyMode,
-        latePenaltyAmount: validatedData.latePenaltyAmount ?? null,
-        latePenaltyCap: validatedData.latePenaltyCap ?? null,
-        latePenaltyGraceDays: validatedData.latePenaltyGraceDays,
         requirePaymentToRegister: validatedData.requirePaymentToRegister,
         birdFeeItems: {
           create: validatedData.birdFeeItems.map((item) => ({
@@ -176,10 +172,6 @@ export async function PUT(request: Request) {
         hotSpot3Fee: validatedData.hotSpot3Fee,
         hotSpotFinalFee: validatedData.hotSpotFinalFee,
         raceFeeMode: validatedData.raceFeeMode,
-        latePenaltyMode: validatedData.latePenaltyMode,
-        latePenaltyAmount: validatedData.latePenaltyAmount ?? null,
-        latePenaltyCap: validatedData.latePenaltyCap ?? null,
-        latePenaltyGraceDays: validatedData.latePenaltyGraceDays,
         requirePaymentToRegister: validatedData.requirePaymentToRegister,
         birdFeeItems: {
           create: validatedData.birdFeeItems.map((item) => ({

@@ -70,6 +70,7 @@ export async function POST(request: Request) {
         // createdById: ???,
         prizeSchemeItems: {
           create: validatedData.prizeSchemeItems.map((item) => ({
+            raceTypeId: item.raceTypeId,
             fromPosition: item.fromPosition,
             toPosition: item.toPosition,
             prizeValue: item.prizeValue,
@@ -136,6 +137,7 @@ export async function PUT(request: Request) {
         name: validatedData.name,
         prizeSchemeItems: {
           create: validatedData.prizeSchemeItems.map((item) => ({
+            raceTypeId: item.raceTypeId,
             fromPosition: item.fromPosition,
             toPosition: item.toPosition,
             prizeValue: item.prizeValue,

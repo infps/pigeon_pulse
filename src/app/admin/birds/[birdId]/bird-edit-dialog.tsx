@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useDialogHotkeys } from "@/lib/use-dialog-hotkeys";
 import {
   Dialog,
   DialogContent,
@@ -102,6 +103,13 @@ export function BirdEditDialog({ bird, open, onOpenChange, onSaved }: Props) {
       toast.error("Failed to update bird");
     }
   };
+
+  useDialogHotkeys({
+    open,
+    onSave: handleSave,
+    onClose: () => onOpenChange(false),
+    disabled: updateMutation.isPending,
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

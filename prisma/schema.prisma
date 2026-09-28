@@ -433,11 +433,13 @@ model PrizeScheme {
 model PrizeSchemeItem {
   id            Int    @id @default(autoincrement()) @map("ID_PRIZE_SCHEME_ITEM")
   prizeSchemeId Int?   @map("ID_PRIZE_SCHEME")
+  raceTypeId    Int?   @map("ID_RACE_TYPE")
   fromPosition  Int?   @map("FROM_POSITION")
   toPosition    Int?   @map("TO_POSITION")
   prizeValue    Float? @map("PRIZE_VALUE")
 
   prizeScheme PrizeScheme? @relation(fields: [prizeSchemeId], references: [id])
+  raceType    RaceType?    @relation(fields: [raceTypeId], references: [id])
   prizeValues PrizeValue[]
 }
 
@@ -504,6 +506,7 @@ model RaceType {
   numberGroup            RaceNumberGroup?        @relation(fields: [numberGroupId], references: [id])
   races                  Race[]
   prizeValues            PrizeValue[]
+  prizeSchemeItems       PrizeSchemeItem[]
   raceTypeFees           RaceTypeFeeScheme[]
   stationRaceTypes       RaceStationRaceType[]
   averageConfigRaceTypes AverageConfigRaceType[]

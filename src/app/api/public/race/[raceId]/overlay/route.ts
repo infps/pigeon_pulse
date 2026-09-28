@@ -66,6 +66,7 @@ export async function GET(
               },
             },
           },
+          tagColorGroup: { select: { color: true } },
         },
       },
     } as const;
@@ -102,6 +103,7 @@ export async function GET(
         breeder?.user?.loftName ||
         `${breeder?.firstName ?? ""} ${breeder?.lastName ?? ""}`.trim() ||
         "—";
+      const groupColor = item.inventoryItem?.tagColorGroup?.color ?? null;
 
       return {
         id: item.id,
@@ -115,10 +117,14 @@ export async function GET(
         arrivalTime: item.result?.arrivalTime ?? null,
         ypm,
         gapMs: arrivalMs && leaderMs ? arrivalMs - leaderMs : null,
+        groupColor,
       };
     };
 
-    const arrivals = arrivedItems.map((item) => toEntry(item, item.result!.birdPosition as number));
+    // Use ordinal rank (1-based index) instead of stored birdPosition — stored
+    // positions can collide under concurrent scans, causing the last-place rank
+    // to be lower than the total count.
+    const arrivals = arrivedItems.map((item, i) => toEntry(item, i + 1));
 
     // Non-finishers appended after ranked arrivals — shown dimmed in the overlay.
     const nonFinished = items

@@ -94,7 +94,7 @@ export default function PrizeSchemeComponent() {
       name: prizeScheme.name || "",
       description: "",
       prizeSchemeItems: (prizeScheme.prizeSchemeItems || []).map((item) => ({
-        raceTypeId: String(item.prizeSchemeId ?? ""),
+        raceTypeId: String(item.raceTypeId ?? raceTypes[0]?.id ?? ""),
         fromPosition: item.fromPosition ?? 1,
         toPosition: item.toPosition ?? 1,
         prizeAmount: item.prizeValue ?? 0,

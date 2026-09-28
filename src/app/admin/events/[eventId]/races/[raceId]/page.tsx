@@ -29,7 +29,8 @@ import { getWeatherIcon } from "@/lib/weather-constants";
 import { StationsMap } from "@/components/map";
 import type { Race, Event, RaceItem } from "@/lib/types";
 import Image from "next/image";
-import { Play, Radio, Square, StopCircle } from "lucide-react";
+import { Play, Radio, Square, StopCircle, Usb } from "lucide-react";
+import { useWebSerial } from "@/hooks/useWebSerial";
 import { RaceWindButton } from "@/components/map/race-wind-dialog";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -140,6 +141,9 @@ export default function RaceDetailsPage() {
     }
   }, [raceId, queryClient]);
 
+  const { isConnected: isSerial, connect: connectSerial, disconnect: disconnectSerial } =
+    useWebSerial({ onScan: handleScan });
+
   const stopScanner = useCallback(() => {
     if (scannerIntervalRef.current) {
       clearInterval(scannerIntervalRef.current);
@@ -152,6 +156,7 @@ export default function RaceDetailsPage() {
   }, []);
 
   const startScanner = useCallback(() => {
+    if (isSerial) disconnectSerial();
     setIsScanning(true);
     lastScannedRfidRef.current = null;
     pollStartedAtRef.current = new Date().toISOString();
@@ -339,6 +344,15 @@ export default function RaceDetailsPage() {
                         {race.status === "REGISTERING" ? "Loft Scanner" : "Start Scanner"}
                       </Button>
                     )}
+                    <Button
+                      onClick={isSerial ? disconnectSerial : () => { stopScanner(); connectSerial(); }}
+                      size="sm"
+                      variant={isSerial ? "default" : "outline"}
+                      className="gap-2"
+                    >
+                      <Usb className="h-4 w-4" />
+                      {isSerial ? "USB Connected" : "USB Serial"}
+                    </Button>
                   </div>
                   <div className="flex flex-wrap items-center gap-3 mt-1">
                     <p className="text-sm md:text-base text-blue-600">

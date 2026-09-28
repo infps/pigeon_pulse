@@ -14,6 +14,7 @@ interface Arrival {
   arrivalTime: string | null;
   ypm: number | null;
   gapMs: number | null;
+  groupColor: string | null;
   prevRank?: number | null; // client-computed, not from API
 }
 
@@ -143,8 +144,11 @@ export default function RaceOverlay({
 
   const ranked = data.arrivals.filter((a) => a.rank != null);
   const nonFinished = data.arrivals.filter((a) => a.rank == null);
-  const top = ranked.slice(0, 10);
-  const rest = ranked.slice(10, 28);
+  // Reversed: most recent arrival on top
+  const panelList = [...ranked].reverse();
+  const top = panelList.slice(0, 10);
+  const rest = panelList.slice(10, 28);
+  const marqueeList = ranked.slice(0, 50);
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100vh", overflow: "hidden" }}>
@@ -154,7 +158,7 @@ export default function RaceOverlay({
           position: "absolute",
           top: 0,
           left: 0,
-          width: 340,
+          width: 380,
           height: "100%",
           background: "rgba(0,0,0,0.72)",
           backdropFilter: "blur(6px)",
@@ -165,11 +169,11 @@ export default function RaceOverlay({
         }}
       >
         <div style={{ padding: "16px 18px 10px", borderBottom: "1px solid rgba(255,255,255,0.15)" }}>
-          <div style={{ fontSize: 11, letterSpacing: 2, opacity: 0.6, fontWeight: 600 }}>
+          <div style={{ fontSize: 12, letterSpacing: 2, opacity: 0.6, fontWeight: 600 }}>
             LATEST ARRIVALS
           </div>
-          <div style={{ fontSize: 17, fontWeight: 700, marginTop: 3 }}>{data.race.name}</div>
-          <div style={{ fontSize: 12, opacity: 0.55 }}>
+          <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{data.race.name}</div>
+          <div style={{ fontSize: 13, opacity: 0.55 }}>
             {data.count} home{data.race.eventName ? ` · ${data.race.eventName}` : ""}
           </div>
         </div>
@@ -204,7 +208,7 @@ export default function RaceOverlay({
         <div
           style={{
             position: "absolute",
-            bottom: 74,
+            bottom: 82,
             left: "50%",
             transform: "translateX(-50%)",
             background: "rgba(0,0,0,0.82)",
@@ -226,7 +230,7 @@ export default function RaceOverlay({
               width: 46,
               height: 46,
               borderRadius: "50%",
-              background: "#0891b2",
+              background: flash.groupColor ?? "#0891b2",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -255,15 +259,15 @@ export default function RaceOverlay({
         </div>
       )}
 
-      {/* BOTTOM — the ticker (ranked birds only) */}
-      {ranked.length > 0 && (
+      {/* BOTTOM — the ticker (top 50) */}
+      {marqueeList.length > 0 && (
         <div
           style={{
             position: "absolute",
             bottom: 0,
             left: 0,
             width: "100%",
-            height: 50,
+            height: 58,
             background: "rgba(0,0,0,0.78)",
             backdropFilter: "blur(6px)",
             color: "#fff",
@@ -277,16 +281,19 @@ export default function RaceOverlay({
             style={{
               display: "inline-flex",
               whiteSpace: "nowrap",
-              animation: `overlayTicker ${Math.max(28, ranked.length * 3.2)}s linear infinite`,
+              animation: `overlayTicker ${Math.max(28, marqueeList.length * 3.2)}s linear infinite`,
             }}
           >
             {[0, 1].map((copy) => (
               <span key={copy} style={{ display: "inline-flex" }}>
-                {ranked.map((a) => (
+                {marqueeList.map((a) => (
                   <span
                     key={`${copy}-${a.id}`}
-                    style={{ padding: "0 26px", fontSize: 15, opacity: 0.92 }}
+                    style={{ padding: "0 30px", fontSize: 17, opacity: 0.92, display: "inline-flex", alignItems: "center", gap: 7 }}
                   >
+                    {a.groupColor && (
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: a.groupColor, flexShrink: 0, display: "inline-block" }} />
+                    )}
                     <b style={{ color: "#22d3ee" }}>#{a.rank}</b>{" "}
                     <b>{a.loftName}</b>{" "}
                     <span style={{ opacity: 0.6, fontFamily: "ui-monospace, monospace" }}>
@@ -344,23 +351,24 @@ function Row({
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 10,
-        padding: "6px 16px",
+        gap: 14,
+        padding: "10px 16px",
         opacity: nonFinish ? 0.45 : bright ? 1 : 0.58,
         background: bright && (a.rank ?? 99) <= 3 ? "rgba(34,211,238,0.10)" : "transparent",
+        borderLeft: a.groupColor ? `4px solid ${a.groupColor}` : "4px solid transparent",
       }}
     >
       {/* rank + movement */}
-      <div style={{ width: 42, flexShrink: 0, textAlign: "center" }}>
+      <div style={{ width: 48, flexShrink: 0, textAlign: "center" }}>
         {nonFinish ? (
-          <div style={{ fontSize: 9, fontWeight: 700, color: "#f87171", letterSpacing: 0.5 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#f87171", letterSpacing: 0.5 }}>
             {STATUS_LABEL[a.status] ?? a.status}
           </div>
         ) : (
           <>
             <div
               style={{
-                fontSize: 13,
+                fontSize: 18,
                 fontWeight: 800,
                 color: (a.rank ?? 99) <= 3 ? "#22d3ee" : "#fff",
                 fontVariantNumeric: "tabular-nums",
@@ -370,7 +378,7 @@ function Row({
               {a.rank ?? "—"}
             </div>
             {diff && (
-              <div style={{ fontSize: 9, fontWeight: 700, color: diff.color, marginTop: 1 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: diff.color, marginTop: 2 }}>
                 {diff.label}
               </div>
             )}
@@ -380,26 +388,29 @@ function Row({
       <div style={{ minWidth: 0, flex: 1 }}>
         <div
           style={{
-            fontSize: 13.5,
+            fontSize: 17,
             fontWeight: 700,
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
           }}
         >
-          {a.loftName}
+          {(a.birdName && a.birdName !== a.band) ? a.birdName : a.band}
         </div>
-        <div style={{ fontSize: 10.5, opacity: 0.6, fontFamily: "ui-monospace, monospace" }}>
-          {a.band}
+        <div style={{ fontSize: 13, opacity: 0.6, fontFamily: "ui-monospace, monospace", marginTop: 2 }}>
+          {(a.birdName && a.birdName !== a.band) ? a.band : null}
+        </div>
+        <div style={{ fontSize: 11, opacity: 0.4, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {a.loftName}
         </div>
       </div>
       <div style={{ textAlign: "right", flexShrink: 0 }}>
         {a.ypm ? (
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#22d3ee", fontVariantNumeric: "tabular-nums" }}>
-            {a.ypm.toLocaleString()} <span style={{ fontSize: 9, opacity: 0.7 }}>YPM</span>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#22d3ee", fontVariantNumeric: "tabular-nums" }}>
+            {a.ypm.toLocaleString()} <span style={{ fontSize: 11, opacity: 0.7 }}>YPM</span>
           </div>
         ) : null}
-        <div style={{ fontSize: 11, opacity: 0.6, fontVariantNumeric: "tabular-nums" }}>
+        <div style={{ fontSize: 13, opacity: 0.6, fontVariantNumeric: "tabular-nums", marginTop: 2 }}>
           {clockTime(a.arrivalTime)}
         </div>
       </div>

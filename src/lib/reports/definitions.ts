@@ -711,7 +711,6 @@ async function buildLedger(params: ReportParams, filter: "all" | "unpaid" | "ear
     l.breederName || "—",
     l.loft ?? "",
     money(l.charged),
-    money(l.penalties),
     money(l.paid),
     money(l.refunded),
     money(l.balance),
@@ -728,14 +727,13 @@ async function buildLedger(params: ReportParams, filter: "all" | "unpaid" | "ear
       filter === "unpaid" ? "Unpaid Balances" : filter === "earned" ? "Earnings Owed" : "Season Ledger",
     subtitle: await seasonSubtitle(seasonId),
     columns: [
-      "Breeder", "Loft", "Charged", "Penalties", "Paid", "Refunded",
+      "Breeder", "Loft", "Charged", "Paid", "Refunded",
       "Balance", "Won", "Owed Out", "Note",
     ],
     rows,
     totals: [
       "Total", "",
       money(sum((l) => l.charged)),
-      money(sum((l) => l.penalties)),
       money(sum((l) => l.paid)),
       money(sum((l) => l.refunded)),
       money(sum((l) => l.balance)),
@@ -743,7 +741,7 @@ async function buildLedger(params: ReportParams, filter: "all" | "unpaid" | "ear
       money(sum((l) => l.owedOut)),
       "",
     ],
-    numericColumns: [2, 3, 4, 5, 6, 7, 8],
+    numericColumns: [2, 3, 4, 5, 6, 7],
   };
 }
 

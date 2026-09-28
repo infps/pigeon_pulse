@@ -37,7 +37,7 @@ export async function GET() {
       // so rather than silently showing an empty admin shell.
       isApproved: approvalStatus === "APPROVED" || role === "ADMIN" || role === "SUPERADMIN",
       permissions,
-      isAdminCapable: permissions.length > 0,
+      isAdminCapable: role === "ADMIN" || role === "SUPERADMIN",
     });
   } catch (error) {
     console.error("Failed to resolve permissions:", error);

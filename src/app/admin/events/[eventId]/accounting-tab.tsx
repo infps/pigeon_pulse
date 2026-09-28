@@ -25,7 +25,6 @@ interface LedgerLine {
   breederName: string;
   loft: string | null;
   charged: number;
-  penalties: number;
   paid: number;
   refunded: number;
   balance: number;
@@ -37,7 +36,6 @@ interface LedgerLine {
 
 interface Totals {
   charged: number;
-  penalties: number;
   paid: number;
   refunded: number;
   balance: number;
@@ -210,7 +208,6 @@ export function AccountingTab({ eventId }: { eventId: string }) {
                     <th className="text-left py-1.5 pr-3">Breeder</th>
                     <th className="text-left py-1.5 pr-3">Loft</th>
                     <th className="text-right py-1.5 pr-3">Charged</th>
-                    <th className="text-right py-1.5 pr-3">Penalty</th>
                     <th className="text-right py-1.5 pr-3">Paid</th>
                     <th className="text-right py-1.5 pr-3">Refunded</th>
                     <th className="text-right py-1.5 pr-3">Balance</th>
@@ -234,9 +231,6 @@ export function AccountingTab({ eventId }: { eventId: string }) {
                       </td>
                       <td className="py-1.5 pr-3 text-muted-foreground">{l.loft ?? "—"}</td>
                       <td className="py-1.5 pr-3 text-right">{money(l.charged)}</td>
-                      <td className="py-1.5 pr-3 text-right">
-                        {l.penalties ? money(l.penalties) : ""}
-                      </td>
                       <td className="py-1.5 pr-3 text-right">{money(l.paid)}</td>
                       <td className="py-1.5 pr-3 text-right">
                         {l.refunded ? money(l.refunded) : ""}
@@ -279,7 +273,6 @@ export function AccountingTab({ eventId }: { eventId: string }) {
                       <td className="py-2 pr-3">Total</td>
                       <td></td>
                       <td className="py-2 pr-3 text-right">{money(totals.charged)}</td>
-                      <td className="py-2 pr-3 text-right">{money(totals.penalties)}</td>
                       <td className="py-2 pr-3 text-right">{money(totals.paid)}</td>
                       <td className="py-2 pr-3 text-right">{money(totals.refunded)}</td>
                       <td className="py-2 pr-3 text-right">{money(totals.balance)}</td>

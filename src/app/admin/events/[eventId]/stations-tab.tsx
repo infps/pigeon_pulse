@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useDialogHotkeys } from "@/lib/use-dialog-hotkeys";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -314,6 +315,7 @@ function StationFormDialog({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const formRef = useRef<HTMLFormElement>(null);
   const [form, setForm] = useState<FormState>({
     name: "",
     miles: "",
@@ -342,6 +344,13 @@ function StationFormDialog({
       address: null,
     });
   }
+
+  useDialogHotkeys({
+    open,
+    onSave: () => formRef.current?.requestSubmit(),
+    onClose: onClose,
+    disabled: saving,
+  });
 
   // On map pick: set coords + auto-fill distance from event base (editable override).
   const handlePick = (lat: number, lng: number) => {
@@ -416,7 +425,7 @@ function StationFormDialog({
         <DialogHeader>
           <DialogTitle>{station ? "Edit Station" : "Add Station"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="st-name">Station Name *</Label>
             <Input

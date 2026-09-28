@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useDialogHotkeys } from "@/lib/use-dialog-hotkeys";
 import { useSeasonContext } from "@/lib/season-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,7 +27,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { AlertTriangle, ArrowRightLeft, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp, LayoutList, Pencil, Plus, Radio, Scan, Square, Table2, Trash2, Wand2, Wifi } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp, LayoutList, Pencil, Plus, Radio, Scan, Square, Table2, Trash2, Usb, Wand2, Wifi } from "lucide-react";
+import { useWebSerial } from "@/hooks/useWebSerial";
 import { toast } from "sonner";
 import {
   useEventBaskets,
@@ -227,6 +229,22 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
       toast.error((error as Error)?.message || "Failed to update basket");
     }
   };
+
+  // Loft basket edit dialog hotkeys
+  useDialogHotkeys({
+    open: !!editBasket,
+    onSave: handleEditSave,
+    onClose: () => setEditBasket(null),
+    disabled: updateMutation.isPending,
+  });
+  // Loft basket add dialog hotkeys
+  useDialogHotkeys({
+    open: dialogOpen,
+    onSave: () => handleSave(false),
+    onSaveAndNew: () => handleSave(true),
+    onClose: () => setDialogOpen(false),
+    disabled: createMutation.isPending,
+  });
 
   const handlePreviewAssign = async (mode: "shuffle" | "assign") => {
     try {
@@ -735,6 +753,22 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
       toast.error((error as Error)?.message || "Failed to update basket");
     }
   };
+
+  // Race basket edit dialog hotkeys
+  useDialogHotkeys({
+    open: !!editBasket,
+    onSave: handleEditSave,
+    onClose: () => setEditBasket(null),
+    disabled: updateMutation.isPending,
+  });
+  // Race basket add dialog hotkeys
+  useDialogHotkeys({
+    open: dialogOpen,
+    onSave: () => handleSave(false),
+    onSaveAndNew: () => handleSave(true),
+    onClose: () => setDialogOpen(false),
+    disabled: createMutation.isPending,
+  });
 
   const handleDelete = async (basket: EventBasketItem) => {
     try {
@@ -1572,8 +1606,12 @@ function LoftScanDialog({
     toast.info("Scanner stopped");
   }, []);
 
+  const { isConnected: isSerial, connect: connectSerial, disconnect: disconnectSerial } =
+    useWebSerial({ onScan: handleScan });
+
   const handleClose = () => {
     stopPoll();
+    disconnectSerial();
     onClose();
   };
 
@@ -1589,19 +1627,30 @@ function LoftScanDialog({
                   <Square className="h-4 w-4" />Stop Scanner
                 </Button>
               ) : (
-                <Button size="sm" variant="outline" className="gap-1.5" onClick={startPoll}>
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={() => { disconnectSerial(); startPoll(); }}>
                   <Wifi className="h-4 w-4" />Start Scanner
                 </Button>
               )}
+              <Button
+                size="sm"
+                variant={isSerial ? "default" : "outline"}
+                className="gap-1.5"
+                onClick={isSerial ? disconnectSerial : () => { stopPoll(); connectSerial(); }}
+              >
+                <Usb className="h-4 w-4" />
+                {isSerial ? "USB Connected" : "USB Serial"}
+              </Button>
             </div>
           </DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden flex flex-col gap-3">
-          {isPollActive && (
+          {(isPollActive || isSerial) && (
             <div className="flex items-center gap-2 rounded-lg border border-dashed px-3 py-2">
-              <Radio className="h-4 w-4 text-primary animate-pulse shrink-0" />
-              <p className="text-xs text-muted-foreground animate-pulse">Scanning — hold RFID tag to reader</p>
+              {isSerial ? <Usb className="h-4 w-4 text-primary animate-pulse shrink-0" /> : <Radio className="h-4 w-4 text-primary animate-pulse shrink-0" />}
+              <p className="text-xs text-muted-foreground animate-pulse">
+                {isSerial ? "USB Serial active — scan bird RFID tags" : "Scanning — hold RFID tag to reader"}
+              </p>
             </div>
           )}
 

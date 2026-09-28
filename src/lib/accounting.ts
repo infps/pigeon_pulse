@@ -4,9 +4,8 @@
  * Paid Entry, Pay Entry, Entry Invoice, Prize Statements, Earned, Unpaid.
  *
  * These are reports over money the system already records, not a second ledger.
- * Every figure here traces to a Payment, a Refund, a PaymentPenalty, a
- * RaceItemResult prize or a class payout — nothing is stored twice, so nothing
- * can disagree with itself.
+ * Every figure here traces to a Payment, a Refund, a RaceItemResult prize or
+ * a class payout — nothing is stored twice, so nothing can disagree with itself.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -20,8 +19,6 @@ export interface LedgerLine {
   charged: number;
   /** Fee-level refunds recorded on the bird entries themselves. */
   itemRefunds: number;
-  /** Late-payment penalties still standing. */
-  penalties: number;
   /** Payments marked PAID. */
   paid: number;
   /** Money returned through the refunds ledger. */
@@ -30,7 +27,7 @@ export interface LedgerLine {
   prizeEarned: number;
   /** Class payouts. */
   classEarned: number;
-  /** charged + penalties − itemRefunds − paid  (positive means they owe). */
+  /** charged − itemRefunds − paid  (positive means they owe). */
   balance: number;
   /** What the organization owes them. */
   owedOut: number;
@@ -39,7 +36,6 @@ export interface LedgerLine {
 
 export interface LedgerTotals {
   charged: number;
-  penalties: number;
   paid: number;
   refunded: number;
   prizeEarned: number;
@@ -88,7 +84,6 @@ export async function seasonLedger(seasonId: number): Promise<Ledger> {
       },
       payments: { select: { paymentValue: true, status: true } },
       refunds: { select: { amount: true } },
-      penalties: { where: { waivedAt: null }, select: { amount: true } },
     },
   });
 
@@ -119,7 +114,6 @@ export async function seasonLedger(seasonId: number): Promise<Ledger> {
       .filter((p) => p.status === "PAID")
       .reduce((sum, p) => sum + (p.paymentValue ?? 0), 0);
     const refunded = inv.refunds.reduce((sum, r) => sum + r.amount, 0);
-    const penalties = inv.penalties.reduce((sum, p) => sum + p.amount, 0);
 
     return {
       eventInventoryId: inv.id,
@@ -128,12 +122,11 @@ export async function seasonLedger(seasonId: number): Promise<Ledger> {
       loft: inv.loft,
       charged: round(charged),
       itemRefunds: round(itemRefunds),
-      penalties: round(penalties),
       paid: round(paid),
       refunded: round(refunded),
       prizeEarned: round(prizeEarned),
       classEarned: round(classEarned),
-      balance: round(charged + penalties - itemRefunds - paid),
+      balance: round(charged - itemRefunds - paid),
       owedOut: round(prizeEarned + classEarned - refunded),
       cashPromised: inv.cashPromised === true,
     };
@@ -144,7 +137,6 @@ export async function seasonLedger(seasonId: number): Promise<Ledger> {
   const totals = lines.reduce<LedgerTotals>(
     (acc, l) => ({
       charged: round(acc.charged + l.charged),
-      penalties: round(acc.penalties + l.penalties),
       paid: round(acc.paid + l.paid),
       refunded: round(acc.refunded + l.refunded),
       prizeEarned: round(acc.prizeEarned + l.prizeEarned),
@@ -154,7 +146,6 @@ export async function seasonLedger(seasonId: number): Promise<Ledger> {
     }),
     {
       charged: 0,
-      penalties: 0,
       paid: 0,
       refunded: 0,
       prizeEarned: 0,
@@ -214,7 +205,6 @@ export async function entryInvoice(eventInventoryId: number): Promise<Invoice | 
       },
       payments: { select: { paymentValue: true, status: true } },
       refunds: { select: { amount: true } },
-      penalties: { where: { waivedAt: null }, select: { amount: true, daysLate: true } },
     },
   });
   if (!inv) return null;
@@ -238,14 +228,6 @@ export async function entryInvoice(eventInventoryId: number): Promise<Invoice | 
       if (!ce.feeCharged) continue;
       lines.push({ label, detail: `Class ${ce.raceClass?.code ?? "?"}`, amount: ce.feeCharged });
     }
-  }
-
-  for (const penalty of inv.penalties) {
-    lines.push({
-      label: "Late payment penalty",
-      detail: `${penalty.daysLate} days past the deadline`,
-      amount: penalty.amount,
-    });
   }
 
   const charged = round(lines.reduce((sum, l) => sum + l.amount, 0));
