@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { BasketTabs } from "./basket-tabs";
+import { StartRaceDialog } from "./start-race-dialog";
 // GPS disabled for now: import { TransportCard, RouteHistoryCard } from "./transport-card";
 import { createRaceItemsColumns } from "./race-items-columns";
 import { RaceStatusDialog } from "./race-status-dialog";
@@ -29,7 +30,7 @@ import { getWeatherIcon } from "@/lib/weather-constants";
 import { StationsMap } from "@/components/map";
 import type { Race, Event, RaceItem } from "@/lib/types";
 import Image from "next/image";
-import { Play, Radio, Square, StopCircle, Usb } from "lucide-react";
+import { Radio, Square, StopCircle, Usb } from "lucide-react";
 import { RaceWindButton } from "@/components/map/race-wind-dialog";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -304,15 +305,12 @@ export default function RaceDetailsPage() {
                       {race.raceType?.name || "Race"}
                     </Badge>
                     {race.status === "REGISTERING" && (
-                      <Button
-                        onClick={() => startRace({})}
-                        disabled={isStartingRace}
-                        size="sm"
-                        className="gap-2 bg-green-600 hover:bg-green-700"
-                      >
-                        <Play className="h-4 w-4" />
-                        {isStartingRace ? "Starting..." : "Start Race"}
-                      </Button>
+                      <StartRaceDialog
+                        eventId={eventId}
+                        raceId={raceId}
+                        isPending={isStartingRace}
+                        onStart={(basketIds) => startRace(basketIds ? { basketIds } : {})}
+                      />
                     )}
                     {race.status === "STARTED" && (
                       <Button

@@ -108,7 +108,7 @@ export const createRaceItemsColumns = (
       const arrivalTime = row.original.arrivalTime;
       return (
         <span>
-          {arrivalTime ? new Date(arrivalTime).toLocaleString() : "-"}
+          {arrivalTime ? new Date(arrivalTime).toLocaleString(undefined, { fractionalSecondDigits: 3 }) : "-"}
         </span>
       );
     },

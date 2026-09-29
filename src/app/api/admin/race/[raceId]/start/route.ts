@@ -18,6 +18,12 @@ export async function POST(
     const { raceId } = await params;
     const raceIdInt = parseInt(raceId);
 
+    const body = await request.json().catch(() => ({}));
+    const basketIds: number[] | undefined =
+      Array.isArray(body?.basketIds) && body.basketIds.length > 0
+        ? body.basketIds.map(Number)
+        : undefined;
+
     const race = await prisma.race.findUnique({
       where: { id: raceIdInt },
     });
@@ -39,7 +45,17 @@ export async function POST(
     // Released birds get the "Flying" configurable status (trigger RELEASE).
     const flyingId = await presetIdFor(race.seasonId, "RELEASE");
 
-    // Start race + release all basketted/checked-in birds
+    // If specific baskets selected, scope release to those basket assignments only.
+    let inventoryItemIds: number[] | undefined;
+    if (basketIds) {
+      const assignments = await prisma.basketAssignment.findMany({
+        where: { eventBasketId: { in: basketIds } },
+        select: { eventInventoryItemId: true },
+      });
+      inventoryItemIds = assignments.map((a) => a.eventInventoryItemId);
+    }
+
+    // Start race + release basketted birds (all or scoped to selected baskets)
     const [updatedRace] = await prisma.$transaction([
       prisma.race.update({
         where: { id: raceIdInt },
@@ -53,6 +69,7 @@ export async function POST(
         where: {
           raceId: raceIdInt,
           status: { in: ["LOFT_BASKETED"] },
+          ...(inventoryItemIds ? { inventoryItemId: { in: inventoryItemIds } } : undefined),
         },
         data: { status: "RELEASED", displayStatusId: flyingId },
       }),
