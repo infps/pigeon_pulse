@@ -1,12 +1,16 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
+// R2: set R2_ENDPOINT + keys. AWS S3: leave R2_ENDPOINT/keys empty — region comes
+// from AWS_REGION and credentials from the EC2 instance role.
 const s3Client = new S3Client({
-  region: "auto",
-  endpoint: process.env.R2_ENDPOINT!,
-  credentials: {
-    accessKeyId: process.env.R2_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
-  },
+  region: process.env.R2_ENDPOINT ? "auto" : process.env.AWS_REGION,
+  endpoint: process.env.R2_ENDPOINT || undefined,
+  credentials: process.env.R2_ACCESS_KEY_ID
+    ? {
+        accessKeyId: process.env.R2_ACCESS_KEY_ID,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+      }
+    : undefined,
 });
 
 export async function uploadToR2(
