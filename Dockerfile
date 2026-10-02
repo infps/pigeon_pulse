@@ -30,7 +30,8 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
 
 # Build never talks to the real DB; a localhost URL keeps lib/prisma.ts from
 # starting its keep-warm pool against production during page collection.
-RUN DATABASE_URL=postgresql://build@localhost:5432/build pnpm build
+# 2 GB box: default V8 heap (~1 GB) OOMs during build; swap backs the extra.
+RUN DATABASE_URL=postgresql://build@localhost:5432/build NODE_OPTIONS=--max-old-space-size=3072 pnpm build
 
 ENV NODE_ENV=production PORT=3000
 EXPOSE 3000
