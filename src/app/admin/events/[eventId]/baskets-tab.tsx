@@ -1,14 +1,35 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+/**
+ * The basketing workspace.
+ *
+ * This is a port of HayLoft's `TeditRaceF` — the screen where basketing actually
+ * happened. Its structure is the point, so it is reproduced rather than
+ * reinterpreted:
+ *
+ *   race header (raceP)
+ *   ├── left column (birdsP)          ── splitter ──  right column (basketsP)
+ *   │   ├── "Entries"      toolbar + grid + totals     "Baskets" toolbar
+ *   │   ├── ── splitter ──                             tabs: Loft / Race baskets
+ *   │   └── "Ignore birds list" grid                   grid + capacity totals
+ *
+ * Both splitters drag, as the originals did. Everything the operator can reach
+ * lives on one screen, which is what made the old program workable at a
+ * basketing table: entries on the left, baskets on the right, and the basket
+ * numbers never more than a glance away.
+ *
+ * The previous version of this screen was three sibling tabs (Loft Baskets /
+ * Race Baskets / Bird Prescan) with a race selector repeated in each. Loft and
+ * race baskets are now the two tabs of the baskets pane, as in `basketPC`, and
+ * prescan is a toolbar action opening a modal, as in `ActionPreScan`.
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSeasonContext } from "@/lib/season-context";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,24 +43,19 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
-import { AlertTriangle, ArrowRightLeft, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp, LayoutList, Pencil, Plus, Radio, Scan, Square, Table2, Trash2, Wand2, Wifi } from "lucide-react";
-import { toast } from "sonner";
 import {
-  useEventBaskets,
-  useCreateBasket,
-  useDeleteBasket,
-  useUpdateBasket,
-  useAssignBaskets,
-  useClearBasket,
-  useAssignRaceBaskets,
-  useCheckinStatus,
-} from "@/lib/api/event-baskets";
-import { useListRaces } from "@/lib/api/races";
-import type { CheckinStatusItem, EventBasketItem, Race } from "@/lib/types";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -47,522 +63,1077 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertTriangle,
+  Ban,
+  Boxes,
+  Download,
+  Eraser,
+  MoveRight,
+  Pencil,
+  Plus,
+  Scan,
+  Search,
+  Trash2,
+  Undo2,
+  Wand2,
+} from "lucide-react";
+import { toast } from "sonner";
+import {
+  useAssignBaskets,
+  useAssignRaceBaskets,
+  useCreateBasket,
+  useDeleteBasket,
+  useEventBaskets,
+  useUpdateBasket,
+} from "@/lib/api/event-baskets";
+import { useListRaces } from "@/lib/api/races";
+import { useListRaceItems } from "@/lib/api/race-items";
+import type { EventBasketItem, Race, RaceItem } from "@/lib/types";
+import {
+  EMPTY_ENTRY_FILTERS,
+  ENTRY_EXPORT_COLUMNS,
+  EntriesPane,
+  applyEntryFilters,
+  type EntryFilters,
+} from "./basketing/entries-pane";
+import { BasketsPane, basketCount, type BasketPhase } from "./basketing/baskets-pane";
+import { IgnoreListPane, type IgnoredBirdRow } from "./basketing/ignore-list-pane";
+import {
+  BasketFormDialog,
+  ScannerBasketingDialog,
+} from "./basketing/basket-scanner-dialog";
+import { PrescanDialog } from "./basketing/scan-dialogs";
 
 interface BasketsTabProps {
   eventId: string;
 }
 
+// ============================================================
+// SPLITTERS  (HayLoft basketSpliter / ignoreBirdSplliter)
+// ============================================================
+
+/** Drag handle between the two columns. Width is a percentage of the workspace. */
+function VerticalSplitter({ onDrag }: { onDrag: (deltaX: number) => void }) {
+  const dragging = useRef(false);
+  const lastX = useRef(0);
+
+  useEffect(() => {
+    const move = (e: MouseEvent) => {
+      if (!dragging.current) return;
+      onDrag(e.clientX - lastX.current);
+      lastX.current = e.clientX;
+    };
+    const up = () => {
+      dragging.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+  }, [onDrag]);
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      className="w-1.5 shrink-0 cursor-col-resize rounded-full bg-border hover:bg-primary/60 transition-colors"
+      onMouseDown={(e) => {
+        dragging.current = true;
+        lastX.current = e.clientX;
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+      }}
+    />
+  );
+}
+
+/** Drag handle between the entries grid and the ignore list. */
+function HorizontalSplitter({ onDrag }: { onDrag: (deltaY: number) => void }) {
+  const dragging = useRef(false);
+  const lastY = useRef(0);
+
+  useEffect(() => {
+    const move = (e: MouseEvent) => {
+      if (!dragging.current) return;
+      onDrag(e.clientY - lastY.current);
+      lastY.current = e.clientY;
+    };
+    const up = () => {
+      dragging.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+  }, [onDrag]);
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="horizontal"
+      className="h-1.5 shrink-0 cursor-row-resize rounded-full bg-border hover:bg-primary/60 transition-colors"
+      onMouseDown={(e) => {
+        dragging.current = true;
+        lastY.current = e.clientY;
+        document.body.style.cursor = "row-resize";
+        document.body.style.userSelect = "none";
+      }}
+    />
+  );
+}
+
+// ============================================================
+// WORKSPACE
+// ============================================================
+
 export function BasketsTab({ eventId }: BasketsTabProps) {
-  return (
-    <Tabs defaultValue="loft" className="w-full">
-      <TabsList className="grid w-full grid-cols-3">
-        <TabsTrigger value="loft">Loft Baskets</TabsTrigger>
-        <TabsTrigger value="race">Race Baskets</TabsTrigger>
-        <TabsTrigger value="prescan">Bird Prescan</TabsTrigger>
-      </TabsList>
-      <TabsContent value="loft" className="space-y-4 mt-4">
-        <LoftBasketPanel eventId={eventId} />
-      </TabsContent>
-      <TabsContent value="race" className="space-y-4 mt-4">
-        <RaceBasketPanel eventId={eventId} />
-      </TabsContent>
-      <TabsContent value="prescan" className="space-y-4 mt-4">
-        <BirdPrescanPanel eventId={eventId} />
-      </TabsContent>
-    </Tabs>
-  );
-}
-
-// ============================================================
-// Shared summary card
-// ============================================================
-
-function CapacitySummary({
-  capacity,
-  active,
-  phase,
-}: {
-  capacity: number;
-  active: number;
-  phase: "Loft" | "Race";
-}) {
-  const insufficient = capacity < active;
-  return (
-    <div className="flex items-center gap-2 text-sm">
-      <Badge variant={insufficient ? "destructive" : "secondary"}>
-        Capacity {capacity} / Active {active}
-      </Badge>
-      {insufficient && (
-        <span className="text-xs text-destructive">
-          Need {active - capacity} more {phase.toLowerCase()} slot(s)
-        </span>
-      )}
-    </div>
-  );
-}
-
-// ============================================================
-// LOFT BASKET PANEL
-// ============================================================
-
-interface AssignPreviewItem {
-  breederId: number;
-  lastName: string;
-  basketNo: number;
-  basketLabel: string | null;
-  birdCount: number;
-}
-
-interface UnassignedItem {
-  breederId: number;
-  lastName: string;
-  birdCount: number;
-}
-
-interface AssignSummary {
-  totalBreeders: number;
-  assignedBreeders: number;
-  unassignedBreeders: number;
-  totalBirds: number;
-  assignedBirds: number;
-}
-
-function LoftBasketPanel({ eventId }: { eventId: string }) {
   const { selectedSeasonId } = useSeasonContext();
+
   const { data: racesData } = useListRaces({ params: { eventId } });
-  const races: Race[] = (racesData as { races?: Race[] })?.races ?? [];
+  const races: Race[] = useMemo(
+    () => (racesData as { races?: Race[] })?.races ?? [],
+    [racesData]
+  );
   const [selectedRaceId, setSelectedRaceId] = useState<string>("");
 
   useEffect(() => {
-    if (!selectedRaceId && races.length > 0) {
-      setSelectedRaceId(String(races[0].id));
-    }
+    if (!selectedRaceId && races.length > 0) setSelectedRaceId(String(races[0].id));
   }, [races, selectedRaceId]);
 
-  const { data, isPending, refetch } = useEventBaskets(eventId, "LOFT", selectedRaceId || undefined, selectedSeasonId);
-  const { data: checkinData } = useCheckinStatus(eventId, selectedSeasonId);
+  const race = races.find((r) => String(r.id) === selectedRaceId) ?? null;
+
+  // Layout — the splitter positions.
+  const [leftPercent, setLeftPercent] = useState(64);
+  const [ignoreHeight, setIgnoreHeight] = useState(150);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+
+  const dragColumns = useCallback((deltaX: number) => {
+    const width = workspaceRef.current?.clientWidth ?? 1200;
+    setLeftPercent((p) => Math.min(85, Math.max(35, p + (deltaX / width) * 100)));
+  }, []);
+  const dragIgnore = useCallback((deltaY: number) => {
+    setIgnoreHeight((h) => Math.min(480, Math.max(44, h - deltaY)));
+  }, []);
+
+  // ---- Data ----------------------------------------------------------------
+
+  const {
+    data: raceItemsData,
+    isPending: entriesPending,
+    refetch: refetchEntries,
+  } = useListRaceItems({ params: selectedRaceId ? { raceId: selectedRaceId } : undefined });
+  const entries: RaceItem[] = useMemo(
+    () => (selectedRaceId ? (raceItemsData as { raceItems?: RaceItem[] })?.raceItems ?? [] : []),
+    [raceItemsData, selectedRaceId]
+  );
+
+  const [basketPhase, setBasketPhase] = useState<BasketPhase>("LOFT");
+  const {
+    data: basketsData,
+    isPending: basketsPending,
+    refetch: refetchBaskets,
+  } = useEventBaskets(eventId, basketPhase, selectedRaceId || undefined, selectedSeasonId);
+  const baskets: EventBasketItem[] = useMemo(
+    () => basketsData?.baskets ?? [],
+    [basketsData]
+  );
+
+
+  // Basket numbers for the entries filters — both phases, not just the open tab.
+  const { data: loftBasketsData } = useEventBaskets(
+    eventId,
+    "LOFT",
+    selectedRaceId || undefined,
+    selectedSeasonId
+  );
+  const { data: raceBasketsData } = useEventBaskets(
+    eventId,
+    "RACE",
+    selectedRaceId || undefined,
+    selectedSeasonId
+  );
+  const loftBasketNos = useMemo(
+    () =>
+      ((loftBasketsData?.baskets ?? []) as EventBasketItem[])
+        .map((b) => b.basketNo)
+        .sort((a, b) => a - b),
+    [loftBasketsData]
+  );
+  const raceBasketNos = useMemo(
+    () =>
+      ((raceBasketsData?.baskets ?? []) as EventBasketItem[])
+        .map((b) => b.basketNo)
+        .sort((a, b) => a - b),
+    [raceBasketsData]
+  );
+
+  // Ignore list.
+  const [ignored, setIgnored] = useState<IgnoredBirdRow[]>([]);
+  const [ignoredPending, setIgnoredPending] = useState(false);
+
+  const loadIgnored = useCallback(async () => {
+    if (!selectedRaceId) {
+      setIgnored([]);
+      return;
+    }
+    setIgnoredPending(true);
+    try {
+      const res = await fetch(`/api/admin/race/${selectedRaceId}/ignore-birds`);
+      const d = await res.json();
+      type ApiIgnored = {
+        id: number;
+        note: string | null;
+        inventoryItem?: {
+          id: number;
+          bird?: { band?: string | null; rfid?: string | null; color?: string | null } | null;
+          eventInventory?: {
+            breeder?: { firstName?: string | null; lastName?: string | null } | null;
+          } | null;
+        } | null;
+      };
+      setIgnored(
+        ((d?.ignored ?? []) as ApiIgnored[]).map((row) => {
+          const breeder = row.inventoryItem?.eventInventory?.breeder ?? null;
+          return {
+            id: row.id,
+            inventoryItemId: row.inventoryItem?.id ?? null,
+            note: row.note,
+            breeder: breeder
+              ? [breeder.lastName, breeder.firstName].filter(Boolean).join(", ") || null
+              : null,
+            band: row.inventoryItem?.bird?.band ?? null,
+            eid: row.inventoryItem?.bird?.rfid ?? null,
+            color: row.inventoryItem?.bird?.color ?? null,
+          };
+        })
+      );
+    } catch {
+      toast.error("Failed to load the ignore list");
+    } finally {
+      setIgnoredPending(false);
+    }
+  }, [selectedRaceId]);
+
+  useEffect(() => {
+    loadIgnored();
+  }, [loadIgnored]);
+
+  // ---- Mutations -----------------------------------------------------------
+
   const createMutation = useCreateBasket(eventId);
-  const deleteMutation = useDeleteBasket(eventId);
   const updateMutation = useUpdateBasket(eventId);
-  const assignMutation = useAssignBaskets(eventId);
-  const clearMutation = useClearBasket(eventId);
+  const deleteMutation = useDeleteBasket(eventId);
+  const assignLoftMutation = useAssignBaskets(eventId);
+  const assignRaceMutation = useAssignRaceBaskets(eventId);
 
-  const [scanDialogOpen, setScanDialogOpen] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [capacity, setCapacity] = useState("");
-  const [assignMode, setAssignMode] = useState<"shuffle" | "assign" | null>(null);
-  const [assignPreview, setAssignPreview] = useState<AssignPreviewItem[] | null>(null);
-  const [assignUnassigned, setAssignUnassigned] = useState<UnassignedItem[]>([]);
-  const [assignSummary, setAssignSummary] = useState<AssignSummary | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [editBasket, setEditBasket] = useState<EventBasketItem | null>(null);
-  const [editLabel, setEditLabel] = useState("");
-  const [editCapacity, setEditCapacity] = useState("");
-  const [clearTarget, setClearTarget] = useState<EventBasketItem | null>(null);
+  // ---- Selection and filters ----------------------------------------------
+
+  const [filters, setFilters] = useState<EntryFilters>(EMPTY_ENTRY_FILTERS);
+  const [selectedEntryIds, setSelectedEntryIds] = useState<number[]>([]);
+  const [selectedBasketId, setSelectedBasketId] = useState<number | null>(null);
+
+  // Changing race invalidates everything that referenced the old one.
+  useEffect(() => {
+    setSelectedEntryIds([]);
+    setSelectedBasketId(null);
+    setFilters(EMPTY_ENTRY_FILTERS);
+  }, [selectedRaceId]);
+
+  const selectedBasket = baskets.find((b) => b.id === selectedBasketId) ?? null;
+  const selectedEntries = entries.filter((e) => selectedEntryIds.includes(e.id));
+
+  // ---- Dialog state --------------------------------------------------------
+
+  const [basketForm, setBasketForm] = useState<{
+    mode: "create" | "edit";
+    basketNo: number;
+    capacity: string;
+    label: string;
+    basketId?: number;
+  } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<EventBasketItem | null>(null);
+  const [clearTarget, setClearTarget] = useState<EventBasketItem | null>(null);
+  const [scannerPhase, setScannerPhase] = useState<BasketPhase | null>(null);
+  const [prescanOpen, setPrescanOpen] = useState(false);
+  const [ignoreDialogOpen, setIgnoreDialogOpen] = useState(false);
+  const [ignoreNote, setIgnoreNote] = useState("");
+  const [autoAssignPreview, setAutoAssignPreview] = useState<{
+    mode: string;
+    lines: string[];
+    warning: string | null;
+  } | null>(null);
+  const [autoAssignBusy, setAutoAssignBusy] = useState(false);
 
-  const baskets: EventBasketItem[] = data?.baskets || [];
-  const totalCapacity = baskets.reduce((s, b) => s + b.capacity, 0);
-  const activeBirds = checkinData?.summary?.total ?? 0;
-  const insufficient = totalCapacity < activeBirds;
+  const nextBasketNo = useMemo(
+    () => (baskets.length > 0 ? Math.max(...baskets.map((b) => b.basketNo)) + 1 : 1),
+    [baskets]
+  );
 
-  const nextBasketNo = baskets.length > 0
-    ? Math.max(...baskets.map((b) => b.basketNo)) + 1
-    : 1;
-  const [basketNo, setBasketNo] = useState(nextBasketNo);
+  const openNewBasket = useCallback(() => {
+    if (basketPhase === "RACE" && !selectedRaceId) {
+      toast.error("Select a race first");
+      return;
+    }
+    setBasketForm({ mode: "create", basketNo: nextBasketNo, capacity: "", label: "" });
+  }, [basketPhase, selectedRaceId, nextBasketNo]);
 
-  const openDialog = () => {
-    const next = baskets.length > 0
-      ? Math.max(...baskets.map((b) => b.basketNo)) + 1
-      : 1;
-    setBasketNo(next);
-    setCapacity("");
-    setDialogOpen(true);
+  const openEditBasket = useCallback(() => {
+    if (!selectedBasket) {
+      toast.info("Select a basket first");
+      return;
+    }
+    setBasketForm({
+      mode: "edit",
+      basketNo: selectedBasket.basketNo,
+      capacity: String(selectedBasket.capacity),
+      label: selectedBasket.label ?? "",
+      basketId: selectedBasket.id,
+    });
+  }, [selectedBasket]);
+
+  // HayLoft bound New to Ins and Edit basket to F2.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      if (basketForm || deleteTarget || clearTarget || scannerPhase || prescanOpen) return;
+      if (e.key === "Insert") {
+        e.preventDefault();
+        openNewBasket();
+      } else if (e.key === "F2") {
+        e.preventDefault();
+        openEditBasket();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [
+    basketForm,
+    deleteTarget,
+    clearTarget,
+    scannerPhase,
+    prescanOpen,
+    openNewBasket,
+    openEditBasket,
+  ]);
+
+  const searchRef = useRef<HTMLDivElement>(null);
+  const focusSearch = () => {
+    const input = searchRef.current?.querySelector<HTMLInputElement>('input[type="text"]');
+    input?.focus();
+    input?.select();
   };
 
-  const handleSave = async (keepOpen: boolean) => {
-    const cap = parseInt(capacity);
+  // ---- Handlers ------------------------------------------------------------
+
+  const saveBasket = async (keepOpen: boolean) => {
+    if (!basketForm) return;
+    const cap = parseInt(basketForm.capacity);
     if (isNaN(cap) || cap < 1) {
       toast.error("Capacity must be a positive number");
       return;
     }
     try {
-      await createMutation.mutateAsync({ capacity: cap, phase: "LOFT", ...(selectedRaceId ? { raceId: parseInt(selectedRaceId) } : {}) });
-      toast.success(`Basket #${basketNo} created`);
-      refetch();
-      if (keepOpen) {
-        setBasketNo(basketNo + 1);
-        setCapacity("");
+      if (basketForm.mode === "edit" && basketForm.basketId) {
+        await updateMutation.mutateAsync({
+          basketId: basketForm.basketId,
+          label: basketForm.label,
+          capacity: cap,
+        });
+        toast.success(`Basket #${basketForm.basketNo} updated`);
+        setBasketForm(null);
       } else {
-        setDialogOpen(false);
+        await createMutation.mutateAsync({
+          capacity: cap,
+          phase: basketPhase,
+          ...(selectedRaceId ? { raceId: parseInt(selectedRaceId) } : {}),
+        });
+        toast.success(`Basket #${basketForm.basketNo} created`);
+        if (keepOpen) {
+          setBasketForm({
+            mode: "create",
+            basketNo: basketForm.basketNo + 1,
+            capacity: "",
+            label: "",
+          });
+        } else {
+          setBasketForm(null);
+        }
       }
+      refetchBaskets();
     } catch (error: unknown) {
-      toast.error((error as Error)?.message || "Failed to create basket");
+      toast.error((error as Error)?.message || "Failed to save the basket");
     }
   };
 
-  const openEdit = (basket: EventBasketItem) => {
-    setEditBasket(basket);
-    setEditLabel(basket.label ?? "");
-    setEditCapacity(String(basket.capacity));
-  };
-
-  const handleEditSave = async () => {
-    if (!editBasket) return;
-    const cap = parseInt(editCapacity);
-    if (isNaN(cap) || cap < 1) {
-      toast.error("Capacity must be a positive number");
-      return;
-    }
-    try {
-      await updateMutation.mutateAsync({
-        basketId: editBasket.id,
-        label: editLabel,
-        capacity: cap,
-      });
-      toast.success("Basket updated");
-      setEditBasket(null);
-      refetch();
-    } catch (error: unknown) {
-      toast.error((error as Error)?.message || "Failed to update basket");
-    }
-  };
-
-  const handlePreviewAssign = async (mode: "shuffle" | "assign") => {
-    try {
-      const raceIdPayload = selectedRaceId ? { raceId: parseInt(selectedRaceId) } : {};
-      const seasonPayload = selectedSeasonId ? { seasonId: selectedSeasonId } : {};
-      const res = await assignMutation.mutateAsync({ preview: true, mode, ...raceIdPayload, ...seasonPayload });
-      const result = (res as { data?: unknown })?.data || res;
-      const r = result as { assigned?: AssignPreviewItem[]; unassigned?: UnassignedItem[]; summary?: AssignSummary; message?: string };
-      if (!r?.assigned?.length && !r?.unassigned?.length) {
-        toast.info(r?.message || "No birds to assign");
-        return;
-      }
-      setAssignMode(mode);
-      setAssignPreview(r.assigned ?? []);
-      setAssignUnassigned(r.unassigned ?? []);
-      setAssignSummary(r.summary ?? null);
-    } catch (error: unknown) {
-      toast.error((error as Error)?.message || "Failed to preview assignment");
-    }
-  };
-
-  const handleConfirmAssign = async () => {
-    try {
-      const raceIdPayload = selectedRaceId ? { raceId: parseInt(selectedRaceId) } : {};
-      const seasonPayload = selectedSeasonId ? { seasonId: selectedSeasonId } : {};
-      await assignMutation.mutateAsync({ preview: false, mode: assignMode ?? "shuffle", ...raceIdPayload, ...seasonPayload });
-      toast.success("Birds assigned to baskets");
-      setAssignPreview(null);
-      setAssignUnassigned([]);
-      setAssignSummary(null);
-      setAssignMode(null);
-      setConfirmOpen(false);
-      refetch();
-    } catch (error: unknown) {
-      toast.error((error as Error)?.message || "Failed to assign baskets");
-    }
-  };
-
-  const handleConfirmClear = async () => {
-    if (!clearTarget) return;
-    try {
-      await clearMutation.mutateAsync({ basketId: clearTarget.id, action: "clear" });
-      toast.success(`Basket #${clearTarget.basketNo} cleared`);
-      setClearTarget(null);
-      refetch();
-    } catch (error: unknown) {
-      toast.error((error as Error)?.message || "Failed to clear basket");
-    }
-  };
-
-  const handleConfirmDelete = async () => {
+  const confirmDeleteBasket = async () => {
     if (!deleteTarget) return;
     try {
       await deleteMutation.mutateAsync({ basketId: deleteTarget.id });
       toast.success(`Basket #${deleteTarget.basketNo} deleted`);
+      if (selectedBasketId === deleteTarget.id) setSelectedBasketId(null);
       setDeleteTarget(null);
-      refetch();
+      refetchBaskets();
+      refetchEntries();
     } catch (error: unknown) {
-      toast.error((error as Error)?.message || "Failed to delete basket");
+      toast.error((error as Error)?.message || "Failed to delete the basket");
     }
   };
 
-  const hasExistingAssignments = baskets.some(
-    (b) => (b._count?.assignments ?? b.assignments?.length ?? 0) > 0
+  const confirmClearBasket = async () => {
+    if (!clearTarget) return;
+    try {
+      await updateMutation.mutateAsync({ basketId: clearTarget.id, action: "clear" });
+      toast.success(`Basket #${clearTarget.basketNo} cleared`);
+      setClearTarget(null);
+      refetchBaskets();
+      refetchEntries();
+    } catch (error: unknown) {
+      toast.error((error as Error)?.message || "Failed to clear the basket");
+    }
+  };
+
+  /** ActionSetBasket — put the selected entries into the selected basket. */
+  const setBasketForSelection = async () => {
+    if (!selectedBasket) {
+      toast.info("Select a basket on the right first");
+      return;
+    }
+    if (selectedEntries.length === 0) {
+      toast.info("Select one or more entries first");
+      return;
+    }
+    const inventoryItemIds = selectedEntries
+      .map((e) => e.inventoryItemId)
+      .filter((id): id is number => id != null);
+    if (inventoryItemIds.length === 0) {
+      toast.error("The selected entries have no registration to basket");
+      return;
+    }
+    try {
+      await updateMutation.mutateAsync({
+        basketId: selectedBasket.id,
+        action: "set-birds",
+        inventoryItemIds,
+      });
+      toast.success(
+        `${inventoryItemIds.length} bird(s) set to basket #${selectedBasket.basketNo}`
+      );
+      setSelectedEntryIds([]);
+      refetchBaskets();
+      refetchEntries();
+    } catch (error: unknown) {
+      toast.error((error as Error)?.message || "Failed to set the basket");
+    }
+  };
+
+  /** The automatic allocation — BFD for loft baskets, redistribution for race. */
+  const previewAutoAssign = async () => {
+    if (baskets.length === 0) {
+      toast.info("Create some baskets first");
+      return;
+    }
+    setAutoAssignBusy(true);
+    try {
+      if (basketPhase === "LOFT") {
+        const res = await assignLoftMutation.mutateAsync({
+          preview: true,
+          mode: "shuffle",
+          ...(selectedRaceId ? { raceId: parseInt(selectedRaceId) } : {}),
+          ...(selectedSeasonId ? { seasonId: selectedSeasonId } : {}),
+        });
+        const r = ((res as { data?: unknown })?.data ?? res) as {
+          assigned?: { lastName: string; basketNo: number; birdCount: number }[];
+          unassigned?: { lastName: string; birdCount: number }[];
+          message?: string;
+        };
+        if (!r.assigned?.length && !r.unassigned?.length) {
+          toast.info(r.message || "No birds to assign");
+          return;
+        }
+        setAutoAssignPreview({
+          mode: "shuffle",
+          lines: (r.assigned ?? []).map(
+            (a) => `${a.lastName} — ${a.birdCount} bird(s) → basket #${a.basketNo}`
+          ),
+          warning: r.unassigned?.length
+            ? `${r.unassigned.length} breeder(s) do not fit: ${r.unassigned
+                .map((u) => `${u.lastName} (${u.birdCount})`)
+                .join(", ")}`
+            : null,
+        });
+      } else {
+        if (!selectedRaceId) {
+          toast.error("Select a race first");
+          return;
+        }
+        const res = await assignRaceMutation.mutateAsync({
+          preview: true,
+          raceId: parseInt(selectedRaceId),
+          mode: "reset",
+        });
+        const r = ((res as { data?: unknown })?.data ?? res) as {
+          baskets?: { basketNo: number; birdCount: number; capacity: number }[];
+          message?: string;
+        };
+        if (!r.baskets?.length) {
+          toast.info(r.message || "No loft-basketed birds found");
+          return;
+        }
+        setAutoAssignPreview({
+          mode: "reset",
+          lines: r.baskets.map(
+            (b) => `Basket #${b.basketNo} — ${b.birdCount} / ${b.capacity} bird(s)`
+          ),
+          warning: null,
+        });
+      }
+    } catch (error: unknown) {
+      toast.error((error as Error)?.message || "Failed to preview the allocation");
+    } finally {
+      setAutoAssignBusy(false);
+    }
+  };
+
+  const confirmAutoAssign = async () => {
+    if (!autoAssignPreview) return;
+    setAutoAssignBusy(true);
+    try {
+      if (basketPhase === "LOFT") {
+        await assignLoftMutation.mutateAsync({
+          preview: false,
+          mode: "shuffle",
+          ...(selectedRaceId ? { raceId: parseInt(selectedRaceId) } : {}),
+          ...(selectedSeasonId ? { seasonId: selectedSeasonId } : {}),
+        });
+      } else {
+        await assignRaceMutation.mutateAsync({
+          preview: false,
+          raceId: parseInt(selectedRaceId),
+          mode: "reset",
+        });
+      }
+      toast.success("Birds allocated to baskets");
+      setAutoAssignPreview(null);
+      refetchBaskets();
+      refetchEntries();
+    } catch (error: unknown) {
+      toast.error((error as Error)?.message || "Failed to allocate baskets");
+    } finally {
+      setAutoAssignBusy(false);
+    }
+  };
+
+  /** ActionIgnoreBird — exclude the selected entries from this race's results. */
+  const confirmIgnore = async () => {
+    const items = selectedEntries
+      .map((e) => e.inventoryItemId)
+      .filter((id): id is number => id != null);
+    if (items.length === 0) return;
+    let ok = 0;
+    for (const inventoryItemId of items) {
+      try {
+        const res = await fetch(`/api/admin/race/${selectedRaceId}/ignore-birds`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            inventoryItemId,
+            ...(ignoreNote.trim() ? { note: ignoreNote.trim() } : {}),
+          }),
+        });
+        if (res.ok) ok++;
+      } catch {
+        /* counted as a failure below */
+      }
+    }
+    if (ok > 0) {
+      toast.success(`${ok} bird(s) excluded — recalculate the race to apply it`);
+    }
+    if (ok < items.length) {
+      toast.warning(`${items.length - ok} bird(s) could not be excluded`);
+    }
+    setIgnoreDialogOpen(false);
+    setIgnoreNote("");
+    setSelectedEntryIds([]);
+    loadIgnored();
+  };
+
+  /** ActionRestoreBird. */
+  const restoreIgnored = async (row: IgnoredBirdRow) => {
+    if (!row.inventoryItemId) return;
+    try {
+      const res = await fetch(
+        `/api/admin/race/${selectedRaceId}/ignore-birds?inventoryItemId=${row.inventoryItemId}`,
+        { method: "DELETE" }
+      );
+      const d = await res.json();
+      if (!res.ok) {
+        toast.error(d?.message ?? "Failed to restore the bird");
+        return;
+      }
+      toast.success(d?.message ?? "Bird re-included");
+      loadIgnored();
+    } catch {
+      toast.error("Failed to restore the bird");
+    }
+  };
+
+  /** ActionExportToExcel / ActionExportToCsv — the grid as it stands. */
+  const exportEntries = async (format: "xlsx" | "csv") => {
+    const rows = applyEntryFilters(entries, filters);
+    if (rows.length === 0) {
+      toast.info("Nothing to export");
+      return;
+    }
+    const header = ENTRY_EXPORT_COLUMNS.map((c) => c.label);
+    const body = rows.map((r) => ENTRY_EXPORT_COLUMNS.map((c) => c.value(r)));
+    const stamp = new Date().toISOString().slice(0, 10);
+    const name = `entries-race-${race?.raceNumber ?? selectedRaceId}-${stamp}`;
+
+    if (format === "csv") {
+      const escape = (v: unknown) => {
+        const s = String(v ?? "");
+        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      const csv = [header, ...body].map((r) => r.map(escape).join(",")).join("\r\n");
+      download(new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8" }), `${name}.csv`);
+    } else {
+      const XLSX = await import("xlsx");
+      const sheet = XLSX.utils.aoa_to_sheet([header, ...body]);
+      const book = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(book, sheet, "Entries");
+      const out = XLSX.write(book, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
+      download(
+        new Blob([out], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        }),
+        `${name}.xlsx`
+      );
+    }
+    toast.success(`${rows.length} row(s) exported`);
+  };
+
+  // ---- Totals for the scanner dialogs --------------------------------------
+
+  const totalBirds = entries.length;
+  const nonBasketed =
+    scannerPhase === "RACE"
+      ? entries.filter((e) => e.raceBasketNo == null).length
+      : entries.filter((e) => !e.isLoftBasketed).length;
+
+  // ---- Render --------------------------------------------------------------
+
+  if (races.length === 0) {
+    return (
+      <div className="border rounded-lg py-12 text-center text-sm text-muted-foreground">
+        This event has no races yet. Basketing works per race.
+      </div>
+    );
+  }
+
+  const entriesToolbar = (
+    <>
+      <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" onClick={focusSearch}>
+        <Search className="h-3.5 w-3.5" />
+        Find
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7 gap-1.5 text-xs"
+        onClick={() => setPrescanOpen(true)}
+        disabled={!selectedRaceId}
+      >
+        <Scan className="h-3.5 w-3.5" />
+        Bird prescan
+      </Button>
+      <span className="mx-0.5 h-5 w-px bg-border" />
+      <Button
+        variant="secondary"
+        size="sm"
+        className="h-7 gap-1.5 text-xs"
+        onClick={() => setScannerPhase("LOFT")}
+        disabled={!selectedRaceId}
+      >
+        <Boxes className="h-3.5 w-3.5" />
+        Loft basketing
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        className="h-7 gap-1.5 text-xs"
+        onClick={() => setScannerPhase("RACE")}
+        disabled={!selectedRaceId}
+      >
+        <Boxes className="h-3.5 w-3.5" />
+        Race basketing
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7 gap-1.5 text-xs"
+        onClick={setBasketForSelection}
+        disabled={!selectedBasket || selectedEntries.length === 0}
+        title={
+          !selectedBasket
+            ? "Select a basket on the right"
+            : selectedEntries.length === 0
+            ? "Select entries to move"
+            : `Move ${selectedEntries.length} bird(s) into basket #${selectedBasket.basketNo}`
+        }
+      >
+        <MoveRight className="h-3.5 w-3.5" />
+        Set basket
+      </Button>
+      <span className="mx-0.5 h-5 w-px bg-border" />
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7 gap-1.5 text-xs"
+        onClick={() => setIgnoreDialogOpen(true)}
+        disabled={selectedEntries.length === 0}
+      >
+        <Ban className="h-3.5 w-3.5" />
+        Ignore bird
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7 gap-1.5 text-xs"
+        onClick={() => {
+          if (ignored.length === 0) toast.info("The ignore list is empty");
+          else toast.info("Use the restore button on a row in the ignore birds list");
+        }}
+        disabled={ignored.length === 0}
+      >
+        <Undo2 className="h-3.5 w-3.5" />
+        Restore bird
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-7 gap-1.5 text-xs ml-auto">
+            <Download className="h-3.5 w-3.5" />
+            Export
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>Export the grid as shown</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => exportEntries("xlsx")}>Excel (.xlsx)</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => exportEntries("csv")}>CSV (.csv)</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  );
+
+  const basketsToolbar = (
+    <>
+      <Button variant="default" size="sm" className="h-7 gap-1.5 text-xs" onClick={openNewBasket}>
+        <Plus className="h-3.5 w-3.5" />
+        New <span className="text-[10px] opacity-70">(Ins)</span>
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7 gap-1.5 text-xs"
+        onClick={openEditBasket}
+        disabled={!selectedBasket}
+      >
+        <Pencil className="h-3.5 w-3.5" />
+        Edit <span className="text-[10px] opacity-70">(F2)</span>
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7 gap-1.5 text-xs"
+        onClick={() => selectedBasket && setClearTarget(selectedBasket)}
+        disabled={!selectedBasket || basketCount(selectedBasket) === 0}
+      >
+        <Eraser className="h-3.5 w-3.5" />
+        Clear
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7 gap-1.5 text-xs text-destructive hover:text-destructive"
+        onClick={() => selectedBasket && setDeleteTarget(selectedBasket)}
+        disabled={!selectedBasket}
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+        Delete
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        className="h-7 gap-1.5 text-xs ml-auto"
+        onClick={previewAutoAssign}
+        disabled={autoAssignBusy || baskets.length === 0}
+        title="Allocate every bird to a basket automatically"
+      >
+        <Wand2 className="h-3.5 w-3.5" />
+        {autoAssignBusy ? "Working..." : "Set baskets"}
+      </Button>
+    </>
   );
 
   return (
-    <>
-      <Card>
-        <CardContent className="pt-4 space-y-3">
-          {/* Race selector — loft baskets are now per-race */}
-          <div className="flex items-center gap-3">
-            <Label className="text-sm shrink-0">Race</Label>
-            {races.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No races yet</p>
-            ) : (
-              <Select value={selectedRaceId} onValueChange={setSelectedRaceId}>
-                <SelectTrigger className="w-[220px]">
-                  <SelectValue placeholder="Select a race" />
-                </SelectTrigger>
-                <SelectContent>
-                  {races.map((r) => (
-                    <SelectItem key={r.id} value={String(r.id)}>
-                      {r.name ?? `Race #${r.id}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground">
-              Create baskets below, then use <strong>Set Baskets</strong> to auto-assign birds via BFD.
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5"
-                onClick={hasExistingAssignments ? () => setConfirmOpen(true) : () => handlePreviewAssign("shuffle")}
-                disabled={assignMutation.isPending || baskets.length === 0 || insufficient}
-                title={insufficient ? `Not enough capacity for ${activeBirds} active birds` : undefined}
-              >
-                <Wand2 className="h-4 w-4" />
-                {assignMutation.isPending ? "Running..." : "Set Baskets"}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5"
-                onClick={() => handlePreviewAssign("assign")}
-                disabled={assignMutation.isPending || baskets.length === 0}
-              >
-                <Plus className="h-4 w-4" />
-                {assignMutation.isPending ? "Running..." : "Assign"}
-              </Button>
-              <Button size="sm" className="gap-1.5" onClick={openDialog}>
-                <Plus className="h-4 w-4" />
-                Add New Basket
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="gap-1.5"
-                onClick={() => setScanDialogOpen(true)}
-                disabled={!hasExistingAssignments}
-                title={!hasExistingAssignments ? "Run Set Baskets first to assign birds to baskets" : undefined}
-              >
-                <Scan className="h-4 w-4" />
-                Scan to Place
-              </Button>
-            </div>
-          </div>
-          <CapacitySummary capacity={totalCapacity} active={activeBirds} phase="Loft" />
-        </CardContent>
-      </Card>
-
-      {/* BFD Assignment Preview */}
-      {assignPreview && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              Assignment Preview
-              {assignSummary && (
-                <Badge variant="secondary">
-                  {assignSummary.assignedBreeders}/{assignSummary.totalBreeders} breeders · {assignSummary.assignedBirds} birds
-                </Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="space-y-1">
-              {assignPreview.map((item) => (
-                <div
-                  key={item.breederId}
-                  className="flex items-center justify-between px-3 py-2 rounded-md border text-sm"
-                >
-                  <span className="font-medium">{item.lastName}</span>
-                  <div className="flex items-center gap-3 text-muted-foreground">
-                    <span>{item.birdCount} birds</span>
-                    <span>→</span>
-                    <span className="font-mono text-xs">
-                      {item.basketLabel ?? `Basket #${item.basketNo}`}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {assignUnassigned.length > 0 && (
-              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 space-y-1">
-                <div className="flex items-center gap-2 text-sm font-medium text-destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  {assignUnassigned.length} breeder(s) could not be assigned — no basket has enough space
-                </div>
-                {assignUnassigned.map((u) => (
-                  <div key={u.breederId} className="text-sm text-muted-foreground pl-6">
-                    {u.lastName} — {u.birdCount} birds
-                  </div>
+    <div className="flex flex-col gap-3">
+      {/* raceP — the race header */}
+      <div className="border rounded-lg bg-card">
+        <div className="flex flex-wrap items-end gap-x-6 gap-y-3 px-4 py-3">
+          <div className="space-y-1">
+            <Label className="text-[11px] font-bold text-muted-foreground">Race No</Label>
+            <Select value={selectedRaceId} onValueChange={setSelectedRaceId}>
+              <SelectTrigger className="h-8 w-[240px] text-sm">
+                <SelectValue placeholder="Select a race" />
+              </SelectTrigger>
+              <SelectContent>
+                {races.map((r) => (
+                  <SelectItem key={r.id} value={String(r.id)}>
+                    {r.raceNumber != null ? `#${r.raceNumber} — ` : ""}
+                    {r.name ?? `Race ${r.id}`}
+                  </SelectItem>
                 ))}
-              </div>
-            )}
+              </SelectContent>
+            </Select>
+          </div>
 
-            <div className="flex gap-2 pt-1">
-              <Button onClick={handleConfirmAssign} disabled={assignMutation.isPending}>
-                {assignMutation.isPending ? "Saving..." : "Confirm & Save"}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => { setAssignPreview(null); setAssignUnassigned([]); setAssignSummary(null); }}
+          <HeaderField label="Type" value={race?.raceType?.name ?? null} />
+          <HeaderField label="Liberation" value={race?.location ?? null} />
+          <HeaderField
+            label="Distance (miles)"
+            value={race?.distance != null ? String(race.distance) : null}
+          />
+          <HeaderField
+            label="Start date"
+            value={race?.startTime ? new Date(race.startTime).toLocaleDateString() : null}
+          />
+          <HeaderField
+            label="Start time"
+            value={
+              race?.startTime
+                ? new Date(race.startTime).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : null
+            }
+          />
+          <HeaderField
+            label="Arrival date"
+            value={race?.endTime ? new Date(race.endTime).toLocaleDateString() : null}
+          />
+
+          <div className="ml-auto space-y-1">
+            <Label className="text-[11px] font-bold text-muted-foreground">Status</Label>
+            <div>
+              <Badge
+                variant={
+                  race?.status === "ENDED"
+                    ? "secondary"
+                    : race?.status === "STARTED"
+                    ? "default"
+                    : "outline"
+                }
+                className="text-xs"
               >
-                Discard
-              </Button>
+                {race?.status === "REGISTERING" ? "OPEN" : race?.status ?? "—"}
+              </Badge>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+      </div>
+
+      {/* raceItemP — the two columns */}
+      <div ref={workspaceRef} className="flex gap-0 items-stretch h-[calc(100vh-18rem)] min-h-[32rem]">
+        {/* birdsP */}
+        <div className="flex flex-col min-w-0" style={{ width: `${leftPercent}%` }}>
+          <div className="flex-1 min-h-0" ref={searchRef}>
+            <EntriesPane
+              items={entries}
+              isPending={entriesPending}
+              filters={filters}
+              onFiltersChange={setFilters}
+              selectedIds={selectedEntryIds}
+              onSelectedChange={setSelectedEntryIds}
+              loftBasketNos={loftBasketNos}
+              raceBasketNos={raceBasketNos}
+              toolbar={entriesToolbar}
+            />
+          </div>
+
+          <div className="py-1">
+            <HorizontalSplitter onDrag={dragIgnore} />
+          </div>
+
+          {/* ignoreBirdP */}
+          <div style={{ height: ignoreHeight }} className="shrink-0 min-h-0">
+            <IgnoreListPane
+              rows={ignored}
+              isPending={ignoredPending}
+              isRestoring={false}
+              onRestore={restoreIgnored}
+            />
+          </div>
+        </div>
+
+        <div className="px-1 flex items-stretch">
+          <VerticalSplitter onDrag={dragColumns} />
+        </div>
+
+        {/* basketsP */}
+        <div className="flex-1 min-w-0">
+          <BasketsPane
+            phase={basketPhase}
+            onPhaseChange={setBasketPhase}
+            baskets={baskets}
+            isPending={basketsPending}
+            selectedBasketId={selectedBasketId}
+            onSelectBasket={setSelectedBasketId}
+            toolbar={basketsToolbar}
+          />
+        </div>
+      </div>
+
+      {/* ---- Dialogs ---- */}
+
+      {basketForm && (
+        <BasketFormDialog
+          open
+          mode={basketForm.mode}
+          basketNo={basketForm.basketNo}
+          capacity={basketForm.capacity}
+          label={basketForm.label}
+          isSaving={createMutation.isPending || updateMutation.isPending}
+          onCapacityChange={(v) => setBasketForm({ ...basketForm, capacity: v })}
+          onLabelChange={(v) => setBasketForm({ ...basketForm, label: v })}
+          onSave={() => saveBasket(false)}
+          onSaveAndNew={() => saveBasket(true)}
+          onClose={() => setBasketForm(null)}
+        />
       )}
 
-      <PersistedBasketsView
-        baskets={baskets}
-        isPending={isPending}
-        phase="Loft"
-        onDelete={(b) => setDeleteTarget(b)}
-        onMove={(b) => setClearTarget(b)}
-        onEdit={openEdit}
-      />
+      {scannerPhase && selectedRaceId && (
+        <ScannerBasketingDialog
+          eventId={eventId}
+          raceId={selectedRaceId}
+          phase={scannerPhase}
+          totalBirds={totalBirds}
+          nonBasketedBirds={nonBasketed}
+          onScanned={() => {
+            refetchEntries();
+            refetchBaskets();
+          }}
+          onClose={() => {
+            setScannerPhase(null);
+            refetchEntries();
+            refetchBaskets();
+          }}
+        />
+      )}
 
-      {/* Edit Basket Dialog */}
-      <Dialog open={!!editBasket} onOpenChange={(o) => !o && setEditBasket(null)}>
-        <DialogContent>
+      {prescanOpen && selectedRaceId && (
+        <PrescanDialog
+          eventId={eventId}
+          raceId={selectedRaceId}
+          onClose={() => {
+            setPrescanOpen(false);
+            refetchEntries();
+            refetchBaskets();
+          }}
+        />
+      )}
+
+      {/* Ignore bird — the note HayLoft stored on RACE_IGNORE_BIRD */}
+      <Dialog open={ignoreDialogOpen} onOpenChange={setIgnoreDialogOpen}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Basket #{editBasket?.basketNo}</DialogTitle>
+            <DialogTitle>Ignore {selectedEntries.length} bird(s)</DialogTitle>
+            <DialogDescription>
+              They stay in the race but are excluded from the position and hotspot rankings.
+              Recalculate the race afterwards for it to take effect.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="edit-loft-label">Name / Label</Label>
-              <Input
-                id="edit-loft-label"
-                placeholder="e.g. LB-SMITH-1"
-                value={editLabel}
-                onChange={(e) => setEditLabel(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-loft-capacity">Capacity</Label>
-              <Input
-                id="edit-loft-capacity"
-                type="number"
-                min="1"
-                value={editCapacity}
-                onChange={(e) => setEditCapacity(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleEditSave()}
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="ignore-note" className="text-xs font-bold">
+              Note <span className="font-normal text-muted-foreground">(optional)</span>
+            </Label>
+            <Textarea
+              id="ignore-note"
+              value={ignoreNote}
+              rows={3}
+              placeholder="e.g. went back to the loft, scanned in error"
+              onChange={(e) => setIgnoreNote(e.target.value)}
+            />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditBasket(null)}>Cancel</Button>
-            <Button onClick={handleEditSave} disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? "Saving..." : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add New Basket Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New Loft Basket</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="basket-no">No.</Label>
-              <Input
-                id="basket-no"
-                type="number"
-                value={basketNo}
-                readOnly
-                className="bg-muted"
-              />
-            </div>
-            <div>
-              <Label htmlFor="basket-capacity">Capacity</Label>
-              <Input
-                id="basket-capacity"
-                type="number"
-                min="1"
-                placeholder="Enter capacity"
-                value={capacity}
-                onChange={(e) => setCapacity(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSave(false)}
-                autoFocus
-              />
-            </div>
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIgnoreDialogOpen(false)}>
               Cancel
             </Button>
-            <Button
-              variant="secondary"
-              onClick={() => handleSave(true)}
-              disabled={createMutation.isPending || !capacity}
-            >
-              {createMutation.isPending ? "Saving..." : "Save and New"}
+            <Button onClick={confirmIgnore}>Ignore</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Set baskets preview */}
+      <Dialog open={!!autoAssignPreview} onOpenChange={(o) => !o && setAutoAssignPreview(null)}>
+        <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              Allocation preview — {basketPhase === "LOFT" ? "loft" : "race"} baskets
+            </DialogTitle>
+            <DialogDescription>
+              Nothing is saved until you confirm. Existing assignments in this phase are replaced.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto space-y-1 text-sm">
+            {autoAssignPreview?.lines.map((line, i) => (
+              <div key={i} className="rounded border px-3 py-1.5">
+                {line}
+              </div>
+            ))}
+            {autoAssignPreview?.warning && (
+              <div className="flex items-start gap-2 rounded border border-destructive/40 bg-destructive/5 px-3 py-2 text-destructive">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>{autoAssignPreview.warning}</span>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAutoAssignPreview(null)}>
+              Discard
             </Button>
-            <Button
-              onClick={() => handleSave(false)}
-              disabled={createMutation.isPending || !capacity}
-            >
-              {createMutation.isPending ? "Saving..." : "Save and Close"}
+            <Button onClick={confirmAutoAssign} disabled={autoAssignBusy}>
+              {autoAssignBusy ? "Saving..." : "Confirm & Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Re-assign confirmation (existing assignments present) */}
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Re-assign All Baskets?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Birds are already assigned to loft baskets. Running Set Baskets will clear all
-              existing assignments and re-assign using BFD. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setConfirmOpen(false);
-                handlePreviewAssign("shuffle");
-              }}
-            >
-              Preview & Re-assign
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Clear basket (Move = unassign all birds from basket) */}
+      {/* Clear basket */}
       <AlertDialog open={!!clearTarget} onOpenChange={(o) => !o && setClearTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Clear Basket #{clearTarget?.basketNo}?</AlertDialogTitle>
+            <AlertDialogTitle>Clear basket #{clearTarget?.basketNo}?</AlertDialogTitle>
             <AlertDialogDescription>
-              {(clearTarget?._count?.assignments ?? clearTarget?.assignments?.length ?? 0) > 0
-                ? `${clearTarget?._count?.assignments ?? clearTarget?.assignments?.length ?? 0} bird(s) will be unassigned and need to be reassigned.`
-                : "Basket is empty."}
+              {clearTarget && basketCount(clearTarget) > 0
+                ? `${basketCount(clearTarget)} bird(s) will be unassigned and need to be basketed again.`
+                : "The basket is already empty."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmClear} disabled={clearMutation.isPending}>
-              {clearMutation.isPending ? "Clearing..." : "Clear Basket"}
+            <AlertDialogAction onClick={confirmClearBasket} disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? "Clearing..." : "Clear basket"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -572,10 +1143,10 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Basket #{deleteTarget?.basketNo}?</AlertDialogTitle>
+            <AlertDialogTitle>Delete basket #{deleteTarget?.basketNo}?</AlertDialogTitle>
             <AlertDialogDescription>
-              {(deleteTarget?._count?.assignments ?? deleteTarget?.assignments?.length ?? 0) > 0
-                ? `${deleteTarget?._count?.assignments ?? deleteTarget?.assignments?.length ?? 0} bird(s) will be unassigned and need to be reassigned. `
+              {deleteTarget && basketCount(deleteTarget) > 0
+                ? `${basketCount(deleteTarget)} bird(s) will be unassigned and need to be basketed again. `
                 : ""}
               This cannot be undone.
             </AlertDialogDescription>
@@ -584,1438 +1155,32 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive hover:bg-destructive/90"
-              onClick={handleConfirmDelete}
+              onClick={confirmDeleteBasket}
               disabled={deleteMutation.isPending}
             >
-              {deleteMutation.isPending ? "Deleting..." : "Delete Basket"}
+              {deleteMutation.isPending ? "Deleting..." : "Delete basket"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {scanDialogOpen && (
-        <LoftScanDialog
-          eventId={eventId}
-          seasonId={selectedSeasonId}
-          onClose={() => { setScanDialogOpen(false); refetch(); }}
-        />
-      )}
-    </>
-  );
-}
-
-// ============================================================
-// RACE BASKET PANEL (mirrors Loft flow)
-// ============================================================
-
-interface RaceBasketPreview {
-  basketId: number;
-  basketNo: number;
-  basketLabel: string | null;
-  capacity: number;
-  birdCount: number;
-  breeders: string[];
-}
-
-interface RaceAssignSummary {
-  totalBirds: number;
-  totalCapacity: number;
-  assignedBirds: number;
-  unassignedBirds: number;
-  basketCount: number;
-}
-
-function RaceBasketPanel({ eventId }: { eventId: string }) {
-  const { selectedSeasonId } = useSeasonContext();
-  const { data: racesData } = useListRaces({ params: { eventId } });
-  const races: Race[] = (racesData as { races?: Race[] })?.races ?? [];
-  const [selectedRaceId, setSelectedRaceId] = useState<string>("");
-
-  useEffect(() => {
-    if (!selectedRaceId && races.length > 0) {
-      setSelectedRaceId(String(races[0].id));
-    }
-  }, [races, selectedRaceId]);
-
-  const { data, isPending, refetch } = useEventBaskets(
-    eventId,
-    "RACE",
-    selectedRaceId || undefined,
-    selectedSeasonId
-  );
-  const { data: checkinData } = useCheckinStatus(eventId, selectedSeasonId);
-  const createMutation = useCreateBasket(eventId);
-  const deleteMutation = useDeleteBasket(eventId);
-  const updateMutation = useUpdateBasket(eventId);
-  const assignMutation = useAssignRaceBaskets(eventId);
-
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [prescanOpen, setPrescanOpen] = useState(false);
-  const [capacity, setCapacity] = useState("");
-  const [preview, setPreview] = useState<RaceBasketPreview[] | null>(null);
-  const [previewSummary, setPreviewSummary] = useState<RaceAssignSummary | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pendingMode, setPendingMode] = useState<"reset" | "incremental">("reset");
-  const [editBasket, setEditBasket] = useState<EventBasketItem | null>(null);
-  const [editLabel, setEditLabel] = useState("");
-  const [editCapacity, setEditCapacity] = useState("");
-
-  const baskets: EventBasketItem[] = data?.baskets || [];
-
-  const totalCapacity = baskets.reduce((s, b) => s + b.capacity, 0);
-  const activeBirds = checkinData?.summary?.total ?? 0;
-  const insufficient = totalCapacity < activeBirds;
-
-  const nextBasketNo = baskets.length > 0
-    ? Math.max(...baskets.map((b) => b.basketNo)) + 1
-    : 1;
-  const [basketNo, setBasketNo] = useState(nextBasketNo);
-
-  const openDialog = () => {
-    const next = baskets.length > 0
-      ? Math.max(...baskets.map((b) => b.basketNo)) + 1
-      : 1;
-    setBasketNo(next);
-    setCapacity("");
-    setDialogOpen(true);
-  };
-
-  const handleSave = async (keepOpen: boolean) => {
-    const cap = parseInt(capacity);
-    if (isNaN(cap) || cap < 1) {
-      toast.error("Capacity must be a positive number");
-      return;
-    }
-    if (!selectedRaceId) {
-      toast.error("Select a race first");
-      return;
-    }
-    try {
-      await createMutation.mutateAsync({
-        capacity: cap,
-        phase: "RACE",
-        raceId: parseInt(selectedRaceId),
-      });
-      toast.success(`Race basket #${basketNo} created`);
-      refetch();
-      if (keepOpen) {
-        setBasketNo(basketNo + 1);
-        setCapacity("");
-      } else {
-        setDialogOpen(false);
-      }
-    } catch (error: unknown) {
-      toast.error((error as Error)?.message || "Failed to create basket");
-    }
-  };
-
-  const openEdit = (basket: EventBasketItem) => {
-    setEditBasket(basket);
-    setEditLabel(basket.label ?? "");
-    setEditCapacity(String(basket.capacity));
-  };
-
-  const handleEditSave = async () => {
-    if (!editBasket) return;
-    const cap = parseInt(editCapacity);
-    if (isNaN(cap) || cap < 1) {
-      toast.error("Capacity must be a positive number");
-      return;
-    }
-    try {
-      await updateMutation.mutateAsync({
-        basketId: editBasket.id,
-        label: editLabel,
-        capacity: cap,
-      });
-      toast.success("Basket updated");
-      setEditBasket(null);
-      refetch();
-    } catch (error: unknown) {
-      toast.error((error as Error)?.message || "Failed to update basket");
-    }
-  };
-
-  const handleDelete = async (basket: EventBasketItem) => {
-    try {
-      await deleteMutation.mutateAsync({ basketId: basket.id });
-      toast.success(`Basket #${basket.basketNo} deleted`);
-      refetch();
-    } catch (error: unknown) {
-      toast.error((error as Error)?.message || "Failed to delete basket");
-    }
-  };
-
-  const handlePreviewAssign = async (mode: "reset" | "incremental" = "reset") => {
-    if (!selectedRaceId) {
-      toast.error("Select a race first");
-      return;
-    }
-    setPendingMode(mode);
-    try {
-      const res = await assignMutation.mutateAsync({
-        preview: true,
-        raceId: parseInt(selectedRaceId),
-        mode,
-      });
-      const result = (res as { data?: unknown })?.data || res;
-      const r = result as { baskets?: RaceBasketPreview[]; summary?: RaceAssignSummary; message?: string };
-      if (!r?.baskets?.length) {
-        toast.info(r?.message || "No loft-basketed birds found");
-        return;
-      }
-      setPreview(r.baskets);
-      setPreviewSummary(r.summary ?? null);
-    } catch (error: unknown) {
-      toast.error((error as Error)?.message || "Failed to preview assignment");
-    }
-  };
-
-  const handleConfirmAssign = async () => {
-    if (!selectedRaceId) return;
-    try {
-      await assignMutation.mutateAsync({
-        preview: false,
-        raceId: parseInt(selectedRaceId),
-        mode: pendingMode,
-      });
-      toast.success(
-        pendingMode === "incremental"
-          ? "New birds added to race baskets"
-          : "Birds assigned to race baskets"
-      );
-      setPreview(null);
-      setPreviewSummary(null);
-      setConfirmOpen(false);
-      refetch();
-    } catch (error: unknown) {
-      toast.error((error as Error)?.message || "Failed to assign baskets");
-    }
-  };
-
-  const hasExistingAssignments = baskets.some(
-    (b) => (b._count?.assignments ?? b.assignments?.length ?? 0) > 0
-  );
-
-  return (
-    <>
-      <Card>
-        <CardContent className="pt-4 space-y-3">
-          <div className="flex items-center gap-3">
-            <Label className="text-sm">Race</Label>
-            <Select
-              value={selectedRaceId}
-              onValueChange={(v) => {
-                setSelectedRaceId(v);
-                setPreview(null);
-                setPreviewSummary(null);
-              }}
-            >
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder={races.length === 0 ? "No races yet" : "Select race"} />
-              </SelectTrigger>
-              <SelectContent>
-                {races.map((r) => (
-                  <SelectItem key={r.id} value={String(r.id)}>
-                    {r.name || `Race #${r.raceNumber ?? r.id}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground">
-              Create race baskets, then use <strong>Reset & Reassign</strong> to randomly redistribute, or <strong>Add New Birds Only</strong> to top-up without disturbing existing assignments.
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5"
-                onClick={
-                  hasExistingAssignments
-                    ? () => { setPendingMode("reset"); setConfirmOpen(true); }
-                    : () => handlePreviewAssign("reset")
-                }
-                disabled={
-                  assignMutation.isPending ||
-                  baskets.length === 0 ||
-                  insufficient ||
-                  activeBirds === 0 ||
-                  !selectedRaceId
-                }
-                title={
-                  !selectedRaceId
-                    ? "Select a race first"
-                    : activeBirds === 0
-                    ? "No registered birds found"
-                    : insufficient
-                    ? `Not enough capacity for ${activeBirds} active birds`
-                    : undefined
-                }
-              >
-                <Wand2 className="h-4 w-4" />
-                {assignMutation.isPending ? "Running..." : "Reset & Reassign"}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5"
-                onClick={() => handlePreviewAssign("incremental")}
-                disabled={
-                  assignMutation.isPending ||
-                  baskets.length === 0 ||
-                  activeBirds === 0 ||
-                  !selectedRaceId
-                }
-                title={!selectedRaceId ? "Select a race first" : undefined}
-              >
-                <Plus className="h-4 w-4" />
-                Add New Birds Only
-              </Button>
-              <Button
-                size="sm"
-                className="gap-1.5"
-                onClick={openDialog}
-                disabled={!selectedRaceId}
-              >
-                <Plus className="h-4 w-4" />
-                Add New Basket
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="gap-1.5"
-                onClick={() => setPrescanOpen(true)}
-                disabled={!selectedRaceId || !hasExistingAssignments}
-                title={!hasExistingAssignments ? "Run Set Basket first to assign birds to baskets" : undefined}
-              >
-                <Scan className="h-4 w-4" />
-                Prescan
-              </Button>
-            </div>
-          </div>
-          <CapacitySummary capacity={totalCapacity} active={activeBirds} phase="Race" />
-        </CardContent>
-      </Card>
-
-      {preview && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              Assignment Preview
-              {previewSummary && (
-                <Badge variant="secondary">
-                  {previewSummary.assignedBirds}/{previewSummary.totalBirds} birds · {previewSummary.basketCount} baskets
-                </Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="space-y-1">
-              {preview.map((b) => (
-                <div
-                  key={b.basketId}
-                  className="flex items-center justify-between px-3 py-2 rounded-md border text-sm"
-                >
-                  <span className="font-medium">
-                    {b.basketLabel ?? `Basket #${b.basketNo}`}
-                  </span>
-                  <div className="flex items-center gap-3 text-muted-foreground">
-                    <Badge variant="outline" className="text-xs">
-                      {b.birdCount}/{b.capacity}
-                    </Badge>
-                    <span className="text-xs truncate max-w-[200px]">
-                      {b.breeders.join(", ")}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {previewSummary && previewSummary.unassignedBirds > 0 && (
-              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3">
-                <div className="flex items-center gap-2 text-sm font-medium text-destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  {previewSummary.unassignedBirds} bird(s) could not be assigned — capacity exhausted
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-2 pt-1">
-              <Button onClick={handleConfirmAssign} disabled={assignMutation.isPending}>
-                {assignMutation.isPending ? "Saving..." : "Confirm & Save"}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => { setPreview(null); setPreviewSummary(null); }}
-              >
-                Discard
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <PersistedBasketsView
-        baskets={baskets}
-        isPending={isPending}
-        phase="Race"
-        onDelete={handleDelete}
-        onEdit={openEdit}
-      />
-
-      {/* Edit Basket Dialog */}
-      <Dialog open={!!editBasket} onOpenChange={(o) => !o && setEditBasket(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Basket #{editBasket?.basketNo}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="edit-race-label">Name / Label</Label>
-              <Input
-                id="edit-race-label"
-                placeholder="e.g. RB-1"
-                value={editLabel}
-                onChange={(e) => setEditLabel(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div>
-              <Label htmlFor="edit-race-capacity">Capacity</Label>
-              <Input
-                id="edit-race-capacity"
-                type="number"
-                min="1"
-                value={editCapacity}
-                onChange={(e) => setEditCapacity(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleEditSave()}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditBasket(null)}>Cancel</Button>
-            <Button onClick={handleEditSave} disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? "Saving..." : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add New Basket Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New Race Basket</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="race-basket-no">No.</Label>
-              <Input
-                id="race-basket-no"
-                type="number"
-                value={basketNo}
-                readOnly
-                className="bg-muted"
-              />
-            </div>
-            <div>
-              <Label htmlFor="race-basket-capacity">Capacity</Label>
-              <Input
-                id="race-basket-capacity"
-                type="number"
-                min="1"
-                placeholder="Enter capacity"
-                value={capacity}
-                onChange={(e) => setCapacity(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSave(false)}
-                autoFocus
-              />
-            </div>
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => handleSave(true)}
-              disabled={createMutation.isPending || !capacity}
-            >
-              {createMutation.isPending ? "Saving..." : "Save and New"}
-            </Button>
-            <Button
-              onClick={() => handleSave(false)}
-              disabled={createMutation.isPending || !capacity}
-            >
-              {createMutation.isPending ? "Saving..." : "Save and Close"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Re-assign confirmation */}
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Re-assign All Race Baskets?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Birds are already assigned to race baskets. Running Set Baskets will clear all
-              existing race assignments and redistribute randomly. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setConfirmOpen(false);
-                handlePreviewAssign("reset");
-              }}
-            >
-              Preview & Re-assign
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {prescanOpen && selectedRaceId && (
-        <PrescanDialog
-          eventId={eventId}
-          raceId={selectedRaceId}
-          onClose={() => setPrescanOpen(false)}
-        />
-      )}
-    </>
-  );
-}
-
-// ============================================================
-// PRESCAN DIALOG
-// ============================================================
-
-type PrescanRow = {
-  rfid: string;
-  birdName: string | null;
-  attention: boolean;
-  basketLabel: string;
-  status: "scanned" | "already_scanned" | "foreign";
-  raceItemId?: number;
-};
-
-function PrescanDialog({ eventId, raceId, onClose }: { eventId: string; raceId: string; onClose: () => void }) {
-  const [rows, setRows] = useState<PrescanRow[]>([]);
-  const [isPollActive, setIsPollActive] = useState(false);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const lastScannedRef = useRef<string | null>(null);
-  const pollStartedAtRef = useRef<string | null>(null);
-
-  const doScan = useCallback(async (rfid: string) => {
-    if (rfid === lastScannedRef.current) return;
-    lastScannedRef.current = rfid;
-
-    const res = await fetch(`/api/admin/event/${eventId}/baskets/prescan-race`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rfid, raceId: parseInt(raceId) }),
-    });
-    const data = await res.json();
-
-    const newRow: PrescanRow = {
-      rfid,
-      birdName: data.bird?.birdName ?? data.bird?.band ?? null,
-      attention: data.bird?.attention ?? false,
-      basketLabel: data.basketLabel ?? "-",
-      status: data.status,
-      raceItemId: data.raceItemId,
-    };
-
-    setRows((prev) => {
-      const existing = prev.findIndex((r) => r.rfid === rfid);
-      if (existing >= 0) {
-        const next = [...prev];
-        next[existing] = newRow;
-        return next;
-      }
-      return [...prev, newRow];
-    });
-
-    if (data.status === "already_scanned") toast.info(`Already basketed: ${newRow.birdName ?? rfid}`);
-    else if (data.status === "foreign") toast.warning(`Foreign bird: ${rfid}`);
-    else toast.success(`Scanned: ${newRow.birdName ?? rfid} → ${newRow.basketLabel}`);
-  }, [eventId, raceId]);
-
-  const startPoll = useCallback(() => {
-    setIsPollActive(true);
-    lastScannedRef.current = null;
-    pollStartedAtRef.current = new Date().toISOString();
-    toast.success("Prescan scanner started");
-
-    pollIntervalRef.current = setInterval(async () => {
-      try {
-        const res = await fetch("/api/scanner/poll", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ startedAt: pollStartedAtRef.current }),
-        });
-        const d = await res.json();
-        if (d?.length > 0 && d[0].el && d[0].el !== lastScannedRef.current) {
-          await doScan(d[0].el);
-        }
-      } catch { /* silent */ }
-    }, 2000);
-  }, [doScan]);
-
-  const stopPoll = useCallback(() => {
-    if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
-    setIsPollActive(false);
-    lastScannedRef.current = null;
-    toast.info("Prescan scanner stopped");
-  }, []);
-
-  const handleClose = () => {
-    stopPoll();
-    onClose();
-  };
-
-  const handleAddForeign = async (row: PrescanRow) => {
-    try {
-      const res = await fetch(`/api/admin/event/${eventId}/baskets/prescan-race`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rfid: row.rfid, raceId: parseInt(raceId), action: "register_foreign" }),
-      });
-      const data = await res.json();
-      if (!res.ok) { toast.error(data.message ?? "Failed to register"); return; }
-      setRows((prev) => prev.map((r) =>
-        r.rfid === row.rfid ? { ...r, birdName: data.bird?.birdName ?? data.bird?.band ?? r.rfid, status: "scanned", raceItemId: data.raceItemId } : r
-      ));
-      toast.success("Bird registered under admin for later reassignment");
-    } catch { toast.error("Failed to register bird"); }
-  };
-
-  const handleRemoveForeign = async (row: PrescanRow) => {
-    if (row.raceItemId) {
-      try {
-        await fetch(`/api/admin/event/${eventId}/baskets/prescan-race`, {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ raceItemId: row.raceItemId }),
-        });
-      } catch { /* best effort */ }
-    }
-    setRows((prev) => prev.filter((r) => r.rfid !== row.rfid));
-  };
-
-  const statusBadge = (status: PrescanRow["status"]) => {
-    if (status === "scanned") return <Badge variant="default" className="text-xs">Basketed</Badge>;
-    if (status === "already_scanned") return <Badge variant="secondary" className="text-xs">Already Basketed</Badge>;
-    return <Badge variant="destructive" className="text-xs">Foreign</Badge>;
-  };
-
-  return (
-    <Dialog open onOpenChange={(o) => { if (!o) handleClose(); }}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center justify-between pr-6">
-            <span>Prescan — Race Basket</span>
-            <div className="flex items-center gap-2">
-              {isPollActive ? (
-                <Button size="sm" className="gap-1.5 bg-red-600 hover:bg-red-700" onClick={stopPoll}>
-                  <Square className="h-4 w-4" />Stop Scanner
-                </Button>
-              ) : (
-                <Button size="sm" variant="outline" className="gap-1.5" onClick={startPoll}>
-                  <Wifi className="h-4 w-4" />Start Scanner
-                </Button>
-              )}
-            </div>
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-auto">
-          {rows.length === 0 ? (
-            <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
-              {isPollActive ? "Waiting for scans..." : "Start scanner to begin scanning birds"}
-            </div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-primary text-primary-foreground">
-                <tr>
-                  <th className="text-left px-3 py-2 font-medium">Bird Name</th>
-                  <th className="text-left px-3 py-2 font-medium font-mono">RFID</th>
-                  <th className="text-center px-3 py-2 font-medium">Attention</th>
-                  <th className="text-left px-3 py-2 font-medium">Basket</th>
-                  <th className="text-left px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2" />
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {rows.map((row) => (
-                  <tr key={row.rfid} className={row.status === "foreign" ? "bg-red-50" : undefined}>
-                    <td className="px-3 py-2">{row.birdName ?? <span className="text-muted-foreground italic">Unknown</span>}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{row.rfid}</td>
-                    <td className="px-3 py-2 text-center">
-                      {row.attention && <AlertTriangle className="h-4 w-4 text-amber-500 mx-auto" />}
-                    </td>
-                    <td className="px-3 py-2">{row.basketLabel}</td>
-                    <td className="px-3 py-2">{statusBadge(row.status)}</td>
-                    <td className="px-3 py-2">
-                      {row.status === "foreign" && (
-                        <div className="flex gap-1">
-                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleAddForeign(row)}>
-                            Add Bird
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600" onClick={() => handleRemoveForeign(row)}>
-                            Remove
-                          </Button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        <DialogFooter>
-          <span className="text-xs text-muted-foreground mr-auto">
-            {rows.filter(r => r.status === "scanned").length} basketed · {rows.filter(r => r.status === "foreign").length} foreign
-          </span>
-          <Button onClick={handleClose}>Done</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ============================================================
-// BIRD PRESCAN PANEL
-// ============================================================
-
-type PrescanEntry = {
-  rfid: string;
-  birdName: string | null;
-  band: string | null;
-  breederName: string | null;
-  status: string | null;
-  unknown: boolean;
-};
-
-function BirdPrescanPanel({ eventId }: { eventId: string }) {
-  const { selectedSeasonId } = useSeasonContext();
-  const { data } = useCheckinStatus(eventId, selectedSeasonId);
-
-  const rfidMap = new Map<string, CheckinStatusItem>();
-  for (const item of (data?.items ?? []) as CheckinStatusItem[]) {
-    if (item.bird?.rfid) rfidMap.set(item.bird.rfid, item);
-  }
-
-  const [entries, setEntries] = useState<PrescanEntry[]>([]);
-  const [isPollActive, setIsPollActive] = useState(false);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const pollStartedAtRef = useRef<string | null>(null);
-  const lastScannedRef = useRef<string | null>(null);
-
-  const handleScan = useCallback((rfid: string) => {
-    if (rfid === lastScannedRef.current) return;
-    lastScannedRef.current = rfid;
-
-    const item = rfidMap.get(rfid);
-    const entry: PrescanEntry = item
-      ? {
-          rfid,
-          birdName: item.bird?.birdName ?? null,
-          band: item.bird?.band ?? null,
-          breederName: [item.breeder?.firstName, item.breeder?.lastName].filter(Boolean).join(" ") || null,
-          status: item.isLoftBasketed ? "LOFT_BASKETED" : "REGISTERED",
-          unknown: false,
-        }
-      : { rfid, birdName: null, band: null, breederName: null, status: null, unknown: true };
-
-    setEntries((prev) => {
-      const existing = prev.findIndex((e) => e.rfid === rfid);
-      if (existing >= 0) {
-        const next = [...prev];
-        next[existing] = entry;
-        return next;
-      }
-      return [entry, ...prev];
-    });
-
-    if (entry.unknown) toast.warning(`Unknown RFID: ${rfid}`);
-    else toast.success(`${entry.birdName ?? rfid} — ${entry.breederName ?? "?"}`);
-  }, [rfidMap]);
-
-  const startPoll = useCallback(() => {
-    setIsPollActive(true);
-    lastScannedRef.current = null;
-    pollStartedAtRef.current = new Date().toISOString();
-    toast.success("Prescan scanner started");
-    pollIntervalRef.current = setInterval(async () => {
-      try {
-        const res = await fetch("/api/scanner/poll", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ startedAt: pollStartedAtRef.current }),
-        });
-        const d = await res.json();
-        if (d?.length > 0 && d[0].el && d[0].el !== lastScannedRef.current) {
-          handleScan(d[0].el);
-        }
-      } catch { /* silent */ }
-    }, 2000);
-  }, [handleScan]);
-
-  const stopPoll = useCallback(() => {
-    if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
-    setIsPollActive(false);
-    lastScannedRef.current = null;
-    toast.info("Prescan scanner stopped");
-  }, []);
-
-  const statusBadge = (entry: PrescanEntry) => {
-    if (entry.unknown) return <Badge variant="destructive" className="text-xs">Unknown</Badge>;
-    if (entry.status === "LOFT_BASKETED") return <Badge variant="default" className="text-xs">Loft Basketed</Badge>;
-    return <Badge variant="secondary" className="text-xs">Registered</Badge>;
-  };
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg">Bird Prescan</CardTitle>
-          <div className="flex items-center gap-2">
-            {entries.length > 0 && (
-              <Button size="sm" variant="ghost" onClick={() => { setEntries([]); lastScannedRef.current = null; }}>
-                Clear
-              </Button>
-            )}
-            {isPollActive ? (
-              <Button size="sm" className="gap-1.5 bg-red-600 hover:bg-red-700" onClick={stopPoll}>
-                <Square className="h-4 w-4" />Stop Scanner
-              </Button>
-            ) : (
-              <Button size="sm" variant="outline" className="gap-1.5" onClick={startPoll}>
-                <Wifi className="h-4 w-4" />Start Scanner
-              </Button>
-            )}
-          </div>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Scan any RFID tag to identify bird and breeder. Read-only — no assignments made.
-        </p>
-      </CardHeader>
-      <CardContent>
-        {entries.length === 0 ? (
-          <div className="flex items-center justify-center h-40 text-sm text-muted-foreground border border-dashed rounded-lg">
-            {isPollActive ? "Waiting for scans..." : "Start scanner to begin"}
-          </div>
-        ) : (
-          <div className="border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted text-muted-foreground sticky top-0">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium font-mono">RFID</th>
-                  <th className="px-3 py-2 text-left font-medium">Bird Name</th>
-                  <th className="px-3 py-2 text-left font-medium">Band</th>
-                  <th className="px-3 py-2 text-left font-medium">Breeder</th>
-                  <th className="px-3 py-2 text-left font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {entries.map((entry) => (
-                  <tr key={entry.rfid} className={entry.unknown ? "bg-red-50" : undefined}>
-                    <td className="px-3 py-2 font-mono text-xs">{entry.rfid}</td>
-                    <td className="px-3 py-2">{entry.birdName ?? <span className="text-muted-foreground italic">—</span>}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{entry.band ?? "—"}</td>
-                    <td className="px-3 py-2">{entry.breederName ?? <span className="text-muted-foreground italic">—</span>}</td>
-                    <td className="px-3 py-2">{statusBadge(entry)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <p className="text-xs text-muted-foreground mt-2">
-          {entries.filter(e => !e.unknown).length} identified · {entries.filter(e => e.unknown).length} unknown
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ============================================================
-// LOFT SCAN DIALOG
-// ============================================================
-
-// Lookup result from prescan-loft: where the bird is already basketed.
-type LoftBasket = { label: string; basketNo: number; capacity: number; count: number };
-type LoftScanRow = {
-  band: string | null;
-  birdName: string | null;
-  breeder: string | null;
-  loftName: string | null;
-  basketLabel: string;
-  scannedAt: string;
-};
-
-function LoftScanDialog({
-  eventId,
-  seasonId,
-  onClose,
-}: {
-  eventId: string;
-  seasonId?: number | null;
-  onClose: () => void;
-}) {
-  const { data } = useCheckinStatus(eventId, seasonId);
-
-  const allItems: CheckinStatusItem[] = data?.items ?? [];
-  // Total birds placed in a loft basket by Set Baskets (the "assign first" step).
-  const basketedTotal = allItems.filter((i) => i.isLoftBasketed).length;
-
-  const [scannedLog, setScannedLog] = useState<LoftScanRow[]>([]);
-  const [isPollActive, setIsPollActive] = useState(false);
-  const [foreignCount, setForeignCount] = useState(0);
-  const [ignoredCount, setIgnoredCount] = useState(0);
-  const scannedRfidsRef = useRef<Set<string>>(new Set());
-  type Bird = { band?: string | null; birdName?: string | null; rfid?: string | null; color?: string | null; sex?: number | null; attention?: boolean | null; note?: string | null };
-  type Breeder = { firstName?: string | null; lastName?: string | null };
-  type HeroScan =
-    | { status: "placed"; bird: Bird; breeder: Breeder | null; loftName: string | null; basket: LoftBasket }
-    | { status: "unassigned"; bird: Bird; breeder: Breeder | null; loftName: string | null }
-    | { status: "foreign"; rfid: string };
-  const [lastScan, setLastScan] = useState<HeroScan | null>(null);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const pollStartedAtRef = useRef<string | null>(null);
-  const lastScannedRef = useRef<string | null>(null);
-
-  const breederName = (b: Breeder | null) =>
-    b ? [b.firstName, b.lastName].filter(Boolean).join(" ") || null : null;
-
-  const handleScan = useCallback(async (rfid: string) => {
-    if (rfid === lastScannedRef.current) return;
-    lastScannedRef.current = rfid;
-
-    // Already looked up this tag this session → ignore duplicate.
-    if (scannedRfidsRef.current.has(rfid)) {
-      setIgnoredCount((c) => c + 1);
-      toast.info(`Already scanned: ${rfid}`);
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/admin/event/${eventId}/baskets/prescan-loft`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rfid }),
-      });
-      const d = await res.json();
-
-      if (d?.status === "foreign") {
-        setLastScan({ status: "foreign", rfid });
-        setForeignCount((c) => c + 1);
-        toast.warning(`Foreign bird: ${rfid}`);
-        return;
-      }
-
-      if (d?.status === "unassigned") {
-        setLastScan({ status: "unassigned", bird: d.bird, breeder: d.breeder, loftName: d.loftName });
-        toast.warning(`${d.bird?.birdName || d.bird?.band || rfid} — not in a basket yet`);
-        return;
-      }
-
-      // placed
-      scannedRfidsRef.current.add(rfid);
-      setLastScan({ status: "placed", bird: d.bird, breeder: d.breeder, loftName: d.loftName, basket: d.basket });
-      setScannedLog((prev) => [{
-        band: d.bird?.band ?? null,
-        birdName: d.bird?.birdName ?? null,
-        breeder: breederName(d.breeder),
-        loftName: d.loftName ?? null,
-        basketLabel: d.basket?.label ?? "—",
-        scannedAt: new Date().toISOString(),
-      }, ...prev]);
-      toast.success(`${d.bird?.birdName || d.bird?.band} → ${d.basket?.label}`);
-    } catch {
-      toast.error("Scan lookup failed");
-      lastScannedRef.current = null;
-    }
-  }, [eventId]);
-
-  const startPoll = useCallback(() => {
-    setIsPollActive(true);
-    lastScannedRef.current = null;
-    pollStartedAtRef.current = new Date().toISOString();
-    toast.success("Scanner started — scan bird RFID tags");
-    pollIntervalRef.current = setInterval(async () => {
-      try {
-        const res = await fetch("/api/scanner/poll", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ startedAt: pollStartedAtRef.current }),
-        });
-        const d = await res.json();
-        if (d?.length > 0 && d[0].el && d[0].el !== lastScannedRef.current) {
-          await handleScan(d[0].el);
-        }
-      } catch { /* silent */ }
-    }, 2000);
-  }, [handleScan]);
-
-  const stopPoll = useCallback(() => {
-    if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
-    setIsPollActive(false);
-    lastScannedRef.current = null;
-    toast.info("Scanner stopped");
-  }, []);
-
-  const handleClose = () => {
-    stopPoll();
-    onClose();
-  };
-
-  return (
-    <Dialog open onOpenChange={(o) => { if (!o) handleClose(); }}>
-      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center justify-between pr-6">
-            <span>Scan to Place — Loft</span>
-            <div className="flex items-center gap-2">
-              {isPollActive ? (
-                <Button size="sm" className="gap-1.5 bg-red-600 hover:bg-red-700" onClick={stopPoll}>
-                  <Square className="h-4 w-4" />Stop Scanner
-                </Button>
-              ) : (
-                <Button size="sm" variant="outline" className="gap-1.5" onClick={startPoll}>
-                  <Wifi className="h-4 w-4" />Start Scanner
-                </Button>
-              )}
-            </div>
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-hidden flex flex-col gap-3">
-          {isPollActive && (
-            <div className="flex items-center gap-2 rounded-lg border border-dashed px-3 py-2">
-              <Radio className="h-4 w-4 text-primary animate-pulse shrink-0" />
-              <p className="text-xs text-muted-foreground animate-pulse">Scanning — hold RFID tag to reader</p>
-            </div>
-          )}
-
-          {/* Last scanned hero */}
-          {lastScan ? (
-            <div className={`rounded-xl border-2 p-4 transition-all ${
-              lastScan.status === "placed" ? "border-green-400 bg-green-50" :
-              lastScan.status === "unassigned" ? "border-amber-400 bg-amber-50" :
-              "border-red-400 bg-red-50"
-            }`}>
-              <div className="flex items-start gap-4">
-                <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-white text-xl font-bold ${
-                  lastScan.status === "placed" ? "bg-green-500" :
-                  lastScan.status === "unassigned" ? "bg-amber-500" : "bg-red-500"
-                }`}>
-                  {lastScan.status === "placed" ? "✓" : lastScan.status === "unassigned" ? "?" : "!"}
-                </div>
-                {lastScan.status === "foreign" ? (
-                  <div className="flex-1 min-w-0">
-                    <span className="text-xs font-bold uppercase tracking-widest text-red-700">Foreign Bird</span>
-                    <p className="text-xl font-bold font-mono mt-0.5">{lastScan.rfid}</p>
-                    <p className="text-sm text-muted-foreground">Not registered in this event</p>
-                  </div>
-                ) : (
-                  <div className="flex-1 min-w-0">
-                    <span className={`text-xs font-bold uppercase tracking-widest ${
-                      lastScan.status === "placed" ? "text-green-700" : "text-amber-700"
-                    }`}>
-                      {lastScan.status === "placed" ? "Place in Basket" : "Not Basketed Yet"}
-                    </span>
-                    <p className="text-xl font-bold font-mono mt-0.5">{lastScan.bird?.band ?? "—"}</p>
-                    {lastScan.bird?.birdName && <p className="text-sm text-muted-foreground">{lastScan.bird.birdName}</p>}
-                    <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
-                      {lastScan.status === "placed" && (
-                        <div>
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Basket</p>
-                          <p className="font-medium">{lastScan.basket.label} <span className="text-muted-foreground">({lastScan.basket.count}/{lastScan.basket.capacity})</span></p>
-                        </div>
-                      )}
-                      <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">Loft</p><p>{lastScan.loftName ?? "—"}</p></div>
-                      <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">Breeder</p><p>{breederName(lastScan.breeder) ?? "—"}</p></div>
-                      <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">RFID</p><p className="font-mono text-xs">{lastScan.bird?.rfid ?? "—"}</p></div>
-                      <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">Color</p><p>{lastScan.bird?.color ?? "—"}</p></div>
-                      <div><p className="text-[10px] text-muted-foreground uppercase tracking-wide">Sex</p><p>{lastScan.bird?.sex === 1 ? "Cock" : lastScan.bird?.sex === 2 ? "Hen" : "—"}</p></div>
-                    </div>
-                    {lastScan.status === "unassigned" && (
-                      <p className="mt-2 text-sm text-amber-700">Not in a loft basket — run <strong>Set Baskets</strong> or it was skipped.</p>
-                    )}
-                    {lastScan.bird?.attention && (
-                      <div className="mt-2 flex items-center gap-2 rounded-lg bg-red-100 border border-red-300 px-3 py-2">
-                        <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
-                        <p className="text-base font-bold text-red-700">ATTENTION REQUIRED</p>
-                      </div>
-                    )}
-                    {lastScan.bird?.note && (
-                      <div className="mt-2 rounded-lg bg-yellow-50 border border-yellow-300 px-3 py-2">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Note</p>
-                        <p className="text-base font-bold text-yellow-900">{lastScan.bird.note}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-xl border-2 border-dashed px-4 py-4 text-center text-sm text-muted-foreground">
-              Scan a bird to see which basket to place it in
-            </div>
-          )}
-
-          {/* Scan log */}
-          <div className="flex-1 overflow-y-auto border rounded-lg">
-            {scannedLog.length === 0 ? (
-              <p className="text-sm text-muted-foreground p-4 text-center">No birds scanned yet</p>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-muted text-muted-foreground sticky top-0">
-                  <tr>
-                    <th className="px-3 py-2 text-left font-medium">#</th>
-                    <th className="px-3 py-2 text-left font-medium">Band</th>
-                    <th className="px-3 py-2 text-left font-medium">Name</th>
-                    <th className="px-3 py-2 text-left font-medium">Loft</th>
-                    <th className="px-3 py-2 text-left font-medium">Breeder</th>
-                    <th className="px-3 py-2 text-left font-medium">Basket</th>
-                    <th className="px-3 py-2 text-left font-medium">Scanned At</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {scannedLog.map((row, i) => (
-                    <tr key={`${row.band}-${row.scannedAt}`}>
-                      <td className="px-3 py-2 text-muted-foreground">{scannedLog.length - i}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{row.band || "—"}</td>
-                      <td className="px-3 py-2 font-medium">{row.birdName || "—"}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{row.loftName || "—"}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{row.breeder || "—"}</td>
-                      <td className="px-3 py-2 text-primary font-medium">{row.basketLabel}</td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">{new Date(row.scannedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-
-        <div className="border-t pt-3 space-y-3">
-          <div className="flex justify-center gap-10">
-            <div className="text-center">
-              <p className="text-2xl font-bold text-green-600">{basketedTotal}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Basketed</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-amber-500">{Math.max(basketedTotal - scannedLog.length, 0)}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Left to Scan</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-red-500">{foreignCount}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Foreign</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-muted-foreground">{ignoredCount}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Ignored</p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button onClick={handleClose}>Done</Button>
-          </DialogFooter>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ============================================================
-// SHARED COMPONENTS
-// ============================================================
-
-type SortKey = "band" | "birdName" | "breeder" | "basket" | "color" | "sex" | "assignedAt" | "rfid";
-type SortDir = "asc" | "desc";
-
-type FlatRow = {
-  assignmentId: number;
-  band: string;
-  birdName: string;
-  breeder: string;
-  basket: string;
-  basketNo: number;
-  color: string;
-  sex: string;
-  rfid: string;
-  attention: boolean;
-  note: string;
-  assignedAt: string;
-};
-
-function flattenBaskets(baskets: EventBasketItem[]): FlatRow[] {
-  const rows: FlatRow[] = [];
-  for (const b of baskets) {
-    for (const a of b.assignments ?? []) {
-      const bird = a.inventoryItem?.bird;
-      const breeder = a.inventoryItem?.eventInventory?.breeder;
-      const scannedAt = a.inventoryItem?.birdEventHistory?.[0]?.createdAt ?? a.assignedAt;
-      rows.push({
-        assignmentId: a.id,
-        band: bird?.band ?? "—",
-        birdName: bird?.birdName ?? "—",
-        breeder: breeder?.lastName ?? "—",
-        basket: b.label ?? `Basket #${b.basketNo}`,
-        basketNo: b.basketNo,
-        color: bird?.color ?? "—",
-        sex: bird?.sex === 1 ? "Cock" : bird?.sex === 2 ? "Hen" : "—",
-        rfid: bird?.rfid ?? "—",
-        attention: bird?.attention ?? false,
-        note: bird?.note ?? "",
-        assignedAt: scannedAt,
-      });
-    }
-  }
-  return rows;
-}
-
-function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
-  if (col !== sortKey) return <ChevronsUpDown className="h-3 w-3 opacity-40" />;
-  return sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />;
-}
-
-function PersistedBasketsView({
-  baskets,
-  isPending,
-  phase,
-  onDelete,
-  onMove,
-  onEdit,
-}: {
-  baskets: EventBasketItem[];
-  isPending: boolean;
-  phase: string;
-  onDelete?: (basket: EventBasketItem) => void;
-  onMove?: (basket: EventBasketItem) => void;
-  onEdit?: (basket: EventBasketItem) => void;
-}) {
-  const [view, setView] = useState<"grouped" | "table">("grouped");
-  const [sortKey, setSortKey] = useState<SortKey>("assignedAt");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
-
-  const handleSort = (col: SortKey) => {
-    if (col === sortKey) setSortDir(d => d === "asc" ? "desc" : "asc");
-    else { setSortKey(col); setSortDir("asc"); }
-  };
-
-  if (isPending) return <Skeleton className="h-32 w-full" />;
-
-  if (baskets.length === 0) {
-    return (
-      <Card>
-        <CardContent className="py-8 text-center text-muted-foreground">
-          No {phase.toLowerCase()} baskets yet.
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const rows = flattenBaskets(baskets).sort((a, b) => {
-    const av = a[sortKey], bv = b[sortKey];
-    const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
-    return sortDir === "asc" ? cmp : -cmp;
-  });
-
-  const cols: { key: SortKey; label: string }[] = [
-    { key: "band", label: "Band" },
-    { key: "birdName", label: "Name" },
-    { key: "breeder", label: "Breeder" },
-    { key: "basket", label: "Basket" },
-    { key: "color", label: "Color" },
-    { key: "sex", label: "Sex" },
-    { key: "rfid", label: "RFID" },
-    { key: "assignedAt", label: "Basketed At" },
-  ];
-
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">
-            {phase} Baskets
-            <Badge variant="secondary" className="ml-2">{baskets.length}</Badge>
-          </CardTitle>
-          <div className="flex items-center rounded-md border">
-            <button
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-l-md transition-colors ${view === "grouped" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
-              onClick={() => setView("grouped")}
-            >
-              <LayoutList className="h-3.5 w-3.5" />Grouped
-            </button>
-            <button
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-r-md transition-colors ${view === "table" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
-              onClick={() => setView("table")}
-            >
-              <Table2 className="h-3.5 w-3.5" />Table
-            </button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {view === "grouped" ? (
-          <div className="space-y-2">
-            {baskets.map((basket) => (
-              <PersistedBasketCard key={basket.id} basket={basket} onDelete={onDelete} onMove={onMove} onEdit={onEdit} />
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-lg border overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted text-muted-foreground sticky top-0">
-                <tr>
-                  {cols.map(({ key, label }) => (
-                    <th key={key} className="px-3 py-2 text-left font-medium whitespace-nowrap">
-                      <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => handleSort(key)}>
-                        {label}
-                        <SortIcon col={key} sortKey={sortKey} sortDir={sortDir} />
-                      </button>
-                    </th>
-                  ))}
-                  <th className="px-3 py-2 text-left font-medium">Flags</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {rows.length === 0 ? (
-                  <tr><td colSpan={cols.length + 1} className="px-3 py-6 text-center text-muted-foreground">No birds assigned yet</td></tr>
-                ) : rows.map((r) => (
-                  <tr key={r.assignmentId} className={r.attention ? "bg-red-50" : "hover:bg-muted/40 transition-colors"}>
-                    <td className="px-3 py-2 font-mono text-xs">{r.band}</td>
-                    <td className="px-3 py-2">{r.birdName}</td>
-                    <td className="px-3 py-2">{r.breeder}</td>
-                    <td className="px-3 py-2 font-medium">{r.basket}</td>
-                    <td className="px-3 py-2">{r.color}</td>
-                    <td className="px-3 py-2">{r.sex}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{r.rfid}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
-                      {r.assignedAt ? new Date(r.assignedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—"}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-1">
-                        {r.attention && <Badge variant="destructive" className="text-[10px] px-1">!</Badge>}
-                        {r.note && <span className="text-[10px] text-muted-foreground truncate max-w-[80px]" title={r.note}>{r.note}</span>}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function PersistedBasketCard({
-  basket,
-  onDelete,
-  onMove,
-  onEdit,
-}: {
-  basket: EventBasketItem;
-  onDelete?: (basket: EventBasketItem) => void;
-  onMove?: (basket: EventBasketItem) => void;
-  onEdit?: (basket: EventBasketItem) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const birdCount = basket._count?.assignments ?? basket.assignments?.length ?? 0;
-  const breeders = [
-    ...new Set(
-      (basket.assignments || [])
-        .map((a) => a.inventoryItem?.eventInventory?.breeder?.lastName)
-        .filter(Boolean)
-    ),
-  ];
-
-  return (
-    <div className="border rounded-lg">
-      <div className="flex items-center">
-        <button
-          className="flex-1 flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
-          onClick={() => setExpanded(!expanded)}
-        >
-          <div className="flex items-center gap-2">
-            {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-            <span className="font-medium">{basket.label || `Basket #${basket.basketNo}`}</span>
-            <Badge variant="secondary">{birdCount}/{basket.capacity}</Badge>
-          </div>
-          <span className="text-sm text-muted-foreground">{breeders.join(", ")}</span>
-        </button>
-        <div className="flex items-center mr-2">
-          {onEdit && (
-            <button className="p-2 text-muted-foreground hover:text-foreground transition-colors" onClick={() => onEdit(basket)} title="Edit">
-              <Pencil className="h-4 w-4" />
-            </button>
-          )}
-          {onMove && (
-            <button className="p-2 text-muted-foreground hover:text-foreground transition-colors" onClick={() => onMove(basket)} title="Clear">
-              <ArrowRightLeft className="h-4 w-4" />
-            </button>
-          )}
-          {onDelete && (
-            <button className="p-2 text-muted-foreground hover:text-destructive transition-colors" onClick={() => onDelete(basket)} title="Delete">
-              <Trash2 className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-      </div>
-      {expanded && basket.assignments && (
-        <div className="border-t overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-muted-foreground">
-              <tr>
-                <th className="px-3 py-1.5 text-left text-xs font-medium">Band</th>
-                <th className="px-3 py-1.5 text-left text-xs font-medium">Name</th>
-                <th className="px-3 py-1.5 text-left text-xs font-medium">Breeder</th>
-                <th className="px-3 py-1.5 text-left text-xs font-medium">Color</th>
-                <th className="px-3 py-1.5 text-left text-xs font-medium">Sex</th>
-                <th className="px-3 py-1.5 text-left text-xs font-medium">Basketed At</th>
-                <th className="px-3 py-1.5 text-left text-xs font-medium">Flags</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {[...basket.assignments]
-                .sort((a, b) => new Date(a.assignedAt).getTime() - new Date(b.assignedAt).getTime())
-                .map((a) => {
-                  const bird = a.inventoryItem?.bird;
-                  const breeder = a.inventoryItem?.eventInventory?.breeder;
-                  return (
-                    <tr key={a.id} className={bird?.attention ? "bg-red-50" : undefined}>
-                      <td className="px-3 py-1.5 font-mono text-xs">{bird?.band ?? "—"}</td>
-                      <td className="px-3 py-1.5">{bird?.birdName ?? "—"}</td>
-                      <td className="px-3 py-1.5 text-muted-foreground">{breeder?.lastName ?? "—"}</td>
-                      <td className="px-3 py-1.5">{bird?.color ?? "—"}</td>
-                      <td className="px-3 py-1.5">{bird?.sex === 1 ? "Cock" : bird?.sex === 2 ? "Hen" : "—"}</td>
-                      <td className="px-3 py-1.5 text-xs text-muted-foreground whitespace-nowrap">
-                        {(() => { const t = a.inventoryItem?.birdEventHistory?.[0]?.createdAt ?? a.assignedAt; return t ? new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—"; })()}
-                      </td>
-                      <td className="px-3 py-1.5">
-                        <div className="flex items-center gap-1">
-                          {bird?.attention && <Badge variant="destructive" className="text-[10px] px-1">!</Badge>}
-                          {bird?.note && <span className="text-[10px] text-muted-foreground truncate max-w-[80px]" title={bird.note}>{bird.note}</span>}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
+}
+
+function HeaderField({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-[11px] font-bold text-muted-foreground">{label}</Label>
+      <p className="text-sm h-8 flex items-center">{value || <span className="text-muted-foreground">—</span>}</p>
+    </div>
+  );
+}
+
+function download(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }

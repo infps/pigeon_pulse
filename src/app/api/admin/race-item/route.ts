@@ -22,9 +22,11 @@ export async function GET(req: NextRequest) {
       return Response.json({ error: "Race ID is required" }, { status: 400 });
     }
 
+    const raceIdInt = parseInt(raceId);
+
     const raceItems = await prisma.raceItem.findMany({
       where: {
-        raceId: parseInt(raceId),
+        raceId: raceIdInt,
       },
       include: {
         inventoryItem: {
@@ -43,12 +45,15 @@ export async function GET(req: NextRequest) {
             eventInventory: {
               select: {
                 loft: true,
+                breeder: { select: { id: true, firstName: true, lastName: true } },
                 payments: { select: { status: true } },
               },
             },
             basketAssignments: {
               include: {
-                eventBasket: { select: { label: true, phase: true } },
+                eventBasket: {
+                  select: { id: true, label: true, basketNo: true, phase: true, raceId: true },
+                },
               },
             },
           },
@@ -60,6 +65,36 @@ export async function GET(req: NextRequest) {
         { result: { arrivalTime: "asc" } },
       ],
     });
+
+    // Pulling-flight count per bird — HayLoft's PULLING_FLIGHTS subquery, which
+    // counted this bird's race items on race type 4. Race types are
+    // user-configurable here, so the pulling types are resolved by name rather
+    // than by a hardcoded id, and the whole thing is one grouped query instead
+    // of a correlated subquery per row.
+    const inventoryItemIds = raceItems
+      .map((i) => i.inventoryItemId)
+      .filter((id): id is number => id != null);
+
+    const pullingCounts = new Map<number, number>();
+    if (inventoryItemIds.length > 0) {
+      const pullingTypes = await prisma.raceType.findMany({
+        where: { name: { contains: "pull", mode: "insensitive" } },
+        select: { id: true },
+      });
+      if (pullingTypes.length > 0) {
+        const grouped = await prisma.raceItem.groupBy({
+          by: ["inventoryItemId"],
+          where: {
+            inventoryItemId: { in: inventoryItemIds },
+            race: { raceTypeId: { in: pullingTypes.map((t) => t.id) } },
+          },
+          _count: { _all: true },
+        });
+        for (const g of grouped) {
+          if (g.inventoryItemId != null) pullingCounts.set(g.inventoryItemId, g._count._all);
+        }
+      }
+    }
 
     // Flatten nested relations for UI column accessors
     const flattenedRaceItems = raceItems.map((item) => {
@@ -74,8 +109,19 @@ export async function GET(req: NextRequest) {
       }
 
       const assignments = item.inventoryItem?.basketAssignments ?? [];
-      const loftLabel = assignments.find((a) => a.eventBasket?.phase === "LOFT")?.eventBasket?.label ?? null;
-      const raceLabel = assignments.find((a) => a.eventBasket?.phase === "RACE")?.eventBasket?.label ?? null;
+      // Loft baskets are per-race in this schema, so a bird can hold loft
+      // assignments for several races at once — only this race's counts.
+      const loftBasket = assignments.find(
+        (a) =>
+          a.eventBasket?.phase === "LOFT" &&
+          (a.eventBasket.raceId === raceIdInt || a.eventBasket.raceId === null)
+      )?.eventBasket;
+      const raceBasket = assignments.find(
+        (a) => a.eventBasket?.phase === "RACE" && a.eventBasket.raceId === raceIdInt
+      )?.eventBasket;
+
+      const breeder =
+        item.inventoryItem?.eventInventory?.breeder ?? item.inventoryItem?.bird?.breeder ?? null;
 
       return {
         ...item,
@@ -91,8 +137,25 @@ export async function GET(req: NextRequest) {
         arrivalTime: item.result?.arrivalTime ?? null,
         groupId: item.result?.groupId ?? null,
         speed: null,
-        loftBasketLabel: loftLabel,
-        raceBasketLabel: raceLabel,
+        loftBasketLabel: loftBasket?.label ?? null,
+        raceBasketLabel: raceBasket?.label ?? null,
+        // HayLoft's basketing grid worked in basket numbers, not labels.
+        loftBasketNo: loftBasket?.basketNo ?? null,
+        raceBasketNo: raceBasket?.basketNo ?? null,
+        // IS_DIST_BASKETED: the bird was actually scanned into its loft basket,
+        // which is a separate fact from having been allocated one.
+        isLoftBasketed: computedStatus === "LOFT_BASKETED" ||
+          computedStatus === "RELEASED" ||
+          computedStatus === "ARRIVED",
+        entryFeePaid: item.inventoryItem?.entryFeePaid ?? null,
+        breederName: breeder
+          ? [breeder.lastName, breeder.firstName].filter(Boolean).join(", ")
+          : null,
+        breederId: breeder && "id" in breeder ? breeder.id : null,
+        loft: item.inventoryItem?.eventInventory?.loft ?? null,
+        pullingCount: item.inventoryItemId != null
+          ? pullingCounts.get(item.inventoryItemId) ?? 0
+          : 0,
       };
     });
 

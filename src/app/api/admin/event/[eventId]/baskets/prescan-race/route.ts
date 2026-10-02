@@ -70,7 +70,16 @@ export async function POST(
     // Find bird by RFID
     const bird = await prisma.bird.findFirst({
       where: { rfid: rfid.trim() },
-      select: { id: true, birdName: true, band: true, rfid: true, attention: true },
+      select: {
+        id: true,
+        birdName: true,
+        band: true,
+        rfid: true,
+        attention: true,
+        note: true,
+        color: true,
+        sex: true,
+      },
     });
 
     if (!bird) {
@@ -88,10 +97,25 @@ export async function POST(
               where: { eventBasket: { phase: "RACE", raceId: parseInt(String(raceId)) } },
               take: 1,
             },
+            // The prescan grid lists the breeder and loft beside the bird, as
+            // HayLoft's birdPreScanF did.
+            eventInventory: {
+              select: {
+                loft: true,
+                breeder: { select: { id: true, firstName: true, lastName: true } },
+                team: { select: { name: true } },
+              },
+            },
           },
         },
       },
     });
+
+    const breeder = raceItem?.inventoryItem?.eventInventory?.breeder ?? null;
+    const loftName =
+      raceItem?.inventoryItem?.eventInventory?.team?.name ??
+      raceItem?.inventoryItem?.eventInventory?.loft ??
+      null;
 
     if (!raceItem) {
       // Bird exists but not registered for this race → foreign
@@ -104,15 +128,22 @@ export async function POST(
       return NextResponse.json({
         status: "already_scanned",
         bird,
+        breeder,
+        loftName,
+        raceBasketTime: raceItem.raceBasketTime,
         basketLabel: basket?.label ?? `#${basket?.basketNo ?? "?"}`,
         basketNo: basket?.basketNo,
       });
     }
 
-    // Update status → LOFT_BASKETED
-    await prisma.raceItem.update({
+    // Update status → LOFT_BASKETED, and stamp the basketing time.
+    //
+    // HayLoft's race basketing wrote RACE_BASKET_TIME = 'now' alongside the
+    // basket, and the entries grid has a column for it, so the stamp is written
+    // here rather than left null.
+    const updated = await prisma.raceItem.update({
       where: { id: raceItem.id },
-      data: { status: "LOFT_BASKETED" },
+      data: { status: "LOFT_BASKETED", raceBasketTime: new Date() },
     });
 
     const basket = raceItem.inventoryItem?.basketAssignments?.[0]?.eventBasket;
@@ -120,6 +151,9 @@ export async function POST(
     return NextResponse.json({
       status: "scanned",
       bird,
+      breeder,
+      loftName,
+      raceBasketTime: updated.raceBasketTime,
       basketLabel: basket?.label ?? (basket ? `#${basket.basketNo}` : "Unassigned"),
       basketNo: basket?.basketNo ?? null,
     });

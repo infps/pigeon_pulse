@@ -423,6 +423,17 @@ export interface RaceItem {
   loftBasketLabel?: string | null;
   raceBasketLabel?: string | null;
   groupId?: number | null;
+  // Basketing grid fields — HayLoft's raceItemsFr columns.
+  isLost?: number | null;
+  lostRaceId?: number | null;
+  loftBasketNo?: number | null;
+  raceBasketNo?: number | null;
+  isLoftBasketed?: boolean;
+  entryFeePaid?: number | null;
+  breederName?: string | null;
+  breederId?: number | null;
+  loft?: string | null;
+  pullingCount?: number;
 }
 
 export interface RaceItemResult {

@@ -43,7 +43,22 @@ export async function GET(
           select: {
             id: true,
             bird: {
-              select: { id: true, band1: true, band2: true, band3: true, band4: true, birdName: true },
+              select: {
+                id: true,
+                band: true,
+                band1: true,
+                band2: true,
+                band3: true,
+                band4: true,
+                birdName: true,
+                rfid: true,
+                color: true,
+              },
+            },
+            // The basketing screen's ignore list shows the breeder, same as
+            // HayLoft's raceIgnoreListFr did.
+            eventInventory: {
+              select: { breeder: { select: { id: true, firstName: true, lastName: true } } },
             },
           },
         },

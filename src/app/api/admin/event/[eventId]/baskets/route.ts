@@ -220,6 +220,69 @@ export async function PATCH(
       return NextResponse.json({ message: "Basket cleared" });
     }
 
+    // Move specific birds into this basket — HayLoft's ActionSetBasket, which
+    // took whatever was selected in the entries grid and dropped it into the
+    // basket selected on the right.
+    //
+    // A bird holds at most one basket per phase per race, so the old assignment
+    // for that scope goes before the new one lands. Capacity is checked against
+    // what the basket will hold afterwards, not what it holds now, otherwise
+    // re-setting birds already in the basket would refuse itself.
+    if (body.action === "set-birds") {
+      const ids: number[] = Array.isArray(body.inventoryItemIds)
+        ? body.inventoryItemIds.map((n: unknown) => parseInt(String(n))).filter((n: number) => !isNaN(n))
+        : [];
+      if (ids.length === 0) {
+        return NextResponse.json({ message: "No birds selected" }, { status: 400 });
+      }
+
+      const alreadyHere = new Set(basket.assignments.map((a) => a.eventInventoryItemId));
+      const incoming = ids.filter((id) => !alreadyHere.has(id));
+      const finalCount = alreadyHere.size + incoming.length;
+      if (finalCount > basket.capacity) {
+        return NextResponse.json(
+          {
+            message: `Basket #${basket.basketNo} holds ${basket.capacity}. ${finalCount} birds would not fit.`,
+          },
+          { status: 409 }
+        );
+      }
+
+      // Only baskets in the same phase and race compete for a bird.
+      const siblingBaskets = await prisma.eventBasket.findMany({
+        where: { seasonId, phase: basket.phase, raceId: basket.raceId },
+        select: { id: true },
+      });
+      const siblingIds = siblingBaskets.map((b) => b.id);
+
+      await prisma.$transaction(async (tx) => {
+        await tx.basketAssignment.deleteMany({
+          where: {
+            eventInventoryItemId: { in: ids },
+            eventBasketId: { in: siblingIds },
+          },
+        });
+        await tx.basketAssignment.createMany({
+          data: ids.map((id) => ({ eventBasketId: basketId, eventInventoryItemId: id })),
+          skipDuplicates: true,
+        });
+        await tx.birdEventHistory.createMany({
+          data: ids.map((id) => ({
+            eventInventoryItemId: id,
+            action: "BASKET_ASSIGNED",
+            detail: `Set to ${basket.phase === "RACE" ? "race" : "loft"} basket #${basket.basketNo}`,
+            basketId,
+            performedById: session?.user?.id ?? null,
+          })),
+        });
+      });
+
+      return NextResponse.json({
+        message: `${ids.length} bird(s) set to basket #${basket.basketNo}`,
+        assigned: ids.length,
+      });
+    }
+
     const data: { label?: string | null; capacity?: number } = {};
 
     if (body.label !== undefined) {
