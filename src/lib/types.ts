@@ -498,12 +498,22 @@ export interface CheckinStatusItem {
   hasPaid: boolean;
   loftBasketLabel?: string | null;
   isLoftBasketed?: boolean;
+  loftBasketNo?: number | null;
+  loftAssignedAt?: string | null;
+  // Race basket fields are only populated when the request carries a raceId.
+  raceBasketLabel?: string | null;
+  raceBasketNo?: number | null;
+  raceAssignedAt?: string | null;
+  isRaceBasketed?: boolean;
+  isLost?: boolean;
 }
 
 export interface CheckinSummary {
   total: number;
   checkedIn: number;
   notCheckedIn: number;
+  loftBasketed?: number;
+  raceBasketed?: number;
 }
 
 export interface EventBasketItem {

@@ -36,10 +36,21 @@ export async function GET(
       seasonId = activeSeason.id;
     }
 
+    // Optional race scope. Race baskets belong to one race; loft baskets are
+    // season-wide (raceId null), so a loft basket matches any race.
+    const raceIdParam = searchParams.get("raceId");
+    let raceId: number | null = null;
+    if (raceIdParam) {
+      raceId = parseInt(raceIdParam);
+      if (isNaN(raceId)) {
+        return NextResponse.json({ message: "Invalid race ID" }, { status: 400 });
+      }
+    }
+
     const items = await prisma.eventInventoryItem.findMany({
       where: { eventInventory: { seasonId } },
       include: {
-        bird: { select: { id: true, band: true, birdName: true, rfid: true, color: true, sex: true, attention: true, note: true } },
+        bird: { select: { id: true, band: true, birdName: true, rfid: true, color: true, sex: true, attention: true, note: true, isLost: true } },
         eventInventory: {
           include: {
             breeder: { select: { id: true, firstName: true, lastName: true } },
@@ -48,11 +59,22 @@ export async function GET(
         },
         currentGroup: { select: { id: true, name: true } },
         basketAssignments: {
-          where: { eventBasket: { phase: "LOFT" } },
+          where:
+            raceId != null
+              ? {
+                  eventBasket: {
+                    OR: [
+                      { phase: "LOFT", OR: [{ raceId }, { raceId: null }] },
+                      { phase: "RACE", raceId },
+                    ],
+                  },
+                }
+              : { eventBasket: { phase: "LOFT" } },
           include: {
-            eventBasket: { select: { label: true } },
+            eventBasket: { select: { label: true, basketNo: true, phase: true, raceId: true } },
           },
-          take: 1,
+          orderBy: { assignedAt: "desc" },
+          ...(raceId == null ? { take: 1 } : {}),
         },
       },
     });
@@ -60,7 +82,11 @@ export async function GET(
     const enriched = items.map((item) => {
       const hasRfid = item.bird?.rfid != null && item.bird.rfid !== "";
       const hasPaid = item.eventInventory?.payments?.some((p) => p.status === "PAID") ?? false;
-      const loftAssignment = item.basketAssignments?.[0];
+      const loftAssignments = item.basketAssignments.filter((a) => a.eventBasket.phase === "LOFT");
+      // Prefer a loft basket tied to this race over a season-wide one.
+      const loftAssignment =
+        loftAssignments.find((a) => a.eventBasket.raceId != null) ?? loftAssignments[0];
+      const raceAssignment = item.basketAssignments.find((a) => a.eventBasket.phase === "RACE");
       return {
         id: item.id,
         birdId: item.birdId,
@@ -71,6 +97,13 @@ export async function GET(
         hasPaid,
         loftBasketLabel: loftAssignment?.eventBasket?.label ?? null,
         isLoftBasketed: !!loftAssignment,
+        loftBasketNo: loftAssignment?.eventBasket?.basketNo ?? null,
+        loftAssignedAt: loftAssignment?.assignedAt ?? null,
+        raceBasketLabel: raceAssignment?.eventBasket?.label ?? null,
+        raceBasketNo: raceAssignment?.eventBasket?.basketNo ?? null,
+        raceAssignedAt: raceAssignment?.assignedAt ?? null,
+        isRaceBasketed: !!raceAssignment,
+        isLost: item.bird?.isLost === 1,
       };
     });
 
@@ -78,7 +111,13 @@ export async function GET(
 
     return NextResponse.json({
       items: enriched,
-      summary: { total: enriched.length, checkedIn, notCheckedIn: enriched.length - checkedIn },
+      summary: {
+        total: enriched.length,
+        checkedIn,
+        notCheckedIn: enriched.length - checkedIn,
+        loftBasketed: enriched.filter((i) => i.isLoftBasketed).length,
+        raceBasketed: enriched.filter((i) => i.isRaceBasketed).length,
+      },
     });
   } catch (error) {
     console.error("Error fetching checkin status:", error);

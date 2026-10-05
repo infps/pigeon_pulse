@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useDialogHotkeys } from "@/lib/use-dialog-hotkeys";
 import { useSeasonContext } from "@/lib/season-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,7 +27,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { AlertTriangle, ArrowRightLeft, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp, LayoutList, Pencil, Plus, Radio, Scan, Square, Table2, Trash2, Usb, Wand2, Wifi } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp, Download, LayoutList, Pencil, Plus, Printer, Radio, Scan, Search, Square, Table2, Trash2, Usb, Wand2, Wifi } from "lucide-react";
 import { useWebSerial } from "@/hooks/useWebSerial";
 import { toast } from "sonner";
 import {
@@ -444,6 +444,8 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
       )}
 
       <PersistedBasketsView
+        eventId={eventId}
+        raceId={selectedRaceId}
         baskets={baskets}
         isPending={isPending}
         phase="Loft"
@@ -992,6 +994,8 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
       )}
 
       <PersistedBasketsView
+        eventId={eventId}
+        raceId={selectedRaceId}
         baskets={baskets}
         isPending={isPending}
         phase="Race"
@@ -1340,6 +1344,10 @@ type PrescanEntry = {
 function BirdPrescanPanel({ eventId }: { eventId: string }) {
   const { selectedSeasonId } = useSeasonContext();
   const { data } = useCheckinStatus(eventId, selectedSeasonId);
+  const { data: racesData } = useListRaces({ params: { eventId } });
+  const races: Race[] = (racesData as { races?: Race[] })?.races ?? [];
+  const [pickedRaceId, setSelectedRaceId] = useState<string>("");
+  const selectedRaceId = pickedRaceId || (races[0] ? String(races[0].id) : "");
 
   const rfidMap = new Map<string, CheckinStatusItem>();
   for (const item of (data?.items ?? []) as CheckinStatusItem[]) {
@@ -1416,6 +1424,7 @@ function BirdPrescanPanel({ eventId }: { eventId: string }) {
   };
 
   return (
+    <>
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
@@ -1477,6 +1486,21 @@ function BirdPrescanPanel({ eventId }: { eventId: string }) {
         </p>
       </CardContent>
     </Card>
+
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Entries</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <EntriesTable
+          eventId={eventId}
+          raceId={selectedRaceId}
+          races={races}
+          onRaceChange={setSelectedRaceId}
+        />
+      </CardContent>
+    </Card>
+    </>
   );
 }
 
@@ -1788,48 +1812,82 @@ function LoftScanDialog({
 // SHARED COMPONENTS
 // ============================================================
 
-type SortKey = "band" | "birdName" | "breeder" | "basket" | "color" | "sex" | "assignedAt" | "rfid";
+type SortKey =
+  | "breeder"
+  | "band"
+  | "rfid"
+  | "color"
+  | "sex"
+  | "lost"
+  | "loftBasket"
+  | "loftBasketed"
+  | "raceBasket"
+  | "raceAssignedAt";
 type SortDir = "asc" | "desc";
 
-type FlatRow = {
-  assignmentId: number;
-  band: string;
-  birdName: string;
+type EntryRow = {
+  id: number;
   breeder: string;
-  basket: string;
-  basketNo: number;
+  band: string;
+  rfid: string;
   color: string;
   sex: string;
-  rfid: string;
+  lost: boolean;
+  loftBasket: string;
+  loftBasketed: boolean;
+  raceBasket: string;
+  raceAssignedAt: string;
   attention: boolean;
   note: string;
-  assignedAt: string;
 };
 
-function flattenBaskets(baskets: EventBasketItem[]): FlatRow[] {
-  const rows: FlatRow[] = [];
-  for (const b of baskets) {
-    for (const a of b.assignments ?? []) {
-      const bird = a.inventoryItem?.bird;
-      const breeder = a.inventoryItem?.eventInventory?.breeder;
-      const scannedAt = a.inventoryItem?.birdEventHistory?.[0]?.createdAt ?? a.assignedAt;
-      rows.push({
-        assignmentId: a.id,
-        band: bird?.band ?? "—",
-        birdName: bird?.birdName ?? "—",
-        breeder: breeder?.lastName ?? "—",
-        basket: b.label ?? `Basket #${b.basketNo}`,
-        basketNo: b.basketNo,
-        color: bird?.color ?? "—",
-        sex: bird?.sex === 1 ? "Cock" : bird?.sex === 2 ? "Hen" : "—",
-        rfid: bird?.rfid ?? "—",
-        attention: bird?.attention ?? false,
-        note: bird?.note ?? "",
-        assignedAt: scannedAt,
-      });
-    }
-  }
-  return rows;
+const ENTRY_COLUMNS: { key: SortKey; label: string }[] = [
+  { key: "breeder", label: "Breeder" },
+  { key: "band", label: "Band" },
+  { key: "rfid", label: "EID" },
+  { key: "color", label: "Color" },
+  { key: "sex", label: "Sex" },
+  { key: "lost", label: "Lost" },
+  { key: "loftBasket", label: "Loft basket" },
+  { key: "loftBasketed", label: "Loft basketed" },
+  { key: "raceBasket", label: "Race basket" },
+  { key: "raceAssignedAt", label: "Race basket time" },
+];
+
+const yesNo = (v: boolean) => (v ? "Yes" : "No");
+
+const formatBasketTime = (iso: string) =>
+  iso ? new Date(iso).toLocaleString([], { dateStyle: "short", timeStyle: "medium" }) : "";
+
+function toEntryRows(items: CheckinStatusItem[]): EntryRow[] {
+  return items.map((item) => ({
+    id: item.id,
+    breeder: [item.breeder?.lastName?.toUpperCase(), item.breeder?.firstName]
+      .filter(Boolean)
+      .join(", "),
+    band: item.bird?.band ?? "",
+    rfid: item.bird?.rfid ?? "",
+    color: item.bird?.color ?? "",
+    sex: item.bird?.sex === 1 ? "Cock" : item.bird?.sex === 2 ? "Hen" : "",
+    lost: item.isLost ?? false,
+    loftBasket: item.isLoftBasketed
+      ? item.loftBasketLabel || `Basket #${item.loftBasketNo ?? "?"}`
+      : "",
+    loftBasketed: item.isLoftBasketed ?? false,
+    raceBasket: item.isRaceBasketed
+      ? item.raceBasketLabel || `Basket #${item.raceBasketNo ?? "?"}`
+      : "",
+    raceAssignedAt: item.raceAssignedAt ?? "",
+    attention: item.bird?.attention ?? false,
+    note: item.bird?.note ?? "",
+  }));
+}
+
+/** The cell text for a column — shared by the grid, the sort and the CSV export. */
+function entryCell(row: EntryRow, key: SortKey): string {
+  const v = row[key];
+  if (typeof v === "boolean") return yesNo(v);
+  return key === "raceAssignedAt" ? formatBasketTime(v) : v;
 }
 
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
@@ -1837,7 +1895,232 @@ function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; s
   return sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />;
 }
 
+/**
+ * HayLoft's "Entries" grid: every registered bird of the season, one row each,
+ * with where it sits in the selected race's baskets — basketed or not.
+ */
+function EntriesTable({
+  eventId,
+  raceId,
+  phase,
+  baskets,
+  races,
+  onRaceChange,
+}: {
+  eventId: string;
+  raceId: string;
+  /** The panel's basket phase; drives the Capacity / Occupancy totals. */
+  phase?: "LOFT" | "RACE";
+  baskets?: EventBasketItem[];
+  /** Pass both to show a race picker in the toolbar (panels without their own). */
+  races?: Race[];
+  onRaceChange?: (raceId: string) => void;
+}) {
+  const { selectedSeasonId } = useSeasonContext();
+  const { data, isPending, refetch } = useCheckinStatus(eventId, selectedSeasonId, raceId || undefined);
+
+  const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("breeder");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [printing, setPrinting] = useState(false);
+
+  // Queries never go stale on their own and basket mutations only invalidate
+  // the basket queries, so refresh on mount and whenever the baskets change.
+  const basketSig = (baskets ?? [])
+    .map((b) => `${b.id}:${b._count?.assignments ?? b.assignments?.length ?? 0}:${b.label ?? ""}`)
+    .join("|");
+  useEffect(() => {
+    refetch();
+  }, [basketSig, refetch]);
+
+  useEffect(() => {
+    if (!printing) return;
+    const done = () => setPrinting(false);
+    window.addEventListener("afterprint", done);
+    window.print();
+    return () => window.removeEventListener("afterprint", done);
+  }, [printing]);
+
+  const allRows = useMemo(
+    () => toEntryRows((data?.items ?? []) as CheckinStatusItem[]),
+    [data]
+  );
+
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = q
+      ? allRows.filter((r) =>
+          [r.breeder, r.band, r.rfid].some((v) => v.toLowerCase().includes(q))
+        )
+      : allRows;
+    return [...filtered].sort((a, b) => {
+      const av = sortKey === "raceAssignedAt" ? a.raceAssignedAt : entryCell(a, sortKey);
+      const bv = sortKey === "raceAssignedAt" ? b.raceAssignedAt : entryCell(b, sortKey);
+      const cmp = av.localeCompare(bv, undefined, { numeric: true });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [allRows, search, sortKey, sortDir]);
+
+  const handleSort = (col: SortKey) => {
+    if (col === sortKey) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(col); setSortDir("asc"); }
+  };
+
+  const exportCsv = () => {
+    if (rows.length === 0) {
+      toast.info("Nothing to export");
+      return;
+    }
+    const escape = (v: string) => (/[",\r\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+    const lines = [
+      [...ENTRY_COLUMNS.map((c) => c.label), "Flags"],
+      ...rows.map((r) => [
+        ...ENTRY_COLUMNS.map((c) => entryCell(r, c.key)),
+        [r.attention ? "Attention" : "", r.note].filter(Boolean).join(" - "),
+      ]),
+    ];
+    const csv = lines.map((l) => l.map(escape).join(",")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `entries-race-${raceId || "all"}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const totals: { label: string; value: number }[] = [
+    { label: "Total birds", value: allRows.length },
+    { label: "Loft basketed", value: allRows.filter((r) => r.loftBasketed).length },
+    { label: "Race basketed", value: allRows.filter((r) => r.raceBasket !== "").length },
+  ];
+  if (phase && baskets) {
+    totals.push(
+      { label: "Capacity", value: baskets.reduce((s, b) => s + b.capacity, 0) },
+      {
+        label: "Occupancy",
+        value: baskets.reduce((s, b) => s + (b._count?.assignments ?? b.assignments?.length ?? 0), 0),
+      }
+    );
+  }
+
+  return (
+    <div id="entries-print" className="space-y-3">
+      {printing && (
+        <style>{`@media print {
+  body * { visibility: hidden !important; }
+  #entries-print, #entries-print * { visibility: visible !important; }
+  #entries-print { position: absolute; left: 0; top: 0; width: 100%; }
+}`}</style>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2 print:hidden">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search breeder, band or EID"
+            className="h-8 w-64 pl-8 text-sm"
+          />
+        </div>
+        {races && onRaceChange && (
+          <Select value={raceId} onValueChange={onRaceChange}>
+            <SelectTrigger className="h-8 w-[220px] text-sm">
+              <SelectValue placeholder="Select a race" />
+            </SelectTrigger>
+            <SelectContent>
+              {races.map((r) => (
+                <SelectItem key={r.id} value={String(r.id)}>
+                  {r.name ?? `Race ${r.id}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {search.trim() && (
+          <span className="text-xs text-muted-foreground">
+            Showing {rows.length} of {allRows.length}
+          </span>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={exportCsv}>
+            <Download className="h-4 w-4" />Export CSV
+          </Button>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setPrinting(true)}>
+            <Printer className="h-4 w-4" />Print
+          </Button>
+        </div>
+      </div>
+
+      {isPending ? (
+        <Skeleton className="h-32 w-full" />
+      ) : (
+        <div className="rounded-lg border overflow-auto max-h-[32rem] print:max-h-none print:overflow-visible">
+          <table className="w-full text-sm">
+            <thead className="bg-muted text-muted-foreground sticky top-0">
+              <tr>
+                {ENTRY_COLUMNS.map(({ key, label }) => (
+                  <th key={key} className="px-3 py-2 text-left font-medium whitespace-nowrap">
+                    <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => handleSort(key)}>
+                      {label}
+                      <SortIcon col={key} sortKey={sortKey} sortDir={sortDir} />
+                    </button>
+                  </th>
+                ))}
+                <th className="px-3 py-2 text-left font-medium">Flags</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={ENTRY_COLUMNS.length + 1} className="px-3 py-6 text-center text-muted-foreground">
+                    {allRows.length === 0 ? "No birds registered for this season" : "No birds match the search"}
+                  </td>
+                </tr>
+              ) : rows.map((r) => (
+                <tr key={r.id} className={r.attention ? "bg-red-50" : "hover:bg-muted/40 transition-colors"}>
+                  <td className="px-3 py-2 whitespace-nowrap">{r.breeder || "—"}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{r.band || "—"}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{r.rfid || "—"}</td>
+                  <td className="px-3 py-2">{r.color || "—"}</td>
+                  <td className="px-3 py-2">{r.sex || "—"}</td>
+                  <td className="px-3 py-2">
+                    {r.lost ? <Badge variant="destructive" className="text-[10px] px-1.5">Yes</Badge> : "No"}
+                  </td>
+                  <td className="px-3 py-2 font-medium">{r.loftBasket || "—"}</td>
+                  <td className="px-3 py-2">{yesNo(r.loftBasketed)}</td>
+                  <td className="px-3 py-2 font-medium">{r.raceBasket || "—"}</td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
+                    {formatBasketTime(r.raceAssignedAt) || "—"}
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex items-center gap-1">
+                      {r.attention && <Badge variant="destructive" className="text-[10px] px-1">!</Badge>}
+                      {r.note && <span className="text-[10px] text-muted-foreground truncate max-w-[80px]" title={r.note}>{r.note}</span>}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
+        {totals.map((t) => (
+          <span key={t.label}>
+            <span className="text-muted-foreground">{t.label}:</span>{" "}
+            <span className="font-semibold tabular-nums">{t.value}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PersistedBasketsView({
+  eventId,
+  raceId,
   baskets,
   isPending,
   phase,
@@ -1845,58 +2128,24 @@ function PersistedBasketsView({
   onMove,
   onEdit,
 }: {
+  eventId: string;
+  raceId: string;
   baskets: EventBasketItem[];
   isPending: boolean;
-  phase: string;
+  phase: "Loft" | "Race";
   onDelete?: (basket: EventBasketItem) => void;
   onMove?: (basket: EventBasketItem) => void;
   onEdit?: (basket: EventBasketItem) => void;
 }) {
   const [view, setView] = useState<"grouped" | "table">("grouped");
-  const [sortKey, setSortKey] = useState<SortKey>("assignedAt");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
-
-  const handleSort = (col: SortKey) => {
-    if (col === sortKey) setSortDir(d => d === "asc" ? "desc" : "asc");
-    else { setSortKey(col); setSortDir("asc"); }
-  };
-
-  if (isPending) return <Skeleton className="h-32 w-full" />;
-
-  if (baskets.length === 0) {
-    return (
-      <Card>
-        <CardContent className="py-8 text-center text-muted-foreground">
-          No {phase.toLowerCase()} baskets yet.
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const rows = flattenBaskets(baskets).sort((a, b) => {
-    const av = a[sortKey], bv = b[sortKey];
-    const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
-    return sortDir === "asc" ? cmp : -cmp;
-  });
-
-  const cols: { key: SortKey; label: string }[] = [
-    { key: "band", label: "Band" },
-    { key: "birdName", label: "Name" },
-    { key: "breeder", label: "Breeder" },
-    { key: "basket", label: "Basket" },
-    { key: "color", label: "Color" },
-    { key: "sex", label: "Sex" },
-    { key: "rfid", label: "RFID" },
-    { key: "assignedAt", label: "Basketed At" },
-  ];
 
   return (
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">
-            {phase} Baskets
-            <Badge variant="secondary" className="ml-2">{baskets.length}</Badge>
+            {view === "grouped" ? `${phase} Baskets` : "Entries"}
+            {view === "grouped" && <Badge variant="secondary" className="ml-2">{baskets.length}</Badge>}
           </CardTitle>
           <div className="flex items-center rounded-md border">
             <button
@@ -1909,59 +2158,30 @@ function PersistedBasketsView({
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-r-md transition-colors ${view === "table" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
               onClick={() => setView("table")}
             >
-              <Table2 className="h-3.5 w-3.5" />Table
+              <Table2 className="h-3.5 w-3.5" />Entries
             </button>
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        {view === "grouped" ? (
+        {view === "table" ? (
+          <EntriesTable
+            eventId={eventId}
+            raceId={raceId}
+            phase={phase === "Loft" ? "LOFT" : "RACE"}
+            baskets={baskets}
+          />
+        ) : isPending ? (
+          <Skeleton className="h-32 w-full" />
+        ) : baskets.length === 0 ? (
+          <div className="py-8 text-center text-muted-foreground">
+            No {phase.toLowerCase()} baskets yet.
+          </div>
+        ) : (
           <div className="space-y-2">
             {baskets.map((basket) => (
               <PersistedBasketCard key={basket.id} basket={basket} onDelete={onDelete} onMove={onMove} onEdit={onEdit} />
             ))}
-          </div>
-        ) : (
-          <div className="rounded-lg border overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted text-muted-foreground sticky top-0">
-                <tr>
-                  {cols.map(({ key, label }) => (
-                    <th key={key} className="px-3 py-2 text-left font-medium whitespace-nowrap">
-                      <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => handleSort(key)}>
-                        {label}
-                        <SortIcon col={key} sortKey={sortKey} sortDir={sortDir} />
-                      </button>
-                    </th>
-                  ))}
-                  <th className="px-3 py-2 text-left font-medium">Flags</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {rows.length === 0 ? (
-                  <tr><td colSpan={cols.length + 1} className="px-3 py-6 text-center text-muted-foreground">No birds assigned yet</td></tr>
-                ) : rows.map((r) => (
-                  <tr key={r.assignmentId} className={r.attention ? "bg-red-50" : "hover:bg-muted/40 transition-colors"}>
-                    <td className="px-3 py-2 font-mono text-xs">{r.band}</td>
-                    <td className="px-3 py-2">{r.birdName}</td>
-                    <td className="px-3 py-2">{r.breeder}</td>
-                    <td className="px-3 py-2 font-medium">{r.basket}</td>
-                    <td className="px-3 py-2">{r.color}</td>
-                    <td className="px-3 py-2">{r.sex}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{r.rfid}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
-                      {r.assignedAt ? new Date(r.assignedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—"}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-1">
-                        {r.attention && <Badge variant="destructive" className="text-[10px] px-1">!</Badge>}
-                        {r.note && <span className="text-[10px] text-muted-foreground truncate max-w-[80px]" title={r.note}>{r.note}</span>}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         )}
       </CardContent>

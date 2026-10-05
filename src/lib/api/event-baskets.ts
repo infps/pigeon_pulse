@@ -2,12 +2,23 @@ import { useApiQuery } from "@/hooks/useApi";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { apiEndpoints } from "../endpoints";
 
-export function useCheckinStatus(eventId: string | number, seasonId?: number | null) {
+export function useCheckinStatus(
+  eventId: string | number,
+  seasonId?: number | null,
+  raceId?: string | number | null
+) {
   const params: Record<string, string> = {};
   if (seasonId) params.seasonId = String(seasonId);
+  const hasRace = raceId !== undefined && raceId !== null && raceId !== "";
+  if (hasRace) params.raceId = String(raceId);
   return useApiQuery({
     endpoint: apiEndpoints.eventBaskets.checkinStatus(eventId),
-    queryKey: ["checkin-status", String(eventId), String(seasonId ?? "")],
+    queryKey: [
+      "checkin-status",
+      String(eventId),
+      String(seasonId ?? ""),
+      ...(hasRace ? [String(raceId)] : []),
+    ],
     params: Object.keys(params).length > 0 ? params : undefined,
     enabled: !!eventId,
   });
