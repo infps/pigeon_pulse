@@ -27,7 +27,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { AlertTriangle, ArrowRightLeft, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp, Ban, Download, Flag, LayoutList, Pencil, Plus, Printer, Radio, Scan, Search, Square, Table2, Trash2, Usb, Wand2, Wifi } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp, Ban, Download, Flag, LayoutList, Monitor, Pencil, Plus, Printer, Radio, Scan, Search, Square, Table2, Trash2, Usb, Wand2, Wifi } from "lucide-react";
 import { useWebSerial } from "@/hooks/useWebSerial";
 import { toast } from "sonner";
 import {
@@ -43,6 +43,7 @@ import {
 import { useListRaces } from "@/lib/api/races";
 import { useBird } from "@/lib/api/bird";
 import { apiEndpoints } from "@/lib/endpoints";
+import { useScanDisplay } from "@/lib/scan-display";
 import { BirdEditDialog } from "@/app/admin/birds/[birdId]/bird-edit-dialog";
 import type { Bird, CheckinStatusItem, EventBasketItem, Race } from "@/lib/types";
 import {
@@ -1124,6 +1125,7 @@ function RaceBasketPanel({ eventId }: { eventId: string }) {
         <PrescanDialog
           eventId={eventId}
           raceId={selectedRaceId}
+          raceName={races.find((r) => String(r.id) === selectedRaceId)?.name ?? null}
           onClose={() => setPrescanOpen(false)}
         />
       )}
@@ -1144,9 +1146,10 @@ type PrescanRow = {
   raceItemId?: number;
 };
 
-function PrescanDialog({ eventId, raceId, onClose }: { eventId: string; raceId: string; onClose: () => void }) {
+function PrescanDialog({ eventId, raceId, raceName, onClose }: { eventId: string; raceId: string; raceName: string | null; onClose: () => void }) {
   const [rows, setRows] = useState<PrescanRow[]>([]);
   const [isPollActive, setIsPollActive] = useState(false);
+  const display = useScanDisplay(eventId, "Race basket prescan", raceName, isPollActive);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastScannedRef = useRef<string | null>(null);
   const pollStartedAtRef = useRef<string | null>(null);
@@ -1181,13 +1184,25 @@ function PrescanDialog({ eventId, raceId, onClose }: { eventId: string; raceId: 
       return [...prev, newRow];
     });
 
+    display.publish({
+      rfid,
+      status: data.status === "scanned" ? "ok" : data.status === "already_scanned" ? "duplicate" : "foreign",
+      band: data.bird?.band ?? null,
+      birdName: data.bird?.birdName ?? null,
+      basket: data.basketLabel ?? null,
+      attention: !!data.bird?.attention,
+      stray: data.bird?.isLost === 1,
+      note: data.bird?.note ?? null,
+    });
+
     if (data.status === "already_scanned") toast.info(`Already basketed: ${newRow.birdName ?? rfid}`);
     else if (data.status === "foreign") toast.warning(`Foreign bird: ${rfid}`);
     else toast.success(`Scanned: ${newRow.birdName ?? rfid} → ${newRow.basketLabel}`);
-  }, [eventId, raceId]);
+  }, [eventId, raceId, display]);
 
   const startPoll = useCallback(() => {
     setIsPollActive(true);
+    display.open();
     lastScannedRef.current = null;
     pollStartedAtRef.current = new Date().toISOString();
     toast.success("Prescan scanner started");
@@ -1205,7 +1220,7 @@ function PrescanDialog({ eventId, raceId, onClose }: { eventId: string; raceId: 
         }
       } catch { /* silent */ }
     }, 2000);
-  }, [doScan]);
+  }, [doScan, display]);
 
   const stopPoll = useCallback(() => {
     if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
@@ -1261,6 +1276,9 @@ function PrescanDialog({ eventId, raceId, onClose }: { eventId: string; raceId: 
           <DialogTitle className="flex items-center justify-between pr-6">
             <span>Prescan — Race Basket</span>
             <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={display.open}>
+                <Monitor className="h-4 w-4" />Display
+              </Button>
               {isPollActive ? (
                 <Button size="sm" className="gap-1.5 bg-red-600 hover:bg-red-700" onClick={stopPoll}>
                   <Square className="h-4 w-4" />Stop Scanner
@@ -1359,6 +1377,7 @@ function BirdPrescanPanel({ eventId }: { eventId: string }) {
 
   const [entries, setEntries] = useState<PrescanEntry[]>([]);
   const [isPollActive, setIsPollActive] = useState(false);
+  const display = useScanDisplay(eventId, "Bird prescan", null, isPollActive);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pollStartedAtRef = useRef<string | null>(null);
   const lastScannedRef = useRef<string | null>(null);
@@ -1389,12 +1408,25 @@ function BirdPrescanPanel({ eventId }: { eventId: string }) {
       return [entry, ...prev];
     });
 
+    display.publish({
+      rfid,
+      status: display.find(rfid) ? "duplicate" : !item ? "foreign" : item.isLoftBasketed ? "ok" : "unplaced",
+      band: item?.bird?.band ?? null,
+      birdName: item?.bird?.birdName ?? null,
+      breeder: entry.breederName,
+      basket: item?.loftBasketLabel ?? null,
+      attention: !!item?.bird?.attention,
+      stray: !!item?.isLost,
+      note: item?.bird?.note ?? null,
+    });
+
     if (entry.unknown) toast.warning(`Unknown RFID: ${rfid}`);
     else toast.success(`${entry.birdName ?? rfid} — ${entry.breederName ?? "?"}`);
-  }, [rfidMap]);
+  }, [rfidMap, display]);
 
   const startPoll = useCallback(() => {
     setIsPollActive(true);
+    display.open();
     lastScannedRef.current = null;
     pollStartedAtRef.current = new Date().toISOString();
     toast.success("Prescan scanner started");
@@ -1411,7 +1443,7 @@ function BirdPrescanPanel({ eventId }: { eventId: string }) {
         }
       } catch { /* silent */ }
     }, 2000);
-  }, [handleScan]);
+  }, [handleScan, display]);
 
   const stopPoll = useCallback(() => {
     if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
@@ -1438,6 +1470,9 @@ function BirdPrescanPanel({ eventId }: { eventId: string }) {
                 Clear
               </Button>
             )}
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={display.open}>
+              <Monitor className="h-4 w-4" />Display
+            </Button>
             {isPollActive ? (
               <Button size="sm" className="gap-1.5 bg-red-600 hover:bg-red-700" onClick={stopPoll}>
                 <Square className="h-4 w-4" />Stop Scanner
@@ -1541,6 +1576,7 @@ function LoftScanDialog({
   const [isPollActive, setIsPollActive] = useState(false);
   const [foreignCount, setForeignCount] = useState(0);
   const [ignoredCount, setIgnoredCount] = useState(0);
+  const display = useScanDisplay(eventId, "Loft basketing", null, isPollActive);
   const scannedRfidsRef = useRef<Set<string>>(new Set());
   type Bird = { band?: string | null; birdName?: string | null; rfid?: string | null; color?: string | null; sex?: number | null; attention?: boolean | null; note?: string | null };
   type Breeder = { firstName?: string | null; lastName?: string | null };
@@ -1563,6 +1599,8 @@ function LoftScanDialog({
     // Already looked up this tag this session → ignore duplicate.
     if (scannedRfidsRef.current.has(rfid)) {
       setIgnoredCount((c) => c + 1);
+      const prev = display.find(rfid);
+      display.publish({ ...prev, rfid, status: "duplicate" });
       toast.info(`Already scanned: ${rfid}`);
       return;
     }
@@ -1578,11 +1616,24 @@ function LoftScanDialog({
       if (d?.status === "foreign") {
         setLastScan({ status: "foreign", rfid });
         setForeignCount((c) => c + 1);
+        display.publish({ rfid, status: "foreign" });
         toast.warning(`Foreign bird: ${rfid}`);
         return;
       }
 
+      const shown = {
+        rfid,
+        band: d.bird?.band ?? null,
+        birdName: d.bird?.birdName ?? null,
+        breeder: breederName(d.breeder),
+        loftName: d.loftName ?? null,
+        attention: !!d.bird?.attention,
+        stray: d.bird?.isLost === 1,
+        note: d.bird?.note ?? null,
+      };
+
       if (d?.status === "unassigned") {
+        display.publish({ ...shown, status: "unplaced" });
         setLastScan({ status: "unassigned", bird: d.bird, breeder: d.breeder, loftName: d.loftName });
         toast.warning(`${d.bird?.birdName || d.bird?.band || rfid} — not in a basket yet`);
         return;
@@ -1590,6 +1641,7 @@ function LoftScanDialog({
 
       // placed
       scannedRfidsRef.current.add(rfid);
+      display.publish({ ...shown, status: "ok", basket: d.basket?.label ?? null, basketCapacity: d.basket?.capacity ?? null });
       setLastScan({ status: "placed", bird: d.bird, breeder: d.breeder, loftName: d.loftName, basket: d.basket });
       setScannedLog((prev) => [{
         band: d.bird?.band ?? null,
@@ -1604,12 +1656,13 @@ function LoftScanDialog({
       toast.error("Scan lookup failed");
       lastScannedRef.current = null;
     }
-  }, [eventId]);
+  }, [eventId, display]);
 
   const startPoll = useCallback(() => {
     setIsPollActive(true);
     lastScannedRef.current = null;
     pollStartedAtRef.current = new Date().toISOString();
+    display.open();
     toast.success("Scanner started — scan bird RFID tags");
     pollIntervalRef.current = setInterval(async () => {
       try {
@@ -1624,7 +1677,7 @@ function LoftScanDialog({
         }
       } catch { /* silent */ }
     }, 2000);
-  }, [handleScan]);
+  }, [handleScan, display]);
 
   const stopPoll = useCallback(() => {
     if (pollIntervalRef.current) { clearInterval(pollIntervalRef.current); pollIntervalRef.current = null; }
@@ -1649,6 +1702,9 @@ function LoftScanDialog({
           <DialogTitle className="flex items-center justify-between pr-6">
             <span>Scan to Place — Loft</span>
             <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={display.open}>
+                <Monitor className="h-4 w-4" />Display
+              </Button>
               {isPollActive ? (
                 <Button size="sm" className="gap-1.5 bg-red-600 hover:bg-red-700" onClick={stopPoll}>
                   <Square className="h-4 w-4" />Stop Scanner

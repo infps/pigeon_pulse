@@ -70,7 +70,7 @@ export async function POST(
     // Find bird by RFID
     const bird = await prisma.bird.findFirst({
       where: { rfid: rfid.trim() },
-      select: { id: true, birdName: true, band: true, rfid: true, attention: true },
+      select: { id: true, birdName: true, band: true, rfid: true, attention: true, note: true, isLost: true },
     });
 
     if (!bird) {

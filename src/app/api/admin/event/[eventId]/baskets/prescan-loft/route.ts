@@ -44,7 +44,7 @@ export async function POST(
     const item = await prisma.eventInventoryItem.findFirst({
       where: { bird: { rfid: tag }, eventInventory: { seasonId } },
       include: {
-        bird: { select: { band: true, birdName: true, rfid: true, color: true, sex: true, attention: true, note: true } },
+        bird: { select: { band: true, birdName: true, rfid: true, color: true, sex: true, attention: true, note: true, isLost: true } },
         eventInventory: {
           include: {
             breeder: { select: { firstName: true, lastName: true } },
