@@ -506,6 +506,8 @@ export interface CheckinStatusItem {
   raceAssignedAt?: string | null;
   isRaceBasketed?: boolean;
   isLost?: boolean;
+  // Excluded from the requested race's results (RaceIgnoreBird). raceId only.
+  isIgnored?: boolean;
 }
 
 export interface CheckinSummary {

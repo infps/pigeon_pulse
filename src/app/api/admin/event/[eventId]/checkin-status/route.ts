@@ -76,6 +76,7 @@ export async function GET(
           orderBy: { assignedAt: "desc" },
           ...(raceId == null ? { take: 1 } : {}),
         },
+        ...(raceId != null && { ignoreBirds: { where: { raceId }, select: { id: true } } }),
       },
     });
 
@@ -104,6 +105,7 @@ export async function GET(
         raceAssignedAt: raceAssignment?.assignedAt ?? null,
         isRaceBasketed: !!raceAssignment,
         isLost: item.bird?.isLost === 1,
+        isIgnored: "ignoreBirds" in item && item.ignoreBirds.length > 0,
       };
     });
 

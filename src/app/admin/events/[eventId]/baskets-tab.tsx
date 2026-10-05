@@ -27,7 +27,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { AlertTriangle, ArrowRightLeft, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp, Download, LayoutList, Pencil, Plus, Printer, Radio, Scan, Search, Square, Table2, Trash2, Usb, Wand2, Wifi } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, ChevronDown, ChevronRight, ChevronsUpDown, ChevronUp, Ban, Download, Flag, LayoutList, Pencil, Plus, Printer, Radio, Scan, Search, Square, Table2, Trash2, Usb, Wand2, Wifi } from "lucide-react";
 import { useWebSerial } from "@/hooks/useWebSerial";
 import { toast } from "sonner";
 import {
@@ -41,7 +41,10 @@ import {
   useCheckinStatus,
 } from "@/lib/api/event-baskets";
 import { useListRaces } from "@/lib/api/races";
-import type { CheckinStatusItem, EventBasketItem, Race } from "@/lib/types";
+import { useBird } from "@/lib/api/bird";
+import { apiEndpoints } from "@/lib/endpoints";
+import { BirdEditDialog } from "@/app/admin/birds/[birdId]/bird-edit-dialog";
+import type { Bird, CheckinStatusItem, EventBasketItem, Race } from "@/lib/types";
 import {
   Select,
   SelectContent,
@@ -1827,6 +1830,8 @@ type SortDir = "asc" | "desc";
 
 type EntryRow = {
   id: number;
+  birdId: number | null;
+  ignored: boolean;
   breeder: string;
   band: string;
   rfid: string;
@@ -1862,6 +1867,8 @@ const formatBasketTime = (iso: string) =>
 function toEntryRows(items: CheckinStatusItem[]): EntryRow[] {
   return items.map((item) => ({
     id: item.id,
+    birdId: item.bird?.id ?? null,
+    ignored: item.isIgnored ?? false,
     breeder: [item.breeder?.lastName?.toUpperCase(), item.breeder?.firstName]
       .filter(Boolean)
       .join(", "),
@@ -1923,6 +1930,41 @@ function EntriesTable({
   const [sortKey, setSortKey] = useState<SortKey>("breeder");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [printing, setPrinting] = useState(false);
+  const [editBirdId, setEditBirdId] = useState<number | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  const runAction = async (row: EntryRow, url: string, init: RequestInit, okMsg: string) => {
+    setBusyId(row.id);
+    try {
+      const res = await fetch(url, { headers: { "Content-Type": "application/json" }, ...init });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.message || "Request failed");
+      toast.success(body.message || okMsg);
+      refetch();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Request failed");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const toggleMark = (row: EntryRow) =>
+    row.birdId &&
+    runAction(
+      row,
+      apiEndpoints.admin.birds.birdById(row.birdId),
+      { method: "PATCH", body: JSON.stringify({ attention: !row.attention }) },
+      row.attention ? "Mark cleared" : "Bird marked"
+    );
+
+  const toggleIgnore = (row: EntryRow) =>
+    raceId &&
+    runAction(
+      row,
+      row.ignored ? apiEndpoints.races.ignoreBird(raceId, row.id) : apiEndpoints.races.ignoreBirds(raceId),
+      row.ignored ? { method: "DELETE" } : { method: "POST", body: JSON.stringify({ inventoryItemId: row.id }) },
+      row.ignored ? "Bird re-included" : "Bird ignored"
+    );
 
   // Queries never go stale on their own and basket mutations only invalidate
   // the basket queries, so refresh on mount and whenever the baskets change.
@@ -1976,7 +2018,7 @@ function EntriesTable({
       [...ENTRY_COLUMNS.map((c) => c.label), "Flags"],
       ...rows.map((r) => [
         ...ENTRY_COLUMNS.map((c) => entryCell(r, c.key)),
-        [r.attention ? "Attention" : "", r.note].filter(Boolean).join(" - "),
+        [r.attention ? "Marked" : "", r.ignored ? "Ignored" : "", r.note].filter(Boolean).join(" - "),
       ]),
     ];
     const csv = lines.map((l) => l.map(escape).join(",")).join("\r\n");
@@ -2068,17 +2110,18 @@ function EntriesTable({
                   </th>
                 ))}
                 <th className="px-3 py-2 text-left font-medium">Flags</th>
+                <th className="px-3 py-2 print:hidden" />
               </tr>
             </thead>
             <tbody className="divide-y">
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={ENTRY_COLUMNS.length + 1} className="px-3 py-6 text-center text-muted-foreground">
+                  <td colSpan={ENTRY_COLUMNS.length + 2} className="px-3 py-6 text-center text-muted-foreground">
                     {allRows.length === 0 ? "No birds registered for this season" : "No birds match the search"}
                   </td>
                 </tr>
               ) : rows.map((r) => (
-                <tr key={r.id} className={r.attention ? "bg-red-50" : "hover:bg-muted/40 transition-colors"}>
+                <tr key={r.id} className={`${r.attention ? "bg-red-50" : "hover:bg-muted/40 transition-colors"} ${r.ignored ? "opacity-50" : ""}`}>
                   <td className="px-3 py-2 whitespace-nowrap">{r.breeder || "—"}</td>
                   <td className="px-3 py-2 font-mono text-xs">{r.band || "—"}</td>
                   <td className="px-3 py-2 font-mono text-xs">{r.rfid || "—"}</td>
@@ -2096,7 +2139,25 @@ function EntriesTable({
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1">
                       {r.attention && <Badge variant="destructive" className="text-[10px] px-1">!</Badge>}
+                      {r.ignored && <Badge variant="outline" className="text-[10px] px-1">Ignored</Badge>}
                       {r.note && <span className="text-[10px] text-muted-foreground truncate max-w-[80px]" title={r.note}>{r.note}</span>}
+                    </div>
+                  </td>
+                  <td className="px-2 py-1 print:hidden">
+                    <div className="flex items-center gap-0.5">
+                      <Button size="icon" variant="ghost" className="h-7 w-7" title="Edit bird"
+                        disabled={!r.birdId} onClick={() => setEditBirdId(r.birdId)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" title={r.attention ? "Clear mark" : "Mark bird"}
+                        disabled={!r.birdId || busyId === r.id} onClick={() => toggleMark(r)}>
+                        <Flag className={`h-3.5 w-3.5 ${r.attention ? "fill-red-500 text-red-500" : ""}`} />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7"
+                        title={!raceId ? "Select a race to ignore birds" : r.ignored ? "Re-include in race" : "Ignore bird for this race"}
+                        disabled={!raceId || busyId === r.id} onClick={() => toggleIgnore(r)}>
+                        <Ban className={`h-3.5 w-3.5 ${r.ignored ? "text-destructive" : ""}`} />
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -2114,7 +2175,31 @@ function EntriesTable({
           </span>
         ))}
       </div>
+
+      {editBirdId != null && (
+        <EntryBirdEditor
+          birdId={editBirdId}
+          onClose={() => setEditBirdId(null)}
+          onSaved={refetch}
+        />
+      )}
     </div>
+  );
+}
+
+/** Loads the full bird, then reuses the bird page's edit dialog. */
+function EntryBirdEditor({ birdId, onClose, onSaved }: { birdId: number; onClose: () => void; onSaved: () => void }) {
+  const { data } = useBird(birdId, "ADMIN");
+  const bird = (data as { bird?: Bird } | undefined)?.bird;
+  if (!bird) return null;
+  return (
+    <BirdEditDialog
+      key={bird.id}
+      bird={bird}
+      open
+      onOpenChange={(open) => { if (!open) onClose(); }}
+      onSaved={() => { onSaved(); onClose(); }}
+    />
   );
 }
 
