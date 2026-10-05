@@ -1846,12 +1846,12 @@ const ENTRY_COLUMNS: { key: SortKey; label: string }[] = [
   { key: "band", label: "Band" },
   { key: "rfid", label: "EID" },
   { key: "color", label: "Color" },
-  { key: "sex", label: "Sex" },
   { key: "lost", label: "Lost" },
   { key: "loftBasket", label: "Loft basket" },
   { key: "loftBasketed", label: "Loft basketed" },
   { key: "raceBasket", label: "Race basket" },
   { key: "raceAssignedAt", label: "Race basket time" },
+  { key: "sex", label: "Sex" },
 ];
 
 const yesNo = (v: boolean) => (v ? "Yes" : "No");
@@ -1989,9 +1989,9 @@ function EntriesTable({
   };
 
   const totals: { label: string; value: number }[] = [
-    { label: "Total birds", value: allRows.length },
-    { label: "Loft basketed", value: allRows.filter((r) => r.loftBasketed).length },
     { label: "Race basketed", value: allRows.filter((r) => r.raceBasket !== "").length },
+    { label: "Loft basketed", value: allRows.filter((r) => r.loftBasketed).length },
+    { label: "Total birds", value: allRows.length },
   ];
   if (phase && baskets) {
     totals.push(
@@ -2083,7 +2083,6 @@ function EntriesTable({
                   <td className="px-3 py-2 font-mono text-xs">{r.band || "—"}</td>
                   <td className="px-3 py-2 font-mono text-xs">{r.rfid || "—"}</td>
                   <td className="px-3 py-2">{r.color || "—"}</td>
-                  <td className="px-3 py-2">{r.sex || "—"}</td>
                   <td className="px-3 py-2">
                     {r.lost ? <Badge variant="destructive" className="text-[10px] px-1.5">Yes</Badge> : "No"}
                   </td>
@@ -2093,6 +2092,7 @@ function EntriesTable({
                   <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
                     {formatBasketTime(r.raceAssignedAt) || "—"}
                   </td>
+                  <td className="px-3 py-2">{r.sex || "—"}</td>
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1">
                       {r.attention && <Badge variant="destructive" className="text-[10px] px-1">!</Badge>}
@@ -2137,7 +2137,7 @@ function PersistedBasketsView({
   onMove?: (basket: EventBasketItem) => void;
   onEdit?: (basket: EventBasketItem) => void;
 }) {
-  const [view, setView] = useState<"grouped" | "table">("grouped");
+  const [view, setView] = useState<"grouped" | "table">("table");
 
   return (
     <Card>
@@ -2165,12 +2165,39 @@ function PersistedBasketsView({
       </CardHeader>
       <CardContent>
         {view === "table" ? (
-          <EntriesTable
-            eventId={eventId}
-            raceId={raceId}
-            phase={phase === "Loft" ? "LOFT" : "RACE"}
-            baskets={baskets}
-          />
+          <div className="grid gap-4 lg:grid-cols-[1fr_16rem]">
+            <EntriesTable
+              eventId={eventId}
+              raceId={raceId}
+              phase={phase === "Loft" ? "LOFT" : "RACE"}
+              baskets={baskets}
+            />
+            <div className="rounded-lg border overflow-auto max-h-[36rem] self-start print:hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted text-muted-foreground sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium">{phase} basket</th>
+                    <th className="px-3 py-2 text-right font-medium">Capacity</th>
+                    <th className="px-3 py-2 text-right font-medium">Occupied</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {baskets.length === 0 ? (
+                    <tr><td colSpan={3} className="px-3 py-6 text-center text-muted-foreground">No {phase.toLowerCase()} baskets yet</td></tr>
+                  ) : baskets.map((b) => {
+                    const occupied = b._count?.assignments ?? b.assignments?.length ?? 0;
+                    return (
+                      <tr key={b.id} className={occupied > b.capacity ? "bg-red-50" : undefined}>
+                        <td className="px-3 py-1.5 font-medium">{b.label ?? `#${b.basketNo}`}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{b.capacity}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{occupied}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         ) : isPending ? (
           <Skeleton className="h-32 w-full" />
         ) : baskets.length === 0 ? (
