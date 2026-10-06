@@ -41,6 +41,7 @@ import {
   useCheckinStatus,
 } from "@/lib/api/event-baskets";
 import { useListRaces } from "@/lib/api/races";
+import { useListRaceItems } from "@/lib/api/race-items";
 import { useBird } from "@/lib/api/bird";
 import { apiEndpoints } from "@/lib/endpoints";
 import { useScanDisplay } from "@/lib/scan-display";
@@ -621,6 +622,7 @@ function LoftBasketPanel({ eventId }: { eventId: string }) {
         <LoftScanDialog
           eventId={eventId}
           seasonId={selectedSeasonId}
+          race={races.find((r) => String(r.id) === selectedRaceId) ?? null}
           onClose={() => { setScanDialogOpen(false); refetch(); }}
         />
       )}
@@ -1149,7 +1151,17 @@ type PrescanRow = {
 function PrescanDialog({ eventId, raceId, raceName, onClose }: { eventId: string; raceId: string; raceName: string | null; onClose: () => void }) {
   const [rows, setRows] = useState<PrescanRow[]>([]);
   const [isPollActive, setIsPollActive] = useState(false);
-  const display = useScanDisplay(eventId, "Race basket prescan", raceName, isPollActive);
+  const { selectedSeasonId } = useSeasonContext();
+  const { data: raceItemsData } = useListRaceItems({ params: { raceId } });
+  const raceBirdCount = (raceItemsData as { raceItems?: unknown[] } | undefined)?.raceItems?.length ?? null;
+  const display = useScanDisplay(eventId, {
+    phase: "Race basket prescan",
+    raceName,
+    raceId: Number(raceId) || null,
+    seasonId: selectedSeasonId ?? null,
+    running: isPollActive,
+    remaining: raceBirdCount == null ? null : Math.max(0, raceBirdCount - rows.filter((r) => r.status !== "foreign").length),
+  });
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastScannedRef = useRef<string | null>(null);
   const pollStartedAtRef = useRef<string | null>(null);
@@ -1186,6 +1198,7 @@ function PrescanDialog({ eventId, raceId, raceName, onClose }: { eventId: string
 
     display.publish({
       rfid,
+      birdId: data.bird?.id ?? null,
       status: data.status === "scanned" ? "ok" : data.status === "already_scanned" ? "duplicate" : "foreign",
       band: data.bird?.band ?? null,
       birdName: data.bird?.birdName ?? null,
@@ -1377,7 +1390,14 @@ function BirdPrescanPanel({ eventId }: { eventId: string }) {
 
   const [entries, setEntries] = useState<PrescanEntry[]>([]);
   const [isPollActive, setIsPollActive] = useState(false);
-  const display = useScanDisplay(eventId, "Bird prescan", null, isPollActive);
+  const display = useScanDisplay(eventId, {
+    phase: "Bird prescan",
+    raceName: races.find((r) => String(r.id) === selectedRaceId)?.name ?? null,
+    raceId: Number(selectedRaceId) || null,
+    seasonId: selectedSeasonId ?? null,
+    running: isPollActive,
+    remaining: data?.items ? Math.max(0, data.items.length - entries.filter((e) => !e.unknown).length) : null,
+  });
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pollStartedAtRef = useRef<string | null>(null);
   const lastScannedRef = useRef<string | null>(null);
@@ -1410,6 +1430,7 @@ function BirdPrescanPanel({ eventId }: { eventId: string }) {
 
     display.publish({
       rfid,
+      birdId: item?.bird?.id ?? null,
       status: display.find(rfid) ? "duplicate" : !item ? "foreign" : item.isLoftBasketed ? "ok" : "unplaced",
       band: item?.bird?.band ?? null,
       birdName: item?.bird?.birdName ?? null,
@@ -1560,10 +1581,12 @@ type LoftScanRow = {
 function LoftScanDialog({
   eventId,
   seasonId,
+  race,
   onClose,
 }: {
   eventId: string;
   seasonId?: number | null;
+  race: Race | null;
   onClose: () => void;
 }) {
   const { data } = useCheckinStatus(eventId, seasonId);
@@ -1576,7 +1599,14 @@ function LoftScanDialog({
   const [isPollActive, setIsPollActive] = useState(false);
   const [foreignCount, setForeignCount] = useState(0);
   const [ignoredCount, setIgnoredCount] = useState(0);
-  const display = useScanDisplay(eventId, "Loft basketing", null, isPollActive);
+  const display = useScanDisplay(eventId, {
+    phase: "Loft basketing",
+    raceName: race?.name ?? null,
+    raceId: race?.id ?? null,
+    seasonId: seasonId ?? null,
+    running: isPollActive,
+    remaining: data?.items ? Math.max(0, basketedTotal - scannedLog.length) : null,
+  });
   const scannedRfidsRef = useRef<Set<string>>(new Set());
   type Bird = { band?: string | null; birdName?: string | null; rfid?: string | null; color?: string | null; sex?: number | null; attention?: boolean | null; note?: string | null };
   type Breeder = { firstName?: string | null; lastName?: string | null };
@@ -1623,6 +1653,7 @@ function LoftScanDialog({
 
       const shown = {
         rfid,
+        birdId: d.bird?.id ?? null,
         band: d.bird?.band ?? null,
         birdName: d.bird?.birdName ?? null,
         breeder: breederName(d.breeder),

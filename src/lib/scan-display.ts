@@ -17,6 +17,8 @@ export type DisplayScan = {
   at: string;
   rfid: string;
   status: ScanStatus;
+  /** Lets the display look up past positions and averages. */
+  birdId?: number | null;
   band?: string | null;
   birdName?: string | null;
   breeder?: string | null;
@@ -29,7 +31,16 @@ export type DisplayScan = {
   note?: string | null;
 };
 
-export type ScanSession = { phase: string; raceName: string | null; running: boolean };
+export type ScanSession = {
+  phase: string;
+  raceName: string | null;
+  /** Race being basketed for; the display picks the previous hot spot from it. */
+  raceId: number | null;
+  seasonId: number | null;
+  running: boolean;
+  /** Birds this scanner still expects to see; null when unknown. */
+  remaining: number | null;
+};
 
 export type ScanMessage =
   | { type: "hello" }
@@ -60,10 +71,11 @@ export const SCAN_CATEGORY_STYLE: Record<ScanCategory, { label: string; solid: s
 
 export const scanChannelName = (eventId: string | number) => `scan-display:${eventId}`;
 
-export function useScanDisplay(eventId: string, phase: string, raceName: string | null, running: boolean) {
+export function useScanDisplay(eventId: string, session: ScanSession) {
   const chanRef = useRef<BroadcastChannel | null>(null);
   const scansRef = useRef<DisplayScan[]>([]);
-  const sessionRef = useRef<ScanSession>({ phase, raceName, running });
+  const sessionRef = useRef<ScanSession>(session);
+  const sessionKey = JSON.stringify(session);
 
   useEffect(() => {
     const ch = new BroadcastChannel(scanChannelName(eventId));
@@ -77,9 +89,9 @@ export function useScanDisplay(eventId: string, phase: string, raceName: string 
   }, [eventId]);
 
   useEffect(() => {
-    sessionRef.current = { phase, raceName, running };
+    sessionRef.current = JSON.parse(sessionKey);
     chanRef.current?.postMessage({ type: "session", session: sessionRef.current } satisfies ScanMessage);
-  }, [phase, raceName, running]);
+  }, [sessionKey]);
 
   const publish = useCallback((scan: Omit<DisplayScan, "id" | "at">) => {
     const full: DisplayScan = { ...scan, id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, at: new Date().toISOString() };

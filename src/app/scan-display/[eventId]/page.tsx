@@ -10,9 +10,28 @@ import {
   type ScanMessage,
   type ScanSession,
 } from "@/lib/scan-display";
+import { useApiQuery } from "@/hooks/useApi";
+import { apiEndpoints } from "@/lib/endpoints";
+import { useListRaces } from "@/lib/api/races";
+import { useAverageResults, useListAverageConfigs } from "@/lib/api/averages";
+import type { Race } from "@/lib/types";
 
 const FONT_SIZES = [16, 24, 32, 48] as const;
 const FONT_KEY = "scan-display-font";
+const AUTO = "auto";
+
+/** Basketing for hot spot N → hot spot N-1; otherwise the latest race already flown. */
+function autoReferenceRace(races: Race[], currentRaceId: number | null): Race | undefined {
+  const current = races.find((r) => r.id === currentRaceId);
+  const hs = current?.raceType?.prizeRole?.match(/^HOTSPOT_(\d)$/);
+  if (hs && Number(hs[1]) > 1) {
+    const prev = races.find((r) => r.raceType?.prizeRole === `HOTSPOT_${Number(hs[1]) - 1}`);
+    if (prev) return prev;
+  }
+  return races
+    .filter((r) => r.id !== currentRaceId && r.status !== "REGISTERING")
+    .sort((a, b) => (b.startTime ?? "").localeCompare(a.startTime ?? ""))[0];
+}
 
 /**
  * Popup opened by the basket scanners. Holds no data of its own: everything
@@ -23,6 +42,11 @@ export default function ScanDisplayPage({ params }: { params: Promise<{ eventId:
   const [session, setSession] = useState<ScanSession | null>(null);
   const [scans, setScans] = useState<DisplayScan[]>([]);
   const [fontSize, setFontSize] = useState<number>(32);
+  // Reference race for the "position" line ("auto" or a race id) and the average shown ("" = off).
+  const [refChoice, setRefChoice] = useState<string>(AUTO);
+  const [avgChoice, setAvgChoice] = useState<string>("");
+  const refKey = `scan-display-ref:${eventId}`;
+  const avgKey = `scan-display-avg:${eventId}`;
 
   // Read after mount so the server render matches; localStorage is per-viewer.
   useEffect(() => {
@@ -30,8 +54,15 @@ export default function ScanDisplayPage({ params }: { params: Promise<{ eventId:
       const saved = Number(localStorage.getItem(FONT_KEY));
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydrate from storage
       if (FONT_SIZES.includes(saved as (typeof FONT_SIZES)[number])) setFontSize(saved);
+      setRefChoice(localStorage.getItem(refKey) || AUTO);
+      setAvgChoice(localStorage.getItem(avgKey) || "");
     } catch { /* storage unavailable */ }
-  }, []);
+  }, [refKey, avgKey]);
+
+  const remember = (key: string, value: string, set: (v: string) => void) => {
+    set(value);
+    try { localStorage.setItem(key, value); } catch { /* ignore */ }
+  };
 
   const pickFont = (size: number) => {
     setFontSize(size);
@@ -79,7 +110,47 @@ export default function ScanDisplayPage({ params }: { params: Promise<{ eventId:
   const last = scans[0];
   const lastCat = last ? scanCategory(last) : null;
 
-  const tiles: { label: string; value: number; cls: string }[] = [
+  // ---- Position in a previous race + average ranking (fetched with the admin's session)
+  const seasonId = session?.seasonId ?? null;
+  const { data: racesData } = useListRaces({ params: { eventId } });
+  const races = useMemo(() => (racesData as { races?: Race[] } | undefined)?.races ?? [], [racesData]);
+  const refRace =
+    refChoice === AUTO
+      ? autoReferenceRace(races, session?.raceId ?? null)
+      : races.find((r) => String(r.id) === refChoice);
+  const { data: refItemsData } = useApiQuery({
+    endpoint: apiEndpoints.raceItems.base,
+    queryKey: ["raceItems", "list", `raceId-${refRace?.id ?? ""}`],
+    params: refRace ? { raceId: String(refRace.id) } : undefined,
+    enabled: !!refRace,
+  });
+  const positionByBird = useMemo(() => {
+    const m = new Map<number, number>();
+    type Item = { bird?: { id?: number }; birdPosition?: number | null };
+    for (const i of ((refItemsData as { raceItems?: Item[] } | undefined)?.raceItems ?? [])) {
+      if (i.bird?.id && i.birdPosition) m.set(i.bird.id, i.birdPosition);
+    }
+    return m;
+  }, [refItemsData]);
+
+  const { data: avgConfigsData } = useListAverageConfigs(eventId, seasonId);
+  const avgConfigs = (Array.isArray(avgConfigsData) ? avgConfigsData : []) as { id: number; name: string }[];
+  const avgConfig = avgConfigs.find((c) => String(c.id) === avgChoice);
+  const { data: avgData } = useAverageResults(eventId, avgConfig ? avgConfig.id : null, seasonId);
+  const averageByBird = useMemo(() => {
+    const m = new Map<number, { rank: number | null; speed: number | null }>();
+    type Row = { birdId: number; rank: number | null; avgSpeedYPM: number | null };
+    for (const r of ((avgData as { results?: Row[] } | undefined)?.results ?? [])) {
+      m.set(r.birdId, { rank: r.rank, speed: r.avgSpeedYPM });
+    }
+    return m;
+  }, [avgData]);
+
+  const lastPosition = last?.birdId ? positionByBird.get(last.birdId) : undefined;
+  const lastAverage = last?.birdId ? averageByBird.get(last.birdId) : undefined;
+
+  const tiles: { label: string; value: number | string; cls: string }[] = [
+    { label: "Yet to scan", value: session?.remaining ?? "—", cls: "bg-white text-slate-950" },
     { label: "Scanned", value: stats.scanned, cls: "bg-slate-800 text-white" },
     { label: "Basketed", value: stats.basketed, cls: SCAN_CATEGORY_STYLE.ok.solid },
     { label: "Pay attention", value: stats.attention, cls: SCAN_CATEGORY_STYLE.attention.solid },
@@ -102,8 +173,40 @@ export default function ScanDisplayPage({ params }: { params: Promise<{ eventId:
             {session?.phase ?? "Waiting for scanner…"}
             {session?.raceName && <span className="ml-3 text-slate-400">· {session.raceName}</span>}
           </h1>
-          <div className="ml-auto flex items-center gap-2">
-            <span className="text-lg text-slate-400">Text size</span>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 text-lg text-slate-400">
+              Position from
+              <select
+                value={refChoice}
+                onChange={(e) => remember(refKey, e.target.value, setRefChoice)}
+                className="rounded-md border border-slate-600 bg-slate-900 px-2 py-1.5 text-lg text-slate-100"
+              >
+                <option value={AUTO}>Auto{refChoice === AUTO && refRace ? ` (${refRace.name ?? `Race ${refRace.id}`})` : ""}</option>
+                {races.filter((r) => r.id !== session?.raceId).map((r) => (
+                  <option key={r.id} value={String(r.id)}>{r.name ?? `Race ${r.id}`}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-lg text-slate-400">
+              <input
+                type="checkbox"
+                className="h-5 w-5"
+                checked={!!avgChoice}
+                disabled={avgConfigs.length === 0}
+                onChange={(e) => remember(avgKey, e.target.checked ? String(avgConfigs[0]?.id ?? "") : "", setAvgChoice)}
+              />
+              Average
+              {avgChoice && (
+                <select
+                  value={avgChoice}
+                  onChange={(e) => remember(avgKey, e.target.value, setAvgChoice)}
+                  className="rounded-md border border-slate-600 bg-slate-900 px-2 py-1.5 text-lg text-slate-100"
+                >
+                  {avgConfigs.map((c) => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
+                </select>
+              )}
+            </label>
+            <span className="ml-2 text-lg text-slate-400">Text size</span>
             {FONT_SIZES.map((s) => (
               <button
                 key={s}
@@ -119,7 +222,7 @@ export default function ScanDisplayPage({ params }: { params: Promise<{ eventId:
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
           {tiles.map((t) => (
             <div key={t.label} className={`rounded-xl px-4 py-3 ${t.cls}`}>
               <div className="text-lg font-medium opacity-90">{t.label}</div>
@@ -151,6 +254,31 @@ export default function ScanDisplayPage({ params }: { params: Promise<{ eventId:
                 )}
                 {last.note && <div className="text-[0.75em] italic opacity-90">{last.note}</div>}
               </div>
+              {(refRace || avgConfig) && last.status !== "foreign" && (
+                <div className="space-y-2 text-center">
+                  {refRace && (
+                    <div>
+                      <div className="text-[0.55em] font-semibold uppercase tracking-wide opacity-90">
+                        Position · {refRace.name ?? `Race ${refRace.id}`}
+                      </div>
+                      <div className="text-[1.5em] font-black leading-tight">{lastPosition ? `#${lastPosition}` : "—"}</div>
+                    </div>
+                  )}
+                  {avgConfig && (
+                    <div>
+                      <div className="text-[0.55em] font-semibold uppercase tracking-wide opacity-90">
+                        Average · {avgConfig.name}
+                      </div>
+                      <div className="text-[1.1em] font-bold leading-tight">
+                        {lastAverage?.rank ? `#${lastAverage.rank}` : "—"}
+                        {lastAverage?.speed != null && (
+                          <span className="ml-3 font-semibold">{lastAverage.speed.toFixed(2)} ypm</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="text-right">
                 <div className="text-[0.6em] font-semibold uppercase tracking-wide opacity-90">Basket</div>
                 <div className="text-[2em] font-black leading-tight">{last.basket || "—"}</div>
