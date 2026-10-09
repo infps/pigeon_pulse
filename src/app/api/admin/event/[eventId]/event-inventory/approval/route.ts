@@ -20,7 +20,8 @@ const approvalSchema = z.object({
  * breeder" line until someone marks it refunded. Approving again withdraws it.
  *
  * A rejected registration's birds are out, so every open bet on them is voided.
- * Stakes the breeder already paid on those bets are added to the refund owed.
+ * Stakes the breeder already paid on those bets are added to the refund owed;
+ * other bettors who paid a stake get a pending bet refund of their own.
  */
 export async function POST(
   request: Request,
@@ -67,6 +68,7 @@ export async function POST(
 
     let refundsOwed = 0;
     let betsVoided = 0;
+    let bettorRefunds = 0;
     await prisma.$transaction(async (tx) => {
       for (const inv of changing) {
         await tx.eventInventory.update({
@@ -97,7 +99,14 @@ export async function POST(
 
         const openBets = await tx.bet.findMany({
           where: { status: "PLACED", raceItem: { inventoryItem: { eventInventoryId: inv.id } } },
-          select: { id: true, amount: true, bettorId: true, stakePaymentId: true },
+          select: {
+            id: true,
+            amount: true,
+            bettorId: true,
+            stakePaymentId: true,
+            category: true,
+            tierIndex: true,
+          },
         });
         if (openBets.length > 0) {
           await tx.bet.updateMany({
@@ -107,24 +116,43 @@ export async function POST(
           betsVoided += openBets.length;
         }
 
-        // Stakes folded into the registration payment are already in `paid`;
-        // stakes paid on their own row ("bet stake") are not, so add those.
-        const ownBets = openBets.filter(
-          (b) => b.stakePaymentId != null && b.bettorId === inv.breeder?.userId
-        );
+        const stakeIds = openBets.flatMap((b) => (b.stakePaymentId != null ? [b.stakePaymentId] : []));
         const paidStakeRows = await tx.payment.findMany({
-          where: { id: { in: ownBets.map((b) => b.stakePaymentId!) }, status: "PAID" },
+          where: { id: { in: stakeIds }, status: "PAID" },
           select: { id: true, paymentDesc: true },
         });
-        const separateStakeIds = new Set(
-          paidStakeRows
-            .filter((p) => p.paymentDesc?.toLowerCase().includes("bet stake"))
-            .map((p) => p.id)
-        );
-        const paidStakes = ownBets
-          .filter((b) => separateStakeIds.has(b.stakePaymentId!))
-          .reduce((sum, b) => sum + b.amount, 0);
+        const paidStakeDesc = new Map(paidStakeRows.map((p) => [p.id, p.paymentDesc]));
+        const stakePaid = (b: (typeof openBets)[number]) =>
+          b.stakePaymentId != null && paidStakeDesc.has(b.stakePaymentId);
+        const isOwner = (b: (typeof openBets)[number]) => b.bettorId === inv.breeder?.userId;
 
+        // Anyone else who paid a stake on these birds is owed it back, the same
+        // way a bet refunded for a short pool is: a pending payout to the bettor.
+        for (const bet of openBets.filter((b) => stakePaid(b) && !isOwner(b))) {
+          await tx.payment.create({
+            data: {
+              paymentType: 3,
+              paymentValue: bet.amount,
+              paymentDate: now,
+              paymentDesc: `Bet refund: ${bet.category} tier ${bet.tierIndex} (registration rejected)`,
+              status: "PENDING",
+              bettorId: bet.bettorId,
+            },
+          });
+          bettorRefunds += 1;
+        }
+
+        // The breeder's own stakes: those folded into the registration payment
+        // are already in `paid`; stakes paid on their own row ("bet stake") are
+        // not, so add those.
+        const paidStakes = openBets
+          .filter(
+            (b) =>
+              stakePaid(b) &&
+              isOwner(b) &&
+              paidStakeDesc.get(b.stakePaymentId!)?.toLowerCase().includes("bet stake")
+          )
+          .reduce((sum, b) => sum + b.amount, 0);
         const paid = computePaymentTotals([], inv.payments).totalPaid;
         const refunded = inv.refunds.reduce((sum, r) => sum + r.amount, 0);
         const due = Math.round((paid + paidStakes - refunded) * 100) / 100;
@@ -163,6 +191,7 @@ export async function POST(
       updated: changing.length,
       refundsOwed,
       betsVoided,
+      bettorRefunds,
       message: `${changing.length} ${noun} ${approve ? "approved" : "rejected"}.`,
     });
   } catch (error) {
