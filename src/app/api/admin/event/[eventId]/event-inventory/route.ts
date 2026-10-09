@@ -86,6 +86,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
                 breeder: true,
                 payments: true,
                 items: {
+                    where: { deletedAt: null },
                     select: {
                         id: true,
                         entryFeeValue: true,

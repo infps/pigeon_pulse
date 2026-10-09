@@ -55,7 +55,7 @@ export async function POST(
       where: { raceId: raceIdInt, inventoryItem: { birdId } },
       include: {
         result: true,
-        inventoryItem: { select: { id: true, eventInventory: { select: { approvalStatus: true } } } },
+        inventoryItem: { select: { id: true, deletedAt: true, eventInventory: { select: { approvalStatus: true } } } },
       },
     });
 
@@ -72,6 +72,13 @@ export async function POST(
     if (raceItem.inventoryItem?.eventInventory?.approvalStatus !== approvedInventory.approvalStatus) {
       return NextResponse.json(
         { message: "This bird's registration has not been approved." },
+        { status: 400 }
+      );
+    }
+
+    if (raceItem.inventoryItem?.deletedAt) {
+      return NextResponse.json(
+        { message: "This bird has been removed from the event." },
         { status: 400 }
       );
     }

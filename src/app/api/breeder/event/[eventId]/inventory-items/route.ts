@@ -46,6 +46,7 @@ export async function GET(
           seasonId,
           ...visible,
         },
+        deletedAt: null,
       },
       include: {
         bird: true,

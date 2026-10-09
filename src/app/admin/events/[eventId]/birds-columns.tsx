@@ -30,6 +30,7 @@ export const createBirdsColumns = (
   onOpenBird: (id: number) => void,
   eventId?: string | number,
   onSubstitute?: (item: EventInventoryItem) => void,
+  onSetDeleted?: (item: EventInventoryItem, deleted: boolean) => void,
   show: BirdsOptionalColumns = { name: true, notes: false, classes: false, lostHistory: false }
 ): ColumnDef<EventInventoryItem>[] => {
   const columns: ColumnDef<EventInventoryItem>[] = [
@@ -227,6 +228,14 @@ export const createBirdsColumns = (
     cell: ({ row }) => {
       const item = row.original;
 
+      if (item.deletedAt) {
+        return onSetDeleted ? (
+          <Button size="sm" variant="outline" onClick={() => onSetDeleted(item, false)}>
+            Restore
+          </Button>
+        ) : null;
+      }
+
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -243,6 +252,11 @@ export const createBirdsColumns = (
             {onSubstitute ? (
               <DropdownMenuItem onClick={() => onSubstitute(item)}>
                 {item.replacedItemId ? "Restore to lineup" : "Substitute backup"}
+              </DropdownMenuItem>
+            ) : null}
+            {onSetDeleted ? (
+              <DropdownMenuItem className="text-red-600" onClick={() => onSetDeleted(item, true)}>
+                Delete from event
               </DropdownMenuItem>
             ) : null}
           </DropdownMenuContent>

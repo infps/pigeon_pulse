@@ -68,6 +68,10 @@ export async function POST(
       return NextResponse.json({ message: "This bird's registration has not been approved." }, { status: 400 });
     }
 
+    if (item.deletedAt) {
+      return NextResponse.json({ message: "This bird has been removed from the event." }, { status: 400 });
+    }
+
     const breeder = item.eventInventory?.breeder ?? null;
     const loftName = item.eventInventory?.team?.name ?? item.eventInventory?.loft ?? null;
     const assignment = item.basketAssignments[0];

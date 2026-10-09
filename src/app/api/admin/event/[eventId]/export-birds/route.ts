@@ -48,6 +48,7 @@ export async function GET(
   const items = await prisma.eventInventoryItem.findMany({
     where: {
       eventInventory: { season: { eventId }, ...approvedInventory },
+      deletedAt: null,
     },
     include: {
       bird: true,

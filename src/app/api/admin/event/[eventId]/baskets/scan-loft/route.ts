@@ -89,6 +89,13 @@ export async function POST(
       );
     }
 
+    if (item.deletedAt) {
+      return NextResponse.json(
+        { message: "This bird has been removed from the event." },
+        { status: 400 }
+      );
+    }
+
     // Gate on payment, when the season's fee scheme asks for it.
     //
     // Off by default: turning a scanner into a debt collector is a decision an

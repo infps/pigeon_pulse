@@ -57,7 +57,7 @@ export async function POST(
 
     // 1. Source pool — all registered birds for this season
     const inventoryItems = await prisma.eventInventoryItem.findMany({
-      where: { eventInventory: { seasonId, ...approvedInventory } },
+      where: { eventInventory: { seasonId, ...approvedInventory }, deletedAt: null },
       select: {
         id: true,
         eventInventory: {

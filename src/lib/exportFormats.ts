@@ -46,7 +46,7 @@ export async function getRegistrationRows(
     where,
     include: {
       season: { include: { event: true } },
-      items: { include: { bird: true } },
+      items: { where: { deletedAt: null }, include: { bird: true } },
       payments: true,
     },
     orderBy: { signInDate: "desc" },

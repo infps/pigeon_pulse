@@ -105,6 +105,7 @@ export async function GET(
         prisma.eventInventoryItem.count({
           where: {
             eventInventory: { seasonId: season.id, ...approvedInventory },
+            deletedAt: null,
             bird: { NOT: { isLost: 1 } },
           },
         }),

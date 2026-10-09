@@ -59,6 +59,7 @@ export async function GET(
         breeder: { select: { firstName: true, lastName: true } },
         payments: { select: { paymentValue: true, paymentDesc: true, paymentType: true, status: true } },
         items: {
+          where: { deletedAt: null },
           select: {
             id: true, birdNo: true, birdId: true,
             entryFeeValue: true, perchFeeValue: true, raceFeeValue: true, hotSpotFeeValue: true,

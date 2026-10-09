@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { activeItem } from "@/lib/entry-filters";
+import { activeRaceItemOr } from "@/lib/entry-filters";
 export async function GET(req: NextRequest) {
   try {
     const liveRaces = await prisma.race.findMany({
@@ -39,11 +39,11 @@ export async function GET(req: NextRequest) {
         },
         _count: {
           select: {
-            raceItems: { where: { OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }] } },
+            raceItems: { where: { OR: activeRaceItemOr } },
           },
         },
         raceItems: {
-          where: { status: "ARRIVED", OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }] },
+          where: { status: "ARRIVED", OR: activeRaceItemOr },
           select: { id: true },
         },
       },

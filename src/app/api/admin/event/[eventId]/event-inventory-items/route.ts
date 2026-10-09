@@ -58,6 +58,8 @@ export async function GET(
     const paymentStatusParam = searchParams.get("paymentStatus");
     const arrivalFromParam = searchParams.get("arrivalFrom");
     const arrivalToParam = searchParams.get("arrivalTo");
+    // The birds tab's "Show deleted" view lists removed entries so they can be restored.
+    const deletedOnly = searchParams.get("deleted") === "1";
 
     let seasonId: number;
     if (seasonIdParam) {
@@ -87,6 +89,7 @@ export async function GET(
     const eventInventoryItems = await prisma.eventInventoryItem.findMany({
       where: {
         eventInventory: { seasonId, ...approvedInventory },
+        deletedAt: deletedOnly ? { not: null } : null,
         ...(hasArrivalFilter && {
           raceItems: {
             some: {
@@ -107,6 +110,7 @@ export async function GET(
       select: {
         id: true,
         birdNo: true,
+        deletedAt: true,
         entryFeeValue: true,
         perchFeeValue: true,
         raceFeeValue: true,

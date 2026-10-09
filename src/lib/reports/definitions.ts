@@ -8,7 +8,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { prizeStatements, seasonLedger } from "@/lib/accounting";
-import { activeItem, approvedInventory } from "@/lib/entry-filters";
+import { activeRaceItemOr, approvedInventory } from "@/lib/entry-filters";
 import type { ReportDefinition, ReportData, ReportParams } from "./types";
 import {
   bandOf,
@@ -49,7 +49,7 @@ async function buildRaceResult(params: ReportParams): Promise<ReportData> {
     where: {
       raceId,
       result: { isNot: null },
-      OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
+      OR: activeRaceItemOr,
     },
     select: {
       isLost: true,
@@ -144,6 +144,7 @@ async function buildBreederAverage(params: ReportParams, short: boolean): Promis
   });
   const raceById = new Map(races.map((r) => [r.id, r]));
 
+  // Deleted entries stay in the averages: their past results still count.
   const items = await prisma.eventInventoryItem.findMany({
     where: { eventInventory: { seasonId, ...approvedInventory } },
     select: {
@@ -249,6 +250,7 @@ async function buildBreederBalance(params: ReportParams): Promise<ReportData> {
       cashPromised: true,
       breeder: { select: { firstName: true, lastName: true } },
       items: {
+        where: { deletedAt: null },
         select: {
           entryFeeValue: true,
           perchFeeValue: true,
@@ -323,7 +325,7 @@ async function buildInventoryList(params: ReportParams): Promise<ReportData> {
   const seasonId = requireParam(params, "seasonId");
 
   const items = await prisma.eventInventoryItem.findMany({
-    where: { eventInventory: { seasonId, ...approvedInventory } },
+    where: { eventInventory: { seasonId, ...approvedInventory }, deletedAt: null },
     select: {
       birdNo: true,
       isBackup: true,

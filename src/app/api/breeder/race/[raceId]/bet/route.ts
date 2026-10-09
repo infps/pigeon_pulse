@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { requireApproved } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
-import { activeItem } from "@/lib/entry-filters";
+import { activeRaceItemOr } from "@/lib/entry-filters";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import z from "zod";
@@ -43,7 +43,7 @@ export async function POST(
         include: { seasonRel: { include: { bettingScheme: true } } },
       }),
       prisma.raceItem.findUnique({
-        where: { id: raceItemId, OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }] },
+        where: { id: raceItemId, OR: activeRaceItemOr },
         include: {
           inventoryItem: {
             include: {
@@ -167,7 +167,7 @@ export async function GET(
         include: { seasonRel: { include: { bettingScheme: true } } },
       }),
       prisma.raceItem.findMany({
-        where: { raceId: raceIdInt, OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }] },
+        where: { raceId: raceIdInt, OR: activeRaceItemOr },
         include: {
           inventoryItem: {
             include: {

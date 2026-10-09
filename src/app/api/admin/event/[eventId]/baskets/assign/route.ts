@@ -53,6 +53,7 @@ export async function POST(
     const candidates = await prisma.eventInventoryItem.findMany({
       where: {
         eventInventory: { seasonId, ...approvedInventory },
+        deletedAt: null,
         ...(mode === "assign" ? { basketAssignments: { none: {} } } : {}),
         // A bird that is lost, scratched or replaced has no business in a
         // basket. Legacy left these in and the operator had to spot them.

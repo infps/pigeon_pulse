@@ -81,7 +81,7 @@ export async function POST(
           where: { raceId: raceIdInt, inventoryItem: { birdId: { in: knownBirdIds } } },
           include: {
             inventoryItem: {
-              select: { id: true, birdId: true, eventInventory: { select: { approvalStatus: true } } },
+              select: { id: true, birdId: true, deletedAt: true, eventInventory: { select: { approvalStatus: true } } },
             },
           },
         })
@@ -149,6 +149,11 @@ export async function POST(
 
       if (raceItem.inventoryItem?.eventInventory?.approvalStatus !== approvedInventory.approvalStatus) {
         skipped.push({ ringNo: scan.ringNo, reason: "This bird's registration has not been approved." });
+        continue;
+      }
+
+      if (raceItem.inventoryItem?.deletedAt) {
+        skipped.push({ ringNo: scan.ringNo, reason: "This bird has been removed from the event." });
         continue;
       }
 

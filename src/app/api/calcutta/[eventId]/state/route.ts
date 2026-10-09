@@ -52,6 +52,7 @@ export async function GET(
                 eventInventory: {
                   select: {
                     items: {
+                      where: { deletedAt: null },
                       select: { bird: { select: { band: true, birdName: true } } },
                     },
                   },

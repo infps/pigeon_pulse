@@ -55,7 +55,7 @@ export async function GET(request: Request) {
       }
       const activeSeason = event.seasons.find(s => s.isActive) ?? event.seasons[0];
       const birdCount = await prisma.eventInventoryItem.count({
-        where: { eventInventory: { seasonId: activeSeason?.id, ...approvedInventory } },
+        where: { eventInventory: { seasonId: activeSeason?.id, ...approvedInventory }, deletedAt: null },
       });
       return NextResponse.json(
         {

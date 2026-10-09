@@ -35,7 +35,7 @@ export async function GET(
       where: { seasonId, status: "AVAILABLE" },
       include: {
         originalBreeder: true,
-        items: { include: { inventoryItem: { include: { bird: true } } } },
+        items: { where: { inventoryItem: { deletedAt: null } }, include: { inventoryItem: { include: { bird: true } } } },
       },
       orderBy: { createdAt: "desc" },
     });

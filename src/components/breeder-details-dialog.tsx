@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { useGetEventInventory, useCreatePayment, useUpdatePayment, useDeletePayment, useAddPartner, useDeletePartner, useListBreeders } from "@/lib/api/payments";
 import { useAdminListBirds } from "@/lib/api/admin-birds";
 import { useSettleRefund } from "@/lib/api/event-inventory";
+import { setEntryDeleted } from "@/lib/api/event-inventory-items";
 import { Download, Plus, Trash2, Edit, UserPlus, ArrowLeft, Repeat, UserCog } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { Event, EventInventory, EventInventoryItem } from "@/lib/types";
@@ -119,6 +120,17 @@ export function BreederDetailsDialog({
       refetch();
     },
   });
+  const handleDeleteEntry = async (item: EventInventoryItem) => {
+    const band = shortBand(item.bird?.band) || "this bird";
+    if (!confirm(`Remove ${band} from this event? Its fees are removed; bets on it are not cancelled.`)) return;
+    try {
+      toast.success(await setEntryDeleted(item.id, true));
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Request failed");
+    }
+  };
+
   const handleSettleRefund = async (refundId: number) => {
     try {
       await settleRefund.mutateAsync({ refundId });
@@ -870,6 +882,9 @@ export function BreederDetailsDialog({
                                 </Button>
                                 <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setChangeBreederItem({ ...item, eventInventory })}>
                                   <UserCog className="h-3 w-3 mr-1" />Breeder
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs text-red-600" onClick={() => handleDeleteEntry(item)}>
+                                  <Trash2 className="h-3 w-3 mr-1" />Delete
                                 </Button>
                               </div>
                             )}

@@ -47,7 +47,7 @@ export async function POST(
             select: {
               id: true,
               breeder: { select: { firstName: true, lastName: true } },
-              items: { select: { bird: { select: { band: true, birdName: true } } } },
+              items: { where: { deletedAt: null }, select: { bird: { select: { band: true, birdName: true } } } },
             },
           },
         },

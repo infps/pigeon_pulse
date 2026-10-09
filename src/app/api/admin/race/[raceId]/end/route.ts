@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { clearRaceFeeForLostBirds, writeRaceFeeForBasketedBird } from "@/lib/race-fees";
 import { requirePermission } from "@/lib/authorize";
-import { activeItem } from "@/lib/entry-filters";
+import { activeRaceItemOr } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { presetIdFor } from "@/lib/birdStatus";
 import { recalcRace } from "@/lib/race-results";
@@ -72,7 +72,7 @@ export async function POST(
         const items = await tx.raceItem.findMany({
           where: {
             raceId: raceIdInt,
-            OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
+            OR: activeRaceItemOr,
           },
           select: {
             id: true,

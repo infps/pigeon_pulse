@@ -53,7 +53,7 @@ export async function POST(request: Request, { params }: Params) {
 
   const items = await prisma.eventInventoryItem.findMany({
     where: { id: { in: itemIds }, eventInventory: { seasonId } },
-    select: { id: true, currentGroupId: true, eventInventory: { select: { approvalStatus: true } } },
+    select: { id: true, currentGroupId: true, deletedAt: true, eventInventory: { select: { approvalStatus: true } } },
   });
 
   if (items.length !== itemIds.length) {
@@ -62,6 +62,10 @@ export async function POST(request: Request, { params }: Params) {
 
   if (items.some((i) => i.eventInventory?.approvalStatus !== approvedInventory.approvalStatus)) {
     return NextResponse.json({ message: "This bird's registration has not been approved." }, { status: 400 });
+  }
+
+  if (items.some((i) => i.deletedAt)) {
+    return NextResponse.json({ message: "This bird has been removed from the event." }, { status: 400 });
   }
 
   if (group.hasCapacity && group.capacity !== null) {

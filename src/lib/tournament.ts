@@ -59,6 +59,7 @@ export async function seedEntries(tournamentId: number): Promise<number> {
   const items = await prisma.eventInventoryItem.findMany({
     where: {
       eventInventory: { seasonId: tournament.seasonId, ...approvedInventory },
+      deletedAt: null,
       replacedItemId: null,
       NOT: { isBackup: 1 },
       bird: { NOT: { isLost: 1 } },

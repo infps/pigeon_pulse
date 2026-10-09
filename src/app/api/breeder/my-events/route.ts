@@ -22,6 +22,7 @@ export async function GET() {
           include: { event: true },
         },
         items: {
+          where: { deletedAt: null },
           include: {
             bird: true,
             basketAssignments: {

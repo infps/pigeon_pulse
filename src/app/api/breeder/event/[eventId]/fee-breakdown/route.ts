@@ -80,6 +80,7 @@ export async function GET(
         hotspotsPaidMask: true,
         cashPromised: true,
         items: {
+          where: { deletedAt: null },
           orderBy: { birdNo: "asc" },
           select: {
             id: true,

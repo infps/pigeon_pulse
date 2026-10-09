@@ -41,7 +41,7 @@ export async function POST(
     select: {
       id: true,
       breeder: { select: { firstName: true, lastName: true } },
-      _count: { select: { items: true } },
+      _count: { select: { items: { where: { deletedAt: null } } } },
     },
   });
 

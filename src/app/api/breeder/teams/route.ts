@@ -64,6 +64,7 @@ export async function GET(request: Request) {
             teamId: true,
             season: { include: { event: { select: { id: true, name: true } } } },
             items: {
+              where: { deletedAt: null },
               select: {
                 birdId: true,
                 bird: {

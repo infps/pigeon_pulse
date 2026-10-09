@@ -306,6 +306,7 @@ export interface EventInventoryItem {
   eventInventoryId: number | null;
   replacedItemId: number | null;
   birdNo: number | null;
+  deletedAt?: string | null;
   arrivalDate: string | null;
   departureDate: string | null;
   entryFeeValue: number | null;

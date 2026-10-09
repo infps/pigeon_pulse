@@ -61,7 +61,7 @@ export async function POST(request: Request) {
             feeScheme: true,
           },
         },
-        items: true,
+        items: { where: { deletedAt: null } },
       },
     });
 

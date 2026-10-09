@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
-import { activeItem } from "@/lib/entry-filters";
+import { activeItem, activeRaceItemOr } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { notifyRaceStarted } from "@/lib/notifications";
 import { presetIdFor } from "@/lib/birdStatus";
@@ -70,7 +70,7 @@ export async function POST(
         where: {
           raceId: raceIdInt,
           status: { in: ["LOFT_BASKETED"] },
-          OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
+          OR: activeRaceItemOr,
           ...(inventoryItemIds ? { inventoryItemId: { in: inventoryItemIds } } : undefined),
         },
         data: { status: "RELEASED", displayStatusId: flyingId },

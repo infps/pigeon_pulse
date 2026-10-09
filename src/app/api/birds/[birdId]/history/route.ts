@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { activeItem } from "@/lib/entry-filters";
+import { activeItem, activeRaceItemOr } from "@/lib/entry-filters";
 
 type HistoryType =
   | "REGISTERED"
@@ -115,7 +115,7 @@ export async function GET(
         where: {
           raceId: { in: [...arrivedRaceIds] },
           status: "ARRIVED",
-          OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
+          OR: activeRaceItemOr,
         },
         include: { result: { select: { arrivalTime: true } } },
       });

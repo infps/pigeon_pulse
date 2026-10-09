@@ -49,6 +49,7 @@ export async function GET(
           },
         },
         items: {
+          where: { deletedAt: null },
           include: { bird: true },
         },
       },

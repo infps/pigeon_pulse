@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requireAnyPermission, requirePermission } from "@/lib/authorize";
-import { activeItem } from "@/lib/entry-filters";
+import { activeRaceItemOr } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -62,7 +62,7 @@ export async function POST(
       arrivalTime: { not: null },
       raceItem: {
         raceId,
-        OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
+        OR: activeRaceItemOr,
       },
     },
     select: { raceItemId: true, arrivalTime: true },

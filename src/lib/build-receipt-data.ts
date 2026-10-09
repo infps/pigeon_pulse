@@ -75,7 +75,10 @@ export async function buildReceiptData(inventoryId: number): Promise<ReceiptData
     return { letter: CLASS_LETTERS[i], fee: Number(raw ?? 0) };
   });
 
-  const items = (inv.items ?? []).map((item) => {
+  // A deleted entry is not listed or billed; what it earned stays (see below).
+  const itemsList = (inv.items ?? []).filter((it) => it.deletedAt == null);
+
+  const items = itemsList.map((item) => {
     const betsSum = BET_FIELDS.reduce((s, f) => s + Number(item[f] ?? 0), 0);
     const total =
       Number(item.entryFeeValue ?? 0) +
@@ -98,7 +101,6 @@ export async function buildReceiptData(inventoryId: number): Promise<ReceiptData
     };
   });
 
-  const itemsList = inv.items ?? [];
   const sumItems = (fn: (it: (typeof itemsList)[number]) => number) =>
     itemsList.reduce((s, it) => s + fn(it), 0);
   const sumPayments = (typeId: number) =>
@@ -130,7 +132,7 @@ export async function buildReceiptData(inventoryId: number): Promise<ReceiptData
 
   // classesEarned: sum of won/refunded bet payouts where this breeder's user is the bettor
   const breederUserId = inv.breeder?.userId ?? null;
-  const classesEarned = itemsList.reduce((s, it) => {
+  const classesEarned = (inv.items ?? []).reduce((s, it) => {
     return s + (it.raceItems ?? []).reduce((rs, raceItem) => {
       return rs + (raceItem.bets ?? []).reduce((bs, bet) => {
         if (
@@ -147,7 +149,7 @@ export async function buildReceiptData(inventoryId: number): Promise<ReceiptData
   }, 0);
 
   // Capital/hotspot prizes remain from RaceItemResult.prizeValue (non-betting race prizes)
-  const totalEarned = itemsList.reduce((s, it) => {
+  const totalEarned = (inv.items ?? []).reduce((s, it) => {
     return s + (it.raceItems ?? []).reduce((rs, r) => rs + Number(r.result?.prizeValue ?? 0), 0);
   }, 0);
 

@@ -92,11 +92,11 @@ Mobile follow-up: show registration status.
 
 ## Phase 3 — B soft delete
 
-- [ ] Schema: `EventInventoryItem.deletedAt DateTime?`, `deletedById String?`.
-- [ ] `POST/DELETE /api/admin/event-inventory-item/[id]/delete` (delete / restore, `breeders.manage`). On delete: remove basket assignments for races not yet started; if the item carries the registration's entry fee (it sits on the first bird only), move `entryFeeValue` to the next live item; re-run `recalcPerchFees` (add deleted filter to its raw SQL in `bird-substitution.ts`). Restore reverses.
-- [ ] Bets untouched.
-- [ ] Filter: `activeItem` everywhere except results of `ENDED` races (history kept — open item 2).
-- [ ] UI: Delete in `birds-columns.tsx` row menu and breeder detail birds table, confirm dialog; "Show deleted" toggle in `birds-tab.tsx` (`?includeDeleted=1` in the API) with Restore.
+- [x] Schema: `EventInventoryItem.deletedAt DateTime?`, `deletedById String?`.
+- [x] `POST/DELETE /api/admin/event-inventory-item/[id]/delete` (delete / restore, `breeders.manage`). On delete: remove basket assignments for races not yet started; if the item carries the registration's entry fee (it sits on the first bird only), move `entryFeeValue` to the next live item; re-run `recalcPerchFees` (add deleted filter to its raw SQL in `bird-substitution.ts`). Restore reverses.
+- [x] Bets untouched.
+- [x] Filter: `activeItem` everywhere except results of `ENDED` races (history kept — open item 2).
+- [x] UI: Delete in `birds-columns.tsx` row menu and breeder detail birds table, confirm dialog; "Show deleted" toggle in `birds-tab.tsx` (`?includeDeleted=1` in the API) with Restore.
 
 Verify: tsc, lint; delete first bird → entry fee still owed once, perch fees renumbered; restore → totals back.
 
@@ -236,3 +236,18 @@ Also found, not in scope: `scripts/simulate-arrivals.mjs` has a Neon connection 
 ## Verification (every phase)
 
 `npx tsc --noEmit` and `npm run lint` with no new errors; the phase's `scripts/check-*.ts`; the manual flow listed in the phase against the dev DB via `npm run dev`.
+
+## Deploy checklist (apply to live, in this order)
+
+Each item is `prisma db execute --file <path>` then `prisma migrate resolve --applied <name>`.
+`prisma migrate dev/deploy` is not usable (history cannot replay). Take a snapshot first.
+Applied to the Neon dev DB on 2026-10-09 unless marked otherwise.
+
+1. `20261009_registration_approval` — schema. Adds `RegistrationStatus`, `RefundStatus`, two `NotificationKind` values, `EventInventory.APPROVAL_STATUS` (+ approved/rejected columns), `Refunds.STATUS`. Backfill is the column defaults: existing registrations APPROVED, existing refunds ISSUED.
+2. `20261009_soft_delete_event_entry` — schema. Adds `EventInventoryItem.DELETED_AT`, `DELETED_BY`. No backfill.
+3. `20261009_payments_imported_history_paid` — DATA backfill. Marks imported payment history PAID.
+   - **The id boundary (7585) is specific to the dev DB.** Before running on live, find live's first app-created payment id (first row dated on/after 2025-11-21, or with a transaction id) and edit the file.
+   - Dry-run first: `SELECT count(*), sum("PAYMENT_VALUE") FROM "Payments" WHERE "ID_PAYMENT" < <boundary> AND "status" = 'PENDING';`
+   - Must go out with the code that counts only PAID rows (phase 2), not before or after it.
+
+Deploy order: migrations 1–3, then the code. Code from phase 2 on fails without 1; code from phase 3 on fails without 2.

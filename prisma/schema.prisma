@@ -888,6 +888,9 @@ model EventInventoryItem {
   eventInventoryId     Int?      @map("ID_EVENT_INVENTORY")
   replacedItemId       Int?      @map("ID_REPLACED_ITEM")
   birdNo               Int?      @map("BIRD_NO")
+  /// Soft delete: the bird is removed from this event only. Restorable.
+  deletedAt            DateTime? @map("DELETED_AT")
+  deletedById          String?   @map("DELETED_BY")
   arrivalDate          DateTime? @map("ARRIVAL_DATE")
   departureDate        DateTime? @map("DEPARTURE_DATE")
   entryFeeValue        Float?    @map("ENTRY_FEE_VALUE")

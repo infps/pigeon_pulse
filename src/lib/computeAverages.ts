@@ -60,7 +60,8 @@ export async function computeAverageResults(
   const raceMap = new Map(qualifyingRaces.map((r) => [r.id, r]));
   const qualifyingRaceIds = qualifyingRaces.map((r) => r.id);
 
-  // All birds registered in this season
+  // All birds registered in this season. Deleted entries stay in: their results
+  // in races already flown still count, and they cannot fly any later race.
   const inventoryItems = await prisma.eventInventoryItem.findMany({
     where: { eventInventory: { seasonId, ...approvedInventory } },
     select: {

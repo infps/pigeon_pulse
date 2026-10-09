@@ -74,6 +74,13 @@ export async function POST(
       );
     }
 
+    if (item.deletedAt) {
+      return NextResponse.json(
+        { message: "This bird has been removed from the event." },
+        { status: 400 }
+      );
+    }
+
     const checkedInStatusId = await presetIdFor(seasonId, "CHECKIN");
 
     // Linking the tag is what check-in means, so persist the status here

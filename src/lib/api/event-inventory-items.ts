@@ -6,6 +6,8 @@ export interface EventInventoryItemsFilters {
   paymentStatus?: string;
   arrivalFrom?: string;
   arrivalTo?: string;
+  /** List soft-deleted entries instead of live ones. */
+  deleted?: boolean;
 }
 
 export const useListEventInventoryItems = (
@@ -18,6 +20,7 @@ export const useListEventInventoryItems = (
   if (filters?.paymentStatus && filters.paymentStatus !== "all") params.paymentStatus = filters.paymentStatus;
   if (filters?.arrivalFrom) params.arrivalFrom = filters.arrivalFrom;
   if (filters?.arrivalTo) params.arrivalTo = filters.arrivalTo;
+  if (filters?.deleted) params.deleted = "1";
   if (seasonId) params.seasonId = String(seasonId);
   const queryKey = [
     "event-inventory-items",
@@ -27,6 +30,7 @@ export const useListEventInventoryItems = (
     params.arrivalFrom ?? "",
     params.arrivalTo ?? "",
     String(seasonId ?? ""),
+    params.deleted ?? "",
   ];
   return useApiQuery({
     queryKey,
@@ -64,3 +68,14 @@ export const useListEventInventoryItemsBySeason = (seasonId: number | string | n
     params: Object.keys(params).length > 0 ? params : undefined,
   });
 };
+
+/** Soft-delete a bird's event entry (POST) or restore it (DELETE). */
+export async function setEntryDeleted(itemId: number, deleted: boolean): Promise<string> {
+  const res = await fetch(`/api/admin/event-inventory-item/${itemId}/delete`, {
+    method: deleted ? "POST" : "DELETE",
+    credentials: "include",
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(json?.message || "Request failed");
+  return json?.message ?? "";
+}

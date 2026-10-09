@@ -53,6 +53,9 @@ export async function POST(
   if (item.eventInventory?.approvalStatus !== approvedInventory.approvalStatus) {
     return NextResponse.json({ message: "This bird's registration has not been approved." }, { status: 400 });
   }
+  if (item.deletedAt) {
+    return NextResponse.json({ message: "This bird has been removed from the event." }, { status: 400 });
+  }
 
   if (item.currentGroupId === targetGroupId) {
     const band = [bird.band1, bird.band2, bird.band3, bird.band4].filter(Boolean).join("-") || bird.band || rfid;

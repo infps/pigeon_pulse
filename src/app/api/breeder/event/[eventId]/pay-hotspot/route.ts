@@ -88,6 +88,7 @@ export async function POST(
         id: true,
         hotspotsPaidMask: true,
         items: {
+          where: { deletedAt: null },
           select: {
             id: true,
             isBackup: true,

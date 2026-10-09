@@ -253,7 +253,7 @@ async function cloneRegistrations(
       items: {
         // A bird that was replaced last season should not reappear in the new
         // roster as if it were still flying.
-        where: { replacedItemId: null },
+        where: { replacedItemId: null, deletedAt: null },
         select: { birdId: true, birdNo: true, isBackup: true },
         orderBy: { birdNo: "asc" },
       },

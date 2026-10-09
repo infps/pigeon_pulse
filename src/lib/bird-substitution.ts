@@ -115,6 +115,7 @@ async function repriceInventories(
       FROM "EventInventoryItem" eii
       JOIN "EventInventory" ei ON ei."ID_EVENT_INVENTORY" = eii."ID_EVENT_INVENTORY"
       WHERE eii."BIRD_NO" IS NOT NULL
+        AND eii."DELETED_AT" IS NULL
         AND (${oneInventory}::boolean = false OR eii."ID_EVENT_INVENTORY" = ${inventoryId})
         AND (${oneInventory}::boolean = true  OR ei."SEASON_ID" = ${seasonId})
     )
@@ -140,6 +141,7 @@ async function repriceInventories(
     FROM "EventInventory" ei
     WHERE ei."ID_EVENT_INVENTORY" = t."ID_EVENT_INVENTORY"
       AND t."BIRD_NO" IS NOT NULL
+      AND t."DELETED_AT" IS NULL
       AND COALESCE(t."IS_BACKUP", 0) <> 1
       AND (${oneInventory}::boolean = false OR t."ID_EVENT_INVENTORY" = ${inventoryId})
       AND (${oneInventory}::boolean = true  OR ei."SEASON_ID" = ${seasonId})`;
@@ -236,6 +238,7 @@ export async function applyBackupTx(
           id: options.incomingItemId,
           eventInventoryId: outgoing.eventInventoryId,
           isBackup: 1,
+          deletedAt: null,
         },
         select: {
           id: true,
@@ -246,6 +249,7 @@ export async function applyBackupTx(
         where: {
           eventInventoryId: outgoing.eventInventoryId,
           isBackup: 1,
+          deletedAt: null,
           bird: { NOT: { isLost: 1 } },
           OR: [{ perchFeeValue: null }, { perchFeeValue: 0 }],
         },
@@ -406,4 +410,187 @@ export async function returnBird(
 
     return { inventoryItemId: item.id, birdId: item.birdId };
   });
+}
+
+/** What the registration's live birds are charged, for adjusting its unpaid order. */
+async function liveFeeTotal(tx: Tx, eventInventoryId: number): Promise<number> {
+  const items = await tx.eventInventoryItem.findMany({
+    where: { eventInventoryId, deletedAt: null },
+    select: { entryFeeValue: true, perchFeeValue: true, raceFeeValue: true, hotSpotFeeValue: true },
+  });
+  return items.reduce(
+    (sum, i) =>
+      sum +
+      (i.entryFeeValue ?? 0) +
+      (i.perchFeeValue ?? 0) +
+      (i.raceFeeValue ?? 0) +
+      (i.hotSpotFeeValue ?? 0),
+    0
+  );
+}
+
+/**
+ * The registration's own unpaid order is a fixed amount written at sign-up, so
+ * it follows the fees when a bird is deleted or restored. Paid orders are money
+ * already received and are left alone.
+ */
+async function shiftPendingOrder(tx: Tx, eventInventoryId: number, delta: number): Promise<void> {
+  if (delta === 0) return;
+  const order = await tx.payment.findFirst({
+    where: { eventInventoryId, status: "PENDING", paymentDesc: { startsWith: "Registration:" } },
+    orderBy: { id: "asc" },
+    select: { id: true, paymentValue: true },
+  });
+  if (!order) return;
+  await tx.payment.update({
+    where: { id: order.id },
+    data: { paymentValue: Math.max(0, Math.round(((order.paymentValue ?? 0) + delta) * 100) / 100) },
+  });
+}
+
+/**
+ * Soft-delete a bird's entry in this event. The bird itself is untouched.
+ *
+ * Its own fees leave the breeder's totals; the other birds keep the fees and
+ * numbers they have, so a restore puts everything back exactly. The one
+ * exception is a once-per-registration entry fee carried by this bird alone:
+ * that moves to another live bird so the registration is still charged it.
+ * The entry leaves its baskets for races that have not started. Bets on it are
+ * not voided.
+ */
+export async function deleteEntry(
+  itemId: number,
+  userId: string | null
+): Promise<{ itemId: number; alreadyDeleted: boolean }> {
+  return prisma.$transaction((tx) => deleteEntryTx(tx, itemId, userId));
+}
+
+/** Same as deleteEntry, inside a caller-owned transaction. */
+export async function deleteEntryTx(
+  tx: Tx,
+  itemId: number,
+  userId: string | null
+): Promise<{ itemId: number; alreadyDeleted: boolean }> {
+  const item = await tx.eventInventoryItem.findUnique({
+    where: { id: itemId },
+    select: { id: true, eventInventoryId: true, deletedAt: true, entryFeeValue: true },
+  });
+  if (!item) throw new Error("Entry not found");
+  if (item.deletedAt) return { itemId, alreadyDeleted: true };
+
+  const inventoryId = item.eventInventoryId;
+  const before = inventoryId != null ? await liveFeeTotal(tx, inventoryId) : 0;
+
+  // Registrations made in the app put the entry fee on one bird; imported ones
+  // carry a fee on every bird. Only the first kind needs the fee handed on.
+  let heirId: number | null = null;
+  if (inventoryId != null && (item.entryFeeValue ?? 0) > 0) {
+    const others = await tx.eventInventoryItem.findMany({
+      where: { eventInventoryId: inventoryId, deletedAt: null, id: { not: itemId } },
+      orderBy: [{ birdNo: "asc" }, { id: "asc" }],
+      select: { id: true, entryFeeValue: true },
+    });
+    if (others.length > 0 && others.every((o) => (o.entryFeeValue ?? 0) === 0)) {
+      heirId = others[0].id;
+      await tx.eventInventoryItem.update({
+        where: { id: heirId },
+        data: { entryFeeValue: item.entryFeeValue },
+      });
+    }
+  }
+
+  await tx.eventInventoryItem.update({
+    where: { id: itemId },
+    data: {
+      deletedAt: new Date(),
+      deletedById: userId,
+      ...(heirId != null ? { entryFeeValue: 0 } : {}),
+    },
+  });
+
+  await tx.basketAssignment.deleteMany({
+    where: {
+      eventInventoryItemId: itemId,
+      eventBasket: { OR: [{ raceId: null }, { race: { status: "REGISTERING" } }] },
+    },
+  });
+
+  if (inventoryId != null) {
+    await shiftPendingOrder(tx, inventoryId, (await liveFeeTotal(tx, inventoryId)) - before);
+  }
+
+  await tx.birdEventHistory.create({
+    data: {
+      eventInventoryItemId: itemId,
+      action: "STATUS_CHANGED",
+      detail: "Removed from the event",
+      performedById: userId,
+    },
+  });
+
+  return { itemId, alreadyDeleted: false };
+}
+
+/** Undo deleteEntry: the bird is back with the number and fees it had. */
+export async function restoreEntry(
+  itemId: number,
+  userId: string | null
+): Promise<{ itemId: number; restored: boolean }> {
+  return prisma.$transaction((tx) => restoreEntryTx(tx, itemId, userId));
+}
+
+/** Same as restoreEntry, inside a caller-owned transaction. */
+export async function restoreEntryTx(
+  tx: Tx,
+  itemId: number,
+  userId: string | null
+): Promise<{ itemId: number; restored: boolean }> {
+  const item = await tx.eventInventoryItem.findUnique({
+    where: { id: itemId },
+    select: {
+      id: true,
+      eventInventoryId: true,
+      deletedAt: true,
+      eventInventory: { select: { seasonId: true } },
+    },
+  });
+  if (!item) throw new Error("Entry not found");
+  if (!item.deletedAt) return { itemId, restored: false };
+
+  const inventoryId = item.eventInventoryId;
+  const before = inventoryId != null ? await liveFeeTotal(tx, inventoryId) : 0;
+
+  await tx.eventInventoryItem.update({
+    where: { id: itemId },
+    data: { deletedAt: null, deletedById: null },
+  });
+
+  if (inventoryId != null) {
+    await shiftPendingOrder(tx, inventoryId, (await liveFeeTotal(tx, inventoryId)) - before);
+  }
+
+  // Races opened while the bird was deleted did not enrol it.
+  const seasonId = item.eventInventory?.seasonId;
+  if (seasonId != null) {
+    const missed = await tx.race.findMany({
+      where: { seasonId, status: "REGISTERING", raceItems: { none: { inventoryItemId: itemId } } },
+      select: { id: true },
+    });
+    if (missed.length > 0) {
+      await tx.raceItem.createMany({
+        data: missed.map((race) => ({ raceId: race.id, inventoryItemId: itemId })),
+      });
+    }
+  }
+
+  await tx.birdEventHistory.create({
+    data: {
+      eventInventoryItemId: itemId,
+      action: "STATUS_CHANGED",
+      detail: "Restored to the event",
+      performedById: userId,
+    },
+  });
+
+  return { itemId, restored: true };
 }

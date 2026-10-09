@@ -107,6 +107,7 @@ export async function GET(
       where: {
         eventInventoryId: item.eventInventoryId,
         isBackup: 1,
+        deletedAt: null,
         bird: { NOT: { isLost: 1 } },
       },
       orderBy: { birdNo: "asc" },

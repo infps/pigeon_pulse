@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
-import { activeItem } from "@/lib/entry-filters";
+import { activeItem, activeRaceItemOr } from "@/lib/entry-filters";
 
 export async function GET(
   req: NextRequest,
@@ -33,7 +33,7 @@ export async function GET(
       where: {
         raceId: raceIdInt,
         ...(hiddenStatuses.length > 0 && { status: { notIn: hiddenStatuses } }),
-        OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
+        OR: activeRaceItemOr,
       },
       include: {
         inventoryItem: {

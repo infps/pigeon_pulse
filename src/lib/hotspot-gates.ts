@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { activeItem } from "@/lib/entry-filters";
+import { activeRaceItemOr } from "@/lib/entry-filters";
 import { HOTSPOT_GATES, type HotspotGate } from "@/lib/fee-calculator";
 
 /** The prize role that marks a race type as a given gate's race. */
@@ -40,7 +40,7 @@ export async function openHotspotGate(seasonId: number): Promise<HotspotGate> {
       raceItems: {
         some: {
           status: { notIn: [...NOT_YET_BASKETED] },
-          OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
+          OR: activeRaceItemOr,
         },
       },
     },

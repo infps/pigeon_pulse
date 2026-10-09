@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { paypalClient, paypal } from "@/lib/paypal";
 import { prisma } from "@/lib/prisma";
-import { activeItem } from "@/lib/entry-filters";
+import { activeRaceItemOr } from "@/lib/entry-filters";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     let total = 0;
     for (const sel of selections) {
       const raceItem = await prisma.raceItem.findUnique({
-        where: { id: sel.raceItemId, OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }] },
+        where: { id: sel.raceItemId, OR: activeRaceItemOr },
         include: { inventoryItem: { include: { eventInventory: { include: { breeder: true } } } } },
       });
       if (!raceItem || raceItem.raceId !== raceId) {

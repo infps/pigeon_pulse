@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requireAnyPermission, requirePermission } from "@/lib/authorize";
-import { activeItem } from "@/lib/entry-filters";
+import { activeRaceItemOr } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { haversine } from "@/lib/geo";
 import { headers } from "next/headers";
@@ -91,7 +91,7 @@ export async function GET(request: Request) {
       by: ["raceId", "status", "isLost"],
       where: {
         raceId: { in: races.map((r) => r.id) },
-        OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
+        OR: activeRaceItemOr,
       },
       _count: { _all: true },
     });
@@ -173,7 +173,7 @@ export async function POST(request: Request) {
     }
 
     const eventInventoryItems = await prisma.eventInventoryItem.findMany({
-      where: { eventInventory: { seasonId: activeSeason.id } },
+      where: { eventInventory: { seasonId: activeSeason.id }, deletedAt: null },
     });
 
     // Launch station selected → distance is derived (locked) from station→loft.

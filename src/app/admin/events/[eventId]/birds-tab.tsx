@@ -11,7 +11,7 @@ import {
   validateAddBirdForm,
 } from "@/components/add-bird-form";
 import type { AddBirdFormState } from "@/components/add-bird-form";
-import { useListEventInventoryItems, useAddBirdsToEvent, useRegisterBirdToEvent, useListEventInventoryItemsBySeason } from "@/lib/api/event-inventory-items";
+import { useListEventInventoryItems, useAddBirdsToEvent, useRegisterBirdToEvent, useListEventInventoryItemsBySeason, setEntryDeleted } from "@/lib/api/event-inventory-items";
 import { useSeasonContext } from "@/lib/season-context";
 import { useListEvents } from "@/lib/api/events";
 import { Input } from "@/components/ui/input";
@@ -71,7 +71,8 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
   const lastScannedRef = useRef<string | null>(null);
   const pollStartedAtRef = useRef<string | null>(null);
 
-  const { data, isPending, error, refetch } = useListEventInventoryItems(eventId, undefined, undefined, selectedSeasonId);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const { data, isPending, error, refetch } = useListEventInventoryItems(eventId, undefined, { deleted: showDeleted }, selectedSeasonId);
 
   const startPollScanner = useCallback(() => {
     setIsPollActive(true);
@@ -109,6 +110,19 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
   const handleSubstitute = (item: EventInventoryItem) => {
     setSubstituteItem(item);
     setIsSubstituteOpen(true);
+  };
+
+  // Soft delete: the bird leaves this event only, and can be restored.
+  const handleSetDeleted = async (item: EventInventoryItem, deleted: boolean) => {
+    const band = shortBand(item.bird?.band) || "this bird";
+    if (deleted && !confirm(`Remove ${band} from this event? Its fees are removed; bets on it are not cancelled.`)) return;
+    try {
+      toast.success(await setEntryDeleted(item.id, deleted));
+      queryClient.invalidateQueries({ queryKey: ["event-inventory-items"] });
+      queryClient.invalidateQueries({ queryKey: ["event-inventory"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Request failed");
+    }
   };
 
   const handleEdit = (item: EventInventoryItem) => {
@@ -158,7 +172,7 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
     });
   }, [eventInventoryItems, show, nameQ, notesQ, classQ, lostQ]);
 
-  const columns = createBirdsColumns(handleEdit, setDetailBirdId, eventId, handleSubstitute, show);
+  const columns = createBirdsColumns(handleEdit, setDetailBirdId, eventId, handleSubstitute, handleSetDeleted, show);
 
   if (isPending) {
     return (
@@ -250,6 +264,10 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
               </SelectContent>
             </Select>
           )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch id="tgl-deleted" checked={showDeleted} onCheckedChange={setShowDeleted} />
+          <Label htmlFor="tgl-deleted">Show deleted</Label>
         </div>
         <div className="flex items-center gap-2">
           <Switch id="tgl-lost" checked={show.lostHistory} onCheckedChange={toggle("lostHistory", () => setLostQ("all"))} />

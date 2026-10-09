@@ -9,7 +9,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { activeItem, approvedInventory } from "@/lib/entry-filters";
+import { activeItem, activeRaceItemOr, approvedInventory } from "@/lib/entry-filters";
 
 export interface LedgerLine {
   eventInventoryId: number;
@@ -80,6 +80,7 @@ export async function seasonLedger(seasonId: number): Promise<Ledger> {
       breeder: { select: { firstName: true, lastName: true } },
       items: {
         select: {
+          deletedAt: true,
           entryFeeValue: true,
           perchFeeValue: true,
           hotSpotFeeValue: true,
@@ -98,7 +99,10 @@ export async function seasonLedger(seasonId: number): Promise<Ledger> {
 
   const lines: LedgerLine[] = inventories.map((inv) => {
     // A registration that is not approved is charged nothing.
-    const billable = inv.approvalStatus === "APPROVED" ? inv.items : [];
+    // A deleted entry is no longer billed or refunded, nor paid a class payout
+    // (as in prizeStatements); its race prizes are history and stay owed.
+    const live = inv.items.filter((it) => it.deletedAt == null);
+    const billable = inv.approvalStatus === "APPROVED" ? live : [];
     const charged = billable.reduce(
       (sum, it) =>
         sum +
@@ -108,7 +112,7 @@ export async function seasonLedger(seasonId: number): Promise<Ledger> {
         (it.raceFeeValue ?? 0),
       0
     );
-    const itemRefunds = inv.items.reduce(
+    const itemRefunds = live.reduce(
       (sum, it) => sum + (it.entryRefund ?? 0) + (it.hotSpotRefund ?? 0) + (it.betsRefund ?? 0),
       0
     );
@@ -117,7 +121,7 @@ export async function seasonLedger(seasonId: number): Promise<Ledger> {
         sum + it.raceItems.reduce((s, ri) => s + (ri.result?.prizeValue ?? 0), 0),
       0
     );
-    const classEarned = inv.items.reduce(
+    const classEarned = live.reduce(
       (sum, it) => sum + it.raceClassEntries.reduce((s, ce) => s + (ce.payoutValue ?? 0), 0),
       0
     );
@@ -207,6 +211,7 @@ export async function entryInvoice(eventInventoryId: number): Promise<Invoice | 
       breeder: { select: { firstName: true, lastName: true } },
       season: { select: { name: true, event: { select: { name: true } } } },
       items: {
+        where: { deletedAt: null },
         select: {
           birdNo: true,
           entryFeeValue: true,
@@ -291,7 +296,7 @@ export async function prizeStatements(seasonId: number): Promise<{
         prizeValue: { not: null },
         raceItem: {
           race: { seasonId },
-          OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
+          OR: activeRaceItemOr,
         },
       },
       select: {

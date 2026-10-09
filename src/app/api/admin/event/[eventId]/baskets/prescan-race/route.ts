@@ -104,6 +104,10 @@ export async function POST(
       return NextResponse.json({ message: "This bird's registration has not been approved." }, { status: 400 });
     }
 
+    if (raceItem.inventoryItem?.deletedAt) {
+      return NextResponse.json({ message: "This bird has been removed from the event." }, { status: 400 });
+    }
+
     // Already basketed
     if (raceItem.status === "LOFT_BASKETED") {
       const basket = raceItem.inventoryItem?.basketAssignments?.[0]?.eventBasket;

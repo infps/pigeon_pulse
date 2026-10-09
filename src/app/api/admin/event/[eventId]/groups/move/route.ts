@@ -51,6 +51,9 @@ export async function POST(
   if (item.eventInventory?.approvalStatus !== approvedInventory.approvalStatus) {
     return NextResponse.json({ message: "This bird's registration has not been approved." }, { status: 400 });
   }
+  if (item.deletedAt) {
+    return NextResponse.json({ message: "This bird has been removed from the event." }, { status: 400 });
+  }
 
   const toGroup = await prisma.eventGroup.findFirst({
     where: { id: toGroupId, seasonId },

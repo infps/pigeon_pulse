@@ -36,6 +36,7 @@ export async function requirePaidBeforeBasketing(
       hotspotsPaidMask: true,
       breeder: { select: { firstName: true, lastName: true } },
       items: {
+        where: { deletedAt: null },
         select: {
           entryFeeValue: true,
           perchFeeValue: true,

@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requireAnyPermission } from "@/lib/authorize";
-import { activeItem } from "@/lib/entry-filters";
+import { approvedItem } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -23,7 +23,7 @@ export async function GET(
     if (!race) return NextResponse.json({ message: "Race not found" }, { status: 404 });
 
     const bets = await prisma.bet.findMany({
-      where: { raceId: raceIdInt, raceItem: { inventoryItem: activeItem } },
+      where: { raceId: raceIdInt, raceItem: { inventoryItem: approvedItem } },
       include: {
         bettor: { select: { id: true, name: true, lastName: true, email: true } },
         raceItem: {

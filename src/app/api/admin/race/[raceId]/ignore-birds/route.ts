@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requireAnyPermission, requirePermission } from "@/lib/authorize";
-import { activeItem } from "@/lib/entry-filters";
+import { activeItem, activeRaceItemOr } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -40,7 +40,7 @@ export async function GET(
     const ignored = await prisma.raceIgnoreBird.findMany({
       where: {
         raceId: raceIdInt,
-        OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
+        OR: activeRaceItemOr,
       },
       include: {
         inventoryItem: {

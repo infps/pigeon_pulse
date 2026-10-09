@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
         where: {
           birdId: bird.id,
           ...(resolvedSeasonId != null
-            ? { eventInventory: { seasonId: resolvedSeasonId, ...approvedInventory } }
+            ? { eventInventory: { seasonId: resolvedSeasonId, ...approvedInventory }, deletedAt: null }
             : activeItem),
         },
         orderBy: { id: "desc" },

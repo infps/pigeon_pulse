@@ -34,6 +34,7 @@ export async function GET(
         breeder: true,
         payments: true,
         items: {
+          where: { deletedAt: null },
           include: { bird: { select: { band: true, band1: true, band2: true, band3: true, band4: true, birdName: true, color: true, sex: true } } },
           orderBy: { birdNo: "asc" },
         },

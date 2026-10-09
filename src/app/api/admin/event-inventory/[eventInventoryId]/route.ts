@@ -35,7 +35,7 @@ export async function GET(
         payments: { orderBy: { paymentDate: "desc" } },
         refunds: { where: { status: "OWED" }, select: { id: true, amount: true } },
         partners: { include: { breeder: true } },
-        items: { include: { bird: true }, orderBy: { birdNo: "asc" } },
+        items: { where: { deletedAt: null }, include: { bird: true }, orderBy: { birdNo: "asc" } },
       },
     });
 
@@ -51,7 +51,7 @@ export async function GET(
           seasonId: eventInventory.seasonId,
           id: { not: eventInventoryId },
         },
-        include: { items: { include: { bird: true }, orderBy: { birdNo: "asc" } } },
+        include: { items: { where: { deletedAt: null }, include: { bird: true }, orderBy: { birdNo: "asc" } } },
       });
       if (siblings.length > 0) {
         const extraItems = siblings.flatMap((s) => s.items);

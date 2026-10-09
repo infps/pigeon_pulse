@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
-import { activeItem, approvedInventory } from "@/lib/entry-filters";
+import { approvedItem, activeRaceItemOr, approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -97,7 +97,7 @@ export async function GET(
 
     // --- EventInventoryItem aggregations (single pass) ---
     const items = await prisma.eventInventoryItem.findMany({
-      where: { eventInventoryId: { in: inventoryIdList } },
+      where: { eventInventoryId: { in: inventoryIdList }, deletedAt: null },
       select: {
         replacedItemId: true,
         entryFeeValue: true,
@@ -141,7 +141,7 @@ export async function GET(
     const raceItems = await prisma.raceItem.findMany({
       where: {
         race: { seasonId: activeSeason.id },
-        OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
+        OR: activeRaceItemOr,
       },
       select: {
         isLost: true,
@@ -187,7 +187,7 @@ export async function GET(
     const betsPlacedAgg = await prisma.bet.aggregate({
       where: {
         race: { seasonId: activeSeason.id },
-        raceItem: { inventoryItem: activeItem },
+        raceItem: { inventoryItem: approvedItem },
         status: { not: "REFUNDED" },
       },
       _sum: { amount: true },
@@ -197,7 +197,7 @@ export async function GET(
     const betsRefundAgg = await prisma.bet.aggregate({
       where: {
         race: { seasonId: activeSeason.id },
-        raceItem: { inventoryItem: activeItem },
+        raceItem: { inventoryItem: approvedItem },
         status: { in: ["WON", "PAID"] },
       },
       _sum: { payoutValue: true },
