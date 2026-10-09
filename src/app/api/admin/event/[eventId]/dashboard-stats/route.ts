@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { activeItem, approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -83,13 +84,15 @@ export async function GET(
 
     // --- EventInventory aggregations ---
     const inventories = await prisma.eventInventory.findMany({
-      where: { seasonId: activeSeason.id },
-      select: { id: true, isWaiting: true, reservedBirds: true },
+      where: { seasonId: activeSeason.id, ...approvedInventory },
+      select: { id: true, reservedBirds: true },
     });
 
     const inventoryIdList = inventories.map((i) => i.id);
     const breederCount = inventories.length;
-    const reservedWaiting = inventories.filter((i) => i.isWaiting === 1).length;
+    const reservedWaiting = await prisma.eventInventory.count({
+      where: { seasonId: activeSeason.id, approvalStatus: "WAITING" },
+    });
     const reservedBirds = inventories.reduce((s, i) => s + (i.reservedBirds ?? 0), 0);
 
     // --- EventInventoryItem aggregations (single pass) ---
@@ -136,7 +139,10 @@ export async function GET(
 
     // --- RaceItem aggregations ---
     const raceItems = await prisma.raceItem.findMany({
-      where: { race: { seasonId: activeSeason.id } },
+      where: {
+        race: { seasonId: activeSeason.id },
+        OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
+      },
       select: {
         isLost: true,
         status: true,
@@ -181,6 +187,7 @@ export async function GET(
     const betsPlacedAgg = await prisma.bet.aggregate({
       where: {
         race: { seasonId: activeSeason.id },
+        raceItem: { inventoryItem: activeItem },
         status: { not: "REFUNDED" },
       },
       _sum: { amount: true },
@@ -190,6 +197,7 @@ export async function GET(
     const betsRefundAgg = await prisma.bet.aggregate({
       where: {
         race: { seasonId: activeSeason.id },
+        raceItem: { inventoryItem: activeItem },
         status: { in: ["WON", "PAID"] },
       },
       _sum: { payoutValue: true },

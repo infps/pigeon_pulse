@@ -16,6 +16,7 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { activeItem } from "@/lib/entry-filters";
 import type { ClassPayoutType } from "@/generated/prisma/enums";
 
 type Tx = Prisma.TransactionClient;
@@ -147,7 +148,7 @@ export async function calcClassPayouts(
   if (!raceClass) throw new Error("That class no longer exists.");
 
   const entries = await tx.raceClassEntry.findMany({
-    where: { raceClassId },
+    where: { raceClassId, inventoryItem: activeItem },
     select: {
       id: true,
       feeCharged: true,

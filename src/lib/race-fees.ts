@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { activeItem } from "@/lib/entry-filters";
 
 type Tx = Prisma.TransactionClient;
 
@@ -58,6 +59,7 @@ async function perBirdRaceFee(tx: Tx, seasonId: number): Promise<number> {
       where: {
         race: { seasonId },
         status: { in: ["LOFT_BASKETED", "RELEASED", "ARRIVED"] },
+        OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
       },
     });
     return flying > 0 ? total / flying : 0;

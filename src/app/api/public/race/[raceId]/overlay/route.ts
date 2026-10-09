@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { activeItem } from "@/lib/entry-filters";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +73,7 @@ export async function GET(
     } as const;
 
     const items = await prisma.raceItem.findMany({
-      where: { raceId },
+      where: { raceId, OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }] },
       select: itemSelect,
     });
 

@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requireAnyPermission, requirePermission } from "@/lib/authorize";
+import { activeItem } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -74,7 +75,7 @@ export async function POST(request: Request, { params }: Params) {
 
   // Get current members for snapshot
   const currentMembers = await prisma.eventInventoryItem.findMany({
-    where: { currentGroupId: p.groupId },
+    where: { currentGroupId: p.groupId, ...activeItem },
     select: { id: true },
   });
 

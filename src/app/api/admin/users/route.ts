@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
@@ -132,7 +133,7 @@ export async function GET(request: Request) {
         orderBy: { startDate: "desc" },
       });
       const inventories = await prisma.eventInventory.findMany({
-        where: { seasonId: activeSeason?.id },
+        where: { seasonId: activeSeason?.id, ...approvedInventory },
         include: { breeder: true },
       });
 

@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requireAnyPermission } from "@/lib/authorize";
+import { approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -38,6 +39,7 @@ export async function GET(
     include: {
       owner: { select: { id: true, name: true } },
       members: {
+        where: { eventInventory: approvedInventory },
         include: {
           eventInventory: {
             select: {

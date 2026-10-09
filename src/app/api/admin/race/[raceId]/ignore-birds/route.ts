@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requireAnyPermission, requirePermission } from "@/lib/authorize";
+import { activeItem } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -37,7 +38,10 @@ export async function GET(
     }
 
     const ignored = await prisma.raceIgnoreBird.findMany({
-      where: { raceId: raceIdInt },
+      where: {
+        raceId: raceIdInt,
+        OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
+      },
       include: {
         inventoryItem: {
           select: {
@@ -78,7 +82,7 @@ export async function POST(
 
     // The bird has to actually be in this race for ignoring it to mean anything.
     const raceItem = await prisma.raceItem.findFirst({
-      where: { raceId: raceIdInt, inventoryItemId },
+      where: { raceId: raceIdInt, inventoryItemId, inventoryItem: activeItem },
       select: { id: true },
     });
     if (!raceItem) {

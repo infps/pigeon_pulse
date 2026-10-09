@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -86,6 +87,12 @@ export async function POST(
       if (!raceItem || raceItem.raceId !== raceIdInt) {
         return NextResponse.json(
           { message: `RaceItem ${sel.raceItemId} not in this race` },
+          { status: 400 }
+        );
+      }
+      if (raceItem.inventoryItem?.eventInventory?.approvalStatus !== approvedInventory.approvalStatus) {
+        return NextResponse.json(
+          { message: "This bird's registration has not been approved." },
           { status: 400 }
         );
       }

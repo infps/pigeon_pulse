@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { requireAnyPermission } from "@/lib/authorize";
+import { activeItem } from "@/lib/entry-filters";
 import { computePaymentTotals } from "@/lib/paymentStatus";
 import { openHotspotGate } from "@/lib/hotspot-gates";
 
@@ -27,6 +28,7 @@ export async function GET(req: NextRequest) {
     const raceItems = await prisma.raceItem.findMany({
       where: {
         raceId: parseInt(raceId),
+        OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
       },
       include: {
         inventoryItem: {
@@ -78,7 +80,7 @@ export async function GET(req: NextRequest) {
         select: {
           id: true,
           hotspotsPaidMask: true,
-          payments: { select: { paymentValue: true, paymentDesc: true, paymentType: true } },
+          payments: { select: { paymentValue: true, paymentDesc: true, paymentType: true, status: true } },
           items: {
             select: {
               entryFeeValue: true, perchFeeValue: true, raceFeeValue: true, hotSpotFeeValue: true,

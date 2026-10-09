@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { approvedInventory } from "@/lib/entry-filters";
 
 export interface ExportData {
   columns: string[];
@@ -108,7 +109,7 @@ export async function getResultsRows(
       ...(raceId ? { raceId } : {}),
       inventoryItem: {
         eventInventory: {
-          ...(breederId != null ? { breederId } : {}),
+          ...(breederId != null ? { breederId } : approvedInventory),
           ...(eventId ? { season: { eventId } } : {}),
         },
       },

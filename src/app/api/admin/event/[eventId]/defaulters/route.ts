@@ -3,7 +3,8 @@ import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { computePaymentStatus } from "@/lib/paymentStatus";
+import { computePaymentTotals } from "@/lib/paymentStatus";
+import { approvedInventory } from "@/lib/entry-filters";
 
 export async function GET(
   request: Request,
@@ -52,11 +53,11 @@ export async function GET(
       : false;
 
     const inventories = await prisma.eventInventory.findMany({
-      where: { seasonId },
+      where: { seasonId, ...approvedInventory },
       select: {
         id: true, breederId: true, loft: true, cashPromised: true,
         breeder: { select: { firstName: true, lastName: true } },
-        payments: { select: { paymentValue: true, paymentDesc: true, paymentType: true } },
+        payments: { select: { paymentValue: true, paymentDesc: true, paymentType: true, status: true } },
         items: {
           select: {
             id: true, birdNo: true, birdId: true,
@@ -69,25 +70,9 @@ export async function GET(
 
     const defaulters = inventories
       .map((inv) => {
-        const status = computePaymentStatus(inv.items, inv.payments);
-        const isPending = status === "PENDING" || status === "PARTIAL";
-
-        const nonBetNonRefundPaid = inv.payments
-          .filter((p) => !p.paymentDesc?.toLowerCase().includes("bet stake") && p.paymentType !== 3)
-          .reduce((s, p) => s + (p.paymentValue ?? 0), 0);
-        const refundsOut = inv.payments
-          .filter((p) => p.paymentType === 3)
-          .reduce((s, p) => s + Math.abs(p.paymentValue ?? 0), 0);
-        const totalFees = inv.items.reduce(
-          (s, i) =>
-            s +
-            (i.entryFeeValue ?? 0) +
-            (i.perchFeeValue ?? 0) +
-            (i.raceFeeValue ?? 0) +
-            (i.hotSpotFeeValue ?? 0),
-          0
-        );
-        const balanceOwed = totalFees - (nonBetNonRefundPaid - refundsOut);
+        const totals = computePaymentTotals(inv.items, inv.payments);
+        const isPending = totals.status === "PENDING" || totals.status === "PARTIAL";
+        const balanceOwed = totals.balance;
 
         return {
           eventInventoryId: inv.id,

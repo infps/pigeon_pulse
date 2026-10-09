@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requireAnyPermission, requirePermission } from "@/lib/authorize";
+import { activeItem } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { haversine } from "@/lib/geo";
 import { headers } from "next/headers";
@@ -88,7 +89,10 @@ export async function GET(request: Request) {
     // active = everything else except IGNORED (excluded flights).
     const grouped = await prisma.raceItem.groupBy({
       by: ["raceId", "status", "isLost"],
-      where: { raceId: { in: races.map((r) => r.id) } },
+      where: {
+        raceId: { in: races.map((r) => r.id) },
+        OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
+      },
       _count: { _all: true },
     });
     const counts = new Map<number, { activeBirds: number; lostBirds: number; foreignBirds: number }>();

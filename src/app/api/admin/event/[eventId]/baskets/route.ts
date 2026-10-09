@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requireAnyPermission, requirePermission } from "@/lib/authorize";
+import { activeItem } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -65,8 +66,9 @@ export async function GET(
     const baskets = await prisma.eventBasket.findMany({
       where,
       include: {
-        _count: { select: { assignments: true } },
+        _count: { select: { assignments: { where: { inventoryItem: activeItem } } } },
         assignments: {
+          where: { inventoryItem: activeItem },
           include: {
             inventoryItem: {
               include: {

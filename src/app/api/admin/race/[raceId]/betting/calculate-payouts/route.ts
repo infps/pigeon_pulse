@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { activeItem } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -56,7 +57,7 @@ export async function POST(
 
     // Load all bets for this race with their bird's arrival position
     const bets = await prisma.bet.findMany({
-      where: { raceId: raceIdInt },
+      where: { raceId: raceIdInt, raceItem: { inventoryItem: activeItem } },
       include: {
         raceItem: { include: { result: true } },
       },

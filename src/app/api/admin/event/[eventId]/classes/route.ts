@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requireAnyPermission, requirePermission } from "@/lib/authorize";
+import { activeItem } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -54,7 +55,7 @@ export async function GET(
         cutPercent: true,
         sortOrder: true,
         isActive: true,
-        entries: { select: { feeCharged: true } },
+        entries: { where: { inventoryItem: activeItem }, select: { feeCharged: true } },
       },
     });
 

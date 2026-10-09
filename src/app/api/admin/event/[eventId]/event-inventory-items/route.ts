@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requireAnyPermission } from "@/lib/authorize";
+import { approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -85,7 +86,7 @@ export async function GET(
 
     const eventInventoryItems = await prisma.eventInventoryItem.findMany({
       where: {
-        eventInventory: { seasonId },
+        eventInventory: { seasonId, ...approvedInventory },
         ...(hasArrivalFilter && {
           raceItems: {
             some: {
@@ -100,7 +101,7 @@ export async function GET(
         }),
         ...(paymentStatusFilter && {
           // approximate pre-filter: only include items where inventory has payments or fees
-          eventInventory: { seasonId },
+          eventInventory: { seasonId, ...approvedInventory },
         }),
       },
       select: {

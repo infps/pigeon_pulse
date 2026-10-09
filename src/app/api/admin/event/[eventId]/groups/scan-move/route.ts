@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -43,9 +44,15 @@ export async function POST(
 
   const item = await prisma.eventInventoryItem.findFirst({
     where: { birdId: bird.id, eventInventory: { seasonId } },
-    include: { currentGroup: { select: { id: true, name: true } } },
+    include: {
+      currentGroup: { select: { id: true, name: true } },
+      eventInventory: { select: { approvalStatus: true } },
+    },
   });
   if (!item) return NextResponse.json({ message: "Bird not registered in this event", notFound: true }, { status: 404 });
+  if (item.eventInventory?.approvalStatus !== approvedInventory.approvalStatus) {
+    return NextResponse.json({ message: "This bird's registration has not been approved." }, { status: 400 });
+  }
 
   if (item.currentGroupId === targetGroupId) {
     const band = [bird.band1, bird.band2, bird.band3, bird.band4].filter(Boolean).join("-") || bird.band || rfid;

@@ -184,6 +184,10 @@ export async function POST(
           // Recorded so the defaulter list treats them as trusted rather than
           // chasing them, exactly as an admin-set cash promise does.
           cashPromised: promisedCash,
+          // Self-registrations wait for an admin. The breeder can still pay;
+          // the birds only take part once the registration is approved.
+          approvalStatus: "WAITING",
+          waitingDate: new Date(),
         },
       });
 

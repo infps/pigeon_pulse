@@ -31,6 +31,8 @@ export interface PaymentStatusPayment {
     paymentValue?: number | null;
     paymentDesc?: string | null;
     paymentType?: number | null;
+    /** Only PAID rows are money received; a PENDING row is an unpaid order. */
+    status: string;
 }
 
 /**
@@ -113,12 +115,14 @@ export function computePaymentTotals(
         0
     );
 
-    const refundsOut = payments
+    const received = payments.filter((p) => p.status === "PAID");
+
+    const refundsOut = received
         .filter((p) => p.paymentType === 3)
         .reduce((s, p) => s + Math.abs(p.paymentValue ?? 0), 0);
 
     const totalPaid =
-        payments
+        received
             .filter((p) => !p.paymentDesc?.toLowerCase().includes("bet stake") && p.paymentType !== 3)
             .reduce((s, p) => s + (p.paymentValue ?? 0), 0) - refundsOut;
 

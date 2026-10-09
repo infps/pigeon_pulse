@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -67,7 +68,7 @@ export async function GET(request: Request) {
       orderBy: { startDate: "desc" },
     });
     const inventories = await prisma.eventInventory.findMany({
-      where: { seasonId: activeSeason?.id },
+      where: { seasonId: activeSeason?.id, ...approvedInventory },
       include: { breeder: true },
     });
     const emails = inventories.map(i => i.breeder?.email).filter((e): e is string => !!e);

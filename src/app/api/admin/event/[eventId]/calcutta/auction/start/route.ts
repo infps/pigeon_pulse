@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { pusher } from "@/lib/pusher";
 import { headers } from "next/headers";
@@ -40,6 +41,7 @@ export async function POST(
     where: { id: groupId, seasonId },
     include: {
       members: {
+        where: { eventInventory: approvedInventory },
         include: {
           eventInventory: {
             select: {

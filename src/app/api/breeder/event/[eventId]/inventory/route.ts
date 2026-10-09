@@ -1,5 +1,8 @@
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { approvedInventory } from "@/lib/entry-filters";
 
 export async function GET(
   request: Request,
@@ -29,8 +32,16 @@ export async function GET(
       seasonId = activeSeason.id;
     }
 
+    // Others see participants only; a breeder also sees their own registration
+    // while it waits for approval.
+    const session = await auth.api.getSession({ headers: await headers() });
+    const self = session?.user
+      ? await prisma.breeder.findUnique({ where: { userId: session.user.id }, select: { id: true } })
+      : null;
+    const visible = self ? { OR: [approvedInventory, { breederId: self.id }] } : approvedInventory;
+
     const eventInventory = await prisma.eventInventory.findMany({
-      where: { seasonId },
+      where: { seasonId, ...visible },
       include: {
         breeder: {
           include: {

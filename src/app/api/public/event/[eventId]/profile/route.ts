@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { isStaff } from "@/lib/roles";
+import { approvedInventory } from "@/lib/entry-filters";
 
 /**
  * Public organization profile — the One Loft front door.
@@ -100,10 +101,10 @@ export async function GET(
     let glance = { breeders: 0, activeBirds: 0, releases: 0 };
     if (season) {
       const [breeders, activeBirds, releases] = await Promise.all([
-        prisma.eventInventory.count({ where: { seasonId: season.id } }),
+        prisma.eventInventory.count({ where: { seasonId: season.id, ...approvedInventory } }),
         prisma.eventInventoryItem.count({
           where: {
-            eventInventory: { seasonId: season.id },
+            eventInventory: { seasonId: season.id, ...approvedInventory },
             bird: { NOT: { isLost: 1 } },
           },
         }),

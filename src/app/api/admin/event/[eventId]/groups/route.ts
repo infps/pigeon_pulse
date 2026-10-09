@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requireAnyPermission, requirePermission } from "@/lib/authorize";
+import { activeItem } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -43,9 +44,10 @@ export async function GET(
     orderBy: { createdAt: "asc" },
     include: {
       statusCode: { select: { id: true, code: true, label: true, color: true } },
-      _count: { select: { members: true, vaccinations: true } },
+      _count: { select: { members: { where: activeItem }, vaccinations: true } },
       vaccinations: { orderBy: { vaccinationDate: "desc" } },
       members: {
+        where: activeItem,
         select: {
           id: true,
           currentGroupId: true,

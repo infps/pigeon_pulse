@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { activeItem, approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -47,6 +48,9 @@ export async function POST(
     },
   });
   if (!item) return NextResponse.json({ message: "Item not found" }, { status: 404 });
+  if (item.eventInventory?.approvalStatus !== approvedInventory.approvalStatus) {
+    return NextResponse.json({ message: "This bird's registration has not been approved." }, { status: 400 });
+  }
 
   const toGroup = await prisma.eventGroup.findFirst({
     where: { id: toGroupId, seasonId },
@@ -54,7 +58,7 @@ export async function POST(
   if (!toGroup) return NextResponse.json({ message: "Target group not found" }, { status: 404 });
 
   if (toGroup.hasCapacity && toGroup.capacity !== null) {
-    const currentCount = await prisma.eventInventoryItem.count({ where: { currentGroupId: toGroupId } });
+    const currentCount = await prisma.eventInventoryItem.count({ where: { currentGroupId: toGroupId, ...activeItem } });
     if (currentCount >= toGroup.capacity) {
       return NextResponse.json({ message: `Target group at capacity (${toGroup.capacity})` }, { status: 409 });
     }

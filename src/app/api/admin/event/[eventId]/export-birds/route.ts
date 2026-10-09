@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -46,7 +47,7 @@ export async function GET(
 
   const items = await prisma.eventInventoryItem.findMany({
     where: {
-      eventInventory: { season: { eventId } },
+      eventInventory: { season: { eventId }, ...approvedInventory },
     },
     include: {
       bird: true,

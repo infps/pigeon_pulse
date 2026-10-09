@@ -142,7 +142,7 @@ export function PayPalButton({
 
       if (totalDue <= 0) {
         popup.close();
-        await finish(true, "Registration successful (no payment required)");
+        await finish(true, "Registration submitted (no payment required). It is waiting for the organizer to approve it.");
         return;
       }
 
@@ -198,7 +198,7 @@ export function PayPalButton({
               finish(false, capJson?.message || "Failed to capture payment");
               return;
             }
-            finish(true, "Payment confirmed — registration complete");
+            finish(true, "Payment confirmed. Your registration is waiting for the organizer to approve it.");
           }
         } catch (err) {
           console.error("[PayPalButton] poll error:", err);

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { computePaymentStatus } from "@/lib/paymentStatus";
+import { approvedInventory } from "@/lib/entry-filters";
 
 export async function GET(
   request: Request,
@@ -28,7 +29,7 @@ export async function GET(
     }
 
     const inventories = await prisma.eventInventory.findMany({
-      where: { seasonId, cashPromised: false },
+      where: { seasonId, cashPromised: false, ...approvedInventory },
       include: {
         breeder: true,
         payments: true,

@@ -286,6 +286,9 @@ export interface EventInventory {
   isWaiting: number | null;
   waitingDate: string | null;
   cashPromised: boolean;
+  approvalStatus: "WAITING" | "APPROVED" | "REJECTED";
+  approvedAt: string | null;
+  rejectedAt: string | null;
   /** Server-computed (admin event-inventory list): per-registration fee totals + hybrid status. */
   feeTotals?: EventInventoryFeeTotals;
   event?: Event;
@@ -293,6 +296,8 @@ export interface EventInventory {
   items?: EventInventoryItem[];
   partners?: Partner[];
   payments?: Payment[];
+  /** Admin detail only: refunds still owed to the breeder. */
+  refunds?: { id: number; amount: number }[];
 }
 
 export interface EventInventoryItem {
@@ -361,7 +366,7 @@ export interface Payment {
   paymentTimestamp: string | null;
   paymentDesc: string | null;
   transactionId: string | null;
-  status: number | null;
+  status: "PENDING" | "PARTIAL" | "PAID" | "FAILED" | "REFUNDED";
   eventInventory?: EventInventory;
   breeder?: Breeder;
 }

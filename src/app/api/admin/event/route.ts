@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requireAnyPermission } from "@/lib/authorize";
+import { approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { createEventSchema, updateEventSchema } from "@/lib/zod";
 import { uploadToR2, deleteFromR2, generateImageKey } from "@/lib/r2";
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
               bettingScheme: true,
               finalPrize: true,
               races: { include: { raceType: true }, orderBy: { startTime: "asc" } },
-              _count: { select: { races: true, eventInventories: true } },
+              _count: { select: { races: true, eventInventories: { where: approvedInventory } } },
             },
           },
           _count: { select: { seasons: true } },
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
       }
       const activeSeason = event.seasons.find(s => s.isActive) ?? event.seasons[0];
       const birdCount = await prisma.eventInventoryItem.count({
-        where: { eventInventory: { seasonId: activeSeason?.id } },
+        where: { eventInventory: { seasonId: activeSeason?.id, ...approvedInventory } },
       });
       return NextResponse.json(
         {

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { approvedInventory } from "@/lib/entry-filters";
 import { AverageFilterMode } from "@/generated/prisma/enums";
 
 export interface AverageResultRow {
@@ -61,7 +62,7 @@ export async function computeAverageResults(
 
   // All birds registered in this season
   const inventoryItems = await prisma.eventInventoryItem.findMany({
-    where: { eventInventory: { seasonId } },
+    where: { eventInventory: { seasonId, ...approvedInventory } },
     select: {
       id: true,
       bird: { select: { id: true, band1: true, band2: true, band3: true, band4: true, color: true, sex: true } },

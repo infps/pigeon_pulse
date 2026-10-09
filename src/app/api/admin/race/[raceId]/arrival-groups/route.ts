@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requireAnyPermission, requirePermission } from "@/lib/authorize";
+import { activeItem } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -59,7 +60,10 @@ export async function POST(
   const results = await prisma.raceItemResult.findMany({
     where: {
       arrivalTime: { not: null },
-      raceItem: { raceId },
+      raceItem: {
+        raceId,
+        OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
+      },
     },
     select: { raceItemId: true, arrivalTime: true },
   });

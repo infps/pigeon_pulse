@@ -62,7 +62,7 @@ function CashRegisterButton({
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message || "Registration failed");
-      toast.success("Registered. Pay via Payments page when ready.");
+      toast.success("Registration submitted. It is waiting for the organizer to approve it; you can pay from the Payments page meanwhile.");
       onDone?.();
       router.push("/payments");
     } catch (err: any) {

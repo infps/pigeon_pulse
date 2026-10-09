@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { activeItem } from "@/lib/entry-filters";
 
 type HistoryType =
   | "REGISTERED"
@@ -60,7 +61,7 @@ export async function GET(
     }
 
     const inventoryItems = await prisma.eventInventoryItem.findMany({
-      where: { birdId: birdIdInt },
+      where: { birdId: birdIdInt, ...activeItem },
       include: {
         eventInventory: {
           include: {
@@ -111,7 +112,11 @@ export async function GET(
     const leaderTimesMap = new Map<number, number>(); // raceId -> earliest arrival ms
     if (arrivedRaceIds.size > 0) {
       const allArrivals = await prisma.raceItem.findMany({
-        where: { raceId: { in: [...arrivedRaceIds] }, status: "ARRIVED" },
+        where: {
+          raceId: { in: [...arrivedRaceIds] },
+          status: "ARRIVED",
+          OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
+        },
         include: { result: { select: { arrivalTime: true } } },
       });
       for (const ri of allArrivals) {

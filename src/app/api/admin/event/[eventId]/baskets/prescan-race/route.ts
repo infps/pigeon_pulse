@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -83,6 +84,7 @@ export async function POST(
       include: {
         inventoryItem: {
           include: {
+            eventInventory: { select: { approvalStatus: true } },
             basketAssignments: {
               include: { eventBasket: { select: { id: true, label: true, basketNo: true, phase: true } } },
               where: { eventBasket: { phase: "RACE", raceId: parseInt(String(raceId)) } },
@@ -96,6 +98,10 @@ export async function POST(
     if (!raceItem) {
       // Bird exists but not registered for this race → foreign
       return NextResponse.json({ status: "foreign", rfid: rfid.trim(), bird });
+    }
+
+    if (raceItem.inventoryItem?.eventInventory?.approvalStatus !== approvedInventory.approvalStatus) {
+      return NextResponse.json({ message: "This bird's registration has not been approved." }, { status: 400 });
     }
 
     // Already basketed

@@ -15,6 +15,7 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { activeItem } from "@/lib/entry-filters";
 
 type Tx = Prisma.TransactionClient;
 
@@ -155,6 +156,7 @@ export async function groupStats(seasonId: number): Promise<GroupStats[]> {
       color: true,
       notes: true,
       members: {
+        where: activeItem,
         select: {
           id: true,
           isBackup: true,

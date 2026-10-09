@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { presetIdFor } from "@/lib/birdStatus";
 import { lockRace } from "@/lib/race-results";
@@ -52,7 +53,10 @@ export async function POST(
 
     const raceItem = await prisma.raceItem.findFirst({
       where: { raceId: raceIdInt, inventoryItem: { birdId } },
-      include: { result: true, inventoryItem: { select: { id: true } } },
+      include: {
+        result: true,
+        inventoryItem: { select: { id: true, eventInventory: { select: { approvalStatus: true } } } },
+      },
     });
 
     if (!raceItem) {
@@ -61,6 +65,13 @@ export async function POST(
           message:
             "That bird is not entered in this race, so the scan cannot be recorded against it.",
         },
+        { status: 400 }
+      );
+    }
+
+    if (raceItem.inventoryItem?.eventInventory?.approvalStatus !== approvedInventory.approvalStatus) {
+      return NextResponse.json(
+        { message: "This bird's registration has not been approved." },
         { status: 400 }
       );
     }

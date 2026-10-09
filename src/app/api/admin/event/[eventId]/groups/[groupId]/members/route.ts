@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { activeItem, approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -52,15 +53,19 @@ export async function POST(request: Request, { params }: Params) {
 
   const items = await prisma.eventInventoryItem.findMany({
     where: { id: { in: itemIds }, eventInventory: { seasonId } },
-    select: { id: true, currentGroupId: true },
+    select: { id: true, currentGroupId: true, eventInventory: { select: { approvalStatus: true } } },
   });
 
   if (items.length !== itemIds.length) {
     return NextResponse.json({ message: "Some items not found in this event" }, { status: 404 });
   }
 
+  if (items.some((i) => i.eventInventory?.approvalStatus !== approvedInventory.approvalStatus)) {
+    return NextResponse.json({ message: "This bird's registration has not been approved." }, { status: 400 });
+  }
+
   if (group.hasCapacity && group.capacity !== null) {
-    const currentCount = await prisma.eventInventoryItem.count({ where: { currentGroupId: p.groupId } });
+    const currentCount = await prisma.eventInventoryItem.count({ where: { currentGroupId: p.groupId, ...activeItem } });
     if (currentCount + items.length > group.capacity) {
       return NextResponse.json(
         { message: `Exceeds capacity. Current: ${currentCount}, capacity: ${group.capacity}` },
@@ -84,7 +89,7 @@ export async function POST(request: Request, { params }: Params) {
     })),
   });
 
-  const memberCount = await prisma.eventInventoryItem.count({ where: { currentGroupId: p.groupId } });
+  const memberCount = await prisma.eventInventoryItem.count({ where: { currentGroupId: p.groupId, ...activeItem } });
 
   return NextResponse.json({ added: items.length, memberCount });
 }

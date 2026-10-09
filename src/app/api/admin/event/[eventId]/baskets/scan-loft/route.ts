@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { requirePaidBeforeBasketing } from "@/lib/basketing-gate";
 import { writeRaceFeeForBasketedBird } from "@/lib/race-fees";
 import { requirePermission } from "@/lib/authorize";
+import { activeItem, approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -78,6 +79,13 @@ export async function POST(
       return NextResponse.json(
         { message: `No bird with RFID ${rfid.trim()} registered in this event`, foreign: true },
         { status: 404 }
+      );
+    }
+
+    if (item.eventInventory?.approvalStatus !== approvedInventory.approvalStatus) {
+      return NextResponse.json(
+        { message: "This bird's registration has not been approved." },
+        { status: 400 }
       );
     }
 
@@ -182,7 +190,7 @@ export async function POST(
 
       // 5. Get updated member count
       const memberCount = await tx.eventInventoryItem.count({
-        where: { currentGroupId: activeGroup.id },
+        where: { currentGroupId: activeGroup.id, ...activeItem },
       });
 
       const capacityPercent = activeGroup.capacity ? memberCount / activeGroup.capacity : 0;

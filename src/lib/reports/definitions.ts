@@ -8,6 +8,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { prizeStatements, seasonLedger } from "@/lib/accounting";
+import { activeItem, approvedInventory } from "@/lib/entry-filters";
 import type { ReportDefinition, ReportData, ReportParams } from "./types";
 import {
   bandOf,
@@ -45,7 +46,11 @@ async function buildRaceResult(params: ReportParams): Promise<ReportData> {
   });
 
   const items = await prisma.raceItem.findMany({
-    where: { raceId, result: { isNot: null } },
+    where: {
+      raceId,
+      result: { isNot: null },
+      OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
+    },
     select: {
       isLost: true,
       result: {
@@ -140,7 +145,7 @@ async function buildBreederAverage(params: ReportParams, short: boolean): Promis
   const raceById = new Map(races.map((r) => [r.id, r]));
 
   const items = await prisma.eventInventoryItem.findMany({
-    where: { eventInventory: { seasonId } },
+    where: { eventInventory: { seasonId, ...approvedInventory } },
     select: {
       eventInventory: {
         select: {
@@ -238,7 +243,7 @@ async function buildBreederBalance(params: ReportParams): Promise<ReportData> {
   const seasonId = requireParam(params, "seasonId");
 
   const inventories = await prisma.eventInventory.findMany({
-    where: { seasonId },
+    where: { seasonId, ...approvedInventory },
     select: {
       loft: true,
       cashPromised: true,
@@ -318,7 +323,7 @@ async function buildInventoryList(params: ReportParams): Promise<ReportData> {
   const seasonId = requireParam(params, "seasonId");
 
   const items = await prisma.eventInventoryItem.findMany({
-    where: { eventInventory: { seasonId } },
+    where: { eventInventory: { seasonId, ...approvedInventory } },
     select: {
       birdNo: true,
       isBackup: true,
@@ -662,7 +667,11 @@ const LABEL_FIELDS = {
 async function buildLabels(params: ReportParams, seasonScoped: boolean): Promise<ReportData> {
   const breeders = seasonScoped
     ? await prisma.breeder.findMany({
-        where: { eventInventories: { some: { seasonId: requireParam(params, "seasonId") } } },
+        where: {
+          eventInventories: {
+            some: { seasonId: requireParam(params, "seasonId"), ...approvedInventory },
+          },
+        },
         select: LABEL_FIELDS,
         orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
       })

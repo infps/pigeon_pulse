@@ -1,5 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { approvedInventory } from "@/lib/entry-filters";
 
 /**
  * Private event and race visibility.
@@ -58,7 +59,7 @@ export async function raceVisibilityFilter(
     return { isPrivate: false, seasonRel: { event: { isPrivate: false } } };
   }
 
-  const entered = { raceItems: { some: { inventoryItem: { eventInventory: { breederId: breeder.id } } } } };
+  const entered = { raceItems: { some: { inventoryItem: { eventInventory: { breederId: breeder.id, ...approvedInventory } } } } };
   const registeredInEvent = {
     seasonRel: { event: { seasons: { some: { eventInventories: { some: { breederId: breeder.id } } } } } },
   };

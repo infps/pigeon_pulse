@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -36,7 +37,7 @@ export async function POST(
   if (!config) return NextResponse.json({ message: "Config not found. Set up Calcutta config first." }, { status: 404 });
 
   const inventories = await prisma.eventInventory.findMany({
-    where: { seasonId },
+    where: { seasonId, ...approvedInventory },
     select: {
       id: true,
       breeder: { select: { firstName: true, lastName: true } },

@@ -146,6 +146,16 @@ export const createBreedersColumns = (
     ),
     cell: ({ row }) => {
       const status = rowStatus(row.original);
+      // A cash promise is not money received, so it sits beside the status.
+      const owes = status === "PENDING" || status === "PARTIAL";
+      if (row.original.cashPromised && owes) {
+        return (<span className="flex items-center gap-1">
+          <Badge className={status === "PARTIAL" ? "bg-yellow-500 text-white" : "bg-red-600 text-white"}>
+            {status === "PARTIAL" ? "Partial" : "Unpaid"}
+          </Badge>
+          <Badge variant="outline">Cash promised</Badge>
+        </span>);
+      }
       switch (status) {
         case "PAID":
           return <Badge className="bg-green-600 text-white">Paid</Badge>;

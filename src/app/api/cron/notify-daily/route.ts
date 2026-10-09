@@ -5,6 +5,7 @@ import {
   notifyBetPrompt,
   notifyPaymentRisk,
 } from "@/lib/notifications";
+import { activeItem } from "@/lib/entry-filters";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest) {
     try {
       // Get all enrolled users
       const enrolled = await prisma.raceItem.findMany({
-        where: { raceId: race.id },
+        where: { raceId: race.id, inventoryItem: activeItem },
         select: {
           inventoryItem: {
             select: { eventInventory: { select: { breeder: { select: { userId: true } } } } },
@@ -95,6 +96,8 @@ export async function GET(req: NextRequest) {
       where: {
         seasonId: { in: seasonIds },
         payments: { some: { status: { in: ["PENDING", "PARTIAL"] } } },
+        // Waiting breeders can pay before approval, so they are still reminded.
+        approvalStatus: { not: "REJECTED" },
       },
       select: {
         breederId: true,

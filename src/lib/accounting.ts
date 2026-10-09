@@ -9,6 +9,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { activeItem, approvedInventory } from "@/lib/entry-filters";
 
 export interface LedgerLine {
   eventInventoryId: number;
@@ -23,6 +24,8 @@ export interface LedgerLine {
   paid: number;
   /** Money returned through the refunds ledger. */
   refunded: number;
+  /** Refunds recorded as owed but not yet paid back (rejected after paying). */
+  refundOwed: number;
   /** Race prize money. */
   prizeEarned: number;
   /** Class payouts. */
@@ -62,12 +65,18 @@ const round = (n: number) => Math.round(n * 100) / 100;
  */
 export async function seasonLedger(seasonId: number): Promise<Ledger> {
   const inventories = await prisma.eventInventory.findMany({
-    where: { seasonId },
+    // Participants, plus anyone the organizer still owes a refund: a rejected
+    // registration drops out of the event but not out of the books.
+    where: {
+      seasonId,
+      OR: [approvedInventory, { refunds: { some: { status: "OWED" } } }],
+    },
     select: {
       id: true,
       loft: true,
       breederId: true,
       cashPromised: true,
+      approvalStatus: true,
       breeder: { select: { firstName: true, lastName: true } },
       items: {
         select: {
@@ -83,12 +92,14 @@ export async function seasonLedger(seasonId: number): Promise<Ledger> {
         },
       },
       payments: { select: { paymentValue: true, status: true } },
-      refunds: { select: { amount: true } },
+      refunds: { select: { amount: true, status: true } },
     },
   });
 
   const lines: LedgerLine[] = inventories.map((inv) => {
-    const charged = inv.items.reduce(
+    // A registration that is not approved is charged nothing.
+    const billable = inv.approvalStatus === "APPROVED" ? inv.items : [];
+    const charged = billable.reduce(
       (sum, it) =>
         sum +
         (it.entryFeeValue ?? 0) +
@@ -113,7 +124,12 @@ export async function seasonLedger(seasonId: number): Promise<Ledger> {
     const paid = inv.payments
       .filter((p) => p.status === "PAID")
       .reduce((sum, p) => sum + (p.paymentValue ?? 0), 0);
-    const refunded = inv.refunds.reduce((sum, r) => sum + r.amount, 0);
+    const refunded = inv.refunds
+      .filter((r) => r.status === "ISSUED")
+      .reduce((sum, r) => sum + r.amount, 0);
+    const refundOwed = inv.refunds
+      .filter((r) => r.status === "OWED")
+      .reduce((sum, r) => sum + r.amount, 0);
 
     return {
       eventInventoryId: inv.id,
@@ -124,10 +140,11 @@ export async function seasonLedger(seasonId: number): Promise<Ledger> {
       itemRefunds: round(itemRefunds),
       paid: round(paid),
       refunded: round(refunded),
+      refundOwed: round(refundOwed),
       prizeEarned: round(prizeEarned),
       classEarned: round(classEarned),
       balance: round(charged - itemRefunds - paid),
-      owedOut: round(prizeEarned + classEarned - refunded),
+      owedOut: round(prizeEarned + classEarned - refunded + refundOwed),
       cashPromised: inv.cashPromised === true,
     };
   });
@@ -272,7 +289,10 @@ export async function prizeStatements(seasonId: number): Promise<{
     prisma.raceItemResult.findMany({
       where: {
         prizeValue: { not: null },
-        raceItem: { race: { seasonId } },
+        raceItem: {
+          race: { seasonId },
+          OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
+        },
       },
       select: {
         prizeValue: true,
@@ -296,7 +316,7 @@ export async function prizeStatements(seasonId: number): Promise<{
       },
     }),
     prisma.raceClassEntry.findMany({
-      where: { payoutValue: { not: null }, raceClass: { seasonId } },
+      where: { payoutValue: { not: null }, raceClass: { seasonId }, inventoryItem: activeItem },
       select: {
         payoutValue: true,
         position: true,

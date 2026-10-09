@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { activeItem } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { notifyRaceStarted } from "@/lib/notifications";
 import { presetIdFor } from "@/lib/birdStatus";
@@ -49,7 +50,7 @@ export async function POST(
     let inventoryItemIds: number[] | undefined;
     if (basketIds) {
       const assignments = await prisma.basketAssignment.findMany({
-        where: { eventBasketId: { in: basketIds } },
+        where: { eventBasketId: { in: basketIds }, inventoryItem: activeItem },
         select: { eventInventoryItemId: true },
       });
       inventoryItemIds = assignments.map((a) => a.eventInventoryItemId);
@@ -69,6 +70,7 @@ export async function POST(
         where: {
           raceId: raceIdInt,
           status: { in: ["LOFT_BASKETED"] },
+          OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
           ...(inventoryItemIds ? { inventoryItemId: { in: inventoryItemIds } } : undefined),
         },
         data: { status: "RELEASED", displayStatusId: flyingId },

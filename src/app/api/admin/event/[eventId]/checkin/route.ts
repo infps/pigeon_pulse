@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { presetIdFor } from "@/lib/birdStatus";
 import { headers } from "next/headers";
@@ -53,13 +54,23 @@ export async function POST(
         id: eventInventoryItemId,
         eventInventory: { seasonId },
       },
-      include: { bird: { select: { id: true } } },
+      include: {
+        bird: { select: { id: true } },
+        eventInventory: { select: { approvalStatus: true } },
+      },
     });
 
     if (!item || !item.bird) {
       return NextResponse.json(
         { message: "Bird not found for this event" },
         { status: 404 }
+      );
+    }
+
+    if (item.eventInventory?.approvalStatus !== approvedInventory.approvalStatus) {
+      return NextResponse.json(
+        { message: "This bird's registration has not been approved." },
+        { status: 400 }
       );
     }
 

@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requireAnyPermission, requirePermission } from "@/lib/authorize";
+import { activeItem } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -46,7 +47,10 @@ export async function GET(
       include: {
         originalBreeder: true,
         purchasedBy: true,
-        items: { include: { inventoryItem: { include: { bird: true } } } },
+        items: {
+          where: { inventoryItem: activeItem },
+          include: { inventoryItem: { include: { bird: true } } },
+        },
       },
       orderBy: { createdAt: "desc" },
     });

@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useGetEventInventory, useCreatePayment, useUpdatePayment, useDeletePayment, useAddPartner, useDeletePartner, useListBreeders } from "@/lib/api/payments";
 import { useAdminListBirds } from "@/lib/api/admin-birds";
+import { useSettleRefund } from "@/lib/api/event-inventory";
 import { Download, Plus, Trash2, Edit, UserPlus, ArrowLeft, Repeat, UserCog } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { Event, EventInventory, EventInventoryItem } from "@/lib/types";
@@ -109,6 +110,22 @@ export function BreederDetailsDialog({
   });
 
   const eventInventory: EventInventory = data?.eventInventory;
+
+  // Refunds still owed to the breeder (e.g. rejected after paying).
+  const owedRefunds = eventInventory?.refunds ?? [];
+  const settleRefund = useSettleRefund(event.id, {
+    onSuccess: () => {
+      toast.success("Marked as refunded");
+      refetch();
+    },
+  });
+  const handleSettleRefund = async (refundId: number) => {
+    try {
+      await settleRefund.mutateAsync({ refundId });
+    } catch {
+      toast.error("Failed to mark the refund as paid");
+    }
+  };
 
   const resetPaymentForm = () => {
     setPaymentAmount("");
@@ -335,11 +352,12 @@ export function BreederDetailsDialog({
   const totalRefunds = totalEntryRefund + totalHotSpotRefund;
 
   // Payments — refunds (type=3) are money OUT to breeder
+  // Only PAID rows are money that has moved; a PENDING row is an unpaid order.
   const winnerPayouts = payments
-    .filter((p) => p.paymentType === 3)
+    .filter((p) => p.paymentType === 3 && p.status === "PAID")
     .reduce((s, p) => s + Math.abs(p.paymentValue ?? 0), 0);
   const totalPaid = payments
-    .filter((p) => p.paymentType !== 3)
+    .filter((p) => p.paymentType !== 3 && p.status === "PAID")
     .reduce((s, p) => s + (p.paymentValue ?? 0), 0);
   const transferDue = items.reduce((s, i) => s + (i.transferDue ?? 0), 0);
   // balance: what's owed minus what's been received, plus what's been paid back out
@@ -498,10 +516,11 @@ export function BreederDetailsDialog({
               </div>
             </div>
 
-            {/* Waiting list + registration note. Keyed so it resyncs after a save. */}
+            {/* Approval + registration note. Keyed so it resyncs after a save. */}
             <RegistrationStatusEditor
-              key={`${eventInventory.id}-${eventInventory.isWaiting}-${eventInventory.waitingDate}-${eventInventory.note}`}
+              key={`${eventInventory.id}-${eventInventory.approvalStatus}-${eventInventory.note}`}
               eventInventory={eventInventory}
+              eventId={event.id}
             />
 
             {/* Payments and Fee Summary Side by Side */}
@@ -744,6 +763,24 @@ export function BreederDetailsDialog({
                       <span>{fmtMoney(transferDue)}</span>
                     </div>
                   </div>
+
+                  {owedRefunds.map((r) => (
+                    <div key={r.id} className="flex items-center justify-between border-t pt-2 mt-2">
+                      <span className="text-red-600 font-medium">Due to breeder</span>
+                      <span className="flex items-center gap-2">
+                        {fmtMoney(r.amount)}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          disabled={settleRefund.isPending}
+                          onClick={() => handleSettleRefund(r.id)}
+                        >
+                          Mark refunded
+                        </Button>
+                      </span>
+                    </div>
+                  ))}
 
                   <div className="flex justify-between font-bold text-base border-t pt-2 mt-2">
                     <span>Balance</span>

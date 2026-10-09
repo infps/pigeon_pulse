@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { autoAssignToScannerGroup, resolveScannerGroup } from "@/lib/scanner-mapping";
+import { activeItem, approvedInventory } from "@/lib/entry-filters";
 
 function getClientIp(req: NextRequest): string {
   return (
@@ -59,7 +60,9 @@ export async function POST(request: NextRequest) {
       const item = await prisma.eventInventoryItem.findFirst({
         where: {
           birdId: bird.id,
-          ...(resolvedSeasonId != null ? { eventInventory: { seasonId: resolvedSeasonId } } : {}),
+          ...(resolvedSeasonId != null
+            ? { eventInventory: { seasonId: resolvedSeasonId, ...approvedInventory } }
+            : activeItem),
         },
         orderBy: { id: "desc" },
         select: { id: true, eventInventory: { select: { seasonId: true } } },

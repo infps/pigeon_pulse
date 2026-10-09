@@ -20,6 +20,7 @@ import { EventRegisterTab } from "./event-register-tab";
 import { EventMessagesTab } from "./event-messages-tab";
 import { EventStationsTab } from "./event-stations-tab";
 import { EventHistoryTab } from "./event-history-tab";
+import { RegistrationBanner } from "./registration-banner";
 
 const VALID_TABS = ["breeders", "birds", "result", "stations", "messages", "history", "register"] as const;
 
@@ -92,6 +93,8 @@ export default function PublicEventPage({ params }: { params: Promise<{ eventId:
           </div>
         )}
       </div>
+
+      <RegistrationBanner eventId={eventId} />
 
       <Tabs defaultValue={initialTab} className="w-full">
         <TabsList className="grid w-full grid-cols-7">

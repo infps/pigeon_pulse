@@ -74,6 +74,7 @@ export async function GET(
 
     return NextResponse.json({
       eventInventoryId: eventInventory.id,
+      approvalStatus: eventInventory.approvalStatus,
       totalPaid,
       totalPending,
       totalDue,

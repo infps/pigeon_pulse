@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { UserPlus, Upload, Download } from "lucide-react";
 import { createBreedersColumns } from "./breeders-columns";
+import { RegistrationApprovals } from "./registration-approvals";
 import { BreederDetailsDialog } from "@/components/breeder-details-dialog";
 import { RegisterDialog } from "@/components/register-dialog";
 import { ImportModal, ExportModal } from "@/components/csv-import-export";
@@ -39,6 +40,8 @@ export function BreedersTab({ event, eventId, onGoToRegister }: BreedersTabProps
   const [isExportOpen, setIsExportOpen] = useState(false);
   const queryClient = useQueryClient();
 
+  // Participants are the approved registrations; the other two are kept apart.
+  const [view, setView] = useState<"APPROVED" | "WAITING" | "REJECTED">("APPROVED");
   const [paymentStatus, setPaymentStatus] = useState<string>("all");
   const [arrivalFrom, setArrivalFrom] = useState<string>("");
   const [arrivalTo, setArrivalTo] = useState<string>("");
@@ -57,6 +60,8 @@ export function BreedersTab({ event, eventId, onGoToRegister }: BreedersTabProps
   }, [paymentStatus, arrivalFrom, arrivalTo]);
 
   const { data, isPending, error } = useListEventInventory(eventId, filters, selectedSeasonId);
+  const { data: waitingData } = useListEventInventory(eventId, { approval: "WAITING" }, selectedSeasonId);
+  const waitingCount: number = waitingData?.eventInventory?.length ?? 0;
 
   const clearFilters = () => {
     setPaymentStatus("all");
@@ -75,6 +80,19 @@ export function BreedersTab({ event, eventId, onGoToRegister }: BreedersTabProps
   const filterBar = (
     <div className="flex items-end justify-between gap-3 border rounded-lg p-3 bg-muted/30">
       <div className="flex flex-wrap items-end gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">Registration</Label>
+          <Select value={view} onValueChange={(v) => setView(v as typeof view)}>
+            <SelectTrigger className="h-9 w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="APPROVED">Approved</SelectItem>
+              <SelectItem value="WAITING">Waiting ({waitingCount})</SelectItem>
+              <SelectItem value="REJECTED">Rejected</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className="space-y-1">
           <Label className="text-xs">Payment Status</Label>
           <Select value={paymentStatus} onValueChange={setPaymentStatus}>
@@ -162,7 +180,9 @@ export function BreedersTab({ event, eventId, onGoToRegister }: BreedersTabProps
     <div className="space-y-4">
       {filterBar}
 
-      {isPending ? (
+      {view !== "APPROVED" ? (
+        <RegistrationApprovals eventId={eventId} status={view} onRowClick={handleBreederClick} />
+      ) : isPending ? (
         <>
           <Skeleton className="h-8 w-full" />
           <Skeleton className="h-8 w-full" />

@@ -11,6 +11,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { activeItem, approvedInventory } from "@/lib/entry-filters";
 import type { NotificationKind } from "@/generated/prisma/enums";
 
 interface NewNotification {
@@ -48,7 +49,7 @@ export async function notifySafely(rows: NewNotification[]): Promise<number> {
 /** Every user with a bird entered in this race. */
 async function usersInRace(raceId: number): Promise<string[]> {
   const rows = await prisma.raceItem.findMany({
-    where: { raceId },
+    where: { raceId, inventoryItem: activeItem },
     select: {
       inventoryItem: {
         select: { eventInventory: { select: { breeder: { select: { userId: true } } } } },
@@ -66,7 +67,7 @@ async function usersInRace(raceId: number): Promise<string[]> {
 /** Every user registered in this season. */
 async function usersInSeason(seasonId: number): Promise<string[]> {
   const rows = await prisma.eventInventory.findMany({
-    where: { seasonId },
+    where: { seasonId, ...approvedInventory },
     select: { breeder: { select: { userId: true } } },
   });
   const ids = new Set<string>();

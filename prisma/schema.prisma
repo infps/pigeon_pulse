@@ -11,6 +11,17 @@ datasource db {
 // AUTH MODELS (better-auth, TEXT UUIDs — create tables in DB)
 // ============================================================
 
+enum RegistrationStatus {
+  WAITING
+  APPROVED
+  REJECTED
+}
+
+enum RefundStatus {
+  OWED
+  ISSUED
+}
+
 enum ApprovalStatus {
   PENDING
   APPROVED
@@ -834,24 +845,30 @@ model EventMessage {
 }
 
 model EventInventory {
-  id               Int       @id @default(autoincrement()) @map("ID_EVENT_INVENTORY")
-  seasonId         Int?      @map("SEASON_ID")
-  breederId        Int?      @map("ID_BREEDER")
-  teamId           Int?      @map("ID_TEAM")
-  reservedBirds    Int?      @map("RESERVED_BIRDS")
-  loft             String?   @map("LOFT")
-  note             String?   @map("NOTE")
-  signInDate       DateTime? @map("SIGN_IN_DATE")
-  isWaiting        Int?      @map("IS_WAITING")
-  waitingDate      DateTime? @map("WAITING_DATE")
-  cashPromised     Boolean   @default(false) @map("CASH_PROMISED")
+  id               Int                @id @default(autoincrement()) @map("ID_EVENT_INVENTORY")
+  seasonId         Int?               @map("SEASON_ID")
+  breederId        Int?               @map("ID_BREEDER")
+  teamId           Int?               @map("ID_TEAM")
+  reservedBirds    Int?               @map("RESERVED_BIRDS")
+  loft             String?            @map("LOFT")
+  note             String?            @map("NOTE")
+  signInDate       DateTime?          @map("SIGN_IN_DATE")
+  isWaiting        Int?               @map("IS_WAITING")
+  waitingDate      DateTime?          @map("WAITING_DATE")
+  cashPromised     Boolean            @default(false) @map("CASH_PROMISED")
+  /// Breeder self-registrations start WAITING; everything an admin or the system
+  /// creates is APPROVED. Only APPROVED registrations take part in the event.
+  approvalStatus   RegistrationStatus @default(APPROVED) @map("APPROVAL_STATUS")
+  approvedAt       DateTime?          @map("APPROVED_AT")
+  rejectedAt       DateTime?          @map("REJECTED_AT")
+  approvedById     String?            @map("APPROVED_BY")
   /// Which hotspot gates this registration has settled.
   /// bit 0 = HS1, bit 1 = HS2, bit 2 = HS3, bit 3 = Final.
   ///
   /// A mask rather than a scan of payment descriptions: PAYMENT_DESC is a free
   /// text memo in the legacy data — "ZELLE", "SHIPPING", somebody's name — and
   /// was never a tag. Parsing it would be building on sand.
-  hotspotsPaidMask Int       @default(0) @map("HOTSPOTS_PAID_MASK")
+  hotspotsPaidMask Int                @default(0) @map("HOTSPOTS_PAID_MASK")
 
   season  Season?  @relation(fields: [seasonId], references: [id])
   breeder Breeder? @relation(fields: [breederId], references: [id])
@@ -1491,6 +1508,8 @@ enum NotificationKind {
   RACE_REMINDER
   BET_PROMPT
   PAYMENT_RISK
+  REGISTRATION_APPROVED
+  REGISTRATION_REJECTED
 }
 
 model Notification {
@@ -1753,15 +1772,17 @@ model EventVideo {
 /// Money returned to a registration. Recorded as its own row rather than by
 /// mutating the original payment, so the history keeps both sides.
 model Refund {
-  id               Int      @id @default(autoincrement()) @map("ID_REFUND")
-  eventInventoryId Int      @map("ID_EVENT_INVENTORY")
-  paymentId        Int?     @map("ID_PAYMENT")
-  amount           Float    @map("AMOUNT")
-  reason           String?  @map("REASON")
-  method           String?  @map("METHOD")
-  reference        String?  @map("REFERENCE")
-  issuedAt         DateTime @default(now()) @map("ISSUED_AT")
-  issuedBy         String?  @map("ISSUED_BY")
+  id               Int          @id @default(autoincrement()) @map("ID_REFUND")
+  eventInventoryId Int          @map("ID_EVENT_INVENTORY")
+  paymentId        Int?         @map("ID_PAYMENT")
+  amount           Float        @map("AMOUNT")
+  reason           String?      @map("REASON")
+  method           String?      @map("METHOD")
+  reference        String?      @map("REFERENCE")
+  issuedAt         DateTime     @default(now()) @map("ISSUED_AT")
+  issuedBy         String?      @map("ISSUED_BY")
+  /// OWED = due to the breeder but not yet paid back (e.g. rejected after paying).
+  status           RefundStatus @default(ISSUED) @map("STATUS")
 
   eventInventory EventInventory @relation(fields: [eventInventoryId], references: [id], onDelete: Cascade)
   payment        Payment?       @relation(fields: [paymentId], references: [id])

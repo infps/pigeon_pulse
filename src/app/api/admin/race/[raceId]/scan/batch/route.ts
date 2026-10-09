@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { lockRace } from "@/lib/race-results";
 import { headers } from "next/headers";
@@ -78,7 +79,11 @@ export async function POST(
     const existingRaceItems = knownBirdIds.length > 0
       ? await prisma.raceItem.findMany({
           where: { raceId: raceIdInt, inventoryItem: { birdId: { in: knownBirdIds } } },
-          include: { inventoryItem: { select: { id: true, birdId: true } } },
+          include: {
+            inventoryItem: {
+              select: { id: true, birdId: true, eventInventory: { select: { approvalStatus: true } } },
+            },
+          },
         })
       : [];
 
@@ -139,6 +144,11 @@ export async function POST(
 
       if (!bird || !raceItem) {
         toForeign.push({ ringNo: scan.ringNo, timestamp: scan.timestamp, bird: bird ?? undefined });
+        continue;
+      }
+
+      if (raceItem.inventoryItem?.eventInventory?.approvalStatus !== approvedInventory.approvalStatus) {
+        skipped.push({ ringNo: scan.ringNo, reason: "This bird's registration has not been approved." });
         continue;
       }
 

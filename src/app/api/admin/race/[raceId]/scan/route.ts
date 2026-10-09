@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { activeItem } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { presetIdFor } from "@/lib/birdStatus";
 import { lockRace } from "@/lib/race-results";
@@ -92,6 +93,18 @@ export async function POST(
           where: { raceId: raceIdInt, inventoryItem: { birdId: bird.id } },
         })
       : null;
+
+    if (raceItem?.inventoryItemId != null) {
+      const approved = await prisma.eventInventoryItem.count({
+        where: { id: raceItem.inventoryItemId, ...activeItem },
+      });
+      if (approved === 0) {
+        return NextResponse.json(
+          { message: "This bird's registration has not been approved." },
+          { status: 400 }
+        );
+      }
+    }
 
     // Unknown bird or unregistered bird → register as foreign bird
     if (!bird || !raceItem) {

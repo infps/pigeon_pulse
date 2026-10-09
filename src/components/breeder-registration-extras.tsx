@@ -4,44 +4,49 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useSetRegistrationApproval } from "@/lib/api/event-inventory";
 import { useEventInventoryBets, useUpdateEventInventory } from "@/lib/api/payments";
 import { shortBand } from "@/lib/bird-constants";
 import type { EventInventory } from "@/lib/types";
 
-const toLocalInput = (d: Date) =>
-  new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+const APPROVAL_BADGE: Record<EventInventory["approvalStatus"], { label: string; className: string }> = {
+  WAITING: { label: "Waiting for approval", className: "bg-yellow-500 text-white" },
+  APPROVED: { label: "Approved", className: "bg-green-600 text-white" },
+  REJECTED: { label: "Rejected", className: "bg-red-600 text-white" },
+};
 
-/** Waiting-list flag + date and the admin note for one registration. */
-export function RegistrationStatusEditor({ eventInventory }: { eventInventory: EventInventory }) {
-  const [waiting, setWaiting] = useState(eventInventory.isWaiting === 1);
-  const [waitingDate, setWaitingDate] = useState(
-    eventInventory.waitingDate ? toLocalInput(new Date(eventInventory.waitingDate)) : ""
-  );
+/** Approval state with Approve / Reject, and the admin note for one registration. */
+export function RegistrationStatusEditor({
+  eventInventory,
+  eventId,
+}: {
+  eventInventory: EventInventory;
+  eventId: number | string;
+}) {
   const [note, setNote] = useState(eventInventory.note ?? "");
+  const status = eventInventory.approvalStatus ?? "APPROVED";
+  const badge = APPROVAL_BADGE[status];
 
   const mutation = useUpdateEventInventory(eventInventory.id, {
     onSuccess: () => toast.success("Registration updated"),
   });
+  const approval = useSetRegistrationApproval(eventId);
 
-  const onToggle = (on: boolean) => {
-    setWaiting(on);
-    // Turning it on stamps "now"; the admin can edit it before saving.
-    setWaitingDate(on ? toLocalInput(new Date()) : "");
+  const decide = async (action: "APPROVE" | "REJECT") => {
+    try {
+      const res = await approval.mutateAsync({ ids: [eventInventory.id], action });
+      toast.success(res.data?.message ?? "Registration updated");
+    } catch {
+      toast.error("Failed to update registration");
+    }
   };
 
   const save = async () => {
-    if (!mutation.mutateAsync) return;
     try {
-      await mutation.mutateAsync({
-        note,
-        isWaiting: waiting,
-        waitingDate: waiting && waitingDate ? new Date(waitingDate).toISOString() : null,
-      });
+      await mutation.mutateAsync({ note });
     } catch {
       toast.error("Failed to update registration");
     }
@@ -49,22 +54,17 @@ export function RegistrationStatusEditor({ eventInventory }: { eventInventory: E
 
   return (
     <div className="border border-border rounded-lg p-4 space-y-3">
-      <div className="flex flex-wrap items-end gap-4">
-        <div className="flex items-center gap-2">
-          <Switch id="waiting-toggle" checked={waiting} onCheckedChange={onToggle} />
-          <Label htmlFor="waiting-toggle">Waiting list</Label>
-        </div>
-        {waiting && (
-          <div className="space-y-1">
-            <Label htmlFor="waiting-date" className="text-xs">Waiting since</Label>
-            <Input
-              id="waiting-date"
-              type="datetime-local"
-              className="h-9 w-56"
-              value={waitingDate}
-              onChange={(e) => setWaitingDate(e.target.value)}
-            />
-          </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Badge className={badge.className}>{badge.label}</Badge>
+        {status !== "APPROVED" && (
+          <Button size="sm" disabled={approval.isPending} onClick={() => decide("APPROVE")}>
+            Approve
+          </Button>
+        )}
+        {status !== "REJECTED" && (
+          <Button size="sm" variant="destructive" disabled={approval.isPending} onClick={() => decide("REJECT")}>
+            Reject
+          </Button>
         )}
       </div>
       <div className="space-y-1">
@@ -83,7 +83,6 @@ export function RegistrationStatusEditor({ eventInventory }: { eventInventory: E
     </div>
   );
 }
-
 const CATEGORY_LABEL: Record<string, string> = { BELGIAN: "Belgian", STANDARD: "Standard", WTA: "Winner takes all" };
 
 interface BreederBet {

@@ -30,6 +30,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
         const paymentStatusParam = searchParams.get("paymentStatus");
         const arrivalFromParam = searchParams.get("arrivalFrom");
         const arrivalToParam = searchParams.get("arrivalTo");
+        // Participants by default; the waiting and rejected lists ask for theirs.
+        const approvalParam = searchParams.get("approval");
+        const approvalStatus =
+            approvalParam === "WAITING" || approvalParam === "REJECTED" ? approvalParam : "APPROVED";
 
         let seasonId: number;
         if (seasonIdParam) {
@@ -59,6 +63,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
         const eventInventory = await prisma.eventInventory.findMany({
             where: {
                 seasonId,
+                approvalStatus,
                 ...(hasArrivalFilter && {
                     items: {
                         some: {
@@ -76,6 +81,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
                     },
                 }),
             },
+            orderBy: approvalStatus === "WAITING" ? { waitingDate: "asc" } : undefined,
             include: {
                 breeder: true,
                 payments: true,

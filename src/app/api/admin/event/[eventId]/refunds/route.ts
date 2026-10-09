@@ -57,6 +57,7 @@ export async function GET(
         method: true,
         reference: true,
         issuedAt: true,
+        status: true,
         paymentId: true,
         eventInventory: {
           select: {
@@ -68,9 +69,11 @@ export async function GET(
       },
     });
 
-    const total = refunds.reduce((sum, r) => sum + r.amount, 0);
+    // Owed refunds are still in the organizer's hands, so they are not "refunded".
+    const total = refunds.filter((r) => r.status === "ISSUED").reduce((sum, r) => sum + r.amount, 0);
+    const owed = refunds.filter((r) => r.status === "OWED").reduce((sum, r) => sum + r.amount, 0);
 
-    return NextResponse.json({ seasonId, refunds, total });
+    return NextResponse.json({ seasonId, refunds, total, owed });
   } catch (error) {
     console.error("Failed to load refunds:", error);
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
@@ -172,6 +175,67 @@ export async function POST(
       );
     }
     console.error("Failed to record refund:", error);
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
+  }
+}
+
+const settleSchema = z.object({
+  refundId: z.coerce.number(),
+  method: z.string().max(60).nullish(),
+  reference: z.string().max(120).nullish(),
+});
+
+/** Mark a refund that was owed to the breeder as paid back. */
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ eventId: string }> }
+) {
+  try {
+    const guard = await requirePermission("refunds.manage");
+    if ("error" in guard) return guard.error;
+    const session = guard.session;
+
+    const { eventId } = await params;
+    const eventIdInt = parseInt(eventId, 10);
+    if (Number.isNaN(eventIdInt)) {
+      return NextResponse.json({ message: "Invalid event ID" }, { status: 400 });
+    }
+
+    const body = settleSchema.parse(await request.json());
+
+    const owed = await prisma.refund.findFirst({
+      where: {
+        id: body.refundId,
+        status: "OWED",
+        eventInventory: { season: { eventId: eventIdInt } },
+      },
+      select: { id: true },
+    });
+    if (!owed) {
+      return NextResponse.json(
+        { message: "That refund is not outstanding for this event." },
+        { status: 404 }
+      );
+    }
+
+    const refund = await prisma.refund.update({
+      where: { id: owed.id },
+      data: {
+        status: "ISSUED",
+        issuedAt: new Date(),
+        issuedBy: session.user.id ?? null,
+        method: body.method ?? null,
+        reference: body.reference ?? null,
+      },
+      select: { id: true, amount: true, issuedAt: true },
+    });
+
+    return NextResponse.json({ refund, message: `${refund.amount.toFixed(2)} marked as refunded.` });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ message: "A refund id is required." }, { status: 400 });
+    }
+    console.error("Failed to settle refund:", error);
     return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }

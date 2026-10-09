@@ -48,7 +48,7 @@ export async function requirePaidBeforeBasketing(
         },
       },
       payments: {
-        select: { paymentValue: true, paymentDesc: true, paymentType: true },
+        select: { paymentValue: true, paymentDesc: true, paymentType: true, status: true },
       },
     },
   });

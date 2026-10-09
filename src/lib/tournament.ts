@@ -12,6 +12,7 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { approvedInventory } from "@/lib/entry-filters";
 import type { TournamentCutMode } from "@/generated/prisma/enums";
 
 type Tx = Prisma.TransactionClient;
@@ -57,7 +58,7 @@ export async function seedEntries(tournamentId: number): Promise<number> {
 
   const items = await prisma.eventInventoryItem.findMany({
     where: {
-      eventInventory: { seasonId: tournament.seasonId },
+      eventInventory: { seasonId: tournament.seasonId, ...approvedInventory },
       replacedItemId: null,
       NOT: { isBackup: 1 },
       bird: { NOT: { isLost: 1 } },

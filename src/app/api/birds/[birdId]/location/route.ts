@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { activeItem } from "@/lib/entry-filters";
 
 type LocationStatus = "LOST" | "ARRIVED" | "BASKETED" | "HELD";
 
@@ -71,7 +72,7 @@ export async function GET(
     const arrived = await prisma.raceItem.findFirst({
       where: {
         status: "ARRIVED",
-        inventoryItem: { birdId: birdIdInt },
+        inventoryItem: { birdId: birdIdInt, ...activeItem },
         result: { arrivalTime: { not: null } },
       },
       orderBy: { id: "desc" },
@@ -96,6 +97,7 @@ export async function GET(
       where: {
         inventoryItem: {
           birdId: birdIdInt,
+          ...activeItem,
         },
       },
       orderBy: { assignedAt: "desc" },

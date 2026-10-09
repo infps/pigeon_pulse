@@ -76,6 +76,7 @@ export async function GET(
       where: { seasonId, breederId: breeder.id },
       select: {
         id: true,
+        approvalStatus: true,
         hotspotsPaidMask: true,
         cashPromised: true,
         items: {
@@ -190,6 +191,7 @@ export async function GET(
 
     return NextResponse.json({
       eventInventoryId: inventory.id,
+      approvalStatus: inventory.approvalStatus,
       seasonId,
       totalOwed: Math.round(totalOwed * 100) / 100,
       totalPaid: status.totalPaid,

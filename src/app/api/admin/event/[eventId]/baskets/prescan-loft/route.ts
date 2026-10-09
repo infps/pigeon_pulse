@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { activeItem, approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -63,6 +64,10 @@ export async function POST(
       return NextResponse.json({ status: "foreign", rfid: tag });
     }
 
+    if (item.eventInventory?.approvalStatus !== approvedInventory.approvalStatus) {
+      return NextResponse.json({ message: "This bird's registration has not been approved." }, { status: 400 });
+    }
+
     const breeder = item.eventInventory?.breeder ?? null;
     const loftName = item.eventInventory?.team?.name ?? item.eventInventory?.loft ?? null;
     const assignment = item.basketAssignments[0];
@@ -72,7 +77,7 @@ export async function POST(
     }
 
     const basket = assignment.eventBasket;
-    const count = await prisma.basketAssignment.count({ where: { eventBasketId: basket.id } });
+    const count = await prisma.basketAssignment.count({ where: { eventBasketId: basket.id, inventoryItem: activeItem } });
 
     return NextResponse.json({
       status: "placed",

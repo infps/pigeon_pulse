@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { activeItem, approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { partitionByFitness } from "@/lib/bird-health";
 import { bfdAssign } from "@/lib/packingEngine";
@@ -51,7 +52,7 @@ export async function POST(
     // 1. Fetch birds for this season
     const candidates = await prisma.eventInventoryItem.findMany({
       where: {
-        eventInventory: { seasonId },
+        eventInventory: { seasonId, ...approvedInventory },
         ...(mode === "assign" ? { basketAssignments: { none: {} } } : {}),
         // A bird that is lost, scratched or replaced has no business in a
         // basket. Legacy left these in and the operator had to spot them.
@@ -147,7 +148,7 @@ export async function POST(
         seasonId,
         phase: "LOFT",
       },
-      include: { _count: { select: { assignments: true } } },
+      include: { _count: { select: { assignments: { where: { inventoryItem: activeItem } } } } },
       orderBy: { basketNo: "asc" },
     });
 

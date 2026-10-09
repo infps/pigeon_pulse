@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { activeItem } from "@/lib/entry-filters";
 
 export async function GET(
   req: NextRequest,
@@ -32,6 +33,7 @@ export async function GET(
       where: {
         raceId: raceIdInt,
         ...(hiddenStatuses.length > 0 && { status: { notIn: hiddenStatuses } }),
+        OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }],
       },
       include: {
         inventoryItem: {
@@ -69,7 +71,7 @@ export async function GET(
       const priorItems = await prisma.raceItem.findMany({
         where: {
           raceId: { not: raceIdInt },
-          inventoryItem: { bird: { id: { in: birdIds } } },
+          inventoryItem: { bird: { id: { in: birdIds } }, ...activeItem },
           result: { birdPosition: { not: null } },
           race: { startTime: { lt: currentRace.startTime } },
         },

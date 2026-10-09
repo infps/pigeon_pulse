@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { approvedInventory } from "@/lib/entry-filters";
 
 export async function GET(
   req: NextRequest,
@@ -57,7 +58,7 @@ export async function GET(
     const activeSeason = event.seasons.find((s: any) => s.isActive) ?? event.seasons[0];
     const birdCount = activeSeason
       ? await prisma.eventInventoryItem.count({
-          where: { eventInventory: { seasonId: activeSeason.id } },
+          where: { eventInventory: { seasonId: activeSeason.id, ...approvedInventory } },
         })
       : 0;
 

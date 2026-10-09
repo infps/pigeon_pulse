@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
+import { activeItem, approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { randomAssign } from "@/lib/packingEngine";
 import type { RaceItem, BasketSlot } from "@/lib/packingEngine";
@@ -56,7 +57,7 @@ export async function POST(
 
     // 1. Source pool — all registered birds for this season
     const inventoryItems = await prisma.eventInventoryItem.findMany({
-      where: { eventInventory: { seasonId } },
+      where: { eventInventory: { seasonId, ...approvedInventory } },
       select: {
         id: true,
         eventInventory: {
@@ -76,8 +77,9 @@ export async function POST(
     const raceBaskets = await prisma.eventBasket.findMany({
       where: { seasonId, phase: "RACE", raceId },
       include: {
-        _count: { select: { assignments: true } },
+        _count: { select: { assignments: { where: { inventoryItem: activeItem } } } },
         assignments: {
+          where: { inventoryItem: activeItem },
           include: {
             inventoryItem: {
               include: {

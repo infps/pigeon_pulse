@@ -28,6 +28,7 @@ interface LedgerLine {
   charged: number;
   paid: number;
   refunded: number;
+  refundOwed?: number;
   balance: number;
   prizeEarned: number;
   classEarned: number;
@@ -39,6 +40,7 @@ interface Totals {
   charged: number;
   paid: number;
   refunded: number;
+  refundOwed?: number;
   balance: number;
   owedOut: number;
 }
@@ -226,6 +228,11 @@ export function AccountingTab({ eventId }: { eventId: string }) {
                           {l.cashPromised && (
                             <Badge variant="secondary" className="text-[10px]">
                               cash
+                            </Badge>
+                          )}
+                          {!!l.refundOwed && (
+                            <Badge variant="destructive" className="text-[10px]">
+                              due to breeder {money(l.refundOwed)}
                             </Badge>
                           )}
                         </span>

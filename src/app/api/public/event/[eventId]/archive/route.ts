@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { activeItem } from "@/lib/entry-filters";
 
 /**
  * Archived races — WinCompanion's "List Archived Races", grouped by season.
@@ -37,7 +38,9 @@ export async function GET(
         raceType: { select: { name: true, prizeRole: true } },
         raceStation: { select: { name: true, miles: true, km: true } },
         seasonRel: { select: { id: true, name: true, startDate: true } },
-        _count: { select: { raceItems: true } },
+        _count: {
+          select: { raceItems: { where: { OR: [{ inventoryItemId: null }, { inventoryItem: activeItem }] } } },
+        },
       },
     });
 

@@ -33,6 +33,7 @@ export async function GET(
           },
         },
         payments: { orderBy: { paymentDate: "desc" } },
+        refunds: { where: { status: "OWED" }, select: { id: true, amount: true } },
         partners: { include: { breeder: true } },
         items: { include: { bird: true }, orderBy: { birdNo: "asc" } },
       },
@@ -68,7 +69,7 @@ export async function GET(
   }
 }
 
-// PATCH — waiting-list flag/date and admin note on one registration.
+// PATCH — admin note on one registration. Approval has its own route.
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ eventInventoryId: string }> }
@@ -86,33 +87,19 @@ export async function PATCH(
     const body = await request.json();
     const existing = await prisma.eventInventory.findUnique({
       where: { id: eventInventoryId },
-      select: { isWaiting: true, waitingDate: true },
+      select: { id: true },
     });
     if (!existing) {
       return NextResponse.json({ message: "Event inventory not found" }, { status: 404 });
     }
 
-    const data: { note?: string | null; isWaiting?: number; waitingDate?: Date | null } = {};
+    const data: { note?: string | null } = {};
     if (body.note !== undefined) data.note = String(body.note).trim() || null;
-    if (body.isWaiting !== undefined) {
-      const on = body.isWaiting === true || body.isWaiting === 1;
-      data.isWaiting = on ? 1 : 0;
-      // Turning it on stamps "now" unless the admin supplied a date; off clears it.
-      if (!on) data.waitingDate = null;
-      else if (body.waitingDate === undefined && !existing.waitingDate) data.waitingDate = new Date();
-    }
-    if (body.waitingDate !== undefined && data.isWaiting !== 0) {
-      const d = body.waitingDate ? new Date(body.waitingDate) : null;
-      if (d && isNaN(d.getTime())) {
-        return NextResponse.json({ message: "Invalid waiting date" }, { status: 400 });
-      }
-      data.waitingDate = d;
-    }
 
     const eventInventory = await prisma.eventInventory.update({
       where: { id: eventInventoryId },
       data,
-      select: { id: true, note: true, isWaiting: true, waitingDate: true },
+      select: { id: true, note: true },
     });
     return NextResponse.json({ eventInventory, message: "Registration updated" });
   } catch (error) {

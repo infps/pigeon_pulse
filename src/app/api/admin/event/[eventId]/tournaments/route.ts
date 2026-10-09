@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { requireAnyPermission, requirePermission } from "@/lib/authorize";
+import { activeItem } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { seedEntries } from "@/lib/tournament";
 import { headers } from "next/headers";
@@ -63,14 +64,18 @@ export async function GET(
             race: { select: { name: true, raceNumber: true, status: true } },
           },
         },
-        _count: { select: { entries: true } },
+        _count: { select: { entries: { where: { inventoryItem: activeItem } } } },
       },
     });
 
     // "Still in" per tournament, which the list needs to be useful.
     const alive = await prisma.tournamentEntry.groupBy({
       by: ["tournamentId"],
-      where: { tournamentId: { in: tournaments.map((t) => t.id) }, eliminatedRound: null },
+      where: {
+        tournamentId: { in: tournaments.map((t) => t.id) },
+        eliminatedRound: null,
+        inventoryItem: activeItem,
+      },
       _count: { _all: true },
     });
     const aliveById = new Map(alive.map((a) => [a.tournamentId, a._count._all]));

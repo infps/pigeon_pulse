@@ -44,6 +44,8 @@ const teams = {
 const eventInventory = {
   base: "/api/admin/event",
   byEvent: (eventId: number | string) => `/api/admin/event/${eventId}/event-inventory`,
+  approval: (eventId: number | string) => `/api/admin/event/${eventId}/event-inventory/approval`,
+  refunds: (eventId: number | string) => `/api/admin/event/${eventId}/refunds`,
   itemsByEvent: (eventId: number | string) => `/api/admin/event/${eventId}/event-inventory-items`,
   addBirds: (eventId: number | string) => `/api/admin/event/${eventId}/add-birds`,
 };
