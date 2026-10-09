@@ -83,8 +83,31 @@ export async function GET(request: Request) {
       },
     });
 
+    // Bird counts per race, one groupBy for the whole list (no per-race queries).
+    // lost = status LOST or legacy isLost flag; foreign = FOREIGN_BIRD;
+    // active = everything else except IGNORED (excluded flights).
+    const grouped = await prisma.raceItem.groupBy({
+      by: ["raceId", "status", "isLost"],
+      where: { raceId: { in: races.map((r) => r.id) } },
+      _count: { _all: true },
+    });
+    const counts = new Map<number, { activeBirds: number; lostBirds: number; foreignBirds: number }>();
+    for (const g of grouped) {
+      if (g.raceId == null) continue;
+      const c = counts.get(g.raceId) ?? { activeBirds: 0, lostBirds: 0, foreignBirds: 0 };
+      const n = g._count._all;
+      if (g.status === "FOREIGN_BIRD") c.foreignBirds += n;
+      else if (g.status === "LOST" || g.isLost === 1) c.lostBirds += n;
+      else if (g.status !== "IGNORED") c.activeBirds += n;
+      counts.set(g.raceId, c);
+    }
+    const racesWithCounts = races.map((r) => ({
+      ...r,
+      ...(counts.get(r.id) ?? { activeBirds: 0, lostBirds: 0, foreignBirds: 0 }),
+    }));
+
     return NextResponse.json(
-      { races, message: "Races fetched successfully" },
+      { races: racesWithCounts, message: "Races fetched successfully" },
       { status: 200 }
     );
   } catch (error) {

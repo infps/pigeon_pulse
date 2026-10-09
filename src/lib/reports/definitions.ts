@@ -492,10 +492,10 @@ async function buildFeeScheme(params: ReportParams): Promise<ReportData> {
       "how race fees multiply",
       scheme.raceFeeMode === "PER_BIRD_PER_RACE" ? "Per bird, per race" : "Flat per race",
     ],
-    ["Hot spot 1 fee", "per bird", money(scheme.hotSpot1Fee)],
-    ["Hot spot 2 fee", "per bird", money(scheme.hotSpot2Fee)],
-    ["Hot spot 3 fee", "per bird", money(scheme.hotSpot3Fee)],
-    ["Hot spot final fee", "per bird", money(scheme.hotSpotFinalFee)],
+    ["Perch Fee 1", "per bird", money(scheme.hotSpot1Fee)],
+    ["Perch Fee 2", "per bird", money(scheme.hotSpot2Fee)],
+    ["Perch Fee 3", "per bird", money(scheme.hotSpot3Fee)],
+    ["Perch Fee Final", "per bird", money(scheme.hotSpotFinalFee)],
   ];
 
   for (const item of scheme.birdFeeItems) {

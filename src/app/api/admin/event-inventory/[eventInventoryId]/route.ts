@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { requireAnyPermission } from "@/lib/authorize";
+import { requireAnyPermission, requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -65,5 +65,58 @@ export async function GET(
       { message: "Internal server error" },
       { status: 500 }
     );
+  }
+}
+
+// PATCH — waiting-list flag/date and admin note on one registration.
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ eventInventoryId: string }> }
+) {
+  const { eventInventoryId: param } = await params;
+  const eventInventoryId = parseInt(param);
+  if (isNaN(eventInventoryId)) {
+    return NextResponse.json({ message: "Invalid event inventory ID" }, { status: 400 });
+  }
+
+  const guard = await requirePermission("breeders.manage");
+  if ("error" in guard) return guard.error;
+
+  try {
+    const body = await request.json();
+    const existing = await prisma.eventInventory.findUnique({
+      where: { id: eventInventoryId },
+      select: { isWaiting: true, waitingDate: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ message: "Event inventory not found" }, { status: 404 });
+    }
+
+    const data: { note?: string | null; isWaiting?: number; waitingDate?: Date | null } = {};
+    if (body.note !== undefined) data.note = String(body.note).trim() || null;
+    if (body.isWaiting !== undefined) {
+      const on = body.isWaiting === true || body.isWaiting === 1;
+      data.isWaiting = on ? 1 : 0;
+      // Turning it on stamps "now" unless the admin supplied a date; off clears it.
+      if (!on) data.waitingDate = null;
+      else if (body.waitingDate === undefined && !existing.waitingDate) data.waitingDate = new Date();
+    }
+    if (body.waitingDate !== undefined && data.isWaiting !== 0) {
+      const d = body.waitingDate ? new Date(body.waitingDate) : null;
+      if (d && isNaN(d.getTime())) {
+        return NextResponse.json({ message: "Invalid waiting date" }, { status: 400 });
+      }
+      data.waitingDate = d;
+    }
+
+    const eventInventory = await prisma.eventInventory.update({
+      where: { id: eventInventoryId },
+      data,
+      select: { id: true, note: true, isWaiting: true, waitingDate: true },
+    });
+    return NextResponse.json({ eventInventory, message: "Registration updated" });
+  } catch (error) {
+    console.error("Error updating event inventory:", error);
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 });
   }
 }

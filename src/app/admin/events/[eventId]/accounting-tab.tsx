@@ -1,5 +1,6 @@
 "use client";
 
+import { useDocumentPreview } from "@/components/document-preview";
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -73,6 +74,7 @@ const money = (n: number) =>
  */
 export function AccountingTab({ eventId }: { eventId: string }) {
   const { selectedSeasonId } = useSeasonContext();
+  const { show: showDoc, previewNode } = useDocumentPreview();
   const [view, setView] = useState<View>("ledger");
   const [lines, setLines] = useState<LedgerLine[]>([]);
   const [totals, setTotals] = useState<Totals | null>(null);
@@ -150,6 +152,7 @@ export function AccountingTab({ eventId }: { eventId: string }) {
 
   return (
     <div className="space-y-6">
+      {previewNode}
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -158,11 +161,9 @@ export function AccountingTab({ eventId }: { eventId: string }) {
               Accounting
             </CardTitle>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" asChild>
-                <a href={reportUrl("season-ledger", "pdf")} target="_blank" rel="noopener">
-                  <FileDown className="mr-1.5 h-3.5 w-3.5" />
-                  Ledger PDF
-                </a>
+              <Button variant="outline" size="sm" onClick={() => showDoc(reportUrl("season-ledger", "pdf"), "Season ledger")}>
+                <FileDown className="mr-1.5 h-3.5 w-3.5" />
+                Ledger PDF
               </Button>
               <Button variant="outline" size="sm" asChild>
                 <a href={reportUrl("prize-statements", "xlsx")} target="_blank" rel="noopener">

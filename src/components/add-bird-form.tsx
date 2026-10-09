@@ -258,7 +258,6 @@ export function AddBirdForm({
                 className="h-9 w-20 uppercase"
                 value={s.band3}
                 onChange={(e) => set.setBand3(e.target.value.toUpperCase())}
-                maxLength={4}
               />
             </div>
             <span className="pb-2 text-muted-foreground select-none">-</span>
@@ -394,10 +393,10 @@ export function AddBirdForm({
                 {[
                   ["Entry Fee", schemeDefaults.entryFee],
                   ["Per Bird Fee", schemeDefaults.birdFee],
-                  ["Hot Spot 1", schemeDefaults.hotSpot1Fee],
-                  ["Hot Spot 2", schemeDefaults.hotSpot2Fee],
-                  ["Hot Spot 3", schemeDefaults.hotSpot3Fee],
-                  ["Final Hot Spot", schemeDefaults.hotSpotFinalFee],
+                  ["Perch Fee 1", schemeDefaults.hotSpot1Fee],
+                  ["Perch Fee 2", schemeDefaults.hotSpot2Fee],
+                  ["Perch Fee 3", schemeDefaults.hotSpot3Fee],
+                  ["Perch Fee Final", schemeDefaults.hotSpotFinalFee],
                 ].map(([label, value]) => (
                   <div key={label as string} className="flex justify-between gap-2">
                     <span className="text-muted-foreground">{label}</span>
@@ -427,7 +426,7 @@ export function AddBirdForm({
               <Input className="h-9" type="number" step="0.01" min="0" value={s.entryFeeValue} onChange={(e) => set.setEntryFeeValue(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Hot spot fee ($)</Label>
+              <Label className="text-xs text-muted-foreground">Perch Fee (Hot Spot) ($)</Label>
               <Input className="h-9" type="number" step="0.01" min="0" value={s.hotSpotFeeValue} onChange={(e) => set.setHotSpotFeeValue(e.target.value)} />
             </div>
             <div className="space-y-1.5">

@@ -179,7 +179,7 @@ export function DetailsTab({ event, eventId, feeSchemes, prizeSchemes, bettingSc
             </CardHeader>
             <CardContent className="space-y-1.5">
               <StatRow label="Birds" value={stats?.hotSpotBirds ?? 0} />
-              <StatRow label="Hot spot fees" value={fmtCurrency(stats?.hotSpotFees ?? 0)} />
+              <StatRow label="Perch fees (hot spot)" value={fmtCurrency(stats?.hotSpotFees ?? 0)} />
               <StatRow label="Refunds" value={fmtCurrency(stats?.hotSpotRefunds ?? 0)} />
               <StatRow label="Commission" value={fmtCurrency(stats?.hotSpotCommission ?? 0)} />
               <StatRow label="Value" value={fmtCurrency(stats?.hotSpotValue ?? 0)} />
@@ -207,7 +207,7 @@ export function DetailsTab({ event, eventId, feeSchemes, prizeSchemes, bettingSc
             <CardContent className="space-y-1.5">
               <StatRow label="Perch fee" value={fmtCurrency(stats?.totalPerchFee ?? 0)} />
               <StatRow label="Entry fee" value={fmtCurrency(stats?.entryFees ?? 0)} />
-              <StatRow label="Hot spot fee" value={fmtCurrency(stats?.hotSpotFees ?? 0)} />
+              <StatRow label="Perch fee (hot spot)" value={fmtCurrency(stats?.hotSpotFees ?? 0)} />
               <StatRow label="Classes" value={fmtCurrency(stats?.paymentClasses ?? 0)} />
             </CardContent>
           </Card>

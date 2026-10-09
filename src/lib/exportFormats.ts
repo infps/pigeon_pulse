@@ -97,8 +97,9 @@ export async function getRegistrationRows(
   };
 }
 
+/** `breederId` null = every breeder (admin whole-race export). */
 export async function getResultsRows(
-  breederId: number,
+  breederId: number | null,
   eventId?: number,
   raceId?: number,
 ): Promise<ExportData> {
@@ -107,7 +108,7 @@ export async function getResultsRows(
       ...(raceId ? { raceId } : {}),
       inventoryItem: {
         eventInventory: {
-          breederId,
+          ...(breederId != null ? { breederId } : {}),
           ...(eventId ? { season: { eventId } } : {}),
         },
       },
@@ -115,12 +116,19 @@ export async function getResultsRows(
     include: {
       race: { include: { seasonRel: { include: { event: true } } } },
       result: true,
-      inventoryItem: { include: { bird: true } },
+      inventoryItem: {
+        include: {
+          bird: true,
+          eventInventory: { include: { breeder: { select: { firstName: true, lastName: true } } } },
+        },
+      },
     },
     orderBy: [{ raceId: "asc" }, { id: "asc" }],
   });
 
+  const wholeRace = breederId == null;
   const columns = [
+    ...(wholeRace ? ["Breeder", "Loft"] : []),
     "Event",
     "Race",
     "Race Date",
@@ -133,6 +141,14 @@ export async function getResultsRows(
   ];
 
   const rows: string[][] = raceItems.map((ri) => [
+    ...(wholeRace
+      ? [
+          [ri.inventoryItem?.eventInventory?.breeder?.firstName, ri.inventoryItem?.eventInventory?.breeder?.lastName]
+            .filter(Boolean)
+            .join(" "),
+          ri.inventoryItem?.eventInventory?.loft ?? "",
+        ]
+      : []),
     ri.race?.seasonRel?.event?.name ?? "",
     ri.race?.name || ri.race?.description || `Race ${ri.race?.id ?? ""}`,
     fmtDate(ri.race?.startTime ?? null),
@@ -144,7 +160,7 @@ export async function getResultsRows(
     ri.result?.prizeValue != null ? ri.result.prizeValue.toFixed(2) : "",
   ]);
 
-  return { columns, rows, title: "My Race Results" };
+  return { columns, rows, title: wholeRace ? "Race Results" : "My Race Results" };
 }
 
 export async function getBasketsRows(

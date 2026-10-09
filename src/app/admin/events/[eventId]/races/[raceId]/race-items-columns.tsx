@@ -1,5 +1,6 @@
 "use client";
 
+import { shortBand } from "@/lib/bird-constants";
 import { ColumnDef, SortingFn } from "@tanstack/react-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { Badge } from "@/components/ui/badge";
@@ -59,7 +60,7 @@ export const createRaceItemsColumns = (
     ),
     cell: ({ row }) => {
       const band = row.original.bird?.band;
-      return <span className="font-mono text-sm">{band || "-"}</span>;
+      return <span className="font-mono text-sm">{shortBand(band) || "-"}</span>;
     },
   },
   {

@@ -1,5 +1,6 @@
 "use client";
 
+import { shortBand } from "@/lib/bird-constants";
 import { use, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -164,7 +165,7 @@ export default function CalcuttaBidPage({ params }: { params: Promise<{ eventId:
             <h2 className="text-lg font-semibold">Group #{activeGroup.groupNumber} — {activeGroup.birdCount} birds</h2>
             <div className="flex flex-wrap gap-1 mt-2">
               {activeGroup.birds.slice(0, 12).map((b, i) => (
-                <Badge key={i} variant="outline" className="text-xs">{b.band ?? `Bird ${i + 1}`}</Badge>
+                <Badge key={i} variant="outline" className="text-xs">{shortBand(b.band) || `Bird ${i + 1}`}</Badge>
               ))}
               {activeGroup.birds.length > 12 && <Badge variant="outline" className="text-xs">+{activeGroup.birds.length - 12}</Badge>}
             </div>

@@ -685,7 +685,7 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
                     <span className="font-medium">${fees.raceFees.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Hotspot Fees:</span>
+                    <span className="text-muted-foreground">Perch Fees (Hot Spot):</span>
                     <span className="font-medium">${fees.hotspotFees.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-lg font-bold pt-2 border-t">

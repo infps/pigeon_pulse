@@ -3,7 +3,8 @@ import { requireAnyPermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { computePaymentStatus, VALID_PAYMENT_STATUS, type PaymentStatus } from "@/lib/paymentStatus";
+import { computePaymentTotals, hotspotOwedFor, VALID_PAYMENT_STATUS, type PaymentStatus } from "@/lib/paymentStatus";
+import { openHotspotGate } from "@/lib/hotspot-gates";
 
 type HybridStatus = PaymentStatus;
 
@@ -85,6 +86,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
                         perchFeeValue: true,
                         raceFeeValue: true,
                         hotSpotFeeValue: true,
+                        hotSpot1FeeValue: true,
+                        hotSpot2FeeValue: true,
+                        hotSpot3FeeValue: true,
+                        hotSpotFinalFeeValue: true,
                         birdId: true,
                         eventInventoryId: true,
                     },
@@ -92,12 +97,29 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
             },
         });
 
+        // Per-registration fee totals + hybrid status, computed once here so the
+        // table needs no per-row queries. Same calc as defaulters / fee-breakdown.
+        const openGate = await openHotspotGate(seasonId);
+        const withTotals = eventInventory.map((inv) => {
+            const t = computePaymentTotals(inv.items, inv.payments, inv.hotspotsPaidMask, openGate);
+            const sum = (f: (i: (typeof inv.items)[number]) => number) => inv.items.reduce((s, i) => s + f(i), 0);
+            return {
+                ...inv,
+                feeTotals: {
+                    entry: sum((i) => i.entryFeeValue ?? 0),
+                    perBird: sum((i) => i.perchFeeValue ?? 0),
+                    perchHotspot: sum((i) => hotspotOwedFor(i, inv.hotspotsPaidMask, openGate)),
+                    race: sum((i) => i.raceFeeValue ?? 0),
+                    owed: t.owed,
+                    paid: t.totalPaid,
+                    status: t.status,
+                },
+            };
+        });
+
         const filtered = paymentStatusFilter
-            ? eventInventory.filter((inv) => {
-                const status = computePaymentStatus(inv.items, inv.payments);
-                return status === paymentStatusFilter;
-            })
-            : eventInventory;
+            ? withTotals.filter((inv) => inv.feeTotals.status === paymentStatusFilter)
+            : withTotals;
 
         return NextResponse.json(
             { eventInventory: filtered, message: "Event inventory fetched successfully" },

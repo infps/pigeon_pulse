@@ -40,6 +40,38 @@ const userSelect = {
   taxDocKey: true,
 } as const;
 
+const breederExtraSelect = {
+  cell: true, address2: true, city2: true, state2: true, zip2: true, defNameAgn: true,
+} as const;
+
+type BreederExtras = {
+  cell?: string | null; address2?: string | null; city2?: string | null;
+  state2?: string | null; zip2?: string | null; defNameAgn?: string | null;
+};
+
+function breederExtras(b: BreederExtras) {
+  return {
+    phoneNumber2: b.cell ?? null,
+    address2: b.address2 ?? null,
+    city2: b.city2 ?? null,
+    state2: b.state2 ?? null,
+    zip2: b.zip2 ?? null,
+    defaultTeamName: b.defNameAgn ?? null,
+  };
+}
+
+/** Breeder-only columns of the add/edit breeder form. Note mirrors User.note. */
+function breederPatch(v: {
+  phoneNumber2?: string; address2?: string; city2?: string; state2?: string;
+  zip2?: string; defaultTeamName?: string; note?: string;
+}) {
+  const n = (x?: string) => (x === undefined ? undefined : x.trim() || null);
+  return {
+    cell: n(v.phoneNumber2), address2: n(v.address2), city2: n(v.city2),
+    state2: n(v.state2), zip2: n(v.zip2), defNameAgn: n(v.defaultTeamName), note: n(v.note),
+  };
+}
+
 function mapBreederToUser(breeder: any) {
   return {
     id: `legacy-${breeder.id}`,
@@ -66,6 +98,7 @@ function mapBreederToUser(breeder: any) {
     role: "BREEDER",
     taxNumber: breeder.taxNumber,
     loftName: breeder.defNameAgn || breeder.defNameAs || null,
+    ...breederExtras(breeder),
     isLegacy: true,
   };
 }
@@ -156,7 +189,7 @@ export async function GET(request: Request) {
               { email: { in: emails } },
             ],
           },
-          select: { id: true, userId: true, email: true },
+          select: { id: true, userId: true, email: true, ...breederExtraSelect },
         })
       : [];
     const breederByUserId = new Map(
@@ -165,8 +198,15 @@ export async function GET(request: Request) {
     const breederByEmail = new Map(
       allLinkedBreeders.filter(b => b.email).map(b => [b.email!.toLowerCase(), b.id])
     );
+    const extrasByUserId = new Map(
+      allLinkedBreeders.filter(b => b.userId).map(b => [b.userId, breederExtras(b)])
+    );
+    const extrasByEmail = new Map(
+      allLinkedBreeders.filter(b => b.email).map(b => [b.email!.toLowerCase(), breederExtras(b)])
+    );
     const usersWithBreeder = users.map((u: any) => ({
       ...u,
+      ...(extrasByUserId.get(u.id) ?? extrasByEmail.get(u.email?.toLowerCase())),
       breederId: breederByUserId.get(u.id) ?? breederByEmail.get(u.email?.toLowerCase()) ?? null,
     }));
 
@@ -281,11 +321,12 @@ export async function POST(request: Request) {
     });
 
     // Create linked Breeder record so the user appears in breeder dropdowns
-    await getOrCreateBreeder(
+    const newBreeder = await getOrCreateBreeder(
       authUser.user.id,
       validatedData.email,
       `${validatedData.name}${validatedData.lastName ? ` ${validatedData.lastName}` : ""}`
     );
+    await prisma.breeder.update({ where: { id: newBreeder.id }, data: breederPatch(validatedData) });
 
     return NextResponse.json(
       { message: "User created successfully", user: updatedUser },
@@ -363,6 +404,7 @@ export async function PUT(request: Request) {
 
     // Empty string on the unique username column collides across users
     // (Postgres allows many NULLs but only one ""). Store blanks as null.
+    const { phoneNumber2, address2, city2, state2, zip2, defaultTeamName, ...userData } = validatedData;
     const normalizedUsername =
       validatedData.username !== undefined
         ? validatedData.username.trim() || null
@@ -371,7 +413,7 @@ export async function PUT(request: Request) {
     const updatedUser = await prisma.user.update({
       where: { id },
       data: {
-        ...validatedData,
+        ...userData,
         username: normalizedUsername,
         statusDate: validatedData.status ? new Date() : undefined,
       },
@@ -407,6 +449,18 @@ export async function PUT(request: Request) {
         taxDocKey: true,
       },
     });
+
+    if (updatedUser.role === "BREEDER") {
+      const breeder = await getOrCreateBreeder(
+        id,
+        updatedUser.email,
+        `${updatedUser.name}${updatedUser.lastName ? ` ${updatedUser.lastName}` : ""}`
+      );
+      await prisma.breeder.update({
+        where: { id: breeder.id },
+        data: breederPatch({ phoneNumber2, address2, city2, state2, zip2, defaultTeamName, note: validatedData.note }),
+      });
+    }
 
     // When elevated to admin/superadmin, ensure they have an OrganizerData record
     const guard = await requirePermission("users.manage");

@@ -1,5 +1,6 @@
 "use client";
 
+import { shortBand } from "@/lib/bird-constants";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useDialogHotkeys } from "@/lib/use-dialog-hotkeys";
 import { useSeasonContext } from "@/lib/season-context";
@@ -1531,7 +1532,7 @@ function BirdPrescanPanel({ eventId }: { eventId: string }) {
                   <tr key={entry.rfid} className={entry.unknown ? "bg-red-50" : undefined}>
                     <td className="px-3 py-2 font-mono text-xs">{entry.rfid}</td>
                     <td className="px-3 py-2">{entry.birdName ?? <span className="text-muted-foreground italic">—</span>}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{entry.band ?? "—"}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{shortBand(entry.band) || "—"}</td>
                     <td className="px-3 py-2">{entry.breederName ?? <span className="text-muted-foreground italic">—</span>}</td>
                     <td className="px-3 py-2">{statusBadge(entry)}</td>
                   </tr>
@@ -1795,7 +1796,7 @@ function LoftScanDialog({
                     }`}>
                       {lastScan.status === "placed" ? "Place in Basket" : "Not Basketed Yet"}
                     </span>
-                    <p className="text-xl font-bold font-mono mt-0.5">{lastScan.bird?.band ?? "—"}</p>
+                    <p className="text-xl font-bold font-mono mt-0.5">{shortBand(lastScan.bird?.band) || "—"}</p>
                     {lastScan.bird?.birdName && <p className="text-sm text-muted-foreground">{lastScan.bird.birdName}</p>}
                     <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
                       {lastScan.status === "placed" && (
@@ -1856,7 +1857,7 @@ function LoftScanDialog({
                   {scannedLog.map((row, i) => (
                     <tr key={`${row.band}-${row.scannedAt}`}>
                       <td className="px-3 py-2 text-muted-foreground">{scannedLog.length - i}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{row.band || "—"}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{shortBand(row.band) || "—"}</td>
                       <td className="px-3 py-2 font-medium">{row.birdName || "—"}</td>
                       <td className="px-3 py-2 text-muted-foreground">{row.loftName || "—"}</td>
                       <td className="px-3 py-2 text-muted-foreground">{row.breeder || "—"}</td>
@@ -2133,7 +2134,7 @@ function EntriesTable({
   }
 
   return (
-    <div id="entries-print" className="space-y-3">
+    <div id="entries-print" className="space-y-3 min-w-0">
       {printing && (
         <style>{`@media print {
   body * { visibility: hidden !important; }
@@ -2210,7 +2211,7 @@ function EntriesTable({
               ) : rows.map((r) => (
                 <tr key={r.id} className={`${r.attention ? "bg-red-50" : "hover:bg-muted/40 transition-colors"} ${r.ignored ? "opacity-50" : ""}`}>
                   <td className="px-3 py-2 whitespace-nowrap">{r.breeder || "—"}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{r.band || "—"}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{shortBand(r.band) || "—"}</td>
                   <td className="px-3 py-2 font-mono text-xs">{r.rfid || "—"}</td>
                   <td className="px-3 py-2">{r.color || "—"}</td>
                   <td className="px-3 py-2">
@@ -2337,7 +2338,9 @@ function PersistedBasketsView({
       </CardHeader>
       <CardContent>
         {view === "table" ? (
-          <div className="grid gap-4 lg:grid-cols-[1fr_16rem]">
+          // minmax(0,…): a bare 1fr track has an auto minimum (= the wide table's min-content),
+          // which blows the grid past the card whenever the sidebar is expanded.
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_16rem]">
             <EntriesTable
               eventId={eventId}
               raceId={raceId}
@@ -2463,7 +2466,7 @@ function PersistedBasketCard({
                   const breeder = a.inventoryItem?.eventInventory?.breeder;
                   return (
                     <tr key={a.id} className={bird?.attention ? "bg-red-50" : undefined}>
-                      <td className="px-3 py-1.5 font-mono text-xs">{bird?.band ?? "—"}</td>
+                      <td className="px-3 py-1.5 font-mono text-xs">{shortBand(bird?.band) || "—"}</td>
                       <td className="px-3 py-1.5">{bird?.birdName ?? "—"}</td>
                       <td className="px-3 py-1.5 text-muted-foreground">{breeder?.lastName ?? "—"}</td>
                       <td className="px-3 py-1.5">{bird?.color ?? "—"}</td>

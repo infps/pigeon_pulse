@@ -1,5 +1,6 @@
 "use client";
 
+import { BAND_LETTERS_LIST_LEN, shortBand } from "@/lib/bird-constants";
 import { ColumnDef } from "@tanstack/react-table";
 import { MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,12 +14,25 @@ import {
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import type { EventInventoryItem } from "@/lib/types";
 
+export interface BirdsOptionalColumns {
+  name: boolean;
+  notes: boolean;
+  classes: boolean;
+  lostHistory: boolean;
+}
+
+/** Lost history = any LostHistory row, or the bird is currently flagged lost. */
+export const birdHasLostHistory = (item: EventInventoryItem) =>
+  (item.bird?._count?.lostHistory ?? 0) > 0 || !!item.bird?.isLost;
+
 export const createBirdsColumns = (
   onEdit: (item: EventInventoryItem) => void,
   onOpenBird: (id: number) => void,
   eventId?: string | number,
-  onSubstitute?: (item: EventInventoryItem) => void
-): ColumnDef<EventInventoryItem>[] => [
+  onSubstitute?: (item: EventInventoryItem) => void,
+  show: BirdsOptionalColumns = { name: true, notes: false, classes: false, lostHistory: false }
+): ColumnDef<EventInventoryItem>[] => {
+  const columns: ColumnDef<EventInventoryItem>[] = [
   {
     id: "breeder",
     accessorFn: (row) => {
@@ -72,7 +86,7 @@ export const createBirdsColumns = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Letter" />
     ),
-    cell: ({ getValue }) => getValue() ?? "N/A",
+    cell: ({ getValue }) => (getValue() as string | null | undefined)?.slice(0, BAND_LETTERS_LIST_LEN) ?? "N/A",
   },
   {
     id: "band4",
@@ -88,7 +102,7 @@ export const createBirdsColumns = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Full Band" />
     ),
-    cell: ({ getValue }) => getValue() ?? "N/A",
+    cell: ({ getValue }) => shortBand(getValue() as string | null | undefined) || "N/A",
   },
   {
     id: "color",
@@ -188,6 +202,27 @@ export const createBirdsColumns = (
     cell: ({ getValue }) => (getValue() ? "Yes" : "No"),
   },
   {
+    id: "notes",
+    accessorFn: (row) => row.bird?.note ?? "",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Notes" />,
+    cell: ({ getValue }) => (getValue() as string) || "-",
+  },
+  {
+    id: "classes",
+    accessorFn: (row) => (row.raceClassEntries ?? []).map((e) => e.raceClass.code).join(", "),
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Classes" />,
+    cell: ({ getValue }) => (getValue() as string) || "-",
+  },
+  {
+    id: "lostHistory",
+    accessorFn: (row) => birdHasLostHistory(row),
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Lost History" />,
+    cell: ({ row }) => {
+      const n = row.original.bird?._count?.lostHistory ?? 0;
+      return birdHasLostHistory(row.original) ? `Yes${n ? ` (${n})` : ""}` : "No";
+    },
+  },
+  {
     id: "actions",
     cell: ({ row }) => {
       const item = row.original;
@@ -215,4 +250,12 @@ export const createBirdsColumns = (
       );
     },
   },
-];
+  ];
+  const hidden: Record<string, boolean> = {
+    birdName: !show.name,
+    notes: !show.notes,
+    classes: !show.classes,
+    lostHistory: !show.lostHistory,
+  };
+  return columns.filter((c) => !(c.id && hidden[c.id]));
+};

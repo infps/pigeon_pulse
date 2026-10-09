@@ -10,6 +10,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { ExportButton } from "@/components/export-button";
+import { useUpdateRace } from "@/lib/api/races";
+import { shortBand } from "@/lib/bird-constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -30,11 +35,61 @@ import { getWeatherIcon } from "@/lib/weather-constants";
 import { StationsMap } from "@/components/map";
 import type { Race, Event, RaceItem } from "@/lib/types";
 import Image from "next/image";
-import { Radio, Square, StopCircle, Usb } from "lucide-react";
+import { Pencil, Printer, Radio, Square, StopCircle, Usb } from "lucide-react";
 import { RaceWindButton } from "@/components/map/race-wind-dialog";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useWebSerial } from "@/hooks/useWebSerial";
+
+/** Entry fees not settled: the bird's registration is unpaid or only partly paid (hybrid status). */
+const isUnpaid = (ri: RaceItem) => ri.paymentStatus === "PENDING" || ri.paymentStatus === "PARTIAL";
+
+// Only the printable race sheet (#race-print) survives window.print(); the admin chrome is hidden.
+const PRINT_CSS = `@media print {
+  body * { visibility: hidden !important; }
+  #race-print, #race-print * { visibility: visible !important; }
+  #race-print { position: absolute; left: 0; top: 0; width: 100%; }
+  [data-slot="sidebar-wrapper"], [data-slot="sidebar-inset"], main { overflow: visible !important; height: auto !important; }
+}`;
+
+/** Show and edit Race.description. */
+function RaceDescriptionEditor({ raceId, description }: { raceId: number; description: string | null }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(description ?? "");
+  const update = useUpdateRace();
+
+  const save = async () => {
+    if (!update.mutateAsync) return;
+    try {
+      await update.mutateAsync({ raceId, description: value.trim() });
+      toast.success("Description updated");
+      setEditing(false);
+    } catch {
+      toast.error("Failed to update description");
+    }
+  };
+
+  if (!editing) {
+    return (
+      <div className="flex items-start gap-2 text-sm">
+        <span className="text-muted-foreground shrink-0">Description / Note:</span>
+        <span className="whitespace-pre-wrap">{description || "-"}</span>
+        <Button variant="ghost" size="sm" className="h-6 px-1.5 shrink-0" onClick={() => { setValue(description ?? ""); setEditing(true); }}>
+          <Pencil className="h-3 w-3" />
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      <Textarea rows={2} value={value} onChange={(e) => setValue(e.target.value)} />
+      <div className="flex gap-2">
+        <Button size="sm" onClick={save} disabled={update.isPending}>{update.isPending ? "Saving…" : "Save"}</Button>
+        <Button size="sm" variant="outline" onClick={() => setEditing(false)} disabled={update.isPending}>Cancel</Button>
+      </div>
+    </div>
+  );
+}
 
 export default function RaceDetailsPage() {
   const params = useParams();
@@ -48,6 +103,7 @@ export default function RaceDetailsPage() {
   const [arrivalTo, setArrivalTo] = useState<string>("");
   const [arrivalDefaultSet, setArrivalDefaultSet] = useState(false);
   const [tableResetKey, setTableResetKey] = useState(0);
+  const [unpaidOnly, setUnpaidOnly] = useState(false);
   const [statusItem, setStatusItem] = useState<RaceItem | null>(null);
   const [statusOpen, setStatusOpen] = useState(false);
   const lastScannedRfidRef = useRef<string | null>(null);
@@ -235,6 +291,7 @@ export default function RaceDetailsPage() {
   const hasArrivalFilter = !isNaN(fromMs) || !isNaN(toMs);
   const raceItems: RaceItem[] = allRaceItems.filter((ri) => {
     if (selectedStatuses.length > 0 && !selectedStatuses.includes(ri.status ?? "")) return false;
+    if (unpaidOnly && !isUnpaid(ri)) return false;
     if (hasArrivalFilter) {
       const t = ri.arrivalTime ?? ri.result?.arrivalTime ?? null;
       if (t) {
@@ -262,6 +319,39 @@ export default function RaceDetailsPage() {
 
   return (
     <div className="w-full p-4 md:p-6 space-y-4 max-w-[100vw] overflow-x-hidden">
+      <style>{PRINT_CSS}</style>
+
+      {/* Printable sheet — invisible on screen, the only thing window.print() shows */}
+      <div id="race-print" className="hidden print:block text-black bg-white p-4">
+        <h1 className="text-xl font-bold">{race.description || race.name}</h1>
+        <p className="text-sm mb-3">
+          {event.name} · {race.startTime ? new Date(race.startTime).toLocaleString() : "-"} · {race.distance ?? "-"} mi · {raceItems.length} birds
+        </p>
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr>
+              {["Pos", "Status", "Band", "Bird", "Breeder", "Loft", "Arrival", "Prize"].map((h) => (
+                <th key={h} className="border border-black px-1.5 py-1 text-left">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {raceItems.map((ri) => (
+              <tr key={ri.id}>
+                <td className="border border-black px-1.5 py-0.5">{ri.birdPosition ?? ""}</td>
+                <td className="border border-black px-1.5 py-0.5">{ri.status}</td>
+                <td className="border border-black px-1.5 py-0.5 font-mono">{shortBand(ri.bird?.band)}</td>
+                <td className="border border-black px-1.5 py-0.5">{ri.bird?.birdName ?? ""}</td>
+                <td className="border border-black px-1.5 py-0.5">{[ri.bird?.breeder?.firstName, ri.bird?.breeder?.lastName].filter(Boolean).join(" ")}</td>
+                <td className="border border-black px-1.5 py-0.5">{ri.eventInventoryItem?.eventInventory?.loft ?? ""}</td>
+                <td className="border border-black px-1.5 py-0.5">{ri.arrivalTime ? new Date(ri.arrivalTime).toLocaleString() : ""}</td>
+                <td className="border border-black px-1.5 py-0.5">{ri.prizeValue != null ? ri.prizeValue.toFixed(2) : ""}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       {/* Compact Race Header */}
       <Card className="overflow-hidden">
         <CardContent className="p-4 md:p-6">
@@ -366,6 +456,9 @@ export default function RaceDetailsPage() {
                     <p className="text-sm md:text-base text-muted-foreground">
                       Race ID: <span className="font-mono font-medium">{race.id}</span>
                     </p>
+                  </div>
+                  <div className="mt-2 print:hidden">
+                    <RaceDescriptionEditor key={race.description ?? ""} raceId={race.id} description={race.description} />
                   </div>
                 </div>
 
@@ -517,6 +610,13 @@ export default function RaceDetailsPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Race Items ({raceItems.length})</CardTitle>
+            <div className="flex items-center gap-2">
+              <ExportButton kind="results" eventId={eventId} raceId={raceId} />
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => window.print()}>
+                <Printer className="h-4 w-4" />
+                Print
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="overflow-x-auto">
             {/* Row 1: status chips + status filter */}
@@ -561,6 +661,15 @@ export default function RaceDetailsPage() {
               );
             })()}
 
+            {/* Unpaid filter — unpaid/partial registrations are shown red in the table */}
+            <div className="flex items-center gap-2 mb-2">
+              <Switch id="unpaid-only" checked={unpaidOnly} onCheckedChange={setUnpaidOnly} />
+              <label htmlFor="unpaid-only" className="text-sm font-medium text-muted-foreground cursor-pointer">
+                Unpaid only
+              </label>
+              <span className="text-xs text-muted-foreground">(entry fees not fully paid are shown in red)</span>
+            </div>
+
             {/* Row 2: arrival time */}
             <div className="flex flex-wrap items-center gap-2 mb-2">
               <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Arrival Time:</span>
@@ -588,6 +697,7 @@ export default function RaceDetailsPage() {
                 setStatusOpen(true);
               })}
               data={raceItems}
+              rowClassName={(ri) => (isUnpaid(ri) ? "bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50" : undefined)}
               resetFiltersKey={tableResetKey}
               filterableColumns={[
                 { id: "band", title: "Band" },
@@ -600,6 +710,7 @@ export default function RaceDetailsPage() {
                   setArrivalTo("");
                   setArrivalDefaultSet(false);
                   setSelectedStatuses([]);
+                  setUnpaidOnly(false);
                   setTableResetKey((k) => k + 1);
                 }}>
                   Clear All

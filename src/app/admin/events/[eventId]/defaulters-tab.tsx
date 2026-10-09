@@ -1,5 +1,6 @@
 "use client";
 
+import { shortBand } from "@/lib/bird-constants";
 import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +38,7 @@ function formatCurrency(n: number) {
 function getBirdLabel(bird: EventInventoryItem) {
   const b = bird.bird;
   if (!b) return `#${bird.birdNo ?? "?"}`;
-  const band = [b.band1, b.band2, b.band3, b.band4].filter(Boolean).join("-") || b.band || "?";
+  const band = shortBand([b.band1, b.band2, b.band3, b.band4].filter(Boolean).join("-") || b.band) || "?";
   const sex = b.sex === 1 ? "Cock" : b.sex === 0 ? "Hen" : null;
   const parts = [band, b.color, sex].filter(Boolean).join(" · ");
   return parts;

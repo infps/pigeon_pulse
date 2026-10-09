@@ -15,6 +15,7 @@ import {
 } from "@/lib/exportFormats";
 import { ExportTablePDF } from "@/components/export-table-pdf";
 import { prisma } from "@/lib/prisma";
+import { requireAnyPermission } from "@/lib/authorize";
 
 type Kind = "registrations" | "results" | "baskets" | "birds" | "payments";
 type Format = "xlsx" | "csv" | "pdf" | "html";
@@ -113,9 +114,16 @@ export async function GET(
     case "registrations":
       data = await getRegistrationRows(breederIdResolved, eventId);
       break;
-    case "results":
-      data = await getResultsRows(breederIdResolved, eventId, raceId);
+    case "results": {
+      // Admin + raceId + no breederId = the whole race, every breeder.
+      const wholeRace = isAdmin && raceId !== undefined && !breederIdParam;
+      if (wholeRace) {
+        const guard = await requireAnyPermission(["races.view", "races.manage"]);
+        if ("error" in guard) return guard.error;
+      }
+      data = await getResultsRows(wholeRace ? null : breederIdResolved, eventId, raceId);
       break;
+    }
     case "baskets":
       if (!eventId) {
         return NextResponse.json(

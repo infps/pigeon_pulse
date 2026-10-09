@@ -1,5 +1,6 @@
 "use client";
 
+import { shortBand } from "@/lib/bird-constants";
 import type { Event, EventInventoryItem, FeeScheme } from "@/lib/types";
 import { useState, useMemo, useRef, useCallback, useEffect, useReducer } from "react";
 import { useWebSerial } from "@/hooks/useWebSerial";
@@ -37,7 +38,8 @@ import {
 import { Plus, Wifi, WifiOff, Square, Usb, Upload, Download } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { createBirdsColumns } from "./birds-columns";
+import { createBirdsColumns, birdHasLostHistory } from "./birds-columns";
+import { Switch } from "@/components/ui/switch";
 import { SubstitutionDialog } from "./substitution-dialog";
 import { EditBirdDialog } from "@/components/edit-bird-dialog";
 import { BirdDetailDialog } from "@/components/bird-detail-dialog";
@@ -124,10 +126,39 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
     queryClient.invalidateQueries({ queryKey: ["event-inventory"] });
   };
 
-  const columns = createBirdsColumns(handleEdit, setDetailBirdId, eventId, handleSubstitute);
+  const eventInventoryItems: EventInventoryItem[] = useMemo(
+    () => data?.eventInventoryItems || [],
+    [data]
+  );
 
-  const eventInventoryItems: EventInventoryItem[] =
-    data?.eventInventoryItems || [];
+  // Optional columns: each toggle shows its column and enables its filter.
+  const [show, setShow] = useState({ name: true, notes: false, classes: false, lostHistory: false });
+  const [nameQ, setNameQ] = useState("");
+  const [notesQ, setNotesQ] = useState("");
+  const [classQ, setClassQ] = useState("all");
+  const [lostQ, setLostQ] = useState<"all" | "has" | "none">("all");
+  const toggle = (key: keyof typeof show, clear: () => void) => (on: boolean) => {
+    setShow((s) => ({ ...s, [key]: on }));
+    if (!on) clear();
+  };
+
+  const classCodes = useMemo(
+    () => Array.from(new Set(eventInventoryItems.flatMap((i) => (i.raceClassEntries ?? []).map((e) => e.raceClass.code)))).sort(),
+    [eventInventoryItems]
+  );
+  const visibleItems = useMemo(() => {
+    const nq = nameQ.trim().toLowerCase();
+    const oq = notesQ.trim().toLowerCase();
+    return eventInventoryItems.filter((i) => {
+      if (show.name && nq && !(i.bird?.birdName ?? "").toLowerCase().includes(nq)) return false;
+      if (show.notes && oq && !(i.bird?.note ?? "").toLowerCase().includes(oq)) return false;
+      if (show.classes && classQ !== "all" && !(i.raceClassEntries ?? []).some((e) => e.raceClass.code === classQ)) return false;
+      if (show.lostHistory && lostQ !== "all" && birdHasLostHistory(i) !== (lostQ === "has")) return false;
+      return true;
+    });
+  }, [eventInventoryItems, show, nameQ, notesQ, classQ, lostQ]);
+
+  const columns = createBirdsColumns(handleEdit, setDetailBirdId, eventId, handleSubstitute, show);
 
   if (isPending) {
     return (
@@ -192,10 +223,54 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
         </Button>
       </div>
 
+      <div className="flex flex-wrap items-end gap-x-6 gap-y-3 border rounded-lg p-3 bg-muted/30">
+        <div className="flex items-center gap-2">
+          <Switch id="tgl-name" checked={show.name} onCheckedChange={toggle("name", () => setNameQ(""))} />
+          <Label htmlFor="tgl-name">Name</Label>
+          {show.name && (
+            <Input className="h-8 w-40" placeholder="Search name…" value={nameQ} onChange={(e) => setNameQ(e.target.value)} />
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch id="tgl-notes" checked={show.notes} onCheckedChange={toggle("notes", () => setNotesQ(""))} />
+          <Label htmlFor="tgl-notes">Notes</Label>
+          {show.notes && (
+            <Input className="h-8 w-40" placeholder="Search notes…" value={notesQ} onChange={(e) => setNotesQ(e.target.value)} />
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch id="tgl-classes" checked={show.classes} onCheckedChange={toggle("classes", () => setClassQ("all"))} />
+          <Label htmlFor="tgl-classes">Classes</Label>
+          {show.classes && (
+            <Select value={classQ} onValueChange={setClassQ}>
+              <SelectTrigger className="h-8 w-36"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All classes</SelectItem>
+                {classCodes.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch id="tgl-lost" checked={show.lostHistory} onCheckedChange={toggle("lostHistory", () => setLostQ("all"))} />
+          <Label htmlFor="tgl-lost">Lost history</Label>
+          {show.lostHistory && (
+            <Select value={lostQ} onValueChange={(v) => setLostQ(v as "all" | "has" | "none")}>
+              <SelectTrigger className="h-8 w-36"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Any</SelectItem>
+                <SelectItem value="has">Has lost history</SelectItem>
+                <SelectItem value="none">No lost history</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      </div>
+
       <DataTable
         tableId="event-birds"
         columns={columns}
-        data={eventInventoryItems}
+        data={visibleItems}
         filterableColumns={[
           { id: "breeder", title: "Breeder" },
           { id: "birdName", title: "Bird Name" },
@@ -345,7 +420,7 @@ function BirdChecklist({
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{bird.birdName || "Unnamed"}</p>
                 <p className="text-xs text-muted-foreground font-mono truncate">
-                  {bird.band || [bird.band1, bird.band2, bird.band3, bird.band4].filter(Boolean).join("-")}
+                  {shortBand(bird.band || [bird.band1, bird.band2, bird.band3, bird.band4].filter(Boolean).join("-"))}
                 </p>
               </div>
               <div className="text-right shrink-0">

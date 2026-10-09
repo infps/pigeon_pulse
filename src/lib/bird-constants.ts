@@ -12,3 +12,15 @@ export function getSexLabel(sex: number | null | undefined, terminology: "tradit
   const map = terminology === "neutral" ? SEX_LABELS_NEUTRAL : SEX_LABELS;
   return map[sex ?? 0] ?? "Unknown";
 }
+
+/** Band letters may be any length when stored; tables/lists show the first 4. Detail views use the full value. */
+export const BAND_LETTERS_LIST_LEN = 4;
+
+/** Truncate the letters segment of a "FED-YEAR-LETTERS-NUMBER" band for list/table display. */
+export function shortBand(band: string | null | undefined): string {
+  if (!band) return "";
+  const parts = band.split("-");
+  if (parts.length < 4) return band;
+  const letters = parts.slice(2, -1).join("-").slice(0, BAND_LETTERS_LIST_LEN);
+  return [parts[0], parts[1], letters, parts[parts.length - 1]].join("-");
+}

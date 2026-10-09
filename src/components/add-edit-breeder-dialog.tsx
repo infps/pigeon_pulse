@@ -64,6 +64,12 @@ export function AddEditBreederDialog({
     note: "",
     timezone: "",
     legalName: "",
+    phoneNumber2: "",
+    address2: "",
+    city2: "",
+    state2: "",
+    zip2: "",
+    defaultTeamName: "",
   });
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -116,6 +122,12 @@ export function AddEditBreederDialog({
         note: editingUser.note || "",
         timezone: editingUser.timezone || "",
         legalName: editingUser.legalName || "",
+        phoneNumber2: editingUser.phoneNumber2 || "",
+        address2: editingUser.address2 || "",
+        city2: editingUser.city2 || "",
+        state2: editingUser.state2 || "",
+        zip2: editingUser.zip2 || "",
+        defaultTeamName: editingUser.defaultTeamName || "",
       });
       setImagePreview(editingUser.image || null);
       setImageFile(null);
@@ -142,6 +154,12 @@ export function AddEditBreederDialog({
         note: copyUser.note || "",
         timezone: copyUser.timezone || "",
         legalName: "",
+        phoneNumber2: copyUser.phoneNumber2 || "",
+        address2: copyUser.address2 || "",
+        city2: copyUser.city2 || "",
+        state2: copyUser.state2 || "",
+        zip2: copyUser.zip2 || "",
+        defaultTeamName: copyUser.defaultTeamName || "",
       });
       setImagePreview(null);
       setImageFile(null);
@@ -168,6 +186,12 @@ export function AddEditBreederDialog({
         note: "",
         timezone: "",
         legalName: "",
+        phoneNumber2: "",
+        address2: "",
+        city2: "",
+        state2: "",
+        zip2: "",
+        defaultTeamName: "",
       });
       setImagePreview(null);
       setImageFile(null);
@@ -273,6 +297,12 @@ export function AddEditBreederDialog({
       note: "",
       timezone: "",
       legalName: "",
+      phoneNumber2: "",
+      address2: "",
+      city2: "",
+      state2: "",
+      zip2: "",
+      defaultTeamName: "",
     });
     setImagePreview(null);
     setImageFile(null);
@@ -522,6 +552,30 @@ export function AddEditBreederDialog({
             />
           </div>
 
+          <div>
+            <Label htmlFor="address2">Address 2</Label>
+            <Input
+              id="address2"
+              value={formData.address2}
+              onChange={(e) => setField("address2", e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <Label htmlFor="city2">City 2</Label>
+              <Input id="city2" value={formData.city2} onChange={(e) => setField("city2", e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="state2">State 2</Label>
+              <Input id="state2" value={formData.state2} onChange={(e) => setField("state2", e.target.value)} />
+            </div>
+            <div>
+              <Label htmlFor="zip2">Postal Code 2</Label>
+              <Input id="zip2" value={formData.zip2} onChange={(e) => setField("zip2", e.target.value)} />
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="postalCode">Postal Code</Label>
@@ -542,6 +596,26 @@ export function AddEditBreederDialog({
                 onChange={(e) =>
                   setFormData({ ...formData, phoneNumber: e.target.value })
                 }
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="phoneNumber2">2nd Mobile Number</Label>
+              <Input
+                id="phoneNumber2"
+                value={formData.phoneNumber2}
+                onChange={(e) => setField("phoneNumber2", e.target.value)}
+              />
+            </div>
+            <div>
+              <Label htmlFor="defaultTeamName">Default Team Name</Label>
+              <Input
+                id="defaultTeamName"
+                value={formData.defaultTeamName}
+                onChange={(e) => setField("defaultTeamName", e.target.value)}
+                placeholder="Pre-fills loft name on registration"
               />
             </div>
           </div>

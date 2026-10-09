@@ -48,6 +48,26 @@ export const useDeletePayment = ({
   });
 };
 
+/** Waiting flag/date + note on a registration. Invalidates detail and breeders list. */
+export const useUpdateEventInventory = (eventInventoryId: number, { onSuccess }: { onSuccess?: () => void } = {}) => {
+  return useApiMutation({
+    endpoint: `/api/admin/event-inventory/${eventInventoryId}`,
+    method: "PATCH",
+    queryKey: ["event-inventory"],
+    exact: false,
+    onSuccess,
+  });
+};
+
+/** Bets this registration's breeder placed in its season. */
+export const useEventInventoryBets = (eventInventoryId: number | null) => {
+  return useApiQuery({
+    queryKey: ["event-inventory", "bets", String(eventInventoryId)],
+    endpoint: `/api/admin/event-inventory/${eventInventoryId}/bets`,
+    enabled: !!eventInventoryId,
+  });
+};
+
 export const useAddPartner = (eventInventoryId: number, { onSuccess }: { onSuccess?: () => void } = {}) => {
   return useApiMutation({
     endpoint: `/api/admin/event-inventory/${eventInventoryId}/partners`,

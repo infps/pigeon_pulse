@@ -221,7 +221,7 @@ export async function entryInvoice(eventInventoryId: number): Promise<Invoice | 
     if (item.entryFeeValue) lines.push({ label, detail: "Entry fee", amount: item.entryFeeValue });
     if (item.perchFeeValue) lines.push({ label, detail: "Perch fee", amount: item.perchFeeValue });
     if (item.hotSpotFeeValue)
-      lines.push({ label, detail: "Hotspot fee", amount: item.hotSpotFeeValue });
+      lines.push({ label, detail: "Perch fee (hot spot)", amount: item.hotSpotFeeValue });
     if (item.raceFeeValue) lines.push({ label, detail: "Race fee", amount: item.raceFeeValue });
 
     for (const ce of item.raceClassEntries) {

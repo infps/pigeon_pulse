@@ -97,7 +97,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
   const router = useRouter();
   const { data: session, isPending: isSessionPending } = authClient.useSession();
 
-  const [selectedLoft, setSelectedLoft] = useState("");
+  const [pickedLoft, setSelectedLoft] = useState("");
   const [reservedBirds, setReservedBirds] = useState<number>(0);
   const [selectedBirds, setSelectedBirds] = useState<SelectedBird[]>([]);
   const [isAddTeamOpen, setIsAddTeamOpen] = useState(false);
@@ -111,6 +111,9 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
     enabled: !!session?.user,
   });
   const teams = teamsData?.teams || [];
+  // Breeder's default team name pre-fills the loft (changeable per registration)
+  const defaultTeamName: string | null = teamsData?.defaultTeamName ?? null;
+  const selectedLoft = pickedLoft || defaultTeamName || "";
 
   const { data: birdsData, refetch: refetchBirds } = useApiQuery({
     endpoint: apiEndpoints.breeder.birds,
@@ -312,7 +315,10 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                     <SelectValue placeholder="Select loft/team" />
                   </SelectTrigger>
                   <SelectContent>
-                    {teams.length === 0 ? (
+                    {defaultTeamName && !teams.some((t: { name: string }) => t.name === defaultTeamName) && (
+                      <SelectItem value={defaultTeamName}>{defaultTeamName}</SelectItem>
+                    )}
+                    {teams.length === 0 && !defaultTeamName ? (
                       <div className="px-2 py-4 text-sm text-center text-muted-foreground">
                         No teams created
                       </div>
@@ -496,7 +502,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                   )}
                   {fees && fees.hotspotBilled > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Hotspot Fee:</span>
+                      <span className="text-muted-foreground">Perch Fee (Hot Spot):</span>
                       <span className="font-medium">${fees.hotspotBilled.toFixed(2)}</span>
                     </div>
                   )}
@@ -530,7 +536,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                 )}
                 {fees && fees.hotspotBilled > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    Hotspot fees can be paid gate by gate, or in full at the Final.
+                    Perch Fee 1/2/3/Final (hot spot) can be paid gate by gate, or in full at the Final.
                   </p>
                 )}
 
@@ -543,7 +549,7 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                         <tr className="text-left">
                           <th className="px-3 py-2 font-medium">Bird</th>
                           <th className="px-3 py-2 text-right font-medium">Perch</th>
-                          <th className="px-3 py-2 text-right font-medium">Hotspot</th>
+                          <th className="px-3 py-2 text-right font-medium">Perch Fee (Hot Spot)</th>
                           <th className="px-3 py-2 text-right font-medium">Total</th>
                         </tr>
                       </thead>

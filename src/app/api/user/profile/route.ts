@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
 import { uploadToR2, deleteFromR2 } from "@/lib/r2";
 
 export async function PUT(req: NextRequest) {
@@ -31,6 +32,7 @@ export async function PUT(req: NextRequest) {
     const phoneNumber = formData.get("phoneNumber") as string | null;
     const webAddress = formData.get("webAddress") as string | null;
     const note = formData.get("note") as string | null;
+    const defaultTeamName = formData.get("defaultTeamName") as string | null;
     const imageFile = formData.get("image") as File | null;
 
     // Validate required fields
@@ -92,6 +94,15 @@ export async function PUT(req: NextRequest) {
         imageKey,
       },
     });
+
+    // Default team name lives on the Breeder row (pre-fills loft at registration)
+    if (updatedUser.role === "BREEDER") {
+      const breeder = await getOrCreateBreeder(updatedUser.id, updatedUser.email, updatedUser.name);
+      await prisma.breeder.update({
+        where: { id: breeder.id },
+        data: { defNameAgn: defaultTeamName?.trim() || null },
+      });
+    }
 
     return NextResponse.json({
       message: "Profile updated successfully",
@@ -169,7 +180,12 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ user });
+    const breeder = await prisma.breeder.findUnique({
+      where: { userId: user.id },
+      select: { defNameAgn: true },
+    });
+
+    return NextResponse.json({ user: { ...user, defaultTeamName: breeder?.defNameAgn ?? null } });
   } catch (error) {
     console.error("Error fetching profile:", error);
     return NextResponse.json(

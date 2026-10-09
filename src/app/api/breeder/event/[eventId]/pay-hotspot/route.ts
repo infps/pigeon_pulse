@@ -158,7 +158,7 @@ export async function POST(
       );
     }
 
-    const label = gate === "FINAL" ? "Final" : `Hotspot ${gate.slice(2)}`;
+    const label = gate === "FINAL" ? "Perch Fee Final" : `Perch Fee ${gate.slice(2)}`;
 
     const result = await prisma.$transaction(async (tx) => {
       const payment = await tx.payment.create({
@@ -169,7 +169,7 @@ export async function POST(
           // 2 = RACES_FEE in the portal's payment taxonomy.
           paymentType: 2,
           paymentMethod: method === "PAYPAL" ? 2 : 0,
-          paymentDesc: `${label} entry fee`,
+          paymentDesc: label,
           // Structured, so a capture that rewrites the description still knows
           // what this payment was for.
           hotspotGate: gate,
@@ -203,8 +203,8 @@ export async function POST(
       settled: method === "CASH",
       message:
         method === "CASH"
-          ? `${label} fee of ${amount.toFixed(2)} recorded.`
-          : `${label} fee of $${amount.toFixed(2)} is ready to pay. It settles once the payment captures.`,
+          ? `${label} of ${amount.toFixed(2)} recorded.`
+          : `${label} of $${amount.toFixed(2)} is ready to pay. It settles once the payment captures.`,
     });
   } catch (error) {
     console.error("Failed to start hotspot payment:", error);

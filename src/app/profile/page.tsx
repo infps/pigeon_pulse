@@ -40,6 +40,7 @@ interface UserProfile {
   phoneNumber?: string | null;
   webAddress?: string | null;
   note?: string | null;
+  defaultTeamName?: string | null;
   status: string;
   role: string;
   createdAt: string;
@@ -67,6 +68,7 @@ export default function ProfilePage() {
     webAddress: "",
     image: "",
     note: "",
+    defaultTeamName: "",
   });
 
   // Fetch user profile from database
@@ -99,6 +101,7 @@ export default function ProfilePage() {
           webAddress: data.user.webAddress || "",
           image: data.user.image || "",
           note: data.user.note || "",
+          defaultTeamName: data.user.defaultTeamName || "",
         });
         const {data:sessionData} = await authClient.listSessions();
         setSessions(sessionData);
@@ -179,6 +182,7 @@ export default function ProfilePage() {
           webAddress: profileData.user.webAddress || "",
           image: profileData.user.image || "",
           note: profileData.user.note || "",
+          defaultTeamName: profileData.user.defaultTeamName || "",
         });
       }
     } catch (error) {
@@ -411,6 +415,18 @@ export default function ProfilePage() {
                         onChange={(e) => handleInputChange("postalCode", e.target.value)}
                       />
                     </div>
+
+                    {userData.role === "BREEDER" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="defaultTeamName">Default Team Name</Label>
+                        <Input
+                          id="defaultTeamName"
+                          value={formData.defaultTeamName}
+                          onChange={(e) => handleInputChange("defaultTeamName", e.target.value)}
+                          placeholder="Pre-fills the loft name when you register for an event"
+                        />
+                      </div>
+                    )}
 
                     {/* Notes */}
                     <div className="space-y-2">

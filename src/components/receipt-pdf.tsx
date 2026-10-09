@@ -1,3 +1,4 @@
+import { shortBand } from "@/lib/bird-constants";
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 
 const COLOR_BELGIAN = "#cfe7ff";
@@ -181,7 +182,7 @@ export function ReceiptDocument({ data }: { data: ReceiptData }) {
           {data.items.map((item, i) => (
             <View key={i} style={styles.row}>
               <Text style={[styles.td, { width: STATUS_W, fontFamily: "Helvetica-Bold" }]}>{item.statusCode}</Text>
-              <Text style={[styles.td, styles.tdLeft, { width: BAND_W }]}>{item.band ?? "-"}</Text>
+              <Text style={[styles.td, styles.tdLeft, { width: BAND_W }]}>{shortBand(item.band) || "-"}</Text>
               <Text style={[styles.td, styles.tdRight, { width: FEE_W }]}>{fmtMoney(item.entryFee)}</Text>
               {item.classes.map((c, j) => (
                 <Text key={j} style={[styles.td, { width: CLASS_W, backgroundColor: classCellBg(j) }]}>
@@ -249,7 +250,7 @@ export function ReceiptDocument({ data }: { data: ReceiptData }) {
           </View>
           <BalRow label="Perch Fee" due={data.fees.perchDue} paid={data.fees.perchPaid} />
           <BalRow label="Entry Fee" due={data.fees.entryDue} paid={data.fees.entryPaid} />
-          <BalRow label="Hot Spot" due={data.fees.hotSpotDue} paid={data.fees.hotSpotPaid} />
+          <BalRow label="Perch Fee (Hot Spot)" due={data.fees.hotSpotDue} paid={data.fees.hotSpotPaid} />
           <BalRow label="Shipping Fee" due={data.fees.shippingDue} paid={data.fees.shippingPaid} />
           <BalRow label="Classes" due={data.fees.classesDue} paid={data.fees.classesPaid} />
           <BalRow label="TOTAL FEES" due={totalDue} paid={totalPaid} bold />
@@ -261,7 +262,7 @@ export function ReceiptDocument({ data }: { data: ReceiptData }) {
             <Text style={[styles.balCell, { fontFamily: "Helvetica-Bold" }]}>PAID</Text>
           </View>
           <BalRow label="Entry Fee" due={data.refunds.entryDue} paid={data.refunds.entryPaid} />
-          <BalRow label="Hot Spot" due={data.refunds.hotSpotDue} paid={data.refunds.hotSpotPaid} />
+          <BalRow label="Perch Fee (Hot Spot)" due={data.refunds.hotSpotDue} paid={data.refunds.hotSpotPaid} />
           <BalRow label="Classes" due={data.refunds.classesDue} paid={data.refunds.classesPaid} />
           <BalRow label="TOTAL REFUNDS" due={totalRefDue} paid={totalRefPaid} bold />
 

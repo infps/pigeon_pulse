@@ -1,5 +1,6 @@
 "use client";
 
+import { shortBand } from "@/lib/bird-constants";
 import { useState, useMemo } from "react";
 import { useDialogHotkeys } from "@/lib/use-dialog-hotkeys";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -564,7 +565,7 @@ export function AveragesTab({ eventId }: { eventId: string }) {
                         <td className="px-4 py-3">
                           <p className="font-medium">{row.loft ?? row.breederName}</p>
                           <p className="text-xs text-muted-foreground font-mono">
-                            {row.band}
+                            {shortBand(row.band)}
                             {row.sex != null && (
                               <span className="ml-2">{SEX_LABELS[row.sex as keyof typeof SEX_LABELS]}</span>
                             )}

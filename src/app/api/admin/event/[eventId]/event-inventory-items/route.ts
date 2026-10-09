@@ -116,8 +116,11 @@ export async function GET(
           select: {
             id: true, rfid: true, color: true, sex: true, isActive: true,
             band: true, band1: true, band2: true, band3: true, band4: true,
+            birdName: true, note: true, isLost: true, lostDate: true,
+            _count: { select: { lostHistory: true } },
           },
         },
+        raceClassEntries: { select: { raceClass: { select: { id: true, code: true } } } },
         eventInventory: {
           select: {
             id: true, breederId: true, loft: true, signInDate: true,

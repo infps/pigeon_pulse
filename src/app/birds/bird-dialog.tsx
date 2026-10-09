@@ -303,9 +303,8 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
                 <Input
                   id="letters"
                   value={letters}
-                  onChange={(e) => setLetters(e.target.value.toUpperCase().slice(0, 4))}
+                  onChange={(e) => setLetters(e.target.value.toUpperCase())}
                   placeholder="ABCD"
-                  maxLength={4}
                 />
               </div>
               <div className="space-y-2">
@@ -399,7 +398,7 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
                     <TableRow key={b.tempId}>
                       <TableCell className="py-1">{b.name}</TableCell>
                       <TableCell className="py-1 text-xs">
-                        {b.band1}-{b.band2}-{b.band3}-{b.band4}
+                        {b.band1}-{b.band2}-{b.band3.slice(0, 4)}-{b.band4}
                       </TableCell>
                       <TableCell className="py-1">{b.color}</TableCell>
                       <TableCell className="py-1">{SEX_LABELS[b.sex] || "Unknown"}</TableCell>

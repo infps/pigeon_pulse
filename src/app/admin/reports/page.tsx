@@ -1,5 +1,6 @@
 "use client";
 
+import { isPreviewableFormat, useDocumentPreview } from "@/components/document-preview";
 import { useMemo, useState } from "react";
 import { useApiQuery } from "@/hooks/useApi";
 import { apiEndpoints } from "@/lib/endpoints";
@@ -42,6 +43,7 @@ const SCOPE_LABEL: Record<ReportInfo["scope"], string> = {
 };
 
 export default function ReportsPage() {
+  const { show: showDoc, previewNode } = useDocumentPreview();
   const [seasonId, setSeasonId] = useState<string>("");
   const [raceId, setRaceId] = useState<string>("");
 
@@ -88,7 +90,8 @@ export default function ReportsPage() {
       seasonId: seasonId || undefined,
       raceId: raceId || undefined,
     });
-    window.open(url, "_blank", "noopener");
+    if (isPreviewableFormat(format)) showDoc(url, report.title);
+    else window.open(url, "_blank", "noopener");
   };
 
   if (catalogueLoading || seasonsLoading) {
@@ -107,6 +110,7 @@ export default function ReportsPage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
+      {previewNode}
       <div>
         <h1 className="text-2xl font-semibold">Reports</h1>
         <p className="text-sm text-muted-foreground mt-1">

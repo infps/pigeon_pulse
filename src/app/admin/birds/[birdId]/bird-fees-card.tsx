@@ -86,12 +86,12 @@ function FeeRow({ item }: { item: InventoryItemView }) {
           <Line label="Entry Fee" value={item.entryFeeValue} />
           <Line label="Per Bird Fee" value={item.perchFeeValue} />
           <Line label="Race Fee" value={item.raceFeeValue} />
-          <Line label="Hot Spot" value={item.hotSpotFeeValue} />
+          <Line label="Perch Fee (Hot Spot)" value={item.hotSpotFeeValue} />
           {refund > 0 && (
             <>
               <div className="border-t my-1" />
               <Line label="Entry Refund" value={item.entryRefund} muted />
-              <Line label="Hot Spot Refund" value={item.hotSpotRefund} muted />
+              <Line label="Perch Fee (Hot Spot) Refund" value={item.hotSpotRefund} muted />
               <Line label="Bets Refund" value={item.betsRefund} muted />
             </>
           )}

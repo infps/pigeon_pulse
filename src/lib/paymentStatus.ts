@@ -122,19 +122,21 @@ export function computePaymentTotals(
             .filter((p) => !p.paymentDesc?.toLowerCase().includes("bet stake") && p.paymentType !== 3)
             .reduce((s, p) => s + (p.paymentValue ?? 0), 0) - refundsOut;
 
-    let status: PaymentStatus;
-    if (owed === 0) status = "NA";
-    else if (totalPaid > owed) status = "OVERPAID";
-    else if (totalPaid === owed && totalPaid > 0) status = "PAID";
-    else if (totalPaid > 0 && totalPaid < owed) status = "PARTIAL";
-    else status = "PENDING";
-
     return {
         owed: Math.round(owed * 100) / 100,
         totalPaid: Math.round(totalPaid * 100) / 100,
         balance: Math.round((owed - totalPaid) * 100) / 100,
-        status,
+        status: statusFromTotals(owed, totalPaid),
     };
+}
+
+/** Hybrid status from already-summed totals (lets callers merge ledgers, then classify). */
+export function statusFromTotals(owed: number, totalPaid: number): PaymentStatus {
+    if (owed === 0) return "NA";
+    if (totalPaid > owed) return "OVERPAID";
+    if (totalPaid === owed && totalPaid > 0) return "PAID";
+    if (totalPaid > 0 && totalPaid < owed) return "PARTIAL";
+    return "PENDING";
 }
 
 export function computePaymentStatus(

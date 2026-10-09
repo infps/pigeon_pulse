@@ -210,9 +210,9 @@ export function BirdEventSection({ item, defaultOpen = false }: Props) {
               <FeeCell label="Perch Fee" value={item.entryFeeValue} />
               <FeeCell label="Bird Fee" value={item.perchFeeValue} />
               <FeeCell label="Race Fee" value={item.raceFeeValue} />
-              <FeeCell label="Hot Spot" value={item.hotSpotFeeValue} />
+              <FeeCell label="Perch Fee (Hot Spot)" value={item.hotSpotFeeValue} />
               <FeeCell label="Entry Refund" value={item.entryRefund} />
-              <FeeCell label="Hot Spot Refund" value={item.hotSpotRefund} />
+              <FeeCell label="Perch Fee (Hot Spot) Refund" value={item.hotSpotRefund} />
               <FeeCell label="Bets Refund" value={item.betsRefund} />
             </div>
           </div>

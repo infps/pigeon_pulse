@@ -1,5 +1,6 @@
 "use client";
 
+import { isPreviewableFormat, useDocumentPreview } from "@/components/document-preview";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -41,15 +42,20 @@ export function ExportButton({
   breederId,
   label,
 }: ExportButtonProps) {
+  const { show, previewNode } = useDocumentPreview();
   const open = (format: ExportFormat) => {
     const qs = new URLSearchParams({ format });
     if (eventId !== undefined) qs.set("eventId", String(eventId));
     if (raceId !== undefined) qs.set("raceId", String(raceId));
     if (breederId !== undefined) qs.set("breederId", String(breederId));
-    window.open(`/api/breeder/export/${kind}?${qs.toString()}`, "_blank");
+    const url = `/api/breeder/export/${kind}?${qs.toString()}`;
+    if (isPreviewableFormat(format)) show(url, label ?? `Export (${format.toUpperCase()})`);
+    else window.open(url, "_blank");
   };
 
   return (
+    <>
+    {previewNode}
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
@@ -67,5 +73,6 @@ export function ExportButton({
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+    </>
   );
 }

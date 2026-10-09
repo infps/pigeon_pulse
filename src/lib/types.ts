@@ -37,6 +37,13 @@ export interface User {
   ssnDocKey: string | null;
   taxDocKey: string | null;
   breederId?: number;
+  // Breeder-row extras (see /api/admin/users)
+  phoneNumber2?: string | null;
+  address2?: string | null;
+  city2?: string | null;
+  state2?: string | null;
+  zip2?: string | null;
+  defaultTeamName?: string | null;
 }
 
 // ============================================================
@@ -258,6 +265,16 @@ export interface Event {
   raceFormat?: string | null;
 }
 
+export interface EventInventoryFeeTotals {
+  entry: number;
+  perBird: number;
+  perchHotspot: number;
+  race: number;
+  owed: number;
+  paid: number;
+  status: "PAID" | "OVERPAID" | "PENDING" | "PARTIAL" | "NA";
+}
+
 export interface EventInventory {
   id: number;
   eventId: number | null;
@@ -269,6 +286,8 @@ export interface EventInventory {
   isWaiting: number | null;
   waitingDate: string | null;
   cashPromised: boolean;
+  /** Server-computed (admin event-inventory list): per-registration fee totals + hybrid status. */
+  feeTotals?: EventInventoryFeeTotals;
   event?: Event;
   breeder?: Breeder;
   items?: EventInventoryItem[];
@@ -316,6 +335,8 @@ export interface EventInventoryItem {
   eventInventory?: EventInventory;
   bird?: Bird;
   raceItems?: RaceItem[];
+  /** Admin birds list only: classes this entry is in. */
+  raceClassEntries?: { raceClass: { id: number; code: string } }[];
   // UI compat aliases
   arrivalTime?: string | null;
   departureTime?: string | null;
@@ -351,6 +372,10 @@ export interface Payment {
 
 export interface Race {
   id: number;
+  /** Admin races list only: RaceItem counts (see /api/admin/race GET). */
+  activeBirds?: number;
+  lostBirds?: number;
+  foreignBirds?: number;
   isPrivate?: boolean;
   raceTypeId: number | null;
   eventId: number | null;
@@ -420,6 +445,8 @@ export interface RaceItem {
   loftBasketLabel?: string | null;
   raceBasketLabel?: string | null;
   groupId?: number | null;
+  /** Hybrid payment status of the bird's registration (PAID/OVERPAID/PENDING/PARTIAL/NA). */
+  paymentStatus?: "PAID" | "OVERPAID" | "PENDING" | "PARTIAL" | "NA" | null;
 }
 
 export interface RaceItemResult {
@@ -471,6 +498,8 @@ export interface Bird {
   childrenAsMother?: Bird[];
   siblings?: Bird[];
   inventoryItems?: EventInventoryItem[];
+  /** Admin birds list only: LostHistory row count. */
+  _count?: { lostHistory: number };
 }
 
 // ============================================================

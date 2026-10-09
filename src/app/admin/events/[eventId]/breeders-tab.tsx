@@ -22,6 +22,7 @@ import { BreederDetailsDialog } from "@/components/breeder-details-dialog";
 import { RegisterDialog } from "@/components/register-dialog";
 import { ImportModal, ExportModal } from "@/components/csv-import-export";
 import { useQueryClient } from "@tanstack/react-query";
+import { statusFromTotals } from "@/lib/paymentStatus";
 
 interface BreedersTabProps {
   event: Event;
@@ -134,11 +135,18 @@ export function BreedersTab({ event, eventId, onGoToRegister }: BreedersTabProps
     rawInventory.reduce<Record<string, EventInventory>>((acc, inv) => {
       const key = `${inv.breederId}__${inv.loft ?? ""}`;
       if (!acc[key]) {
-        acc[key] = { ...inv, items: [...(inv.items ?? [])], payments: [...(inv.payments ?? [])] };
+        acc[key] = { ...inv, items: [...(inv.items ?? [])], payments: [...(inv.payments ?? [])], feeTotals: inv.feeTotals && { ...inv.feeTotals } };
       } else {
         acc[key].items = [...(acc[key].items ?? []), ...(inv.items ?? [])];
         acc[key].payments = [...(acc[key].payments ?? []), ...(inv.payments ?? [])];
         acc[key].reservedBirds = (acc[key].reservedBirds ?? 0) + (inv.reservedBirds ?? 0);
+        const a = acc[key].feeTotals;
+        const b = inv.feeTotals;
+        if (a && b) {
+          a.entry += b.entry; a.perBird += b.perBird; a.perchHotspot += b.perchHotspot;
+          a.race += b.race; a.owed += b.owed; a.paid += b.paid;
+          a.status = statusFromTotals(a.owed, a.paid);
+        }
       }
       return acc;
     }, {})

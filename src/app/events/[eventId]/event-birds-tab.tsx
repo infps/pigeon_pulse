@@ -1,5 +1,7 @@
 "use client";
 
+import { isPreviewableFormat, useDocumentPreview } from "@/components/document-preview";
+import { shortBand } from "@/lib/bird-constants";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
@@ -36,11 +38,16 @@ const EXPORT_FORMATS: { format: "xlsx" | "csv" | "pdf" | "html"; label: string }
 ];
 
 function EventExportMenu({ eventId }: { eventId: string }) {
+  const { show, previewNode } = useDocumentPreview();
   const open = (kind: "results" | "baskets", format: string) => {
     const qs = new URLSearchParams({ format, eventId });
-    window.open(`/api/breeder/export/${kind}?${qs.toString()}`, "_blank");
+    const url = `/api/breeder/export/${kind}?${qs.toString()}`;
+    if (isPreviewableFormat(format)) show(url, kind === "results" ? "Race Results" : "Baskets");
+    else window.open(url, "_blank");
   };
   return (
+    <>
+    {previewNode}
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
@@ -73,6 +80,7 @@ function EventExportMenu({ eventId }: { eventId: string }) {
         </DropdownMenuSub>
       </DropdownMenuContent>
     </DropdownMenu>
+    </>
   );
 }
 
@@ -218,7 +226,7 @@ function BreederDialog({ open, onOpenChange, inventory, allBirds }: BreederDialo
             <TableBody>
               {breederBirds.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell className="font-mono">{item.bird?.band || "-"}</TableCell>
+                  <TableCell className="font-mono">{shortBand(item.bird?.band) || "-"}</TableCell>
                   <TableCell>{item.bird?.birdName || "-"}</TableCell>
                   <TableCell>{item.bird?.color || "-"}</TableCell>
                   <TableCell className="capitalize">{item.bird?.sex != null ? String(item.bird.sex) : "-"}</TableCell>

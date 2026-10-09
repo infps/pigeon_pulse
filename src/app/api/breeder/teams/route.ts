@@ -192,8 +192,13 @@ export async function GET(request: Request) {
       };
     });
 
+    const owner = await prisma.breeder.findUnique({
+      where: { id: breederIdInt },
+      select: { defNameAgn: true },
+    });
+
     return NextResponse.json(
-      { teams: enrichedTeams, message: "Teams fetched successfully" },
+      { teams: enrichedTeams, defaultTeamName: owner?.defNameAgn ?? null, message: "Teams fetched successfully" },
       { status: 200 }
     );
   } catch (error) {

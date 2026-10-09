@@ -322,9 +322,8 @@ export default function AddBirdPage() {
                   <Input
                     id="letters"
                     value={letters}
-                    onChange={(e) => setLetters(e.target.value.toUpperCase().slice(0, 4))}
+                    onChange={(e) => setLetters(e.target.value.toUpperCase())}
                     placeholder="ABCD"
-                    maxLength={4}
                   />
                 </div>
                 <div className="space-y-2">
@@ -384,7 +383,7 @@ export default function AddBirdPage() {
                     <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                     <TableCell>{b.name}</TableCell>
                     <TableCell className="font-mono text-xs">
-                      {b.band1}-{b.band2}-{b.band3}-{b.band4}
+                      {b.band1}-{b.band2}-{b.band3.slice(0, 4)}-{b.band4}
                     </TableCell>
                     <TableCell><Badge variant="outline">{b.color}</Badge></TableCell>
                     <TableCell>{SEX_LABELS[b.sex] || "Unknown"}</TableCell>

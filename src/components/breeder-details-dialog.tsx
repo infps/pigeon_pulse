@@ -1,5 +1,7 @@
 "use client";
 
+import { useDocumentPreview } from "@/components/document-preview";
+import { shortBand } from "@/lib/bird-constants";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -10,13 +12,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useGetEventInventory, useCreatePayment, useUpdatePayment, useDeletePayment, useAddPartner, useDeletePartner, useListBreeders } from "@/lib/api/payments";
 import { useAdminListBirds } from "@/lib/api/admin-birds";
-import { Download, Plus, Trash2, Edit, UserPlus, ArrowLeft } from "lucide-react";
+import { Download, Plus, Trash2, Edit, UserPlus, ArrowLeft, Repeat, UserCog } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { Event, EventInventory, EventInventoryItem } from "@/lib/types";
 import { EditBirdDialog } from "./edit-bird-dialog";
 import { CreateBirdDialog } from "./create-bird-dialog";
 import { ExportButton } from "./export-button";
 import { BirdDetailDialog } from "./bird-detail-dialog";
+import { TransferBreederDialog } from "./transfer-breeder";
+import { BreederBetsSection, RegistrationStatusEditor } from "./breeder-registration-extras";
+import { SubstitutionDialog } from "@/app/admin/events/[eventId]/substitution-dialog";
 
 const METHOD_LABELS: Record<number, string> = { 0: "Cash", 1: "Credit Card", 2: "PayPal", 3: "Bank Transfer" };
 const TYPE_LABELS: Record<number, string> = { 0: "Perch Fee", 1: "Per Bird Fee", 2: "Races Fee", 3: "Refund", 4: "Other" };
@@ -43,10 +48,13 @@ export function BreederDetailsDialog({
   eventInventoryId,
   event,
 }: BreederDetailsDialogProps) {
+  const { show: showDoc, previewNode: docPreview } = useDocumentPreview();
   const [isAddPaymentOpen, setIsAddPaymentOpen] = useState(false);
   const [editingBird, setEditingBird] = useState<EventInventoryItem | null>(null);
   const [view, setView] = useState<"list" | "edit" | "create">("list");
   const [birdDetailId, setBirdDetailId] = useState<number | null>(null);
+  const [replacingItem, setReplacingItem] = useState<EventInventoryItem | null>(null);
+  const [changeBreederItem, setChangeBreederItem] = useState<EventInventoryItem | null>(null);
   const [editingPayment, setEditingPayment] = useState<any>(null);
   const [addPartnerBreederId, setAddPartnerBreederId] = useState<string>("");
 
@@ -352,6 +360,19 @@ export function BreederDetailsDialog({
       birdId={birdDetailId}
       eventId={event.id}
     />
+    {docPreview}
+    <SubstitutionDialog
+      item={replacingItem}
+      open={replacingItem !== null}
+      onOpenChange={(o) => { if (!o) setReplacingItem(null); }}
+      onDone={() => refetch()}
+    />
+    <TransferBreederDialog
+      item={changeBreederItem}
+      open={changeBreederItem !== null}
+      onOpenChange={(o) => { if (!o) setChangeBreederItem(null); }}
+      onDone={() => refetch()}
+    />
     <Dialog open={open} onOpenChange={(o) => { if (!o) setView("list"); onOpenChange(o); }}>
       <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -370,7 +391,7 @@ export function BreederDetailsDialog({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => window.open(`/api/admin/event/${event.id}/event-inventory/${eventInventoryId}/receipt`)}
+                onClick={() => showDoc(`/api/admin/event/${event.id}/event-inventory/${eventInventoryId}/receipt`, "Receipt")}
               >
                 <Download className="h-4 w-4 mr-1" />
                 Receipt
@@ -418,7 +439,6 @@ export function BreederDetailsDialog({
                   ["Phone", eventInventory?.breeder?.phone || "-"],
                   ["Country", eventInventory?.breeder?.country || "-"],
                   ["State", eventInventory?.breeder?.state1 || "-"],
-                  ...(eventInventory.note ? [["Note", eventInventory.note]] : []),
                 ].map(([label, value]) => (
                   <div key={label} className="flex items-baseline gap-2">
                     <span className="text-sm text-muted-foreground w-28 shrink-0">{label}</span>
@@ -477,6 +497,12 @@ export function BreederDetailsDialog({
                 </div>
               </div>
             </div>
+
+            {/* Waiting list + registration note. Keyed so it resyncs after a save. */}
+            <RegistrationStatusEditor
+              key={`${eventInventory.id}-${eventInventory.isWaiting}-${eventInventory.waitingDate}-${eventInventory.note}`}
+              eventInventory={eventInventory}
+            />
 
             {/* Payments and Fee Summary Side by Side */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -678,7 +704,7 @@ export function BreederDetailsDialog({
                     <span>{fmtMoney(totalRaceFee)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Hot Spot Fee</span>
+                    <span className="text-muted-foreground">Perch Fee (Hot Spot)</span>
                     <span>{fmtMoney(totalHotSpotFee)}</span>
                   </div>
                   <div className="flex justify-between">
@@ -696,7 +722,7 @@ export function BreederDetailsDialog({
                     <span>{fmtMoney(totalEntryRefund)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Hot Spot Refund</span>
+                    <span className="text-muted-foreground">Perch Fee (Hot Spot) Refund</span>
                     <span>{fmtMoney(totalHotSpotRefund)}</span>
                   </div>
                   <div className="flex justify-between font-semibold border-t pt-1 mt-1">
@@ -758,16 +784,17 @@ export function BreederDetailsDialog({
                       <th className="px-3 py-2 text-right text-sm font-medium">Perch Fee</th>
                       <th className="px-3 py-2 text-right text-sm font-medium">Bird Fee</th>
                       <th className="px-3 py-2 text-right text-sm font-medium">Race Fee</th>
-                      <th className="px-3 py-2 text-right text-sm font-medium">Hotspot Fee</th>
+                      <th className="px-3 py-2 text-right text-sm font-medium">Perch Fee (Hot Spot)</th>
                       <th className="px-3 py-2 text-left text-sm font-medium">Arrival</th>
                       <th className="px-3 py-2 text-left text-sm font-medium">Departure</th>
                       <th className="px-3 py-2 text-center text-sm font-medium">Backup</th>
+                      <th className="px-3 py-2 text-left text-sm font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
                     {allBirds.length === 0 ? (
                       <tr>
-                        <td colSpan={15} className="px-4 py-8 text-center text-muted-foreground">
+                        <td colSpan={16} className="px-4 py-8 text-center text-muted-foreground">
                           No birds found
                         </td>
                       </tr>
@@ -785,7 +812,7 @@ export function BreederDetailsDialog({
                             }
                           </td>
                           <td className="px-3 py-2 text-sm">{item?.birdNo || "-"}</td>
-                          <td className="px-3 py-2 text-sm font-mono">{bird?.band || "-"}</td>
+                          <td className="px-3 py-2 text-sm font-mono">{shortBand(bird?.band) || "-"}</td>
                           <td className="px-3 py-2 text-sm">{bird?.birdName || "-"}</td>
                           <td className="px-3 py-2 text-sm">{bird?.color || "-"}</td>
                           <td className="px-3 py-2 text-sm">{bird?.sex != null ? (bird.sex === 0 ? "M" : "F") : "-"}</td>
@@ -798,6 +825,18 @@ export function BreederDetailsDialog({
                           <td className="px-3 py-2 text-sm">{item ? fmtDate(item.arrivalDate) : "-"}</td>
                           <td className="px-3 py-2 text-sm">{item ? fmtDate(item.departureDate) : "-"}</td>
                           <td className="px-3 py-2 text-center text-sm">{item?.isBackup ? "✓" : "-"}</td>
+                          <td className="px-3 py-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            {item && (
+                              <div className="flex gap-1">
+                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setReplacingItem(item)}>
+                                  <Repeat className="h-3 w-3 mr-1" />Replace
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setChangeBreederItem({ ...item, eventInventory })}>
+                                  <UserCog className="h-3 w-3 mr-1" />Breeder
+                                </Button>
+                              </div>
+                            )}
+                          </td>
                         </tr>
                       ))
                     )}
@@ -805,6 +844,8 @@ export function BreederDetailsDialog({
                 </table>
               </div>
             </div>
+
+            <BreederBetsSection eventInventoryId={eventInventory.id} />
           </div>}
         </DialogContent>
       </Dialog>

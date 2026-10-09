@@ -480,7 +480,7 @@ export default function BirdAdderPage() {
                       <tr key={b._idx}>
                         <td className="px-3 py-2 text-muted-foreground">{basketedLog.length - i}</td>
                         <td className="px-3 py-2 font-medium">{b.name || "-"}</td>
-                        <td className="px-3 py-2 font-mono text-xs">{b.band1}-{b.band2}-{b.band3}-{b.band4}</td>
+                        <td className="px-3 py-2 font-mono text-xs">{b.band1}-{b.band2}-{b.band3.slice(0, 4)}-{b.band4}</td>
                         <td className="px-3 py-2 font-mono text-xs">{b.rfid || "-"}</td>
                         <td className="px-3 py-2">
                           {b.attention ? <Badge variant="destructive" className="text-[10px] px-1 py-0">!</Badge> : <span className="text-muted-foreground">-</span>}
@@ -576,7 +576,7 @@ export default function BirdAdderPage() {
                   className={`hover:bg-muted/40 transition-colors ${b._idx === currentScanIdx ? "bg-green-50 ring-1 ring-green-300" : ""}`}
                 >
                   <td className="px-3 py-2 text-muted-foreground">{b._idx + 1}</td>
-                  <td className="px-3 py-2 font-mono">{b.band1}-{b.band2}-{b.band3}-{b.band4}</td>
+                  <td className="px-3 py-2 font-mono">{b.band1}-{b.band2}-{b.band3.slice(0, 4)}-{b.band4}</td>
                   <td className="px-3 py-2">{b.color}</td>
                   <td className="px-3 py-2">{b.sex === "1" ? "Cock" : b.sex === "2" ? "Hen" : "Unk"}</td>
                   <td className="px-3 py-2">{b.name || <span className="text-muted-foreground">-</span>}</td>

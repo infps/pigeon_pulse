@@ -1,5 +1,6 @@
 "use client"
 
+import { cn } from "@/lib/utils"
 import * as React from "react"
 import {
   ColumnDef,
@@ -75,6 +76,8 @@ interface DataTableProps<TData, TValue> {
   externalFilterColumn?: string
   emptyState?: React.ReactNode
   toolbarExtra?: React.ReactNode
+  /** Extra classes per row (e.g. to flag a row red). */
+  rowClassName?: (row: TData) => string | undefined
 }
 
 function loadPrefs(tableId: string): { visibility: VisibilityState; order: string[] } | null {
@@ -111,6 +114,7 @@ export function DataTable<TData, TValue>({
   externalFilterColumn,
   emptyState,
   toolbarExtra,
+  rowClassName,
 }: DataTableProps<TData, TValue>) {
   const [internalRowSelection, setInternalRowSelection] = React.useState<RowSelectionState>({})
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -346,11 +350,12 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className={
+                  className={cn(
                     (rowClickMode === "action" || rowClickMode === "highlight" || (!rowClickMode && onRowClick))
                       ? "cursor-pointer hover:bg-muted/60"
-                      : undefined
-                  }
+                      : undefined,
+                    rowClassName?.(row.original)
+                  )}
                   onClick={() => (rowClickMode !== "none") && onRowClick?.(row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (

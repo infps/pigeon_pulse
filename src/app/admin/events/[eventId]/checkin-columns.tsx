@@ -1,5 +1,6 @@
 "use client";
 
+import { shortBand } from "@/lib/bird-constants";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,7 +37,7 @@ export const createCheckinColumns = (
       <DataTableColumnHeader column={column} title="Band" />
     ),
     cell: ({ getValue }) => (
-      <span className="font-mono text-sm">{(getValue() as string) || "N/A"}</span>
+      <span className="font-mono text-sm">{shortBand(getValue() as string) || "N/A"}</span>
     ),
   },
   {

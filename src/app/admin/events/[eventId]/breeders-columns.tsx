@@ -6,6 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import type { EventInventory } from "@/lib/types";
 import { computePaymentStatus } from "@/lib/paymentStatus";
 
+// Server-computed status (accounts for hotspot gates); local calc only if the list API omitted it.
+const rowStatus = (row: EventInventory) =>
+  row.feeTotals?.status ?? computePaymentStatus(row.items ?? [], row.payments ?? []);
+
 export const createBreedersColumns = (
   onBreederClick: (eventInventoryId: number) => void
 ): ColumnDef<EventInventory>[] => [
@@ -87,33 +91,15 @@ export const createBreedersColumns = (
   },
   {
     id: "perchFee",
-    accessorFn: (row) => {
-      const v = (row.items ?? []).reduce((sum, item) => sum + (item.entryFeeValue ?? 0), 0);
-      return v.toFixed(2);
-    },
-    header: "Perch Fee",
-    cell: ({ row }) => {
-      const value = (row.original.items ?? []).reduce(
-        (sum, item) => sum + (item.entryFeeValue ?? 0),
-        0
-      );
-      return <span>${value.toFixed(2)}</span>;
-    },
+    accessorFn: (row) => row.feeTotals?.entry ?? 0,
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Entry Fee" />,
+    cell: ({ row }) => <span>${(row.original.feeTotals?.entry ?? 0).toFixed(2)}</span>,
   },
   {
     id: "birdFeesValue",
-    accessorFn: (row) => {
-      const v = (row.items ?? []).reduce((sum, item) => sum + (item.perchFeeValue ?? 0), 0);
-      return v.toFixed(2);
-    },
-    header: "Bird Fees Value",
-    cell: ({ row }) => {
-      const value = (row.original.items ?? []).reduce(
-        (sum, item) => sum + (item.perchFeeValue ?? 0),
-        0
-      );
-      return <span>${value.toFixed(2)}</span>;
-    },
+    accessorFn: (row) => row.feeTotals?.perBird ?? 0,
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Per Bird Fee" />,
+    cell: ({ row }) => <span>${(row.original.feeTotals?.perBird ?? 0).toFixed(2)}</span>,
   },
   {
     id: "birdFeesPaid",
@@ -148,29 +134,18 @@ export const createBreedersColumns = (
   },
   {
     id: "hotspotFeesValue",
-    accessorFn: (row) => {
-      const v = (row.items ?? []).reduce((sum, item) => sum + (item.hotSpotFeeValue ?? 0), 0);
-      return v.toFixed(2);
-    },
-    header: "Hotspot Fees Value",
-    cell: ({ row }) => {
-      const value = (row.original.items ?? []).reduce(
-        (sum, item) => sum + (item.hotSpotFeeValue ?? 0),
-        0
-      );
-      return <span>${value.toFixed(2)}</span>;
-    },
+    accessorFn: (row) => row.feeTotals?.perchHotspot ?? 0,
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Perch Fee (Hot Spot)" />,
+    cell: ({ row }) => <span>${(row.original.feeTotals?.perchHotspot ?? 0).toFixed(2)}</span>,
   },
   {
     id: "paymentStatus",
-    accessorFn: (row) => computePaymentStatus(row.items ?? [], row.payments ?? []),
+    accessorFn: (row) => rowStatus(row),
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Payment Status" />
     ),
     cell: ({ row }) => {
-      const payments = row.original.payments ?? [];
-      const items = row.original.items ?? [];
-      const status = computePaymentStatus(items, payments);
+      const status = rowStatus(row.original);
       switch (status) {
         case "PAID":
           return <Badge className="bg-green-600 text-white">Paid</Badge>;
@@ -187,7 +162,7 @@ export const createBreedersColumns = (
     },
     sortingFn: (rowA, rowB) => {
       const score = (row: typeof rowA) => {
-        const status = computePaymentStatus(row.original.items ?? [], row.original.payments ?? []);
+        const status = rowStatus(row.original);
         switch (status) {
           case "NA": return 0;
           case "OVERPAID": return 1;

@@ -1,5 +1,6 @@
 "use client";
 
+import { shortBand } from "@/lib/bird-constants";
 import { useState, useRef, useCallback, useMemo } from "react";
 import { useSeasonContext } from "@/lib/season-context";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -498,7 +499,7 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
                 <Radio className="h-5 w-5 text-primary animate-pulse shrink-0" />
                 <div className="flex-1">
                   <p className="font-bold">{selectedItem.bird?.birdName || selectedItem.bird?.band || "—"}</p>
-                  <p className="text-xs text-muted-foreground font-mono">{selectedItem.bird?.band}</p>
+                  <p className="text-xs text-muted-foreground font-mono">{shortBand(selectedItem.bird?.band)}</p>
                 </div>
                 {!selectedItem.hasPaid && <Badge variant="destructive">Unpaid</Badge>}
               </div>
@@ -533,7 +534,7 @@ export function CheckinTab({ eventId }: CheckinTabProps) {
                       <tr key={item.id}>
                         <td className="px-3 py-2 text-muted-foreground">{basketedLog.length - i}</td>
                         <td className="px-3 py-2 font-medium">{item.bird?.birdName || "—"}</td>
-                        <td className="px-3 py-2 font-mono text-xs">{item.bird?.band || "—"}</td>
+                        <td className="px-3 py-2 font-mono text-xs">{shortBand(item.bird?.band) || "—"}</td>
                         <td className="px-3 py-2 font-mono text-xs">{item.bird?.rfid || "—"}</td>
                         <td className="px-3 py-2 text-xs">{[item.breeder?.firstName, item.breeder?.lastName].filter(Boolean).join(" ") || "—"}</td>
                         <td className="px-3 py-2">

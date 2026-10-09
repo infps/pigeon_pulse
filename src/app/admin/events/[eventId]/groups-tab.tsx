@@ -1,5 +1,6 @@
 "use client";
 
+import { shortBand } from "@/lib/bird-constants";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSeasonContext } from "@/lib/season-context";
@@ -865,7 +866,7 @@ export function GroupsTab({ eventId }: { eventId: string }) {
       id: item.id,
       label: [
         item.bird
-          ? [item.bird.band1, item.bird.band2, item.bird.band3, item.bird.band4].filter(Boolean).join("-") || item.bird.band || "?"
+          ? shortBand([item.bird.band1, item.bird.band2, item.bird.band3, item.bird.band4].filter(Boolean).join("-") || item.bird.band) || "?"
           : "?",
         item.bird?.color,
         inv.breeder ? `(${inv.breeder.lastName})` : "",
@@ -1084,7 +1085,7 @@ export function GroupsTab({ eventId }: { eventId: string }) {
                   <tbody>
                     {scanResults.map((r, i) => (
                       <tr key={i} className="border-t">
-                        <td className="px-3 py-1.5 font-mono">{r.band}</td>
+                        <td className="px-3 py-1.5 font-mono">{shortBand(r.band)}</td>
                         <td className="px-3 py-1.5 text-muted-foreground">{r.fromGroup ?? "—"}</td>
                         <td className="px-3 py-1.5">{r.toGroup}</td>
                         <td className="px-3 py-1.5 text-muted-foreground text-xs">{r.time.toLocaleTimeString()}</td>

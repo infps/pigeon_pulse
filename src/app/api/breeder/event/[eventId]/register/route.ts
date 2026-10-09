@@ -40,7 +40,8 @@ const betSelectionSchema = z.object({
 
 // Define the registration schema (breederId comes from session, not request)
 const registrationSchema = z.object({
-  loftName: z.string().min(1, "Loft name is required"),
+  // Optional: falls back to the breeder's default team name (see below).
+  loftName: z.string().optional(),
   reservedBirds: z.number().int().positive("Reserved birds must be a positive integer"),
   birds: z.array(birdSchema).optional().default([]),
   bets: z.array(betSelectionSchema).optional().default([]),
@@ -97,6 +98,15 @@ export async function POST(
     const body = await request.json();
     const validatedData = registrationSchema.parse(body);
 
+    // Default team name pre-fills the loft when the client sent none or the
+    // mobile app's generic placeholder ("Default" / "Main Loft").
+    const requestedLoft = (validatedData.loftName ?? "").trim();
+    const isPlaceholderLoft = !requestedLoft || ["default", "main loft"].includes(requestedLoft.toLowerCase());
+    const loftName = (isPlaceholderLoft && breeder.defNameAgn?.trim()) || requestedLoft;
+    if (!loftName) {
+      return NextResponse.json({ message: "Loft name is required" }, { status: 400 });
+    }
+
     // Check if event exists and is open
     const event = await prisma.event.findUnique({
       where: { id: eventId },
@@ -144,7 +154,7 @@ export async function POST(
       where: {
         seasonId,
         breederId,
-        loft: validatedData.loftName,
+        loft: loftName,
       },
     });
 
@@ -158,7 +168,7 @@ export async function POST(
     // Use a transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
       // Bind loft to a real Team row (create if missing) for the Teams page
-      const teamId = await resolveTeamId(tx, breederId, validatedData.loftName);
+      const teamId = await resolveTeamId(tx, breederId, loftName);
 
       // Create EventInventory
       const promisedCash = validatedData.paymentIntent === "CASH";
@@ -168,7 +178,7 @@ export async function POST(
           seasonId,
           breederId,
           teamId,
-          loft: validatedData.loftName,
+          loft: loftName,
           reservedBirds: validatedData.reservedBirds,
           note: validatedData.note,
           // Recorded so the defaulter list treats them as trusted rather than

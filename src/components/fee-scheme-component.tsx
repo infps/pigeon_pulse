@@ -332,10 +332,10 @@ export default function FeeSchemeComponent() {
             {/* Hot Spot Fees */}
             <div className="grid grid-cols-4 gap-4">
               {[
-                { key: "hotSpot1Fee", label: "Hot Spot 1" },
-                { key: "hotSpot2Fee", label: "Hot Spot 2" },
-                { key: "hotSpot3Fee", label: "Hot Spot 3" },
-                { key: "hotSpotFinalFee", label: "Hot Spot Final" },
+                { key: "hotSpot1Fee", label: "Perch Fee 1" },
+                { key: "hotSpot2Fee", label: "Perch Fee 2" },
+                { key: "hotSpot3Fee", label: "Perch Fee 3" },
+                { key: "hotSpotFinalFee", label: "Perch Fee Final" },
               ].map(({ key, label }) => (
                 <div key={key}>
                   <Label htmlFor={key}>{label}</Label>

@@ -26,6 +26,12 @@ export const createUserSchema = z.object({
     legalName: z.string().optional(),
     ssnDocKey: z.string().optional(),
     taxDocKey: z.string().optional(),
+    phoneNumber2: z.string().optional(),
+    address2: z.string().optional(),
+    city2: z.string().optional(),
+    state2: z.string().optional(),
+    zip2: z.string().optional(),
+    defaultTeamName: z.string().optional(),
 });
 
 export const updateUserSchema = z.object({
@@ -52,6 +58,12 @@ export const updateUserSchema = z.object({
     legalName: z.string().optional(),
     ssnDocKey: z.string().optional(),
     taxDocKey: z.string().optional(),
+    phoneNumber2: z.string().optional(),
+    address2: z.string().optional(),
+    city2: z.string().optional(),
+    state2: z.string().optional(),
+    zip2: z.string().optional(),
+    defaultTeamName: z.string().optional(),
 });
 
 export const createRaceTypeSchema = z.object({

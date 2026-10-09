@@ -119,6 +119,21 @@ export const createRacesColumns = (
     },
   },
   {
+    accessorKey: "activeBirds",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Active Birds" />,
+    cell: ({ row }) => <span>{row.original.activeBirds ?? 0}</span>,
+  },
+  {
+    accessorKey: "lostBirds",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Lost Birds" />,
+    cell: ({ row }) => <span>{row.original.lostBirds ?? 0}</span>,
+  },
+  {
+    accessorKey: "foreignBirds",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Foreign Birds" />,
+    cell: ({ row }) => <span>{row.original.foreignBirds ?? 0}</span>,
+  },
+  {
     accessorKey: "arrivalTemperature",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Arrival Temp" />
