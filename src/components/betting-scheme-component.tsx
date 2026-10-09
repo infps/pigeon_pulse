@@ -321,8 +321,8 @@ export default function BettingSchemeComponent() {
                 </div>
 
                 {/* Right: Position Percentages */}
-                <div className="space-y-4">
-                  <h4 className="font-medium">Position Percentages</h4>
+                <div>
+                  <Label>Position Percentages</Label>
                   <div className="space-y-2">
                     {formData.standardShowPercentages.map((item, index) => (
                       <div key={index} className="flex items-start space-x-2">
@@ -375,7 +375,7 @@ export default function BettingSchemeComponent() {
                     type="button"
                     variant="outline"
                     onClick={addPercentage}
-                    className="w-full"
+                    className="mt-4 w-full"
                   >
                     Add Position
                   </Button>
