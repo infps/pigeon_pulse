@@ -6,7 +6,8 @@ Infrastructure lives in the separate **`infra`** repo (Terraform + Ansible). Thi
 
 | Piece | AWS | Notes |
 |---|---|---|
-| App | EC2 `t4g.small` (Ubuntu arm64), Elastic IP | Docker Compose: `app` (this repo's `Dockerfile`) + `caddy` (HTTPS) |
+| App | EC2 `t4g.small` (Ubuntu arm64), Elastic IP | Docker Compose: `app` (image `ghcr.io/infps/pigeon_pulse`) + `caddy` (HTTPS) |
+| Image build | GitHub Actions (`.github/workflows/docker-image.yml`) | Every push to `main` builds arm64 and pushes to GHCR. The server never builds |
 | Database | RDS Postgres 17 `db.t4g.micro` | Private; only the EC2 security group can reach it. 7-day backups |
 | Uploads | S3 bucket + CloudFront | App uploads via the EC2 instance role — no S3 keys stored |
 | Cron | crontab on EC2 | `/api/cron/notify-daily`, 09:00 UTC |
@@ -26,9 +27,14 @@ All playbook commands need `--vault-password-file ~/.config/pigeonpulse/vault-pa
 
 ## Everyday
 
+1. Push to `main` → wait for the **Docker image** action to go green (~5 min).
+2. Deploy (pulls the new image, restarts only if image or `.env` changed, migrations run on boot):
+
 ```bash
-# Ship latest main (pulls, rebuilds only if code or .env changed, migrations run on boot)
 cd infra/ansible && ansible-playbook site.yml --vault-password-file ~/.config/pigeonpulse/vault-pass
+
+# Roll back: pin an older build (every image is also tagged with its commit sha)
+ansible-playbook site.yml -e app_tag=<commit-sha> --vault-password-file ~/.config/pigeonpulse/vault-pass
 
 # Logs / shell
 ssh ubuntu@<public_ip>
@@ -41,15 +47,16 @@ Change env values in `secrets.yml` (`ansible-vault edit`) or `group_vars/all/mai
 
 1. DNS A record → the Elastic IP (`terraform output public_ip`). On Cloudflare use *DNS only*.
 2. `infra/ansible/group_vars/all/main.yml`: `domain: pigeon-pulse.com` (default `:80` = plain HTTP on the IP).
-3. `ansible-playbook site.yml` — Caddy gets the certificate itself.
-4. PayPal webhook → `https://<domain>/api/payment/paypal/webhook`; mobile API URL → `https://<domain>`.
+3. In `.github/workflows/docker-image.yml` set `NEXT_PUBLIC_AUTH_BASE_URL=https://<domain>`, push, wait for the build.
+4. `ansible-playbook site.yml` — Caddy gets the certificate itself.
+5. PayPal webhook → `https://<domain>/api/payment/paypal/webhook`; mobile API URL → `https://<domain>`.
 
 ## Gotchas
 
 - **SSH times out** → your IP changed. Update `ssh_cidrs` in `terraform.tfvars`, `terraform apply`.
 - **DB URLs use `sslmode=no-verify`** — encrypted, but the RDS CA isn't in Node's trust store.
-- **`NEXT_PUBLIC_*` and `R2_PUBLIC_URL` are baked in at build time** — changing them needs a rebuild (`site.yml` does this automatically when `.env` changes).
-- **Build needs swap**: 2 GB RAM box; `next build` runs with a 3 GB heap backed by the 2 GB swapfile Ansible creates.
+- **`NEXT_PUBLIC_*` and `R2_PUBLIC_URL` are baked into the image** — they live in the workflow's `build-args`, not in the server `.env`. Change them there and let Actions rebuild.
+- **Never build on the server** — `next build` needs ~1.5 GB and OOM-kills the running app on the 2 GB box. That's why images come from Actions.
 - **Empty DB can't run the migration chain** (`20260309_schema_cleanup` fails on a fresh DB). Always restore a dump first, or use `prisma db push`.
 - `scripts/migrate.js` logs two harmless `P3011 … cannot be rolled back` errors on every boot.
 - **Keep safe**: `~/.config/pigeonpulse/vault-pass` and `infra/terraform/terraform.tfstate` (holds the DB password). Losing either is painful.

@@ -1,14 +1,7 @@
 services:
   app:
-    build:
-      context: .
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
-        NEXT_PUBLIC_AUTH_BASE_URL: ${NEXT_PUBLIC_AUTH_BASE_URL}
-        NEXT_PUBLIC_PUSHER_KEY: ${NEXT_PUBLIC_PUSHER_KEY}
-        NEXT_PUBLIC_PUSHER_CLUSTER: ${NEXT_PUBLIC_PUSHER_CLUSTER}
-        NEXT_PUBLIC_WINDY_MAP_KEY: ${NEXT_PUBLIC_WINDY_MAP_KEY}
-        R2_PUBLIC_URL: ${R2_PUBLIC_URL}
+    # Built by .github/workflows/docker-image.yml; APP_TAG pins a commit sha for rollback.
+    image: ghcr.io/infps/pigeon_pulse:${APP_TAG:-latest}
     env_file: .env
     restart: unless-stopped
 
