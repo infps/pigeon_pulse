@@ -47,7 +47,7 @@ Change env values in `secrets.yml` (`ansible-vault edit`) or `group_vars/all/mai
 
 1. DNS A record → the Elastic IP (`terraform output public_ip`). On Cloudflare use *DNS only*.
 2. `infra/ansible/group_vars/all/main.yml`: `domain: pigeon-pulse.com` (default `:80` = plain HTTP on the IP).
-3. In `.github/workflows/docker-image.yml` set `NEXT_PUBLIC_AUTH_BASE_URL=https://<domain>`, push, wait for the build.
+3. In `.github/workflows/docker-image.yml` set `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_AUTH_BASE_URL` to `https://<domain>`, push, wait for the build.
 4. `ansible-playbook site.yml` — Caddy gets the certificate itself.
 5. PayPal webhook → `https://<domain>/api/payment/paypal/webhook`; mobile API URL → `https://<domain>`.
 

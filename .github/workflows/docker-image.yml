@@ -40,8 +40,9 @@ jobs:
             ghcr.io/infps/pigeon_pulse:latest
             ghcr.io/infps/pigeon_pulse:${{ github.sha }}
           # NEXT_PUBLIC_* are inlined into the browser bundle, so they are public by
-          # design — not secrets. Change the auth URL here when the domain goes live.
+          # design — not secrets. Change both URLs here when the domain goes live.
           build-args: |
+            NEXT_PUBLIC_API_URL=http://52.35.79.242
             NEXT_PUBLIC_AUTH_BASE_URL=http://52.35.79.242
             NEXT_PUBLIC_PUSHER_KEY=096f733f13b727c5f7d9
             NEXT_PUBLIC_PUSHER_CLUSTER=ap2
