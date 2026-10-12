@@ -1,35 +1,23 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Pigeon Pulse
 
-## Getting Started
-First, run the development server
+Pigeon racing management: admin + breeder web app and every API the mobile app (`agn-mobile`) calls. Next.js 16, Prisma 7, Postgres, better-auth.
+
+## Run locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env   # fill in; each variable is explained in the file
+pnpm install           # also runs `prisma generate`
+pnpm dev               # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`prisma/schema.prisma` is the data model. A fresh empty database can't replay the migration chain — use `pnpm exec prisma db push`, or restore a dump.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Docs
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| File | What |
+|---|---|
+| `docs/deploy-aws.md` | How production runs on AWS and how to deploy |
+| `docs/pending-big-tasks.md` | Spec for the features still to build |
+| `docs/payment-spec-questions.md` | Payment rule decisions (referenced from `src/lib/fee-calculator.ts`) |
+| `docs/scheme-wiring-audit.md` | Which fee/prize scheme fields are wired vs. stored-only |
+| `docs/hayloft-comparison.md`, `docs/hayloft-schema-reference.sql` | Legacy HayLoft system this replaces — reference for parity |
