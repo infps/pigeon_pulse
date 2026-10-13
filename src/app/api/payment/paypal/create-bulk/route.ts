@@ -89,9 +89,14 @@ export async function POST(request: Request) {
     const client = paypalClient();
     const orderResponse: any = await client.execute(requestBody);
 
+    const links: Array<{ rel: string; href: string }> =
+      orderResponse.result.links || [];
+    const approveLink = links.find((l) => l.rel === "approve")?.href;
+
     return NextResponse.json({
       orderID: orderResponse.result.id,
       status: orderResponse.result.status,
+      approveUrl: approveLink,
       amount: totalAmount,
       paymentCount: payments.length,
     });
