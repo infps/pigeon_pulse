@@ -52,11 +52,18 @@ export async function GET(req: NextRequest) {
       },
     });
 
+    const hiddenArrived = new Set(
+      (await prisma.raceStatusVisibility.findMany({
+        where: { status: "ARRIVED", visible: false, raceId: { in: liveRaces.map((r) => r.id) } },
+        select: { raceId: true },
+      })).map((v) => v.raceId)
+    );
+
     const races = liveRaces.map(({ raceItems, seasonRel, ...r }) => ({
       ...r,
       seasonRel,
       event: seasonRel?.event ?? null,
-      arrivedCount: raceItems.length,
+      arrivedCount: hiddenArrived.has(r.id) ? 0 : raceItems.length,
     }));
 
     return NextResponse.json({

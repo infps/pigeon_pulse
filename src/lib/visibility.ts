@@ -71,3 +71,12 @@ export async function raceVisibilityFilter(
     ],
   };
 }
+
+/** Item statuses an admin has hidden from non-staff viewers of this race. */
+export async function hiddenRaceStatuses(raceId: number) {
+  const rows = await prisma.raceStatusVisibility.findMany({
+    where: { raceId, visible: false },
+    select: { status: true },
+  });
+  return rows.map((r) => r.status);
+}

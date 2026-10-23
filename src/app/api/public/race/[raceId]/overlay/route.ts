@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { hiddenRaceStatuses } from "@/lib/visibility";
 import { activeRaceItemOr } from "@/lib/entry-filters";
 
 export const dynamic = "force-dynamic";
@@ -72,8 +73,9 @@ export async function GET(
       },
     } as const;
 
+    const hidden = await hiddenRaceStatuses(raceId);
     const items = await prisma.raceItem.findMany({
-      where: { raceId, OR: activeRaceItemOr },
+      where: { raceId, OR: activeRaceItemOr, ...(hidden.length > 0 && { status: { notIn: hidden } }) },
       select: itemSelect,
     });
 
