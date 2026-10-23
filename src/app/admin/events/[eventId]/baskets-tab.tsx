@@ -46,6 +46,7 @@ import { useListRaceItems } from "@/lib/api/race-items";
 import { useBird } from "@/lib/api/bird";
 import { apiEndpoints } from "@/lib/endpoints";
 import { useScanDisplay } from "@/lib/scan-display";
+import { ScannerButtons } from "@/components/scanner-buttons";
 import { BirdEditDialog } from "@/app/admin/birds/[birdId]/bird-edit-dialog";
 import type { Bird, CheckinStatusItem, EventBasketItem, Race } from "@/lib/types";
 import {
@@ -1243,8 +1244,18 @@ function PrescanDialog({ eventId, raceId, raceName, onClose }: { eventId: string
     toast.info("Prescan scanner stopped");
   }, []);
 
+  const { isConnected: isSerial, connect: connectSerial, disconnect: disconnectSerial } =
+    useWebSerial({ onScan: doScan });
+
+  const startSerial = () => {
+    display.open();
+    lastScannedRef.current = null;
+    connectSerial();
+  };
+
   const handleClose = () => {
     stopPoll();
+    disconnectSerial();
     onClose();
   };
 
@@ -1293,15 +1304,14 @@ function PrescanDialog({ eventId, raceId, raceName, onClose }: { eventId: string
               <Button size="sm" variant="outline" className="gap-1.5" onClick={display.open}>
                 <Monitor className="h-4 w-4" />Display
               </Button>
-              {isPollActive ? (
-                <Button size="sm" className="gap-1.5 bg-red-600 hover:bg-red-700" onClick={stopPoll}>
-                  <Square className="h-4 w-4" />Stop Scanner
-                </Button>
-              ) : (
-                <Button size="sm" variant="outline" className="gap-1.5" onClick={startPoll}>
-                  <Wifi className="h-4 w-4" />Start Scanner
-                </Button>
-              )}
+              <ScannerButtons
+                pollActive={isPollActive}
+                onStartPoll={startPoll}
+                onStopPoll={stopPoll}
+                serialConnected={isSerial}
+                onConnectSerial={startSerial}
+                onDisconnectSerial={disconnectSerial}
+              />
             </div>
           </DialogTitle>
         </DialogHeader>
@@ -1474,6 +1484,18 @@ function BirdPrescanPanel({ eventId }: { eventId: string }) {
     toast.info("Prescan scanner stopped");
   }, []);
 
+  const { isConnected: isSerial, connect: connectSerial, disconnect: disconnectSerial } =
+    useWebSerial({ onScan: handleScan });
+
+  const startSerial = () => {
+    display.open();
+    lastScannedRef.current = null;
+    connectSerial();
+  };
+
+  // release the COM port when the panel unmounts
+  useEffect(() => () => { disconnectSerial(); }, [disconnectSerial]);
+
   const statusBadge = (entry: PrescanEntry) => {
     if (entry.unknown) return <Badge variant="destructive" className="text-xs">Unknown</Badge>;
     if (entry.status === "LOFT_BASKETED") return <Badge variant="default" className="text-xs">Loft Basketed</Badge>;
@@ -1495,15 +1517,14 @@ function BirdPrescanPanel({ eventId }: { eventId: string }) {
             <Button size="sm" variant="outline" className="gap-1.5" onClick={display.open}>
               <Monitor className="h-4 w-4" />Display
             </Button>
-            {isPollActive ? (
-              <Button size="sm" className="gap-1.5 bg-red-600 hover:bg-red-700" onClick={stopPoll}>
-                <Square className="h-4 w-4" />Stop Scanner
-              </Button>
-            ) : (
-              <Button size="sm" variant="outline" className="gap-1.5" onClick={startPoll}>
-                <Wifi className="h-4 w-4" />Start Scanner
-              </Button>
-            )}
+            <ScannerButtons
+              pollActive={isPollActive}
+              onStartPoll={startPoll}
+              onStopPoll={stopPoll}
+              serialConnected={isSerial}
+              onConnectSerial={startSerial}
+              onDisconnectSerial={disconnectSerial}
+            />
           </div>
         </div>
         <p className="text-sm text-muted-foreground">

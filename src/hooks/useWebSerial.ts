@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 interface UseWebSerialOptions {
   onScan: (rfid: string, timestamp?: string, antenna?: string) => void;
@@ -92,6 +92,9 @@ export function useWebSerial({ onScan, baudRate = 38400 }: UseWebSerialOptions) 
   const writerRef = useRef<WritableStreamDefaultWriter | null>(null);
   const readerRef = useRef<ReadableStreamDefaultReader | null>(null);
   const abortRef = useRef(false);
+  // read loop outlives renders — always call the latest handler, not the one from connect()
+  const onScanRef = useRef(onScan);
+  useEffect(() => { onScanRef.current = onScan; });
 
   const sendBytes = useCallback(async (bytes: Uint8Array) => {
     try { await writerRef.current?.write(bytes); } catch { /* ignore */ }
@@ -189,7 +192,7 @@ export function useWebSerial({ onScan, baudRate = 38400 }: UseWebSerialOptions) 
                 if (parsed) {
                   // Send ACK back to scanner
                   await sendBytes(ACK);
-                  onScan(parsed.rfid, parsed.timestamp, parsed.antenna);
+                  onScanRef.current(parsed.rfid, parsed.timestamp, parsed.antenna);
                 }
               } else {
                 buffer.push(byte);
@@ -233,7 +236,7 @@ export function useWebSerial({ onScan, baudRate = 38400 }: UseWebSerialOptions) 
       }
       setIsConnected(false);
     }
-  }, [onScan, baudRate, sendBytes]);
+  }, [baudRate, sendBytes]);
 
   const disconnect = useCallback(async () => {
     abortRef.current = true;
