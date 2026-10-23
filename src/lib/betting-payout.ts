@@ -120,3 +120,21 @@ export function computeBelgianPayouts(
     return { betId: e.betId, bettorId: e.bettorId, payoutValue: 0, status: "LOST" };
   });
 }
+
+/** Effective house cut %: per-event override (Event.bettingCutOverride) if set, else the scheme's. */
+export function resolveBettingCut(
+  eventOverride: number | null | undefined,
+  schemeCut: number | null | undefined
+): number {
+  return eventOverride ?? schemeCut ?? 0;
+}
+
+// Self-check: `node --experimental-strip-types src/lib/betting-payout.ts`
+if (process.argv[1]?.endsWith("betting-payout.ts")) {
+  if (!(resolveBettingCut(null, 10) === 10)) throw new Error("null override -> scheme");
+  if (!(resolveBettingCut(undefined, 10) === 10)) throw new Error("undefined override -> scheme");
+  if (!(resolveBettingCut(0, 10) === 0)) throw new Error("0 override is honoured");
+  if (!(resolveBettingCut(7.5, 10) === 7.5)) throw new Error("override wins");
+  if (!(resolveBettingCut(null, null) === 0)) throw new Error("nothing -> 0");
+  console.log("resolveBettingCut ok");
+}

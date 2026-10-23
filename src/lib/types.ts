@@ -263,6 +263,7 @@ export interface Event {
   locationAddress: string | null;
   seasonId: number | null;
   raceFormat?: string | null;
+  bettingCutOverride?: number | null;
 }
 
 export interface EventInventoryFeeTotals {

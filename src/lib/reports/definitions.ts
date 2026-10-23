@@ -7,6 +7,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { resolveBettingCut } from "@/lib/betting-payout";
 import { prizeStatements, seasonLedger } from "@/lib/accounting";
 import { activeRaceItemOr, approvedInventory } from "@/lib/entry-filters";
 import type { ReportDefinition, ReportData, ReportParams } from "./types";
@@ -382,9 +383,12 @@ async function buildPoolTotals(params: ReportParams): Promise<ReportData> {
 
   const race = await prisma.race.findUnique({
     where: { id: raceId },
-    select: { seasonRel: { select: { bettingScheme: { select: { bettingCutPercent: true } } } } },
+    select: { seasonRel: { select: { event: { select: { bettingCutOverride: true } }, bettingScheme: { select: { bettingCutPercent: true } } } } },
   });
-  const cutPercent = race?.seasonRel?.bettingScheme?.bettingCutPercent ?? 0;
+  const cutPercent = resolveBettingCut(
+    race?.seasonRel?.event?.bettingCutOverride,
+    race?.seasonRel?.bettingScheme?.bettingCutPercent
+  );
 
   const bets = await prisma.bet.findMany({
     where: { raceId },
@@ -593,15 +597,15 @@ async function buildPrizeScheme(params: ReportParams): Promise<ReportData> {
  * betting_scheme.fr3
  * ------------------------------------------------------------------ */
 async function buildBettingScheme(params: ReportParams): Promise<ReportData> {
-  const fromSeason = params.seasonId
-    ? (
-        await prisma.season.findUnique({
-          where: { id: params.seasonId },
-          select: { bettingSchemeId: true },
-        })
-      )?.bettingSchemeId ?? null
+  const season = params.seasonId
+    ? await prisma.season.findUnique({
+        where: { id: params.seasonId },
+        select: { bettingSchemeId: true, event: { select: { bettingCutOverride: true } } },
+      })
     : null;
-  const schemeId = params.bettingSchemeId ?? fromSeason;
+  const schemeId = params.bettingSchemeId ?? season?.bettingSchemeId ?? null;
+  // Per-event override applies only when the report is for that season's own scheme.
+  const eventCut = schemeId === season?.bettingSchemeId ? season?.event?.bettingCutOverride : null;
 
   if (schemeId == null) {
     throw new Error("This report requires a betting scheme, or a season that has one assigned.");
@@ -622,7 +626,7 @@ async function buildBettingScheme(params: ReportParams): Promise<ReportData> {
   if (!scheme) throw new Error("Betting scheme not found.");
 
   const rows: string[][] = [
-    ["House cut", "deducted before distribution", `${num(scheme.bettingCutPercent, 2)}%`],
+    ["House cut", "deducted before distribution", `${num(resolveBettingCut(eventCut, scheme.bettingCutPercent), 2)}%`],
     ["Belgian ratio", "winners = birds / ratio", num(scheme.belgianRatio)],
   ];
 

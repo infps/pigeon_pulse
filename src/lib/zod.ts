@@ -194,4 +194,9 @@ export const updateEventSchema = z.object({
     socialFb: z.string().optional(),
     socialTwitter: z.string().optional(),
     socialInsta: z.string().optional(),
+    // multipart form: "" = clear (null), absent = leave unchanged
+    bettingCutOverride: z.preprocess(
+        (v) => (v === "" || v === "null" ? null : v),
+        z.coerce.number().min(0).max(100).nullable().optional(),
+    ),
 })
