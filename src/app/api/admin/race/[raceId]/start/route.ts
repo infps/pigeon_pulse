@@ -4,6 +4,7 @@ import { activeItem, activeRaceItemOr } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { notifyRaceStarted } from "@/lib/notifications";
 import { presetIdFor } from "@/lib/birdStatus";
+import { releaseHolds } from "@/lib/bet-hold";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -76,6 +77,10 @@ export async function POST(
         data: { status: "RELEASED", displayStatusId: flyingId },
       }),
     ]);
+
+    // Betting is closed: unpaid PayPal holds must not reach the pools. A
+    // capture still in flight is refunded by settleBetCapture.
+    await releaseHolds(raceIdInt);
 
     // Write RELEASED history for all birds now in the race
     const releasedItems = await prisma.raceItem.findMany({
