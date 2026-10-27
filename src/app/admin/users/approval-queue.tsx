@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -69,20 +69,26 @@ export function ApprovalQueue({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const [note, setNote] = useState("");
   const [working, setWorking] = useState<string | null>(null);
 
+  // Only the latest request may write state; a slow reply for a tab the
+  // admin already left would otherwise replace the current list.
+  const latest = useRef(0);
   const load = useCallback(async () => {
+    const req = ++latest.current;
     setLoading(true);
     try {
       const qs = filter === "ALL" ? "" : `?status=${filter}`;
       const res = await fetch(`/api/admin/users/approval${qs}`);
+      if (req !== latest.current) return;
       if (!res.ok) {
         toast.error("Could not load the approval queue");
         return;
       }
       const data = await res.json();
+      if (req !== latest.current) return;
       setUsers(data.users ?? []);
       setCounts(data.counts ?? {});
     } finally {
-      setLoading(false);
+      if (req === latest.current) setLoading(false);
     }
   }, [filter]);
 
