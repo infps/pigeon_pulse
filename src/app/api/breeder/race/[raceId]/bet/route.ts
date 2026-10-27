@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { requireApproved } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
 import { activeRaceItemOr } from "@/lib/entry-filters";
+import { expiredHold, releaseHolds } from "@/lib/bet-hold";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import z from "zod";
@@ -87,6 +88,7 @@ export async function POST(
       );
     }
 
+    await releaseHolds(raceIdInt, expiredHold());
     const existing = await prisma.bet.findUnique({
       where: { raceItemId_category_tierIndex: { raceItemId, category, tierIndex } },
     });
@@ -160,6 +162,9 @@ export async function GET(
 
     const { raceId } = await params;
     const raceIdInt = parseInt(raceId);
+
+    // Lapsed PayPal holds would otherwise show as taken slots.
+    await releaseHolds(raceIdInt, expiredHold());
 
     const [race, raceItems] = await Promise.all([
       prisma.race.findUnique({

@@ -1,5 +1,6 @@
 import { paypalClient, paypal } from "@/lib/paypal";
 import { settleHotspotsForPayments } from "@/lib/hotspot-settle";
+import { settleBetCapture } from "@/lib/bet-hold";
 import { prisma } from "@/lib/prisma";
 import { PaymentStatus } from "@/generated/prisma/enums";
 import { NextResponse } from "next/server";
@@ -28,9 +29,13 @@ export async function POST(request: Request) {
       };
 
       const client = paypalClient();
-      const verifyResponse : any = await client.execute(
-        new paypal.notifications.WebhookVerifySignatureRequest(verifyRequest)
-      );
+      // The SDK ships no notifications module, so post the verify call raw.
+      const verifyResponse: any = await client.execute({
+        path: "/v1/notifications/verify-webhook-signature",
+        verb: "POST",
+        body: verifyRequest,
+        headers: { "Content-Type": "application/json" },
+      });
 
       if (verifyResponse.result.verification_status !== "SUCCESS") {
         console.error("Webhook signatu~re verification failed");
@@ -50,6 +55,16 @@ export async function POST(request: Request) {
         const captureId = resource.id;
         const customId = resource.custom_id;
         const amount = parseFloat(resource.amount.value);
+
+        // Bet checkout: backstop for a capture whose route call never got
+        // recorded. The body is not trusted — the capture is re-read from
+        // PayPal, since signature checks are skipped without PAYPAL_WEBHOOK_ID.
+        if (typeof customId === "string" && customId.startsWith("bet:")) {
+          const cap: any = (await paypalClient().execute(new paypal.payments.CapturesGetRequest(captureId))).result;
+          const orderID = cap.supplementary_data?.related_ids?.order_id;
+          if (orderID) console.log(`Bet capture ${captureId}: ${await settleBetCapture(orderID, cap)}`);
+          break;
+        }
 
         if (!customId) {
           console.warn("No custom_id in capture, skipping");
@@ -106,7 +121,8 @@ export async function POST(request: Request) {
         const captureId = resource.id;
         const customId = resource.custom_id;
 
-        if (customId) {
+        // Denied bet capture: the hold stays PENDING and lapses on its own.
+        if (customId && !String(customId).startsWith("bet:")) {
           const eventInventoryId = parseInt(customId);
           const payment = await prisma.payment.findFirst({
             where: { eventInventoryId, transactionId: captureId },

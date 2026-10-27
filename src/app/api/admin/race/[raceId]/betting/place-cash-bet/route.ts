@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
 import { approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
+import { expiredHold, releaseHolds } from "@/lib/bet-hold";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -77,6 +78,7 @@ export async function POST(
       amount: number;
     }[] = [];
 
+    await releaseHolds(raceIdInt, expiredHold());
     for (const sel of selections) {
       const raceItem = await prisma.raceItem.findUnique({
         where: { id: sel.raceItemId },
@@ -169,7 +171,10 @@ export async function POST(
       totalPaid: total,
       paymentId: result.payment.id,
     });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === "P2002") {
+      return NextResponse.json({ message: "One of these slots was just taken. Refresh and retry." }, { status: 409 });
+    }
     console.error("place-cash-bet error:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json({ message: "Validation error", errors: error.issues }, { status: 400 });
