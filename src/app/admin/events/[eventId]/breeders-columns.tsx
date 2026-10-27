@@ -86,7 +86,7 @@ export const createBreedersColumns = (
       const names = (row.original.partners ?? [])
         .map((p) => [p.breeder?.firstName, p.breeder?.lastName].filter(Boolean).join(" "))
         .filter(Boolean);
-      return <span>{names.length ? names.join(", ") : "-"}</span>;
+      return <span>{names.length ? `${names.length} · ${names.join(", ")}` : "-"}</span>;
     },
   },
   {

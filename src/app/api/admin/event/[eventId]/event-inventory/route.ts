@@ -85,6 +85,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
             include: {
                 breeder: true,
                 payments: true,
+                partners: { include: { breeder: { select: { firstName: true, lastName: true } } } },
                 items: {
                     where: { deletedAt: null },
                     select: {
