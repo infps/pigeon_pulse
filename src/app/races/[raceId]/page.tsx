@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
-import { Cloud, Thermometer, Wind, TrendingUp, Gauge, Building, Home as HomeIcon, Users, Bird as BirdIcon, Calendar, Trophy, ExternalLink, DollarSign, MapPin as MapPinIcon, Volume2, VolumeX, MapPin, Link2, Check, Copy } from "lucide-react";
+import { Cloud, Thermometer, Wind, TrendingUp, Gauge, Building, Home as HomeIcon, Users, Bird as BirdIcon, Calendar, Trophy, ExternalLink, DollarSign, MapPin as MapPinIcon, Volume2, VolumeX, MapPin, Link2, Check, Copy, ArrowLeft } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { makeRaceResultsColumns, type EnrichedRaceItem } from "./race-results-columns";
@@ -204,6 +204,11 @@ export default function PublicRacePage() {
 
   return (
     <div className="container mx-auto p-4 md:p-6 space-y-4">
+      {race.eventId && (
+        <Button variant="ghost" size="sm" onClick={() => router.push(`/events/${race.eventId}`)}>
+          <ArrowLeft className="h-4 w-4 mr-1" /> Back to {race.event?.name ?? "event"}
+        </Button>
+      )}
       {/* Race Header */}
       <Card className="overflow-hidden">
         <CardContent className="p-4 md:p-5">

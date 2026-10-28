@@ -68,7 +68,7 @@ export async function GET(
         picture: true,
         inventoryItems: {
           include: {
-            eventInventory: { include: { season: { include: { event: true } }, breeder: true } },
+            eventInventory: { include: { season: { include: { event: true } }, breeder: true, payments: { orderBy: { paymentDate: "desc" } } } },
             raceItems: { include: { race: true, result: true, bets: { select: { bettorId: true, ownerUserId: true, category: true, tierIndex: true, amount: true, stakePaymentId: true } } } },
             basketAssignments: {
               include: {

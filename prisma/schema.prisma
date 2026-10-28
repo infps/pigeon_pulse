@@ -273,6 +273,7 @@ model Breeder {
   city2          String?   @map("CITY_2")
   state2         String?   @map("STATE_2")
   zip2           String?   @map("ZIP_2")
+  country2       String?   @map("COUNTRY_2")
   country        String?   @map("COUNTRY")
   webAddress     String?   @map("WEB_ADDRESS")
   ssn            String?   @map("SOCIAL_SECURITY_NUMBER")

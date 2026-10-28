@@ -5,6 +5,7 @@ import { useDialogHotkeys } from "@/lib/use-dialog-hotkeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ImageUploadWithCrop } from "@/components/image-upload-with-crop";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Eye, EyeOff, Info } from "lucide-react";
@@ -69,6 +70,8 @@ export function AddEditBreederDialog({
     city2: "",
     state2: "",
     zip2: "",
+    country2: "",
+    defaultAddress: 1 as 1 | 2,
     defaultTeamName: "",
   });
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -97,6 +100,10 @@ export function AddEditBreederDialog({
   const availableStates = useMemo(
     () => getStatesForCountry(formData.country),
     [formData.country]
+  );
+  const availableStates2 = useMemo(
+    () => getStatesForCountry(formData.country2),
+    [formData.country2]
   );
 
   // Update form data when editing/copying user changes
@@ -129,6 +136,8 @@ export function AddEditBreederDialog({
         city2: editingUser.city2 || "",
         state2: editingUser.state2 || "",
         zip2: editingUser.zip2 || "",
+        country2: editingUser.country2 || "",
+        defaultAddress: editingUser.defaultAddress ?? 1,
         defaultTeamName: editingUser.defaultTeamName || "",
       });
       setImagePreview(editingUser.image || null);
@@ -161,6 +170,8 @@ export function AddEditBreederDialog({
         city2: copyUser.city2 || "",
         state2: copyUser.state2 || "",
         zip2: copyUser.zip2 || "",
+        country2: copyUser.country2 || "",
+        defaultAddress: copyUser.defaultAddress ?? 1,
         defaultTeamName: copyUser.defaultTeamName || "",
       });
       setImagePreview(null);
@@ -193,6 +204,8 @@ export function AddEditBreederDialog({
         city2: "",
         state2: "",
         zip2: "",
+        country2: "",
+        defaultAddress: 1,
         defaultTeamName: "",
       });
       setImagePreview(null);
@@ -307,6 +320,8 @@ export function AddEditBreederDialog({
       city2: "",
       state2: "",
       zip2: "",
+      country2: "",
+      defaultAddress: 1 as 1 | 2,
       defaultTeamName: "",
     });
     setImagePreview(null);
@@ -524,47 +539,13 @@ export function AddEditBreederDialog({
           <div className="grid grid-cols-3 gap-4">
             <div>
               <Label htmlFor="country">Country</Label>
-              <Select
+              <CountrySelect
+                id="country"
                 value={formData.country}
-                onValueChange={(value) =>
+                onChange={(value) =>
                   setFormData({ ...formData, country: value, state: "" })
                 }
-              >
-                <SelectTrigger id="country">
-                  <SelectValue placeholder="Select country">
-                    {formData.country && (
-                      <div className="flex items-center gap-2">
-                        {getCountryFlag(formData.country) && (
-                          <Image
-                            src={getCountryFlag(formData.country)!}
-                            alt={getCountryName(formData.country)}
-                            width={20}
-                            height={15}
-                            className="rounded"
-                          />
-                        )}
-                        <span>{getCountryName(formData.country)}</span>
-                      </div>
-                    )}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(COUNTRIES).map(([code, name]) => (
-                    <SelectItem key={code} value={code}>
-                      <div className="flex items-center gap-2">
-                        <Image
-                          src={`/countryflags/${code}.gif`}
-                          alt={name}
-                          width={20}
-                          height={15}
-                          className="rounded"
-                        />
-                        <span>{name}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
 
             <div>
@@ -601,6 +582,12 @@ export function AddEditBreederDialog({
             </div>
           </div>
 
+          <DefaultAddressCheck
+            id="default-address-1"
+            checked={formData.defaultAddress === 1}
+            onChange={() => setFormData({ ...formData, defaultAddress: 1 })}
+          />
+
           <div>
             <Label htmlFor="address">Address</Label>
             <Input
@@ -612,6 +599,46 @@ export function AddEditBreederDialog({
             />
           </div>
 
+          <div className="border-t pt-4">
+            <DefaultAddressCheck
+              id="default-address-2"
+              checked={formData.defaultAddress === 2}
+              onChange={() => setFormData({ ...formData, defaultAddress: 2 })}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="country2">Country 2</Label>
+              <CountrySelect
+                id="country2"
+                value={formData.country2}
+                onChange={(value) =>
+                  setFormData({ ...formData, country2: value, state2: "" })
+                }
+              />
+            </div>
+            <div>
+              <Label htmlFor="state2">State 2</Label>
+              <Select
+                value={formData.state2}
+                onValueChange={(value) => setField("state2", value)}
+                disabled={!formData.country2 || availableStates2.length === 0}
+              >
+                <SelectTrigger id="state2" className="w-full">
+                  <SelectValue placeholder={formData.country2 ? "Select state" : "Select country first"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableStates2.map((s) => (
+                    <SelectItem key={s.code} value={s.code}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div>
             <Label htmlFor="address2">Address 2</Label>
             <Input
@@ -621,14 +648,10 @@ export function AddEditBreederDialog({
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <Label htmlFor="city2">City 2</Label>
               <Input id="city2" value={formData.city2} onChange={(e) => setField("city2", e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="state2">State 2</Label>
-              <Input id="state2" value={formData.state2} onChange={(e) => setField("state2", e.target.value)} />
             </div>
             <div>
               <Label htmlFor="zip2">Postal Code 2</Label>
@@ -808,5 +831,76 @@ export function AddEditBreederDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function CountrySelect({
+  id,
+  value,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Select
+      value={value}
+      onValueChange={onChange}
+    >
+      <SelectTrigger id={id} className="w-full">
+        <SelectValue placeholder="Select country">
+          {value && (
+            <div className="flex items-center gap-2">
+              {getCountryFlag(value) && (
+                <Image
+                  src={getCountryFlag(value)!}
+                  alt={getCountryName(value)}
+                  width={20}
+                  height={15}
+                  className="rounded"
+                />
+              )}
+              <span>{getCountryName(value)}</span>
+            </div>
+          )}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {Object.entries(COUNTRIES).map(([code, name]) => (
+          <SelectItem key={code} value={code}>
+            <div className="flex items-center gap-2">
+              <Image
+                src={`/countryflags/${code}.gif`}
+                alt={name}
+                width={20}
+                height={15}
+                className="rounded"
+              />
+              <span>{name}</span>
+            </div>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function DefaultAddressCheck({
+  id,
+  checked,
+  onChange,
+}: {
+  id: string;
+  checked: boolean;
+  onChange: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <Checkbox id={id} checked={checked} onCheckedChange={(v) => v && onChange()} />
+      <Label htmlFor={id} className="text-sm font-normal">
+        Default address
+      </Label>
+    </div>
   );
 }

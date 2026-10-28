@@ -42,12 +42,13 @@ const userSelect = {
 } as const;
 
 const breederExtraSelect = {
-  cell: true, address2: true, city2: true, state2: true, zip2: true, defNameAgn: true,
+  cell: true, address2: true, city2: true, state2: true, zip2: true, country2: true, isDefaultAddr1: true, defNameAgn: true,
 } as const;
 
 type BreederExtras = {
   cell?: string | null; address2?: string | null; city2?: string | null;
-  state2?: string | null; zip2?: string | null; defNameAgn?: string | null;
+  state2?: string | null; zip2?: string | null; country2?: string | null;
+  isDefaultAddr1?: number | null; defNameAgn?: string | null;
 };
 
 function breederExtras(b: BreederExtras) {
@@ -57,6 +58,9 @@ function breederExtras(b: BreederExtras) {
     city2: b.city2 ?? null,
     state2: b.state2 ?? null,
     zip2: b.zip2 ?? null,
+    country2: b.country2 ?? null,
+    // Legacy null = address 1 default.
+    defaultAddress: (b.isDefaultAddr1 === 0 ? 2 : 1) as 1 | 2,
     defaultTeamName: b.defNameAgn ?? null,
   };
 }
@@ -64,12 +68,15 @@ function breederExtras(b: BreederExtras) {
 /** Breeder-only columns of the add/edit breeder form. Note mirrors User.note. */
 function breederPatch(v: {
   phoneNumber2?: string; address2?: string; city2?: string; state2?: string;
-  zip2?: string; defaultTeamName?: string; note?: string;
+  zip2?: string; country2?: string; defaultAddress?: 1 | 2;
+  defaultTeamName?: string; note?: string;
 }) {
   const n = (x?: string) => (x === undefined ? undefined : x.trim() || null);
   return {
     cell: n(v.phoneNumber2), address2: n(v.address2), city2: n(v.city2),
-    state2: n(v.state2), zip2: n(v.zip2), defNameAgn: n(v.defaultTeamName), note: n(v.note),
+    state2: n(v.state2), zip2: n(v.zip2), country2: n(v.country2),
+    isDefaultAddr1: v.defaultAddress === undefined ? undefined : v.defaultAddress === 1 ? 1 : 0,
+    defNameAgn: n(v.defaultTeamName), note: n(v.note),
   };
 }
 
@@ -405,7 +412,7 @@ export async function PUT(request: Request) {
 
     // Empty string on the unique username column collides across users
     // (Postgres allows many NULLs but only one ""). Store blanks as null.
-    const { phoneNumber2, address2, city2, state2, zip2, defaultTeamName, ...userData } = validatedData;
+    const { phoneNumber2, address2, city2, state2, zip2, country2, defaultAddress, defaultTeamName, ...userData } = validatedData;
     const normalizedUsername =
       validatedData.username !== undefined
         ? validatedData.username.trim() || null
@@ -459,7 +466,7 @@ export async function PUT(request: Request) {
       );
       await prisma.breeder.update({
         where: { id: breeder.id },
-        data: breederPatch({ phoneNumber2, address2, city2, state2, zip2, defaultTeamName, note: validatedData.note }),
+        data: breederPatch({ phoneNumber2, address2, city2, state2, zip2, country2, defaultAddress, defaultTeamName, note: validatedData.note }),
       });
     }
 

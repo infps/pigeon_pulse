@@ -62,6 +62,22 @@ export async function GET(
       return NextResponse.json({ message: "Bird is private" }, { status: 403 });
     }
 
+    // Owner/admin only: registrations + their payments for the payment card.
+    const inventoryItems = isAdmin || isOwner
+      ? await prisma.eventInventoryItem.findMany({
+          where: { birdId: birdIdInt, deletedAt: null },
+          select: {
+            id: true,
+            eventInventory: {
+              select: {
+                season: { select: { event: { select: { id: true, name: true } } } },
+                payments: { orderBy: { paymentDate: "desc" } },
+              },
+            },
+          },
+        })
+      : [];
+
     // Fetch siblings (same father OR mother, exclude self)
     let siblings: any[] = [];
     const parentConditions = [];
@@ -78,7 +94,7 @@ export async function GET(
     }
 
     return NextResponse.json({
-      bird: { ...bird, siblings },
+      bird: { ...bird, siblings, inventoryItems },
       isOwner,
       message: "Bird fetched successfully",
     });
