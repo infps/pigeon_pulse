@@ -77,7 +77,8 @@ export const createRaceItemsColumns = (
   },
   {
     id: "breeder",
-    accessorKey: "bird.breeder.firstName",
+    // Full name so search matches first or last name.
+    accessorFn: (row) => [row.bird?.breeder?.firstName, row.bird?.breeder?.lastName].filter(Boolean).join(" ") || null,
     sortingFn: nullsLast,
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Breeder" />
