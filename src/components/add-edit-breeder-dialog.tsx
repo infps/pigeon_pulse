@@ -5,7 +5,6 @@ import { useDialogHotkeys } from "@/lib/use-dialog-hotkeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { ImageUploadWithCrop } from "@/components/image-upload-with-crop";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Eye, EyeOff, Info } from "lucide-react";
@@ -71,6 +70,7 @@ export function AddEditBreederDialog({
     state2: "",
     zip2: "",
     defaultTeamName: "",
+    primaryAddress: "1" as "1" | "2",
   });
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -79,8 +79,6 @@ export function AddEditBreederDialog({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  // ponytail: UI only, not saved yet — persist to Breeders.IS_DEFAULT_ADDRESS_1 later
-  const [primaryAddress, setPrimaryAddress] = useState<1 | 2>(1);
   const formRef = useRef<HTMLFormElement>(null);
   const setField = (key: string, value: string) => {
     setFormData((f) => ({ ...f, [key]: value }));
@@ -133,6 +131,7 @@ export function AddEditBreederDialog({
         state2: editingUser.state2 || "",
         zip2: editingUser.zip2 || "",
         defaultTeamName: editingUser.defaultTeamName || "",
+        primaryAddress: editingUser.primaryAddress ?? "1",
       });
       setImagePreview(editingUser.image || null);
       setImageFile(null);
@@ -165,6 +164,7 @@ export function AddEditBreederDialog({
         state2: copyUser.state2 || "",
         zip2: copyUser.zip2 || "",
         defaultTeamName: copyUser.defaultTeamName || "",
+        primaryAddress: copyUser.primaryAddress ?? "1",
       });
       setImagePreview(null);
       setImageFile(null);
@@ -197,6 +197,7 @@ export function AddEditBreederDialog({
         state2: "",
         zip2: "",
         defaultTeamName: "",
+        primaryAddress: "1",
       });
       setImagePreview(null);
       setImageFile(null);
@@ -311,6 +312,7 @@ export function AddEditBreederDialog({
       state2: "",
       zip2: "",
       defaultTeamName: "",
+      primaryAddress: "1",
     });
     setImagePreview(null);
     setImageFile(null);
@@ -607,7 +609,7 @@ export function AddEditBreederDialog({
           <div>
             <div className="flex items-center justify-between">
               <Label htmlFor="address">Address</Label>
-              <PrimaryToggle id="primary-address-1" checked={primaryAddress === 1} onChange={() => setPrimaryAddress(1)} />
+              <PrimaryRadio id="primary-address-1" checked={formData.primaryAddress === "1"} onSelect={() => setField("primaryAddress", "1")} />
             </div>
             <Input
               id="address"
@@ -621,7 +623,7 @@ export function AddEditBreederDialog({
           <div>
             <div className="flex items-center justify-between">
               <Label htmlFor="address2">Address 2</Label>
-              <PrimaryToggle id="primary-address-2" checked={primaryAddress === 2} onChange={() => setPrimaryAddress(2)} />
+              <PrimaryRadio id="primary-address-2" checked={formData.primaryAddress === "2"} onSelect={() => setField("primaryAddress", "2")} />
             </div>
             <Input
               id="address2"
@@ -820,11 +822,19 @@ export function AddEditBreederDialog({
   );
 }
 
-function PrimaryToggle({ id, checked, onChange }: { id: string; checked: boolean; onChange: () => void }) {
+/** One of a pair: both share name="primaryAddress", so picking one clears the other. */
+function PrimaryRadio({ id, checked, onSelect }: { id: string; checked: boolean; onSelect: () => void }) {
   return (
     <div className="flex items-center gap-2">
-      <Switch id={id} checked={checked} onCheckedChange={(v) => v && onChange()} />
-      <Label htmlFor={id} className="text-xs font-normal text-muted-foreground">Primary</Label>
+      <input
+        type="radio"
+        id={id}
+        name="primaryAddress"
+        checked={checked}
+        onChange={onSelect}
+        className="h-3.5 w-3.5 accent-primary cursor-pointer"
+      />
+      <Label htmlFor={id} className="text-xs font-normal text-muted-foreground cursor-pointer">Primary</Label>
     </div>
   );
 }
