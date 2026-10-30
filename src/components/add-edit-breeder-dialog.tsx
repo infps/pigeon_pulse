@@ -5,6 +5,7 @@ import { useDialogHotkeys } from "@/lib/use-dialog-hotkeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { ImageUploadWithCrop } from "@/components/image-upload-with-crop";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Eye, EyeOff, Info } from "lucide-react";
@@ -78,6 +79,8 @@ export function AddEditBreederDialog({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  // ponytail: UI only, not saved yet — persist to Breeders.IS_DEFAULT_ADDRESS_1 later
+  const [primaryAddress, setPrimaryAddress] = useState<1 | 2>(1);
   const formRef = useRef<HTMLFormElement>(null);
   const setField = (key: string, value: string) => {
     setFormData((f) => ({ ...f, [key]: value }));
@@ -602,7 +605,10 @@ export function AddEditBreederDialog({
           </div>
 
           <div>
-            <Label htmlFor="address">Address</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="address">Address</Label>
+              <PrimaryToggle id="primary-address-1" checked={primaryAddress === 1} onChange={() => setPrimaryAddress(1)} />
+            </div>
             <Input
               id="address"
               value={formData.address}
@@ -613,7 +619,10 @@ export function AddEditBreederDialog({
           </div>
 
           <div>
-            <Label htmlFor="address2">Address 2</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="address2">Address 2</Label>
+              <PrimaryToggle id="primary-address-2" checked={primaryAddress === 2} onChange={() => setPrimaryAddress(2)} />
+            </div>
             <Input
               id="address2"
               value={formData.address2}
@@ -808,5 +817,14 @@ export function AddEditBreederDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function PrimaryToggle({ id, checked, onChange }: { id: string; checked: boolean; onChange: () => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      <Switch id={id} checked={checked} onCheckedChange={(v) => v && onChange()} />
+      <Label htmlFor={id} className="text-xs font-normal text-muted-foreground">Primary</Label>
+    </div>
   );
 }

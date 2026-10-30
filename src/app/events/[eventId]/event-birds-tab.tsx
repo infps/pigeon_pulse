@@ -301,7 +301,7 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
   },
   {
     id: "breeder",
-    accessorFn: (row) => row.eventInventory?.breeder?.firstName,
+    accessorFn: (row) => [row.eventInventory?.breeder?.firstName, row.eventInventory?.breeder?.lastName].filter(Boolean).join(" "),
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Breeder" />
     ),

@@ -277,7 +277,7 @@ export function EventBreedersTab({ eventId }: EventBreedersTabProps) {
   const columns: ColumnDef<EventInventory>[] = [
     {
       id: "breeder",
-      accessorFn: (row) => row.breeder?.firstName,
+      accessorFn: (row) => [row.breeder?.firstName, row.breeder?.lastName].filter(Boolean).join(" "),
       header: ({ column }) => (
         <DataTableColumnHeader column={column} title="Breeder" />
       ),
