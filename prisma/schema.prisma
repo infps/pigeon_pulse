@@ -397,6 +397,8 @@ model FeeScheme {
   /// When set, entry + perch + the hotspot gate must be settled before a bird
   /// can be basketed for Hotspot 1.
   priorToHotspot1Required  Boolean         @default(false) @map("PRIOR_TO_HS1_REQUIRED")
+  /// Lost bird with no backup: refund its PAID future lines (Refund OWED) instead of only voiding them.
+  refundLostBird           Boolean         @default(false) @map("REFUND_LOST_BIRD")
   createdById              Int?            @map("CREATOR_ID")
 
   createdBy    OrganizerData?      @relation(fields: [createdById], references: [id])
@@ -589,6 +591,7 @@ model Race {
   tournamentRounds   TournamentRound[]
   paymentPenalties   PaymentPenalty[]
   videos             EventVideo[]
+  feeLines           FeeLine[]
 }
 
 model TruckPing {
@@ -760,35 +763,35 @@ model Season {
 }
 
 model Event {
-  id              Int        @id @default(autoincrement()) @map("ID_EVENT")
-  isPrivate       Boolean    @default(false) @map("IS_PRIVATE")
-  name            String?    @map("EVENT_NAME")
-  shortName       String?    @map("EVENT_SHORT_NAME")
-  eventDate       DateTime?  @map("EVENT_DATE")
-  eventTypeId     Int?       @map("EVENT_TYPE")
-  isOpen          Int?       @map("IS_OPEN")
-  createdById     Int?       @map("CREATOR_ID")
-  latitude        Float?     @map("LATITUDE")
-  longitude       Float?     @map("LONGITUDE")
-  locationAddress String?    @map("LOCATION_ADDRESS")
-  description     String?    @map("DESCRIPTION")
-  endDate         DateTime?  @map("END_DATE")
-  contactName     String?    @map("CONTACT_NAME")
-  contactEmail    String?    @map("CONTACT_EMAIL")
-  contactPhone    String?    @map("CONTACT_PHONE")
-  contactWebsite  String?    @map("CONTACT_WEBSITE")
-  contactAddress  String?    @map("CONTACT_ADDRESS")
-  socialYt        String?    @map("SOCIAL_YT")
-  socialFb        String?    @map("SOCIAL_FB")
-  socialTwitter   String?    @map("SOCIAL_TWITTER")
-  socialInsta     String?    @map("SOCIAL_INSTA")
-  logoImage       String?    @map("LOGO_IMAGE")
-  logoImageKey    String?    @map("LOGO_IMAGE_KEY")
-  bannerImage     String?    @map("BANNER_IMAGE")
-  bannerImageKey  String?    @map("BANNER_IMAGE_KEY")
-  raceFormat      RaceFormat @default(STANDARD)
+  id                 Int        @id @default(autoincrement()) @map("ID_EVENT")
+  isPrivate          Boolean    @default(false) @map("IS_PRIVATE")
+  name               String?    @map("EVENT_NAME")
+  shortName          String?    @map("EVENT_SHORT_NAME")
+  eventDate          DateTime?  @map("EVENT_DATE")
+  eventTypeId        Int?       @map("EVENT_TYPE")
+  isOpen             Int?       @map("IS_OPEN")
+  createdById        Int?       @map("CREATOR_ID")
+  latitude           Float?     @map("LATITUDE")
+  longitude          Float?     @map("LONGITUDE")
+  locationAddress    String?    @map("LOCATION_ADDRESS")
+  description        String?    @map("DESCRIPTION")
+  endDate            DateTime?  @map("END_DATE")
+  contactName        String?    @map("CONTACT_NAME")
+  contactEmail       String?    @map("CONTACT_EMAIL")
+  contactPhone       String?    @map("CONTACT_PHONE")
+  contactWebsite     String?    @map("CONTACT_WEBSITE")
+  contactAddress     String?    @map("CONTACT_ADDRESS")
+  socialYt           String?    @map("SOCIAL_YT")
+  socialFb           String?    @map("SOCIAL_FB")
+  socialTwitter      String?    @map("SOCIAL_TWITTER")
+  socialInsta        String?    @map("SOCIAL_INSTA")
+  logoImage          String?    @map("LOGO_IMAGE")
+  logoImageKey       String?    @map("LOGO_IMAGE_KEY")
+  bannerImage        String?    @map("BANNER_IMAGE")
+  bannerImageKey     String?    @map("BANNER_IMAGE_KEY")
+  raceFormat         RaceFormat @default(STANDARD)
   // Per-event override of BettingScheme.bettingCutPercent; null = use scheme value
-  bettingCutOverride Float?  @map("BETTING_CUT_OVERRIDE")
+  bettingCutOverride Float?     @map("BETTING_CUT_OVERRIDE")
 
   eventType    EventType?        @relation(fields: [eventTypeId], references: [id])
   createdBy    OrganizerData?    @relation(fields: [createdById], references: [id])
@@ -881,6 +884,7 @@ model EventInventory {
   payments                 Payment[]
   penalties                PaymentPenalty[]
   refunds                  Refund[]
+  feeLines                 FeeLine[]
   calcuttaGroupMemberships CalcuttaBetGroupMember[]
 }
 
@@ -956,6 +960,7 @@ model EventInventoryItem {
   birdEventHistory   BirdEventHistory[]
   tournamentEntries  TournamentEntry[]
   raceClassEntries   RaceClassEntry[]
+  feeLines           FeeLine[]
 }
 
 model Partner {
@@ -1018,6 +1023,7 @@ model Payment {
   breeder        Breeder?         @relation(fields: [breederId], references: [id])
   classEntries   RaceClassEntry[]
   refunds        Refund[]
+  feeLines       FeeLine[]
   picture        Picture?         @relation(fields: [pictureId], references: [id])
   bettor         User?            @relation("BettorPayments", fields: [bettorId], references: [id])
 
@@ -1329,6 +1335,7 @@ model Bet {
   race     Race     @relation(fields: [raceId], references: [id])
   raceItem RaceItem @relation(fields: [raceItemId], references: [id])
   bettor   User     @relation("BetsPlaced", fields: [bettorId], references: [id])
+  feeLine  FeeLine?
 
   @@unique([raceItemId, category, tierIndex])
   @@index([raceId, category, tierIndex])
@@ -1788,12 +1795,69 @@ model Refund {
   issuedBy         String?      @map("ISSUED_BY")
   /// OWED = due to the breeder but not yet paid back (e.g. rejected after paying).
   status           RefundStatus @default(ISSUED) @map("STATUS")
+  /// Set when the refund is for one fee line (per-bird payments).
+  feeLineId        Int?         @map("ID_FEE_LINE")
 
   eventInventory EventInventory @relation(fields: [eventInventoryId], references: [id], onDelete: Cascade)
   payment        Payment?       @relation(fields: [paymentId], references: [id])
+  feeLine        FeeLine?       @relation(fields: [feeLineId], references: [id], onDelete: SetNull)
 
   @@index([eventInventoryId])
+  @@index([feeLineId])
   @@map("Refunds")
+}
+
+/// What one fee line charges for. Hotspot gate fee is its own line, added on
+/// top of that race's RACE line.
+enum FeeLineType {
+  PERCH
+  RACE
+  HOTSPOT
+  BET
+}
+
+enum FeeLineStatus {
+  DUE
+  /// Breeder chose "pay cash later": passes basketing gate, still unpaid.
+  CASH_PROMISED
+  PAID
+  VOID
+  REFUNDED
+}
+
+/// One payable line for one bird in one season (per-bird payments). Paid whole
+/// by exactly one Payment, so the line holds the payment id; no split table.
+/// Amounts are generated server-side from the season's FeeScheme.
+model FeeLine {
+  id               Int           @id @default(autoincrement()) @map("ID_FEE_LINE")
+  /// Denormalised from the item, for per-registration queries.
+  eventInventoryId Int           @map("ID_EVENT_INVENTORY")
+  itemId           Int           @map("ID_EVENT_INVENTORY_ITEM")
+  type             FeeLineType   @map("TYPE")
+  /// RACE, HOTSPOT and BET lines.
+  raceId           Int?          @map("ID_RACE")
+  /// HOTSPOT lines: HS1 | HS2 | HS3 | FINAL.
+  hotspotGate      String?       @map("HOTSPOT_GATE")
+  betId            Int?          @unique @map("ID_BET")
+  amount           Float         @map("AMOUNT")
+  /// Admin override; scheme recalculation leaves the line alone.
+  overridden       Boolean       @default(false) @map("OVERRIDDEN")
+  status           FeeLineStatus @default(DUE) @map("STATUS")
+  paymentId        Int?          @map("ID_PAYMENT")
+  createdAt        DateTime      @default(now()) @map("CREATED_AT")
+
+  eventInventory EventInventory     @relation(fields: [eventInventoryId], references: [id], onDelete: Cascade)
+  item           EventInventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  race           Race?              @relation(fields: [raceId], references: [id])
+  bet            Bet?               @relation(fields: [betId], references: [id], onDelete: Cascade)
+  payment        Payment?           @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  refunds        Refund[]
+
+  @@index([eventInventoryId])
+  @@index([itemId])
+  @@index([raceId])
+  @@index([paymentId])
+  @@map("FeeLines")
 }
 
 /// A row means the tab needs an account; absence means public.
