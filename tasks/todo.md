@@ -250,4 +250,10 @@ Applied to the Neon dev DB on 2026-10-09 unless marked otherwise.
    - Dry-run first: `SELECT count(*), sum("PAYMENT_VALUE") FROM "Payments" WHERE "ID_PAYMENT" < <boundary> AND "status" = 'PENDING';`
    - Must go out with the code that counts only PAID rows (phase 2), not before or after it.
 
+4. HayLoft data sync (2026-11-12 `HAYLOFT.FDB`): DATA, no schema. See `scripts/hayloft-sync/README.md`.
+   - Applied to the Neon dev DB on 2026-11-12: +AGN 2026 as event 20 / season 28, AGN 2025 races after the import, ~410k rows.
+   - **`CUTOFF` ids in `sync.cjs` are specific to the dev DB.** Re-derive them for live and dry-run before `--apply`.
+   - AGN 2025 (season 15) scheme pointers left as they are (betting 3 / final 29 / avg 30; HayLoft has 5 / 32 / 36). This was a decision.
+   - Run after item 3, so the imported-payments-PAID boundary still refers to pre-sync ids.
+
 Deploy order: migrations 1–3, then the code. Code from phase 2 on fails without 1; code from phase 3 on fails without 2.
