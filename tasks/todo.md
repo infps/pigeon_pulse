@@ -255,5 +255,9 @@ Applied to the Neon dev DB on 2026-10-09 unless marked otherwise.
    - **`CUTOFF` ids in `sync.cjs` are specific to the dev DB.** Re-derive them for live and dry-run before `--apply`.
    - AGN 2025 (season 15) scheme pointers left as they are (betting 3 / final 29 / avg 30; HayLoft has 5 / 32 / 36). This was a decision.
    - Run after item 3, so the imported-payments-PAID boundary still refers to pre-sync ids.
+5. Payments breeder backfill: DATA, no schema. `node scripts/hayloft-sync/backfill-payment-breeder.cjs` (dry run), then `--apply`.
+   - Every HayLoft-imported payment had `ID_BREEDER` null, so the breeder payment screens (`/payments`, pending, single payment) showed nothing / $0. It copies the registration's breeder.
+   - Applied to the Neon dev DB on 2026-11-14: 8,379 updated; 3 ($470) have no registration and stay null.
+   - Safe to rerun. `sync.cjs` now does the same inside its transaction, so a later sync does not reintroduce it.
 
 Deploy order: migrations 1–3, then the code. Code from phase 2 on fails without 1; code from phase 3 on fails without 2.

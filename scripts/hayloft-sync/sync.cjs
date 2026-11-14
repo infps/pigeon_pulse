@@ -610,6 +610,11 @@ const log = (...a) => {
     counts.EventBaskets = await insert("EventBaskets", basketIns);
     counts.BasketAssignments = await insert("BasketAssignments", assignIns);
     for (const t of order) await update(plan[t].pgT, plan[t].pk, plan[t].upd);
+    // HayLoft links a payment only through its registration; the breeder-facing
+    // payment screens look payments up by ID_BREEDER, so copy it across.
+    const pb = await q(`UPDATE "Payments" p SET "ID_BREEDER" = ei."ID_BREEDER" FROM "EventInventory" ei
+      WHERE ei."ID_EVENT_INVENTORY" = p."ID_EVENT_INVENTORY" AND p."ID_BREEDER" IS NULL AND ei."ID_BREEDER" IS NOT NULL`);
+    log(`  payments given their registration's breeder: ${pb.rowCount}`);
     // Sequences past every id now in use.
     for (const [pgT, col] of [["FeeScheme", "ID_FEE_SCHEME"], ["BettingScheme", "ID_BETTING_SCHEME"], ["PrizeScheme", "ID_PRIZE_SCHEME"], ["BirdFeeItems", "ID_PERCH_FEE_ITEM"], ["StandardShowPercentage", "ID_STANDARD_SHOW_PERCENTAGE"], ["PrizeSchemeItem", "ID_PRIZE_SCHEME_ITEM"], ["Events", "ID_EVENT"], ["Seasons", "id"], ["Breeders", "ID_BREEDER"], ["Race", "ID_RACE"], ["Birds", "ID_BIRD"], ["EventInventory", "ID_EVENT_INVENTORY"], ["EventInventoryItem", "ID_EVENT_INVENTORY_ITEM"], ["Payments", "ID_PAYMENT"], ["RaceItem", "ID_RACE_ITEM"], ["RaceIgnoreBird", "ID_IGNORE_BIRD"], ["LostHistory", "ID_LOST_HISTORY"], ["RacePhantomBird", "ID_RACE_PHANTOM_BIRD"], ["PrizeValue", "ID_PRIZE_VALUE"], ["EventBaskets", "ID_EVENT_BASKET"], ["BasketAssignments", "ID_BASKET_ASSIGNMENT"]]) {
       await q(`SELECT setval(pg_get_serial_sequence('"${pgT}"', '${col}'), GREATEST((SELECT MAX("${col}") FROM "${pgT}"), 1))`);

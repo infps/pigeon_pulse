@@ -6,6 +6,16 @@ import { Badge } from "@/components/ui/badge";
 import type { EventInventory } from "@/lib/types";
 import { computePaymentStatus } from "@/lib/paymentStatus";
 
+/** PAYMENT_TYPE is stored as a number; PERCH_FEE is 0 (see TYPE_MAP in api/admin/payment). */
+const PERCH_FEE_TYPE = 0;
+
+/** Perch fee money actually received: only PAID rows count. */
+function perchFeesPaid(row: EventInventory): number {
+  return (row.payments ?? [])
+    .filter((p) => p.paymentType === PERCH_FEE_TYPE && p.status === "PAID")
+    .reduce((sum, p) => sum + (p.paymentValue ?? 0), 0);
+}
+
 // Server-computed status (accounts for hotspot gates); local calc only if the list API omitted it.
 const rowStatus = (row: EventInventory) =>
   row.feeTotals?.status ?? computePaymentStatus(row.items ?? [], row.payments ?? []);
@@ -103,19 +113,9 @@ export const createBreedersColumns = (
   },
   {
     id: "birdFeesPaid",
-    accessorFn: (row) => {
-      const v = (row.payments ?? [])
-        .filter((p) => (p.paymentType as unknown) === "PERCH_FEE")
-        .reduce((sum, p) => sum + (p.paymentValue ?? 0), 0);
-      return v.toFixed(2);
-    },
+    accessorFn: (row) => perchFeesPaid(row).toFixed(2),
     header: "Bird Fees Paid",
-    cell: ({ row }) => {
-      const paid = (row.original.payments ?? [])
-        .filter((p) => (p.paymentType as unknown) === "PERCH_FEE")
-        .reduce((sum, p) => sum + (p.paymentValue ?? 0), 0);
-      return <span>${paid.toFixed(2)}</span>;
-    },
+    cell: ({ row }) => <span>${perchFeesPaid(row.original).toFixed(2)}</span>,
   },
   {
     id: "raceFeesValue",
