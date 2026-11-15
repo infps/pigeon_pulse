@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ImageUploadWithCrop } from "@/components/image-upload-with-crop";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Info } from "lucide-react";
+import { Eye, EyeOff, Info } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -70,12 +70,15 @@ export function AddEditBreederDialog({
     state2: "",
     zip2: "",
     defaultTeamName: "",
+    primaryAddress: "1" as "1" | "2",
   });
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [ssnDocFile, setSsnDocFile] = useState<File | null>(null);
   const [taxDocFile, setTaxDocFile] = useState<File | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const setField = (key: string, value: string) => {
     setFormData((f) => ({ ...f, [key]: value }));
@@ -128,6 +131,7 @@ export function AddEditBreederDialog({
         state2: editingUser.state2 || "",
         zip2: editingUser.zip2 || "",
         defaultTeamName: editingUser.defaultTeamName || "",
+        primaryAddress: editingUser.primaryAddress ?? "1",
       });
       setImagePreview(editingUser.image || null);
       setImageFile(null);
@@ -160,6 +164,7 @@ export function AddEditBreederDialog({
         state2: copyUser.state2 || "",
         zip2: copyUser.zip2 || "",
         defaultTeamName: copyUser.defaultTeamName || "",
+        primaryAddress: copyUser.primaryAddress ?? "1",
       });
       setImagePreview(null);
       setImageFile(null);
@@ -192,12 +197,15 @@ export function AddEditBreederDialog({
         state2: "",
         zip2: "",
         defaultTeamName: "",
+        primaryAddress: "1",
       });
       setImagePreview(null);
       setImageFile(null);
       setSsnDocFile(null);
       setTaxDocFile(null);
     }
+    setConfirmPassword("");
+    setShowPassword(false);
   }, [editingUser, copyUser, open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -207,6 +215,7 @@ export function AddEditBreederDialog({
     if (!formData.name.trim()) errs.name = "Name is required";
     if (!editingUser && !formData.email.trim()) errs.email = "Email is required";
     if (!editingUser && !formData.password.trim()) errs.password = "Password is required";
+    if (!editingUser && formData.password !== confirmPassword) errs.confirmPassword = "Passwords do not match";
     if (Object.keys(errs).length) { setFieldErrors(errs); return; }
 
     try {
@@ -303,6 +312,7 @@ export function AddEditBreederDialog({
       state2: "",
       zip2: "",
       defaultTeamName: "",
+      primaryAddress: "1",
     });
     setImagePreview(null);
     setImageFile(null);
@@ -337,6 +347,35 @@ export function AddEditBreederDialog({
                 setImageFile(file || null);
               }}
               placeholder="Click or drag to upload profile picture"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center gap-1 mb-1">
+              <Label htmlFor="loftName">Loft Name</Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p className="font-medium mb-1">Why add a loft name?</p>
+                  <ul className="list-disc list-inside space-y-1 text-xs">
+                    <li>Identifies the breeder&apos;s physical loft during basketting (e.g. LB-SMITH-1)</li>
+                    <li>Distinguishes breeders with the same last name</li>
+                    <li>Used on basket labels and race sheets</li>
+                    <li>Common designations: AGN, AS, OLR club tags, or custom names</li>
+                    <li>Helpful when one person manages multiple lofts</li>
+                  </ul>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <Input
+              id="loftName"
+              value={formData.loftName}
+              onChange={(e) =>
+                setFormData({ ...formData, loftName: e.target.value })
+              }
+              placeholder="e.g. Smith Loft, AGN-42"
             />
           </div>
 
@@ -383,14 +422,40 @@ export function AddEditBreederDialog({
 
               <div>
                 <Label htmlFor="password">Password *</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setField("password", e.target.value)}
-                  minLength={8}
-                />
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={formData.password}
+                    onChange={(e) => setField("password", e.target.value)}
+                    minLength={8}
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
                 <FE field="password" />
+              </div>
+
+              <div>
+                <Label htmlFor="confirmPassword">Confirm Password *</Label>
+                <Input
+                  id="confirmPassword"
+                  type={showPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => {
+                    setConfirmPassword(e.target.value);
+                    setFieldErrors((er) => { const n = { ...er }; delete n.confirmPassword; return n; });
+                  }}
+                  autoComplete="new-password"
+                />
+                <FE field="confirmPassword" />
               </div>
             </>
           )}
@@ -542,7 +607,10 @@ export function AddEditBreederDialog({
           </div>
 
           <div>
-            <Label htmlFor="address">Address</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="address">Address</Label>
+              <PrimaryRadio id="primary-address-1" checked={formData.primaryAddress === "1"} onSelect={() => setField("primaryAddress", "1")} />
+            </div>
             <Input
               id="address"
               value={formData.address}
@@ -553,7 +621,10 @@ export function AddEditBreederDialog({
           </div>
 
           <div>
-            <Label htmlFor="address2">Address 2</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="address2">Address 2</Label>
+              <PrimaryRadio id="primary-address-2" checked={formData.primaryAddress === "2"} onSelect={() => setField("primaryAddress", "2")} />
+            </div>
             <Input
               id="address2"
               value={formData.address2}
@@ -686,34 +757,6 @@ export function AddEditBreederDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className="flex items-center gap-1 mb-1">
-                <Label htmlFor="loftName">Loft Name</Label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p className="font-medium mb-1">Why add a loft name?</p>
-                    <ul className="list-disc list-inside space-y-1 text-xs">
-                      <li>Identifies the breeder&apos;s physical loft during basketting (e.g. LB-SMITH-1)</li>
-                      <li>Distinguishes breeders with the same last name</li>
-                      <li>Used on basket labels and race sheets</li>
-                      <li>Common designations: AGN, AS, OLR club tags, or custom names</li>
-                      <li>Helpful when one person manages multiple lofts</li>
-                    </ul>
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-              <Input
-                id="loftName"
-                value={formData.loftName}
-                onChange={(e) =>
-                  setFormData({ ...formData, loftName: e.target.value })
-                }
-                placeholder="e.g. Smith Loft, AGN-42"
-              />
-            </div>
-            <div>
               <Label htmlFor="note">Note</Label>
               <Input
                 id="note"
@@ -776,5 +819,22 @@ export function AddEditBreederDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** One of a pair: both share name="primaryAddress", so picking one clears the other. */
+function PrimaryRadio({ id, checked, onSelect }: { id: string; checked: boolean; onSelect: () => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        type="radio"
+        id={id}
+        name="primaryAddress"
+        checked={checked}
+        onChange={onSelect}
+        className="h-3.5 w-3.5 accent-primary cursor-pointer"
+      />
+      <Label htmlFor={id} className="text-xs font-normal text-muted-foreground cursor-pointer">Primary</Label>
+    </div>
   );
 }

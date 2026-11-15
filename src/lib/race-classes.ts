@@ -16,6 +16,7 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { resolveBettingCut } from "@/lib/betting-payout";
 import { activeItem } from "@/lib/entry-filters";
 import type { ClassPayoutType } from "@/generated/prisma/enums";
 
@@ -135,6 +136,7 @@ export async function calcClassPayouts(
       cutPercent: true,
       season: {
         select: {
+          event: { select: { bettingCutOverride: true } },
           bettingScheme: {
             select: {
               bettingCutPercent: true,
@@ -173,7 +175,11 @@ export async function calcClassPayouts(
 
   const pool = entries.reduce((sum, e) => sum + (e.feeCharged ?? 0), 0);
   const cutPercent =
-    raceClass.cutPercent ?? raceClass.season?.bettingScheme?.bettingCutPercent ?? 0;
+    raceClass.cutPercent ??
+    resolveBettingCut(
+      raceClass.season?.event?.bettingCutOverride,
+      raceClass.season?.bettingScheme?.bettingCutPercent
+    );
   const cut = Math.round(pool * (cutPercent / 100) * 100) / 100;
   const distributable = Math.round((pool - cut) * 100) / 100;
 

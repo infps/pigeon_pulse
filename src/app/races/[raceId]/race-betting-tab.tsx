@@ -177,6 +177,7 @@ export function RaceBettingTab({
             cleanupPopup();
             setCheckingOut(false);
             if (!capRes.ok) { toast.error(capJson?.message || "Payment capture failed"); return; }
+            if (capRes.status === 202) { toast.info(capJson.message); return; }
             setCart(new Map());
             invalidateBets();
             toast.success(`Payment confirmed — ${capJson.betsCreated} bet(s) placed!`);

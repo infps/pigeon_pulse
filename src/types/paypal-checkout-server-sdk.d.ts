@@ -24,15 +24,19 @@ declare module '@paypal/checkout-server-sdk' {
       constructor(orderId: string);
     }
   }
-  namespace notifications {
-    class WebhookVerifySignatureRequest {
-      constructor(body: unknown);
+  namespace payments {
+    class CapturesGetRequest {
+      constructor(captureId: string);
+    }
+    class CapturesRefundRequest {
+      constructor(captureId: string);
+      requestBody(body: unknown): void;
     }
   }
   const paypal: {
     core: typeof core;
     orders: typeof orders;
-    notifications: typeof notifications;
+    payments: typeof payments;
   };
   export default paypal;
 }

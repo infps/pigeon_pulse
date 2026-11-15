@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth";
-import { requireBirdOwner } from "@/lib/roles";
+import { isStaff, requireBirdOwner } from "@/lib/roles";
 import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
 import { prisma } from "@/lib/prisma";
 import { uploadToR2, deleteFromR2, generateImageKey } from "@/lib/r2";
@@ -20,14 +20,18 @@ export async function POST(
 
     const { birdId } = await params;
     const birdIdInt = parseInt(birdId);
-    const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
-
     const bird = await prisma.bird.findUnique({ where: { id: birdIdInt } });
     if (!bird) {
       return NextResponse.json({ message: "Bird not found" }, { status: 404 });
     }
-    if (bird.breederId !== breeder.id) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    // Staff manage any breeder's bird (the admin bird dialog calls this route);
+    // breeders only their own. Skipping getOrCreateBreeder for staff also stops
+    // it creating a stray Breeder row for the admin.
+    if (!isStaff(session.user.role)) {
+      const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
+      if (bird.breederId !== breeder.id) {
+        return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+      }
     }
 
     const formData = await request.formData();
@@ -78,14 +82,18 @@ export async function DELETE(
 
     const { birdId } = await params;
     const birdIdInt = parseInt(birdId);
-    const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
-
     const bird = await prisma.bird.findUnique({ where: { id: birdIdInt } });
     if (!bird) {
       return NextResponse.json({ message: "Bird not found" }, { status: 404 });
     }
-    if (bird.breederId !== breeder.id) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    // Staff manage any breeder's bird (the admin bird dialog calls this route);
+    // breeders only their own. Skipping getOrCreateBreeder for staff also stops
+    // it creating a stray Breeder row for the admin.
+    if (!isStaff(session.user.role)) {
+      const breeder = await getOrCreateBreeder(session.user.id, session.user.email, session.user.name);
+      if (bird.breederId !== breeder.id) {
+        return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+      }
     }
 
     if (bird.imageKey) {

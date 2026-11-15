@@ -2,6 +2,8 @@
 
 import { useState, useReducer, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { ScannerButtons } from "@/components/scanner-buttons";
+import { useWebSerial } from "@/hooks/useWebSerial";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -19,7 +21,7 @@ import {
 } from "@/components/add-bird-form";
 import type { AddBirdFormState } from "@/components/add-bird-form";
 import { toast } from "sonner";
-import { Trash2, Radio, Square, Pencil, Wifi, Shuffle, CheckCircle2, AlertTriangle, Dices } from "lucide-react";
+import { Trash2, Radio, Pencil, Wifi, Shuffle, CheckCircle2, AlertTriangle, Dices } from "lucide-react";
 import { FEDERATIONS, COLORS } from "@/lib/bird-constants";
 
 // ── form helpers ────────────────────────────────────────────────────────────
@@ -226,6 +228,10 @@ export default function BirdAdderPage() {
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
   }, []);
 
+  const { isConnected: isBasketSerial, connect: connectBasketSerial, disconnect: disconnectBasketSerial } =
+    useWebSerial({ onScan: handleBasketScan });
+  useEffect(() => () => { disconnectBasketSerial(); }, [disconnectBasketSerial]);
+
   const basketedCount = birds.filter(b => b.basketed).length;
   const pendingCount = birds.filter(b => !b.basketed).length;
   const basketPct = birds.length > 0 ? (basketedCount / birds.length) * 100 : 0;
@@ -299,7 +305,7 @@ export default function BirdAdderPage() {
       </div>
 
       {/* Basketing Dialog */}
-      <Dialog open={basketDialogOpen} onOpenChange={(v) => { if (!v && isBasketScanning) stopBasketScanner(); setBasketDialogOpen(v); }}>
+      <Dialog open={basketDialogOpen} onOpenChange={(v) => { if (!v) { if (isBasketScanning) stopBasketScanner(); disconnectBasketSerial(); } setBasketDialogOpen(v); }}>
         <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between pr-6">
@@ -308,15 +314,14 @@ export default function BirdAdderPage() {
                 <Badge variant={isBasketScanning ? "default" : "secondary"}>
                   {basketedCount}/{birds.length} basketed
                 </Badge>
-                {isBasketScanning ? (
-                  <Button size="sm" className="gap-1.5 bg-red-600 hover:bg-red-700" onClick={stopBasketScanner}>
-                    <Square className="h-4 w-4" />Stop
-                  </Button>
-                ) : (
-                  <Button size="sm" variant="outline" className="gap-1.5" onClick={startBasketScanner}>
-                    <Wifi className="h-4 w-4" />Start Scanner
-                  </Button>
-                )}
+                <ScannerButtons
+                  pollActive={isBasketScanning}
+                  onStartPoll={startBasketScanner}
+                  onStopPoll={stopBasketScanner}
+                  serialConnected={isBasketSerial}
+                  onConnectSerial={connectBasketSerial}
+                  onDisconnectSerial={disconnectBasketSerial}
+                />
               </div>
             </DialogTitle>
           </DialogHeader>

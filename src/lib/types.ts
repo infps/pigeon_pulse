@@ -44,6 +44,7 @@ export interface User {
   state2?: string | null;
   zip2?: string | null;
   defaultTeamName?: string | null;
+  primaryAddress?: "1" | "2";
 }
 
 // ============================================================
@@ -263,6 +264,7 @@ export interface Event {
   locationAddress: string | null;
   seasonId: number | null;
   raceFormat?: string | null;
+  bettingCutOverride?: number | null;
 }
 
 export interface EventInventoryFeeTotals {

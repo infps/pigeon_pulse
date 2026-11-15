@@ -8,6 +8,8 @@ import { GroupStatsCard } from "./group-stats-card";
 import { BirdDetailDialog } from "@/components/bird-detail-dialog";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ScannerButtons } from "@/components/scanner-buttons";
+import { useWebSerial } from "@/hooks/useWebSerial";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,7 +47,6 @@ import {
   Pencil,
   History,
   ScanLine,
-  StopCircle,
 } from "lucide-react";
 import { apiEndpoints } from "@/lib/endpoints";
 
@@ -861,6 +862,15 @@ export function GroupsTab({ eventId }: { eventId: string }) {
     return () => clearInterval(interval);
   }, [scanning, scanTargetId, processScan]);
 
+  const { isConnected: isSerial, connect: connectSerial, disconnect: disconnectSerial } = useWebSerial({
+    onScan: (rfid) => {
+      if (!scanTargetId || rfid === lastRfidRef.current) return;
+      lastRfidRef.current = rfid;
+      processScan(rfid);
+    },
+  });
+  useEffect(() => () => { disconnectSerial(); }, [disconnectSerial]);
+
   const inventoryItems = (inventoryData?.eventInventory ?? []).flatMap((inv) =>
     (inv.items ?? []).map((item) => ({
       id: item.id,
@@ -1031,7 +1041,7 @@ export function GroupsTab({ eventId }: { eventId: string }) {
       </Dialog>
 
       {/* Scan Mode Modal */}
-      <Dialog open={scanOpen} onOpenChange={(v) => { setScanOpen(v); if (!v) setScanning(false); }}>
+      <Dialog open={scanOpen} onOpenChange={(v) => { setScanOpen(v); if (!v) { setScanning(false); disconnectSerial(); } }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>Scan Birds into Group</DialogTitle></DialogHeader>
           <div className="space-y-4">
@@ -1048,19 +1058,21 @@ export function GroupsTab({ eventId }: { eventId: string }) {
                 </Select>
               </div>
               <div className="pt-6">
-                {scanning ? (
-                  <Button variant="destructive" onClick={() => setScanning(false)}>
-                    <StopCircle className="h-4 w-4 mr-1" />Stop
-                  </Button>
-                ) : (
-                  <Button onClick={() => { lastRfidRef.current = null; pollStartedAtRef.current = new Date().toISOString(); setScanning(true); }} disabled={!scanTargetId}>
-                    <ScanLine className="h-4 w-4 mr-1" />Start Scanner
-                  </Button>
-                )}
+                <div className="flex items-center gap-2">
+                  <ScannerButtons
+                    disabled={!scanTargetId}
+                    pollActive={scanning}
+                    onStartPoll={() => { lastRfidRef.current = null; pollStartedAtRef.current = new Date().toISOString(); setScanning(true); }}
+                    onStopPoll={() => setScanning(false)}
+                    serialConnected={isSerial}
+                    onConnectSerial={() => { lastRfidRef.current = null; connectSerial(); }}
+                    onDisconnectSerial={disconnectSerial}
+                  />
+                </div>
               </div>
             </div>
 
-            {scanning && (
+            {(scanning || isSerial) && (
               <div className="flex items-center gap-2 rounded-md bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-700">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />

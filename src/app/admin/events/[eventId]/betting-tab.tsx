@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useListRaces } from "@/lib/api/races";
 import { useListBreeders } from "@/lib/api/breeders";
+import { useUpdateEvent } from "@/lib/api/events";
 import { useBettingPool, useCalcPayouts, useRaceBets, usePlaceCashBet, type RaceBetsResponse, type RaceBetPool, type RaceBetBird } from "@/lib/api/bets";
 import type { Race } from "@/lib/types";
 
@@ -306,8 +307,53 @@ function AdminPlaceBetsSection({ raceId }: { raceId: string }) {
   );
 }
 
+// ── Per-event house cut override (blank = use betting scheme value) ───────────
+type CutEvent = {
+  bettingCutOverride?: number | null;
+  seasons?: { isActive?: boolean; bettingScheme?: { bettingCutPercent: number | null } | null }[];
+};
+function CutOverrideCard({ event, eventId }: { event: CutEvent; eventId: string }) {
+  const update = useUpdateEvent({});
+  const season = event.seasons?.find((s) => s.isActive) ?? event.seasons?.[0];
+  const schemeCut = season?.bettingScheme?.bettingCutPercent;
+  const [value, setValue] = useState(event.bettingCutOverride?.toString() ?? "");
+  const n = Number(value);
+  const invalid = value !== "" && (!Number.isFinite(n) || n < 0 || n > 100);
+
+  const save = () => {
+    const fd = new FormData();
+    fd.append("eventId", eventId);
+    fd.append("bettingCutOverride", value); // "" clears the override
+    update.mutate(fd, {
+      onSuccess: () => toast.success("Betting cut saved"),
+      onError: () => toast.error("Failed to save betting cut"),
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader className="py-3">
+        <CardTitle className="text-base">Betting Cut (Expenses %)</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-wrap items-end gap-3">
+        <Input
+          type="number" min={0} max={100} step="any" className="w-40"
+          value={value} onChange={(e) => setValue(e.target.value)}
+          placeholder={schemeCut != null ? `${schemeCut} (scheme)` : "scheme value"}
+        />
+        <Button onClick={save} disabled={invalid || update.isPending}>
+          {update.isPending ? "Saving…" : "Save"}
+        </Button>
+        <span className="text-sm text-muted-foreground">
+          Blank = use the betting scheme&apos;s cut. Applies to payouts calculated after saving.
+        </span>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Main admin betting tab ────────────────────────────────────────────────────
-export function BettingTab({ eventId }: { event: unknown; eventId: string }) {
+export function BettingTab({ event, eventId }: { event: unknown; eventId: string }) {
   const { data: racesData } = useListRaces({ params: { eventId } });
   const races: Race[] = useMemo(() => racesData?.races ?? [], [racesData]);
   const [raceId, setRaceId] = useState<string>("");
@@ -365,6 +411,7 @@ export function BettingTab({ eventId }: { event: unknown; eventId: string }) {
 
   return (
     <div className="space-y-6">
+      <CutOverrideCard event={event as CutEvent} eventId={eventId} />
       {/* Race selector + calculate button */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="w-72">

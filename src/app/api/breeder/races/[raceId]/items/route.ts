@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { hiddenRaceStatuses, isStaff } from "@/lib/visibility";
 import { activeItem, activeRaceItemOr } from "@/lib/entry-filters";
 
 export async function GET(
@@ -23,11 +26,8 @@ export async function GET(
       select: { id: true, startTime: true },
     });
 
-    const visibilityRows = await prisma.raceStatusVisibility.findMany({
-      where: { raceId: raceIdInt, visible: false },
-      select: { status: true },
-    });
-    const hiddenStatuses = visibilityRows.map((r) => r.status);
+    const session = await auth.api.getSession({ headers: await headers() });
+    const hiddenStatuses = isStaff(session?.user?.role) ? [] : await hiddenRaceStatuses(raceIdInt);
 
     const raceItems = await prisma.raceItem.findMany({
       where: {

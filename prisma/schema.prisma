@@ -787,6 +787,8 @@ model Event {
   bannerImage     String?    @map("BANNER_IMAGE")
   bannerImageKey  String?    @map("BANNER_IMAGE_KEY")
   raceFormat      RaceFormat @default(STANDARD)
+  // Per-event override of BettingScheme.bettingCutPercent; null = use scheme value
+  bettingCutOverride Float?  @map("BETTING_CUT_OVERRIDE")
 
   eventType    EventType?        @relation(fields: [eventTypeId], references: [id])
   createdBy    OrganizerData?    @relation(fields: [createdById], references: [id])

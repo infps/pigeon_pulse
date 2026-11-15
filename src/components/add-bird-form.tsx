@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -12,7 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Wifi, WifiOff } from "lucide-react";
+import { Usb, Wifi, WifiOff } from "lucide-react";
+import { useWebSerial } from "@/hooks/useWebSerial";
 import { FEDERATIONS, COLORS } from "@/lib/bird-constants";
 import type { BettingScheme } from "@/lib/types";
 import { ImageCapture } from "@/components/image-capture";
@@ -219,6 +220,11 @@ export function AddBirdForm({
   const internalBandRef = useRef<HTMLInputElement>(null);
   const bandRef = bandNumberRef ?? internalBandRef;
 
+  // Web Serial: fills the RFID field straight from the COM-port scanner
+  const { isConnected: serialOn, connect: connectSerial, disconnect: disconnectSerial } =
+    useWebSerial({ onScan: (rfid) => set.setRfid(rfid) });
+  useEffect(() => () => { disconnectSerial(); }, [disconnectSerial]);
+
   return (
     <div className="space-y-5">
 
@@ -288,14 +294,27 @@ export function AddBirdForm({
                     variant={rfidPolling ? "default" : "outline"}
                     size="icon"
                     className="h-9 w-9 shrink-0"
-                    onClick={rfidPolling ? onStopRfidPoll : onStartRfidPoll}
-                    title="Poll scanner"
+                    onClick={rfidPolling ? onStopRfidPoll : () => { disconnectSerial(); onStartRfidPoll(); }}
+                    title="Start scanner (poll)"
                   >
                     {rfidPolling ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
                   </Button>
                 )}
+                {onStartRfidPoll && (
+                  <Button
+                    type="button"
+                    variant={serialOn ? "default" : "outline"}
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    onClick={serialOn ? disconnectSerial : () => { if (rfidPolling) onStopRfidPoll?.(); connectSerial(); }}
+                    title="Web Serial (browser COM port, Chrome/Edge)"
+                  >
+                    <Usb className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
                 {rfidPolling && <p className="text-xs text-green-600 animate-pulse">Poll active — scan a bird</p>}
+                {serialOn && <p className="text-xs text-blue-600 animate-pulse">Web Serial active — scan a bird</p>}
             </div>
           </div>
         </div>

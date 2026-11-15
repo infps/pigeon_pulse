@@ -299,6 +299,7 @@ export async function PUT(request: Request) {
         ...(validatedData.socialFb !== undefined && { socialFb: validatedData.socialFb }),
         ...(validatedData.socialTwitter !== undefined && { socialTwitter: validatedData.socialTwitter }),
         ...(validatedData.socialInsta !== undefined && { socialInsta: validatedData.socialInsta }),
+        ...(validatedData.bettingCutOverride !== undefined && { bettingCutOverride: validatedData.bettingCutOverride }),
         logoImage: logoImageUrl,
         logoImageKey: logoImageKey,
         bannerImage: bannerImageUrl,

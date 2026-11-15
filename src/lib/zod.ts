@@ -32,6 +32,7 @@ export const createUserSchema = z.object({
     state2: z.string().optional(),
     zip2: z.string().optional(),
     defaultTeamName: z.string().optional(),
+    primaryAddress: z.enum(["1", "2"]).optional(),
 });
 
 export const updateUserSchema = z.object({
@@ -64,6 +65,7 @@ export const updateUserSchema = z.object({
     state2: z.string().optional(),
     zip2: z.string().optional(),
     defaultTeamName: z.string().optional(),
+    primaryAddress: z.enum(["1", "2"]).optional(),
 });
 
 export const createRaceTypeSchema = z.object({
@@ -194,4 +196,9 @@ export const updateEventSchema = z.object({
     socialFb: z.string().optional(),
     socialTwitter: z.string().optional(),
     socialInsta: z.string().optional(),
+    // multipart form: "" = clear (null), absent = leave unchanged
+    bettingCutOverride: z.preprocess(
+        (v) => (v === "" || v === "null" ? null : v),
+        z.coerce.number().min(0).max(100).nullable().optional(),
+    ),
 })

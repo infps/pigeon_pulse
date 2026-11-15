@@ -73,14 +73,13 @@ export const createColumns = (
     : [
         {
           id: "name",
-          accessorKey: "name",
+          // Full name so search matches first or last name.
+          accessorFn: (row: User) => `${row.name}${row.lastName ? ` ${row.lastName}` : ""}`,
           header: ({ column }: { column: import("@tanstack/react-table").Column<User> }) => (
             <DataTableColumnHeader column={column} title="Name" />
           ),
           cell: ({ row }: { row: import("@tanstack/react-table").Row<User> }) => {
-            const name = row.getValue("name") as string
-            const lastName = row.original.lastName
-            return <span>{`${name}${lastName ? ` ${lastName}` : ""}`}</span>
+            return <span>{row.getValue("name") as string}</span>
           },
           sortingFn: (rowA: import("@tanstack/react-table").Row<User>, rowB: import("@tanstack/react-table").Row<User>) => {
             const a = `${rowA.original.lastName || ""} ${rowA.original.name}`.trim().toLowerCase()

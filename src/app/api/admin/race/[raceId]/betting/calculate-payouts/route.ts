@@ -9,6 +9,7 @@ import {
   computeBelgianPayouts,
   computeStandardPayouts,
   computeWtaPayouts,
+  resolveBettingCut,
   type PoolEntry,
 } from "@/lib/betting-payout";
 
@@ -33,6 +34,7 @@ export async function POST(
       include: {
         seasonRel: {
           include: {
+            event: { select: { bettingCutOverride: true } },
             bettingScheme: { include: { standardShowPercentages: true } },
           },
         },
@@ -49,7 +51,7 @@ export async function POST(
       return NextResponse.json({ message: "No betting scheme assigned to this event" }, { status: 400 });
     }
 
-    const cutPct = Number(scheme.bettingCutPercent ?? 0);
+    const cutPct = resolveBettingCut(race.seasonRel?.event?.bettingCutOverride, scheme.bettingCutPercent);
     const belgianRatio = Number(scheme.belgianRatio ?? 10);
     const standardPercentages = (scheme.standardShowPercentages ?? []).map((p) => ({
       place: p.place ?? 1,

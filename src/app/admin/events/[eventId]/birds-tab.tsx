@@ -4,6 +4,7 @@ import { shortBand } from "@/lib/bird-constants";
 import type { Event, EventInventoryItem, FeeScheme } from "@/lib/types";
 import { useState, useMemo, useRef, useCallback, useEffect, useReducer } from "react";
 import { useWebSerial } from "@/hooks/useWebSerial";
+import { ScannerButtons } from "@/components/scanner-buttons";
 import {
   AddBirdForm,
   createAddBirdFormState,
@@ -35,7 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Wifi, WifiOff, Square, Usb, Upload, Download } from "lucide-react";
+import { Plus, WifiOff, Usb, Upload, Download } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { createBirdsColumns, birdHasLostHistory } from "./birds-columns";
@@ -103,6 +104,10 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
     pollStartedAtRef.current = null;
     toast.info("Poll scanner stopped");
   }, []);
+
+  const { isConnected: isSerial, connect: connectSerial, disconnect: disconnectSerial } =
+    useWebSerial({ onScan: (rfid) => setRfidFilter(rfid) });
+  useEffect(() => () => { disconnectSerial(); }, [disconnectSerial]);
 
   const [substituteItem, setSubstituteItem] = useState<EventInventoryItem | null>(null);
   const [isSubstituteOpen, setIsSubstituteOpen] = useState(false);
@@ -216,15 +221,14 @@ export function BirdsTab({ event, eventId }: BirdsTabProps) {
   return (
     <div className="space-y-4">
       <div className="flex justify-end gap-2">
-        {isPollActive ? (
-          <Button size="sm" variant="outline" className="gap-1.5 border-red-400 text-red-600 hover:bg-red-50" onClick={stopPollScanner}>
-            <Square className="h-4 w-4" />Stop Scan
-          </Button>
-        ) : (
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={startPollScanner}>
-            <Wifi className="h-4 w-4" />Scan RFID
-          </Button>
-        )}
+        <ScannerButtons
+          pollActive={isPollActive}
+          onStartPoll={startPollScanner}
+          onStopPoll={stopPollScanner}
+          serialConnected={isSerial}
+          onConnectSerial={connectSerial}
+          onDisconnectSerial={disconnectSerial}
+        />
         <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setIsImportOpen(true)}>
           <Upload className="h-4 w-4" />Import
         </Button>
