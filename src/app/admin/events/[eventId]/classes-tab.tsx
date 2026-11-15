@@ -1,6 +1,7 @@
 "use client";
 
 import { shortBand } from "@/lib/bird-constants";
+import { BirdLink } from "@/components/bird-popup";
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -464,7 +465,7 @@ export function ClassesTab({ eventId }: { eventId: string }) {
                           <div key={i} className="flex justify-between text-xs tabular-nums">
                             <span>
                               <span className="text-muted-foreground mr-2">#{r.position}</span>
-                              <span className="font-mono">{shortBand(r.band)}</span>
+                              <span className="font-mono"><BirdLink band={r.band}>{shortBand(r.band)}</BirdLink></span>
                               <span className="text-muted-foreground ml-2">{r.breederName}</span>
                             </span>
                             <span className="font-medium">{money(r.payout)}</span>

@@ -1,6 +1,7 @@
 "use client";
 
 import { shortBand } from "@/lib/bird-constants";
+import { BirdLink } from "@/components/bird-popup";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -143,7 +144,7 @@ function BasketCard({ basket }: { basket: EventBasketItem }) {
           {basket.assignments.map((a) => (
             <div key={a.id} className="flex items-center gap-2 text-xs py-0.5">
               <span className="font-mono text-muted-foreground truncate w-24">
-                {shortBand(a.inventoryItem?.bird?.band) || "N/A"}
+                <BirdLink band={a.inventoryItem?.bird?.band}>{shortBand(a.inventoryItem?.bird?.band) || "N/A"}</BirdLink>
               </span>
               <span className="flex-1 truncate">
                 {a.inventoryItem?.bird?.birdName || "N/A"}

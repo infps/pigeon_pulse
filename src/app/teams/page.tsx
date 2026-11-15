@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { BirdLink } from "@/components/bird-popup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -365,7 +366,7 @@ export default function TeamsPage() {
                         <tr key={bird.id} className="hover:bg-muted/20 transition-colors group/row">
                           <td className="px-4 py-2 text-muted-foreground">{idx + 1}</td>
                           <td className="px-4 py-2 font-mono text-primary font-medium">
-                            {bird.band}
+                            <BirdLink band={bird.band}>{bird.band}</BirdLink>
                           </td>
                           <td className="px-4 py-2 text-muted-foreground">
                             {bird.sex ?? "—"}

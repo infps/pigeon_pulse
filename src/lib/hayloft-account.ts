@@ -353,9 +353,10 @@ export async function seasonAccounts(
     bird: { select: { isLost: true } },
   } as const;
 
-  // The pools are built from every entry of the event, so load them all.
+  // Full detail for the registrations asked for (all of them by default).
+  const wanted = opts.inventoryIds ? new Set(opts.inventoryIds) : null;
   const registrations = await prisma.eventInventory.findMany({
-    where: { seasonId },
+    where: { seasonId, ...(wanted ? { id: { in: [...wanted] } } : {}) },
     select: {
       id: true, breederId: true, approvalStatus: true, isWaiting: true, reservedBirds: true,
       hotspotsPaidMask: true,
@@ -364,22 +365,38 @@ export async function seasonAccounts(
     },
   });
 
+  const ownItems = registrations.flatMap((r) => r.items);
+  const raceItemSelect = {
+    id: true,
+    inventoryItemId: true,
+    race: { select: { raceType: { select: { id: true, prizeRole: true } } } },
+    result: { select: { birdPosition: true, arrivalTime: true, birdDrop: true, prizeValue: true } },
+  } as const;
+  // Prize races, for the entries being reported on.
   const finalAndHotSpots = await prisma.raceItem.findMany({
     where: {
       race: { seasonId, raceType: raceTypeWithRole("FINAL", "HOTSPOT_1", "HOTSPOT_2", "HOTSPOT_3") },
-      inventoryItemId: { not: null },
+      inventoryItemId: wanted ? { in: ownItems.map((i) => i.id) } : { not: null },
     },
-    select: {
-      id: true,
-      inventoryItemId: true,
-      race: { select: { raceType: { select: { id: true, prizeRole: true } } } },
-      result: { select: { birdPosition: true, arrivalTime: true, birdDrop: true, prizeValue: true } },
-    },
+    select: raceItemSelect,
   });
   const hasFinalRace = (await prisma.race.count({ where: { seasonId, raceType: raceTypeWithRole("FINAL") } })) > 0;
 
-  const allItems = registrations.flatMap((r) => r.items);
-  const itemById = new Map(allItems.map((i) => [i.id, i]));
+  // The class-bet pools and the final race's finishing order involve every
+  // entry of the event, whoever is being reported on.
+  const betSelect = Object.fromEntries(
+    Object.entries(itemSelect).filter(([k]) => k === "id" || k === "isBetActive" || /Bet\d$/.test(k))
+  ) as { id: true; isBetActive: true };
+  const allItems = wanted && hasFinalRace && scheme
+    ? await prisma.eventInventoryItem.findMany({ where: { eventInventory: { seasonId } }, select: betSelect })
+    : ownItems;
+  const itemById = new Map<number, (typeof allItems)[number]>(allItems.map((i) => [i.id, i]));
+  const finalRaceItems = wanted && hasFinalRace && scheme
+    ? await prisma.raceItem.findMany({
+        where: { race: { seasonId, raceType: raceTypeWithRole("FINAL") }, inventoryItemId: { not: null } },
+        select: raceItemSelect,
+      })
+    : finalAndHotSpots;
 
   // Prizes per entry, by prize role (WINNER_PRIZE_PAYOUT_BIRD_GET).
   const prizeByItem = new Map<number, Partial<Record<RaceTypePrizeRole, number | null>>>();
@@ -391,7 +408,7 @@ export async function seasonAccounts(
     prizeByItem.set(ri.inventoryItemId, rec);
   }
   const avg = await prisma.avgWinnerPrizes.findMany({
-    where: { inventoryItemId: { in: allItems.map((i) => i.id) } },
+    where: { inventoryItemId: { in: ownItems.map((i) => i.id) } },
     select: { inventoryItemId: true, prizeValue: true },
   });
   const avgByItem = new Map(avg.map((a) => [a.inventoryItemId, a.prizeValue]));
@@ -399,7 +416,7 @@ export async function seasonAccounts(
   // Class-bet winnings in the final race (only when the event has one).
   const betsPrizeByItem = new Map<number, U>();
   if (hasFinalRace && scheme) {
-    const finalEntries: FinalRaceEntry[] = finalAndHotSpots
+    const finalEntries: FinalRaceEntry[] = finalRaceItems
       .filter((ri) => prizeRoleOf(ri.race?.raceType) === "FINAL" && ri.inventoryItemId != null && itemById.has(ri.inventoryItemId))
       .map((ri) => ({
         raceItemId: ri.id,
@@ -421,10 +438,8 @@ export async function seasonAccounts(
   const stakeByPayment = new Map<number, number>();
   for (const s of stakes) if (s.stakePaymentId != null) stakeByPayment.set(s.stakePaymentId, (stakeByPayment.get(s.stakePaymentId) ?? 0) + s.amount);
 
-  const wanted = opts.inventoryIds ? new Set(opts.inventoryIds) : null;
   const accounts: RegistrationAccount[] = [];
   for (const reg of registrations) {
-    if (wanted && !wanted.has(reg.id)) continue;
     const billable = reg.approvalStatus === "APPROVED";
     const live = reg.items.filter((i) => i.deletedAt == null);
     const sumU = (f: (i: (typeof live)[number]) => number | null | undefined) =>

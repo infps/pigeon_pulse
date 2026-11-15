@@ -1,6 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { BirdLink } from "@/components/bird-popup";
 import Image from "next/image";
 import type { EnrichedRaceItem } from "./race-results-columns";
 import type { Race } from "@/lib/types";
@@ -187,7 +188,7 @@ export function GoLiveTab({ race, enriched, released, returned, velocityUnit }: 
                           {item.loftName}
                         </p>
                         <p className="text-[11px] text-muted-foreground truncate font-mono">
-                          {item.band}
+                          <BirdLink band={item.band}>{item.band}</BirdLink>
                           {sexIcon && <span className={`ml-1 ${sexColor}`}>{sexIcon}</span>}
                           {item.color && <span className="ml-1">· {item.color}</span>}
                         </p>

@@ -1,6 +1,7 @@
 "use client";
 
 import { isPreviewableFormat, useDocumentPreview } from "@/components/document-preview";
+import { useBirdPopup } from "@/components/bird-popup";
 import { shortBand } from "@/lib/bird-constants";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +17,7 @@ import type { EventInventoryItem, EventInventory } from "@/lib/types";
 import { apiEndpoints } from "@/lib/endpoints";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
-import { Bird as BirdIcon, User } from "lucide-react";
+import { User } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -95,86 +96,6 @@ interface BreederDialogProps {
   allBirds: EventInventoryItem[];
 }
 
-interface BirdDetailDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  item: EventInventoryItem | null;
-}
-
-function BirdDetailDialog({ open, onOpenChange, item }: BirdDetailDialogProps) {
-  const bird = item?.bird;
-  const bandDisplay = bird
-    ? bird.band ||
-      [bird.band1, bird.band2, bird.band3, bird.band4].filter(Boolean).join("-")
-    : "";
-
-  const latestArrived = (() => {
-    const ris = (item?.raceItems ?? []) as Array<{
-      status?: string;
-      result?: { arrivalTime?: string | Date | null; birdPosition?: number | null } | null;
-      race?: { name?: string | null } | null;
-    }>;
-    const arrived = ris.filter(
-      (ri) => ri.status === "ARRIVED" && ri.result?.arrivalTime
-    );
-    if (arrived.length === 0) return null;
-    return arrived.reduce((latest, ri) => {
-      const t = new Date(ri.result!.arrivalTime!).getTime();
-      const lt = new Date(latest.result!.arrivalTime!).getTime();
-      return t > lt ? ri : latest;
-    });
-  })();
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Bird Details</DialogTitle>
-        </DialogHeader>
-        {!bird ? (
-          <div className="py-4 text-sm text-muted-foreground">No bird selected.</div>
-        ) : (
-          <div className="space-y-4">
-            <div className="aspect-square w-full overflow-hidden rounded-lg bg-muted flex items-center justify-center">
-              {bird.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={bird.image}
-                  alt={bird.birdName ?? "Bird"}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <BirdIcon className="h-16 w-16 text-muted-foreground" />
-              )}
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold">{bird.birdName || "Unnamed Bird"}</h2>
-              <p className="font-mono text-sm text-muted-foreground">
-                {bandDisplay || "No band"}
-              </p>
-            </div>
-            <div className="border-t pt-3">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
-                Latest Race
-              </p>
-              {latestArrived ? (
-                <p className="text-sm">
-                  {latestArrived.result?.birdPosition
-                    ? `Position #${latestArrived.result.birdPosition}`
-                    : "Arrived"}
-                  {latestArrived.race?.name ? ` — ${latestArrived.race.name}` : ""}
-                </p>
-              ) : (
-                <p className="text-sm text-muted-foreground">No race results yet</p>
-              )}
-            </div>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function BreederDialog({ open, onOpenChange, inventory, allBirds }: BreederDialogProps) {
   if (!inventory) return null;
 
@@ -243,8 +164,7 @@ function BreederDialog({ open, onOpenChange, inventory, allBirds }: BreederDialo
 export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedInventory, setSelectedInventory] = useState<EventInventory | null>(null);
-  const [birdDetailOpen, setBirdDetailOpen] = useState(false);
-  const [selectedBird, setSelectedBird] = useState<EventInventoryItem | null>(null);
+  const { openBird } = useBirdPopup();
   const { data: session } = authClient.useSession();
 
   const { data, isPending } = useListEventInventoryItems(
@@ -270,9 +190,10 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
     setDialogOpen(true);
   };
 
+  // The shared bird popup: everything about the bird, its races, perch, basket and fees.
   const handleBirdClick = (item: EventInventoryItem) => {
-    setSelectedBird(item);
-    setBirdDetailOpen(true);
+    const birdId = item.bird?.id ?? item.birdId;
+    if (birdId != null) openBird(birdId, { eventId: Number(eventId) });
   };
 
   const columns: ColumnDef<EventInventoryItem>[] = [
@@ -385,12 +306,6 @@ export function EventBirdsTab({ eventId }: EventBirdsTabProps) {
         onOpenChange={setDialogOpen}
         inventory={selectedInventory}
         allBirds={allBirds}
-      />
-
-      <BirdDetailDialog
-        open={birdDetailOpen}
-        onOpenChange={setBirdDetailOpen}
-        item={selectedBird}
       />
     </>
   );

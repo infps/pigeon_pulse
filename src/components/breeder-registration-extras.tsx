@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { BirdLink } from "@/components/bird-popup";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -127,7 +128,7 @@ export function BreederBetsSection({ eventInventoryId }: { eventInventoryId: num
                 <tr key={b.id}>
                   <td className="px-3 py-2">{b.raceNumber != null ? `#${b.raceNumber} ` : ""}{b.raceName}</td>
                   <td className="px-3 py-2">{CATEGORY_LABEL[b.category] ?? b.category} · tier {b.tierIndex}</td>
-                  <td className="px-3 py-2 font-mono">{shortBand(b.band) || "-"}</td>
+                  <td className="px-3 py-2 font-mono"><BirdLink band={b.band}>{shortBand(b.band) || "-"}</BirdLink></td>
                   <td className="px-3 py-2 text-right">${b.amount.toFixed(2)}</td>
                   <td className="px-3 py-2">
                     {b.stakePaid

@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { nextPerch } from "@/lib/bird-moves";
 import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
@@ -111,7 +112,7 @@ export async function POST(
         const createdItems: { id: number }[] = [];
         for (const birdId of newBirdIds) {
           const item = await tx.eventInventoryItem.create({
-            data: { birdId, eventInventoryId: eventInventory.id, arrivalDate: now },
+            data: { birdId, eventInventoryId: eventInventory.id, arrivalDate: now, birdNo: await nextPerch(tx, eventInventory.id), isBackup: 0 },
           });
           createdItems.push({ id: item.id });
           await tx.bird.update({ where: { id: birdId }, data: { isActive: 1 } });

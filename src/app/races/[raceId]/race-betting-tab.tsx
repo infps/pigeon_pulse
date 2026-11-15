@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { BirdLink } from "@/components/bird-popup";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -236,7 +237,7 @@ export function RaceBettingTab({
               return (
                 <tr key={bird.raceItemId} className="border-b hover:bg-muted/40">
                   <td className="p-2 font-medium sticky left-0 bg-background">
-                    {bird.band ?? "-"}
+                    <BirdLink band={bird.band}>{bird.band ?? "-"}</BirdLink>
                     {bird.isOwnBird && <Badge variant="outline" className="ml-2 text-xs">Mine</Badge>}
                   </td>
                   <td className="p-2 text-muted-foreground">{bird.ownerName ?? "-"}</td>

@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { nextPerch } from "@/lib/bird-moves";
 import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
@@ -141,6 +142,7 @@ export async function POST(
         data: {
           birdId: bird.id,
           eventInventoryId: eventInventory.id,
+          birdNo: await nextPerch(tx, eventInventory.id), // its perch, as in HayLoft
           isBackup: isBackup ? 1 : 0,
           // HayLoft creates every entry with its bets active; refund or
           // replacement is what turns them off (EVENT_INVENTORY_ITEM_CHANGE).

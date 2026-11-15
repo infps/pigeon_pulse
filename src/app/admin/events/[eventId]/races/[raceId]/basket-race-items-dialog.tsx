@@ -1,6 +1,7 @@
 "use client";
 
 import { shortBand } from "@/lib/bird-constants";
+import { BirdLink } from "@/components/bird-popup";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -78,7 +79,7 @@ export function BasketRaceItemsDialog({
                   key={item.id}
                   className="text-sm flex items-center justify-between gap-2"
                 >
-                  <span className="font-mono">{shortBand(item.bird?.band)}</span>
+                  <span className="font-mono"><BirdLink band={item.bird?.band}>{shortBand(item.bird?.band)}</BirdLink></span>
                   <span className="text-muted-foreground truncate">
                     {item.bird?.birdName}
                   </span>

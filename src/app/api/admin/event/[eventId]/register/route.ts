@@ -1,4 +1,5 @@
 import { PAYMENT_TYPE } from "@/lib/payment-types";
+import { nextPerch } from "@/lib/bird-moves";
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
@@ -188,6 +189,9 @@ export async function POST(
           data: {
             birdId: bird.id,
             eventInventoryId: eventInventory.id,
+            // Every bird takes a perch, as in HayLoft (BIRD_NO).
+            birdNo: await nextPerch(tx, eventInventory.id),
+            isBackup: 0,
           },
         });
 

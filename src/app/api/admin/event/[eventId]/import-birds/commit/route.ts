@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { nextPerch } from "@/lib/bird-moves";
 import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
@@ -85,7 +86,7 @@ export async function POST(
         }
 
         const item = await tx.eventInventoryItem.create({
-          data: { birdId: bird.id, eventInventoryId: eventInventory.id, isBackup: 0, arrivalDate: new Date() },
+          data: { birdId: bird.id, eventInventoryId: eventInventory.id, isBackup: 0, arrivalDate: new Date(), birdNo: await nextPerch(tx, eventInventory.id) },
         });
 
         await tx.eventInventory.update({

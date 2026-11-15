@@ -1,6 +1,7 @@
 "use client";
 
 import { shortBand } from "@/lib/bird-constants";
+import { BirdLink } from "@/components/bird-popup";
 import {
   Dialog,
   DialogContent,
@@ -104,7 +105,7 @@ export function UserDetailsDialog({ open, onOpenChange, user }: UserDetailsDialo
                   <TableBody>
                     {birds.map((bird: any) => (
                       <TableRow key={bird.id}>
-                        <TableCell className="text-sm">{shortBand(bird.band) || "-"}</TableCell>
+                        <TableCell className="text-sm"><BirdLink band={bird.band}>{shortBand(bird.band) || "-"}</BirdLink></TableCell>
                         <TableCell className="text-sm">{bird.birdName || "-"}</TableCell>
                         <TableCell className="text-sm">{bird.color || "-"}</TableCell>
                         <TableCell className="text-sm">{SEX_LABELS[bird.sex] || "Unknown"}</TableCell>
