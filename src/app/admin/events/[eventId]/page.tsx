@@ -2,6 +2,7 @@
 
 import { use, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { useListEvents } from "@/lib/api/events";
 import { useListFeeSchemes } from "@/lib/api/fee-schemes";
@@ -22,27 +23,29 @@ import { GuidedTour } from "@/components/guided-tour";
 import { tabHelp } from "@/lib/help-content";
 import type { BettingScheme, Event, FeeScheme, PrizeScheme } from "@/lib/types";
 import { DetailsTab } from "./details-tab";
-import { BreedersTab } from "./breeders-tab";
-import { BirdsTab } from "./birds-tab";
-
-import { BasketsTab } from "./baskets-tab";
-import { RacesTab } from "./races-tab";
-import { BettingTab } from "./betting-tab";
-import { MessagesTab } from "./messages-tab";
-import { StationsTab } from "./stations-tab";
-import { EventHistoryTab } from "@/app/events/[eventId]/event-history-tab";
-import { EventResultTab } from "@/app/events/[eventId]/event-result-tab";
-import { DefaultersTab } from "./defaulters-tab";
-import { EventStoreTab } from "./event-store-tab";
-import { GroupsTab } from "./groups-tab";
-import { CalcuttaTab } from "./calcutta-tab";
-import { AveragesTab } from "./averages-tab";
-import { AvgSpeedPrizesCard } from "./avg-speed-prizes-card";
-import { TournamentsTab } from "./tournaments-tab";
-import { ClassesTab } from "./classes-tab";
-import { ContentTab } from "./content-tab";
-import { AccountingTab } from "./accounting-tab";
 import { usePermissions } from "@/hooks/usePermissions";
+
+// Non-default tabs code-split: chunk fetched only when tab first opened (messages pulls tiptap ~750KB).
+const TabLoading = () => <Skeleton className="h-64 w-full" />;
+const BreedersTab = dynamic(() => import("./breeders-tab").then((m) => m.BreedersTab), { loading: TabLoading });
+const BirdsTab = dynamic(() => import("./birds-tab").then((m) => m.BirdsTab), { loading: TabLoading });
+const BasketsTab = dynamic(() => import("./baskets-tab").then((m) => m.BasketsTab), { loading: TabLoading });
+const RacesTab = dynamic(() => import("./races-tab").then((m) => m.RacesTab), { loading: TabLoading });
+const BettingTab = dynamic(() => import("./betting-tab").then((m) => m.BettingTab), { loading: TabLoading });
+const MessagesTab = dynamic(() => import("./messages-tab").then((m) => m.MessagesTab), { loading: TabLoading });
+const StationsTab = dynamic(() => import("./stations-tab").then((m) => m.StationsTab), { loading: TabLoading });
+const EventHistoryTab = dynamic(() => import("@/app/events/[eventId]/event-history-tab").then((m) => m.EventHistoryTab), { loading: TabLoading });
+const EventResultTab = dynamic(() => import("@/app/events/[eventId]/event-result-tab").then((m) => m.EventResultTab), { loading: TabLoading });
+const DefaultersTab = dynamic(() => import("./defaulters-tab").then((m) => m.DefaultersTab), { loading: TabLoading });
+const EventStoreTab = dynamic(() => import("./event-store-tab").then((m) => m.EventStoreTab), { loading: TabLoading });
+const GroupsTab = dynamic(() => import("./groups-tab").then((m) => m.GroupsTab), { loading: TabLoading });
+const CalcuttaTab = dynamic(() => import("./calcutta-tab").then((m) => m.CalcuttaTab), { loading: TabLoading });
+const AveragesTab = dynamic(() => import("./averages-tab").then((m) => m.AveragesTab), { loading: TabLoading });
+const AvgSpeedPrizesCard = dynamic(() => import("./avg-speed-prizes-card").then((m) => m.AvgSpeedPrizesCard), { loading: TabLoading });
+const TournamentsTab = dynamic(() => import("./tournaments-tab").then((m) => m.TournamentsTab), { loading: TabLoading });
+const ClassesTab = dynamic(() => import("./classes-tab").then((m) => m.ClassesTab), { loading: TabLoading });
+const ContentTab = dynamic(() => import("./content-tab").then((m) => m.ContentTab), { loading: TabLoading });
+const AccountingTab = dynamic(() => import("./accounting-tab").then((m) => m.AccountingTab), { loading: TabLoading });
 
 export default function EventDetailsPage({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = use(params);

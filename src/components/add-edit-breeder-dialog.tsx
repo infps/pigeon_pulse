@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useDialogHotkeys } from "@/lib/use-dialog-hotkeys";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,7 @@ import {
 import { toast } from "sonner";
 import { useCreateUser, useUpdateUser } from "@/lib/api/users";
 import type { User, UserRole, UserStatus } from "@/lib/types";
-import { COUNTRIES, getCountryFlag, getCountryName, getStatesForCountry } from "@/lib/flag-constants";
+import { COUNTRIES, getCountryFlag, getCountryName, useStatesForCountry } from "@/lib/flag-constants";
 import Image from "next/image";
 
 interface AddEditBreederDialogProps {
@@ -97,14 +97,8 @@ export function AddEditBreederDialog({
     disabled: createMutation.isPending || updateMutation.isPending,
   });
 
-  const availableStates = useMemo(
-    () => getStatesForCountry(formData.country),
-    [formData.country]
-  );
-  const availableStates2 = useMemo(
-    () => getStatesForCountry(formData.country2),
-    [formData.country2]
-  );
+  const availableStates = useStatesForCountry(formData.country);
+  const availableStates2 = useStatesForCountry(formData.country2);
 
   // Update form data when editing/copying user changes
   useEffect(() => {

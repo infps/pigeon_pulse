@@ -24,19 +24,20 @@ import type { Race, RaceItem } from "@/lib/types";
 import { RaceWindButton } from "@/components/map/race-wind-dialog";
 import Image from "next/image";
 
-function useElapsedTimer(startTime: string | null | undefined, active: boolean): string {
-  const [tick, setTick] = useState(0);
+// Own component so the 1s tick re-renders only this span, not the whole results page.
+function ElapsedTimer({ startTime }: { startTime: string | null | undefined }) {
+  const [, setTick] = useState(0);
   useEffect(() => {
-    if (!active || !startTime) return;
+    if (!startTime) return;
     const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(id);
-  }, [active, startTime]);
-  if (!startTime) return "+00:00:00";
+  }, [startTime]);
+  if (!startTime) return <>+00:00:00</>;
   const elapsed = Math.max(0, Date.now() - new Date(startTime).getTime());
   const h = Math.floor(elapsed / 3600000);
   const m = Math.floor((elapsed % 3600000) / 60000);
   const s = Math.floor((elapsed % 60000) / 1000);
-  return `+${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return <>{`+${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`}</>;
 }
 
 function raceTypeLabel(code?: string | null): string {
@@ -96,7 +97,6 @@ export default function PublicRacePage() {
 
   const race = raceData?.race as Race;
   const isLive = race?.status === "STARTED";
-  const elapsed = useElapsedTimer(race?.startTime, isLive);
 
   const { data: raceItemsData, isPending: raceItemsLoading } = useApiQuery({
     endpoint: apiEndpoints.breeder.raceItems(raceId),
@@ -265,7 +265,7 @@ export default function PublicRacePage() {
                   {isLive && (
                     <div className="flex items-center gap-1.5 bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-700 rounded-full px-3 py-1">
                       <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                      <span className="text-sm font-mono font-semibold text-red-600 dark:text-red-400">{elapsed}</span>
+                      <span className="text-sm font-mono font-semibold text-red-600 dark:text-red-400"><ElapsedTimer startTime={race.startTime} /></span>
                     </div>
                   )}
                   {race.status === "REGISTERING" && (

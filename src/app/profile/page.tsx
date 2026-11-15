@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +21,7 @@ import {
 import { Monitor, Loader2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { Session, set } from "better-auth";
-import { COUNTRIES, getCountryFlag, getCountryName, getStatesForCountry } from "@/lib/flag-constants";
+import { COUNTRIES, getCountryFlag, getCountryName, useStatesForCountry } from "@/lib/flag-constants";
 import Image from "next/image";
 
 interface UserProfile {
@@ -115,10 +115,7 @@ export default function ProfilePage() {
     fetchProfile();
   }, [session?.user]);
 
-  const availableStates = useMemo(
-    () => getStatesForCountry(formData.country),
-    [formData.country]
-  );
+  const availableStates = useStatesForCountry(formData.country);
 
   const handleInputChange = (field: string, value: string) => {
     if (field === "country") {

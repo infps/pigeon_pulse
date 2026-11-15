@@ -1,4 +1,4 @@
-import { State } from "country-state-city";
+import { useEffect, useState } from "react";
 
 // Map non-standard country codes to ISO 3166-1 alpha-2 for country-state-city lookup
 const COUNTRY_ISO_MAP: Record<string, string> = {
@@ -160,10 +160,20 @@ export const getStateName = (code: string | null | undefined) => {
   return STATES[upperCode] || code;
 };
 
-/** Get states/provinces for a country using country-state-city package */
-export const getStatesForCountry = (countryCode: string | null | undefined): { code: string; name: string }[] => {
-  if (!countryCode) return [];
-  const isoCode = COUNTRY_ISO_MAP[countryCode.toUpperCase()] || countryCode.toUpperCase();
-  const states = State.getStatesOfCountry(isoCode);
-  return states.map(s => ({ code: s.isoCode, name: s.name }));
+type StateOption = { code: string; name: string };
+
+/** States/provinces for a country. country-state-city (~550KB) is lazy-loaded so it stays out of page chunks. */
+export const useStatesForCountry = (countryCode: string | null | undefined): StateOption[] => {
+  const [states, setStates] = useState<StateOption[]>([]);
+  useEffect(() => {
+    if (!countryCode) { setStates([]); return; }
+    let cancelled = false;
+    const isoCode = COUNTRY_ISO_MAP[countryCode.toUpperCase()] || countryCode.toUpperCase();
+    // Deep import: package root would drag city.json (8MB) into the lazy chunk.
+    import("country-state-city/lib/state").then(({ getStatesOfCountry }) => {
+      if (!cancelled) setStates(getStatesOfCountry(isoCode).map(s => ({ code: s.isoCode, name: s.name })));
+    });
+    return () => { cancelled = true; };
+  }, [countryCode]);
+  return states;
 };

@@ -382,10 +382,11 @@ function AuctionTab({
   useEffect(() => {
     if (!lastBidAt) { setElapsed(0); return; }
     timerRef.current = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - lastBidAt.getTime()) / 1000));
+      // Clamp at window end: same value → React bails, no endless whole-tab re-render.
+      setElapsed(Math.min(antiSnipe, Math.floor((Date.now() - lastBidAt.getTime()) / 1000)));
     }, 500);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [lastBidAt]);
+  }, [lastBidAt, antiSnipe]);
 
   // Pusher subscription
   useEffect(() => {
