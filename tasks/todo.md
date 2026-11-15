@@ -253,7 +253,8 @@ Applied to the Neon dev DB on 2026-10-09 unless marked otherwise.
 4. HayLoft data sync (2026-11-12 `HAYLOFT.FDB`): DATA, no schema. See `scripts/hayloft-sync/README.md`.
    - Applied to the Neon dev DB on 2026-11-12: +AGN 2026 as event 20 / season 28, AGN 2025 races after the import, ~410k rows.
    - **`CUTOFF` ids in `sync.cjs` are specific to the dev DB.** Re-derive them for live and dry-run before `--apply`.
-   - AGN 2025 (season 15) scheme pointers left as they are (betting 3 / final 29 / avg 30; HayLoft has 5 / 32 / 36). This was a decision.
+   - AGN 2025 (season 15) scheme pointers: the sync leaves them, but on 2026-11-15 they were switched to HayLoft's (betting 3→5, final 29→32, avg 30→36) so Total bets matches HayLoft ($16,460). Do the same on live.
+   - Also on 2026-11-15 (dev): deleted 2 AGN 2025 registrations HayLoft had deleted (3155 Abraham Ramirez, 3256 John Young; no birds) and John Young's $525 payment 7560. Ids are dev ids; find the same rows on live by breeder + season before deleting.
    - Run after item 3, so the imported-payments-PAID boundary still refers to pre-sync ids.
 5. Payments breeder backfill: DATA, no schema. `node scripts/hayloft-sync/backfill-payment-breeder.cjs` (dry run), then `--apply`.
    - Every HayLoft-imported payment had `ID_BREEDER` null, so the breeder payment screens (`/payments`, pending, single payment) showed nothing / $0. It copies the registration's breeder.

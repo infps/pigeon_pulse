@@ -55,6 +55,9 @@ interface DashboardStats {
   betsRefund: number;
   betsCommission: number;
   betsValue: number;
+  paidPerchFee: number;
+  paidEntryFee: number;
+  paidHotSpot: number;
   paymentClasses: number;
 }
 
@@ -205,9 +208,9 @@ export function DetailsTab({ event, eventId, feeSchemes, prizeSchemes, bettingSc
               <CardTitle className="text-sm font-semibold">Total payment</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1.5">
-              <StatRow label="Perch fee" value={fmtCurrency(stats?.totalPerchFee ?? 0)} />
-              <StatRow label="Entry fee" value={fmtCurrency(stats?.entryFees ?? 0)} />
-              <StatRow label="Perch fee (hot spot)" value={fmtCurrency(stats?.hotSpotFees ?? 0)} />
+              <StatRow label="Perch fee" value={fmtCurrency(stats?.paidPerchFee ?? 0)} />
+              <StatRow label="Entry fee" value={fmtCurrency(stats?.paidEntryFee ?? 0)} />
+              <StatRow label="Perch fee (hot spot)" value={fmtCurrency(stats?.paidHotSpot ?? 0)} />
               <StatRow label="Classes" value={fmtCurrency(stats?.paymentClasses ?? 0)} />
             </CardContent>
           </Card>
