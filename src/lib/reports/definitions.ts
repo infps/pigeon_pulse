@@ -487,7 +487,7 @@ async function buildFeeScheme(params: ReportParams): Promise<ReportData> {
   if (!scheme) throw new Error("Fee scheme not found.");
 
   const rows: string[][] = [
-    ["Entry (purge) fee", "flat, once per registration", money(scheme.entryFee)],
+    ["Entry fee", "per bird (as HayLoft)", money(scheme.entryFee)],
     ["Maximum birds", "per registration", num(scheme.maxBirdCount)],
     ["Maximum backup birds", "per registration", num(scheme.maxBackupBirdCount)],
     ["Floating backups", "backups flex across registrations", scheme.isFloatingBackup === 1 ? "Yes" : "No"],

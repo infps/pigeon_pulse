@@ -673,8 +673,10 @@ export function RegisterTab({ event, eventId }: RegisterTabProps) {
               {fees && (
                 <div className="mt-4 pt-4 border-t space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Entry Fee:</span>
-                    <span className="font-medium">${fees.purgeFee.toFixed(2)}</span>
+                    <span className="text-muted-foreground">
+                      Entry Fee (${fees.entryFeePerBird.toFixed(2)} × {reservedBirds} birds):
+                    </span>
+                    <span className="font-medium">${fees.entryFees.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Per Bird Fees ({reservedBirds} birds):</span>

@@ -37,6 +37,11 @@ export interface PerBirdFees {
 }
 
 export interface FeeBreakdown {
+  /** The scheme's entry fee, charged on every bird (HayLoft ENTRY_FEE_BATCH_SET). */
+  entryFeePerBird: number;
+  /** entryFeePerBird × birds. */
+  entryFees: number;
+  /** @deprecated Same as entryFees: the entry fee is per bird, as in HayLoft, not once. */
   purgeFee: number;
   perchFees: number;
   raceFees: number;
@@ -164,8 +169,11 @@ export function gateAmount(
 export function calculateFees(input: FeeCalculationInput): FeeBreakdown {
   const { numBirds, feeScheme, races } = input;
 
-  // Purge Fee = 1-time flat fee (NOT per bird)
-  const purgeFee = feeScheme.entryFee ?? 0;
+  // Entry fee: the scheme's ENTRY_FEE on every bird, as HayLoft charges it
+  // (ENTRY_FEE_BATCH_SET). It was once a flat fee per registration; the
+  // client chose HayLoft's rule on 2026-11-15.
+  const entryFeePerBird = feeScheme.entryFee ?? 0;
+  const entryFees = entryFeePerBird * numBirds;
 
   const hs1 = feeScheme.hotSpot1Fee ?? 0;
   const hs2 = feeScheme.hotSpot2Fee ?? 0;
@@ -218,7 +226,9 @@ export function calculateFees(input: FeeCalculationInput): FeeBreakdown {
   const hotspotBilled = HOTSPOT_CASCADE === "SINGLE" ? hotspotDue : hotspotFees;
 
   return {
-    purgeFee,
+    entryFeePerBird,
+    entryFees,
+    purgeFee: entryFees,
     perchFees,
     raceFees,
     hotspot1Fees: hs1 * numBirds,
@@ -230,7 +240,7 @@ export function calculateFees(input: FeeCalculationInput): FeeBreakdown {
     hotspotBilled,
     // The spec's total, unchanged. Race fees stay in it as a preview: Task C
     // moves where they are *written*, not whether a breeder is shown them.
-    total: purgeFee + perchFees + raceFees + hotspotBilled,
+    total: entryFees + perchFees + raceFees + hotspotBilled,
     perBirdBreakdown,
   };
 }

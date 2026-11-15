@@ -488,7 +488,7 @@ model StandardShowPercentage {
   id              Int  @id @default(autoincrement()) @map("ID_STANDARD_SHOW_PERCENTAGE")
   bettingSchemeId Int? @map("ID_BETTING_SCHEME")
   place           Int? @map("PLACE")
-  percValue       Int? @map("PERC_VALUE")
+  percValue       Float? @map("PERC_VALUE")
 
   bettingScheme BettingScheme? @relation(fields: [bettingSchemeId], references: [id])
 }
@@ -970,7 +970,7 @@ model Partner {
 model AvgWinnerPrizes {
   inventoryItemId Int  @id @map("ID_EVENT_INVENTORY_ITEM")
   seasonId        Int? @map("SEASON_ID")
-  prizeValue      Int? @map("PRIZE_VALUE")
+  prizeValue      Float? @map("PRIZE_VALUE")
 
   season        Season?            @relation(fields: [seasonId], references: [id])
   inventoryItem EventInventoryItem @relation(fields: [inventoryItemId], references: [id])

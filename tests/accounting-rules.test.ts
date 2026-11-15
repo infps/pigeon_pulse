@@ -133,3 +133,23 @@ describe("PayPal capture picks the right pending payment", () => {
     expect(alreadyRecorded(rows, "CAP-2")).toBe(false);
   });
 });
+
+describe("registration fees (calculateFees)", () => {
+  test("the entry fee is charged on every bird, as HayLoft charges it", async () => {
+    const { calculateFees } = await import("@/lib/fee-calculator");
+    const fees = calculateFees({
+      numBirds: 4,
+      feeScheme: {
+        entryFee: 350,
+        hotSpot1Fee: null, hotSpot2Fee: null, hotSpot3Fee: null, hotSpotFinalFee: null,
+        birdFeeItems: [{ birdNo: 1, birdFee: 140 }, { birdNo: 2, birdFee: 140 }, { birdNo: 3, birdFee: 140 }, { birdNo: 4, birdFee: 90 }],
+        raceTypeFees: [],
+      } as never,
+      races: [],
+    });
+    expect(fees.entryFeePerBird).toBe(350);
+    expect(fees.entryFees).toBe(1400);
+    expect(fees.perchFees).toBe(510);
+    expect(fees.total).toBe(1910);
+  });
+});

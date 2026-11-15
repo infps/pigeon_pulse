@@ -1,3 +1,4 @@
+import { applyLostRefunds } from "@/lib/hayloft-fees";
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
@@ -96,6 +97,13 @@ export async function PATCH(
     }
     // Update both bird and event inventory item in a transaction
     const result = await prisma.$transaction(async (tx) => {
+      // HayLoft refunds only when the lost status actually changes.
+      const before = await tx.bird.findUnique({
+        where: { id: eventInventoryItem.birdId! },
+        select: { isLost: true },
+      });
+      const nowLost = validatedData.isLost ? 1 : 0;
+
       // Update the bird
       const updatedBird = await tx.bird.update({
         where: { id: eventInventoryItem.birdId! },
@@ -142,6 +150,12 @@ export async function PATCH(
           wtaBet5: validatedData.wtaBet5 ?? null,
         },
       });
+
+      if ((before?.isLost ?? 0) !== nowLost) {
+        // BIRD_LOST_STATUS_MODIFY -> BIRD_REFUNDS_MODIFY
+        const lostRaceId = validatedData.lostRaceId ? parseInt(String(validatedData.lostRaceId)) : null;
+        await applyLostRefunds(tx, { birdId: eventInventoryItem.birdId!, raceId: lostRaceId, isLost: nowLost === 1 });
+      }
 
       return { bird: updatedBird, eventInventoryItem: updatedEventInventoryItem };
     });

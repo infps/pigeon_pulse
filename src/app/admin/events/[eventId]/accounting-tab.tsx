@@ -87,6 +87,9 @@ export function AccountingTab({ eventId }: { eventId: string }) {
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [working, setWorking] = useState(false);
+  // HayLoft's "post entry" / "post hot spot" (ENTRY_FEE_BATCH_SET).
+  const [posting, setPosting] = useState<null | "post_entry" | "post_hot_spot">(null);
+  const [postBusy, setPostBusy] = useState(false);
 
   const load = useCallback(async () => {
     if (selectedSeasonId == null) return;
@@ -149,12 +152,55 @@ export function AccountingTab({ eventId }: { eventId: string }) {
     return <p className="text-sm text-muted-foreground">Choose a season first.</p>;
   }
 
+  const postFees = async () => {
+    if (!posting) return;
+    setPostBusy(true);
+    try {
+      const res = await fetch(`/api/admin/event/${eventId}/post-fees`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seasonId: selectedSeasonId, operation: posting }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.message ?? "Could not post the fees");
+        return;
+      }
+      toast.success(data.message);
+      setPosting(null);
+      load();
+    } finally {
+      setPostBusy(false);
+    }
+  };
+
   const reportUrl = (key: string, format: string) =>
     `/api/admin/reports/${key}?format=${format}&seasonId=${selectedSeasonId}`;
 
   return (
     <div className="space-y-6">
       {previewNode}
+      <Dialog open={posting != null} onOpenChange={(open) => !open && setPosting(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{posting === "post_hot_spot" ? "Post hot spot fees" : "Post entry fees"}</DialogTitle>
+            <DialogDescription>
+              {posting === "post_hot_spot"
+                ? "Puts this season's Hot Spot 1 fee on every bird still competing (not lost, active, not replaced, not departed), as HayLoft's \"post hot spot\" does."
+                : "Puts this season's entry fee on every bird still competing (not lost, active, not replaced, not departed), as HayLoft's \"post entry\" does."}
+              {" "}Birds already carrying the fee keep it; other birds are not changed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPosting(null)} disabled={postBusy}>
+              Cancel
+            </Button>
+            <Button onClick={postFees} disabled={postBusy}>
+              {postBusy ? "Posting…" : "Post fees"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -163,6 +209,12 @@ export function AccountingTab({ eventId }: { eventId: string }) {
               Accounting
             </CardTitle>
             <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={() => setPosting("post_entry")}>
+                Post entry fees
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setPosting("post_hot_spot")}>
+                Post hot spot fees
+              </Button>
               <Button variant="outline" size="sm" onClick={() => showDoc(reportUrl("season-ledger", "pdf"), "Season ledger")}>
                 <FileDown className="mr-1.5 h-3.5 w-3.5" />
                 Ledger PDF
