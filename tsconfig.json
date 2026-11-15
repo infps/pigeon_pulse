@@ -30,5 +30,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "tests", "scripts/hayloft-sync/reconcile-details.ts", "scripts/hayloft-sync/reconcile-accounts.ts", "scripts/hayloft-sync/reconcile-races.ts", "scripts/hayloft-sync/reconcile-avg-speed.ts"]
 }

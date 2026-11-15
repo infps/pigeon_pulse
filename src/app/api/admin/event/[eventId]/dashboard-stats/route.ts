@@ -1,10 +1,20 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
-import { approvedItem, activeRaceItemOr, approvedInventory } from "@/lib/entry-filters";
+import { approvedItem, activeRaceItemOr } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
+import { BET_PRICE_SELECT } from "@/lib/class-bets";
+import { seasonAccounts } from "@/lib/hayloft-account";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+/**
+ * The event Details screen: the same boxes and the same arithmetic as HayLoft's
+ * Details screen, so the two can be compared figure by figure. The boxes are
+ * totals of HayLoft's per-registration rows (lib/hayloft-account, a port of
+ * EVENT_INVENTORY_GET), as HayLoft's own screen totals them. Checked against
+ * HayLoft's AGN 2025 screen and, per registration, against HayLoft's procedure
+ * output (scripts/hayloft-sync/reconcile-accounts.ts, reconcile-details.ts).
+ */
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> }
@@ -28,7 +38,7 @@ export async function GET(
       orderBy: { startDate: "desc" },
       include: {
         feeScheme: { select: { name: true, feesCutPercent: true } },
-        bettingScheme: { select: { name: true } },
+        bettingScheme: { select: { name: true, ...BET_PRICE_SELECT } },
         finalPrize: { select: { name: true, prizeSchemeItems: { select: { prizeValue: true } } } },
         hotSpot1Prize: { select: { name: true, prizeSchemeItems: { select: { prizeValue: true } } } },
         hotSpot2Prize: { select: { name: true, prizeSchemeItems: { select: { prizeValue: true } } } },
@@ -75,6 +85,10 @@ export async function GET(
       betsRefund: 0,
       betsCommission: 0,
       betsValue: 0,
+      paidPerchFee: 0,
+      paidEntryFee: 0,
+      paidHotSpot: 0,
+      paidRegistration: 0,
       paymentClasses: 0,
     };
 
@@ -82,109 +96,69 @@ export async function GET(
 
     const cutPct = activeSeason.feeScheme?.feesCutPercent ?? 0;
 
-    // --- EventInventory aggregations ---
-    const inventories = await prisma.eventInventory.findMany({
-      where: { seasonId: activeSeason.id, ...approvedInventory },
-      select: { id: true, reservedBirds: true },
-    });
+    // --- HayLoft's registration rows (EVENT_INVENTORY_GET); the boxes are their totals ---
+    const { accounts, bettingCutPercent } = await seasonAccounts(activeSeason.id);
+    // Every registration HayLoft would list; a portal registration an admin rejected is out.
+    const rows = accounts.filter((a) => a.approvalStatus !== "REJECTED");
+    const sum = (pick: (a: (typeof rows)[number]) => number) => rows.reduce((s, a) => s + pick(a), 0);
 
-    const inventoryIdList = inventories.map((i) => i.id);
-    const breederCount = inventories.length;
-    const reservedWaiting = await prisma.eventInventory.count({
-      where: { seasonId: activeSeason.id, approvalStatus: "WAITING" },
-    });
-    const reservedBirds = inventories.reduce((s, i) => s + (i.reservedBirds ?? 0), 0);
+    const breederCount = rows.filter((a) => a.approvalStatus === "APPROVED").length;
+    const reservedBirds = sum((a) => a.reservedBirds);
+    const reservedWaiting = sum((a) => (a.isWaiting ? a.reservedBirds : 0));
+    const hereCount = sum((a) => a.inLoftBirds);
+    const replacedCount = sum((a) => a.replacedBirds);
+    const lostBirds = sum((a) => a.lostBirds);
+    const totalPerchFee = sum((a) => a.perchFee);
 
-    // --- EventInventoryItem aggregations (single pass) ---
-    const items = await prisma.eventInventoryItem.findMany({
-      where: { eventInventoryId: { in: inventoryIdList }, deletedAt: null },
-      select: {
-        replacedItemId: true,
-        entryFeeValue: true,
-        entryRefund: true,
-        perchFeeValue: true,
-        hotSpotFeeValue: true,
-        hotSpotRefund: true,
-        raceFeeValue: true,
-      },
-    });
-
-    let totalPerchFee = 0;
-    let hereCount = 0;
-    let replacedCount = 0;
-    let entryFees = 0;
-    let entryRefundSum = 0;
-    let hotSpotFees = 0;
-    let hotSpotRefunds = 0;
-    let paymentClasses = 0;
-
-    for (const item of items) {
-      if (item.replacedItemId != null) {
-        replacedCount++;
-      } else {
-        hereCount++;
-      }
-      totalPerchFee += item.perchFeeValue ?? 0;
-      entryFees += item.entryFeeValue ?? 0;
-      entryRefundSum += item.entryRefund ?? 0;
-      hotSpotFees += item.hotSpotFeeValue ?? 0;
-      hotSpotRefunds += item.hotSpotRefund ?? 0;
-      paymentClasses += item.raceFeeValue ?? 0;
-    }
-
-    const entryCommission = entryFees * (cutPct / 100);
+    const entryFeeBirds = sum((a) => a.entryBirds);
+    const entryFees = sum((a) => a.entryFee);
+    const entryRefundSum = sum((a) => a.entryRefund);
+    // Commission is taken on what was kept, after refunds — as HayLoft does
+    // (AGN 2025: ($282,100 − $350) × 15% = $42,262.50).
+    const entryCommission = (entryFees - entryRefundSum) * (cutPct / 100);
     const entryTotalValue = entryFees - entryRefundSum - entryCommission;
-    const hotSpotCommission = hotSpotFees * (cutPct / 100);
+
+    const hotSpotBirds = sum((a) => a.hotSpotBirds);
+    const hotSpotFees = sum((a) => a.hotSpotFee);
+    const hotSpotRefunds = sum((a) => a.hotSpotRefund);
+    const hotSpotCommission = (hotSpotFees - hotSpotRefunds) * (cutPct / 100);
     const hotSpotValue = hotSpotFees - hotSpotRefunds - hotSpotCommission;
 
-    // --- RaceItem aggregations ---
-    const raceItems = await prisma.raceItem.findMany({
-      where: {
-        race: { seasonId: activeSeason.id },
-        OR: activeRaceItemOr,
-      },
-      select: {
-        isLost: true,
-        status: true,
-        inventoryItemId: true,
-        displayStatus: { select: { trigger: true } },
-      },
-    });
+    // --- Birds: counted once each, not once per race flown ---
+    const [foreignBirdRows, injuredRows] = await Promise.all([
+      prisma.raceItem.count({
+        where: { race: { seasonId: activeSeason.id }, OR: activeRaceItemOr, status: "FOREIGN_BIRD" },
+      }),
+      prisma.raceItem.findMany({
+        where: {
+          race: { seasonId: activeSeason.id },
+          OR: activeRaceItemOr,
+          inventoryItemId: { not: null },
+          displayStatus: { trigger: "INJURED" },
+        },
+        select: { inventoryItemId: true },
+        distinct: ["inventoryItemId"],
+      }),
+    ]);
+    const totalBirdsCount = hereCount + replacedCount;
+    const injuredBirds = injuredRows.length;
+    const foreignBirds = foreignBirdRows;
+    const activeBirds = Math.max(0, totalBirdsCount - lostBirds - injuredBirds);
 
-    let lostBirds = 0;
-    let foreignBirds = 0;
-    let injuredBirds = 0;
-    let activeBirds = 0;
-
-    for (const ri of raceItems) {
-      if (ri.isLost) {
-        lostBirds++;
-      } else if (ri.status === "FOREIGN_BIRD") {
-        foreignBirds++;
-      } else if (ri.displayStatus?.trigger === "INJURED") {
-        injuredBirds++;
-      } else {
-        activeBirds++;
-      }
-    }
-
-    const inventoryItemIdsInRaces = new Set(
-      raceItems.map((r) => r.inventoryItemId).filter(Boolean)
-    );
-    const birdsNotInAnyRace = items.length - inventoryItemIdsInRaces.size;
-    const totalBirdsCount = raceItems.length + birdsNotInAnyRace;
-    activeBirds = activeBirds + birdsNotInAnyRace;
-
-    // --- Payment aggregations ---
-    const paymentsAgg = await prisma.payment.aggregate({
-      where: { eventInventoryId: { in: inventoryIdList }, status: "PAID" },
-      _sum: { paymentValue: true },
-    });
-    const totalCollected = paymentsAgg._sum.paymentValue ?? 0;
+    // --- "Total payment": payments of each type (PAYMENT_CALC) ---
+    const paidPerchFee = sum((a) => a.pay.perchFee);
+    const paidEntryFee = sum((a) => a.pay.entryFee);
+    const paidHotSpot = sum((a) => a.pay.hotSpot);
+    const paidClasses = sum((a) => a.pay.bets);
+    const paidRegistration = sum((a) => a.pay.registration);
+    const totalCollected = sum((a) => a.totalPayment);
     const platformFee = totalCollected * (cutPct / 100);
 
-    // --- Bet aggregations ---
-    const betsPlacedAgg = await prisma.bet.aggregate({
+    // --- "Total bets": class bets (INVENTORY_BETS_CALC, every flag) plus any
+    // race pool bets placed through the portal, which are separate money ---
+    const classBets = sum((a) => a.betsValue);
+    const classBetsRefund = sum((a) => a.betsRefund);
+    const poolBetsAgg = await prisma.bet.aggregate({
       where: {
         race: { seasonId: activeSeason.id },
         raceItem: { inventoryItem: approvedItem },
@@ -192,18 +166,11 @@ export async function GET(
       },
       _sum: { amount: true },
     });
-    const totalBets = betsPlacedAgg._sum.amount ?? 0;
-
-    const betsRefundAgg = await prisma.bet.aggregate({
-      where: {
-        race: { seasonId: activeSeason.id },
-        raceItem: { inventoryItem: approvedItem },
-        status: { in: ["WON", "PAID"] },
-      },
-      _sum: { payoutValue: true },
-    });
-    const betsRefund = betsRefundAgg._sum.payoutValue ?? 0;
-    const betsCommission = totalBets * (cutPct / 100);
+    const poolBets = poolBetsAgg._sum.amount ?? 0;
+    const totalBets = classBets + poolBets;
+    const betsRefund = classBetsRefund;
+    // As with fees, commission is on what was kept (HayLoft: $16,460 × 15% = $2,469).
+    const betsCommission = (classBets - classBetsRefund) * (bettingCutPercent / 100) + poolBets * (cutPct / 100);
     const betsValue = totalBets - betsRefund - betsCommission;
 
     // --- Prize pool ---
@@ -247,12 +214,12 @@ export async function GET(
       reservedBirds,
       hereCount,
       replacedCount,
-      entryFeeBirds: items.length,
+      entryFeeBirds,
       entryFees,
       entryRefund: entryRefundSum,
       entryCommission,
       entryTotalValue,
-      hotSpotBirds: items.length,
+      hotSpotBirds,
       hotSpotFees,
       hotSpotRefunds,
       hotSpotCommission,
@@ -261,7 +228,12 @@ export async function GET(
       betsRefund,
       betsCommission,
       betsValue,
-      paymentClasses,
+      // "Total payment": money received, by payment type.
+      paidPerchFee,
+      paidEntryFee,
+      paidHotSpot,
+      paidRegistration,
+      paymentClasses: paidClasses,
     });
   } catch (error) {
     console.error("Error fetching dashboard stats:", error);

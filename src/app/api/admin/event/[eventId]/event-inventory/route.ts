@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { seasonAccounts } from "@/lib/hayloft-account";
 import { requireAnyPermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
@@ -97,7 +98,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
                         hotSpot1FeeValue: true,
                         hotSpot2FeeValue: true,
                         hotSpot3FeeValue: true,
-                        hotSpotFinalFeeValue: true,
+                        hotSpotFinalFeeValue: true, entryRefund: true, hotSpotRefund: true, transferDue: true,
                         birdId: true,
                         eventInventoryId: true,
                     },
@@ -108,7 +109,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
         // Per-registration fee totals + hybrid status, computed once here so the
         // table needs no per-row queries. Same calc as defaulters / fee-breakdown.
         const openGate = await openHotspotGate(seasonId);
+        // HayLoft's account per registration: the balance its registration list shows.
+        const { accounts } = await seasonAccounts(seasonId, { inventoryIds: eventInventory.map((i) => i.id) });
+        const accountById = new Map(accounts.map((a) => [a.eventInventoryId, a]));
         const withTotals = eventInventory.map((inv) => {
+            const account = accountById.get(inv.id);
             const t = computePaymentTotals(inv.items, inv.payments, inv.hotspotsPaidMask, openGate);
             const sum = (f: (i: (typeof inv.items)[number]) => number) => inv.items.reduce((s, i) => s + f(i), 0);
             return {
@@ -121,6 +126,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
                     owed: t.owed,
                     paid: t.totalPaid,
                     status: t.status,
+                    // HayLoft BALANCE_VALUE: positive, the breeder owes; negative, they are owed.
+                    balance: account ? Math.round(account.balance * 100) / 100 : null,
+                    won: account ? Math.round(account.winnerPayoutValue * 100) / 100 : null,
                 },
             };
         });

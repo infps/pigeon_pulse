@@ -5,6 +5,7 @@ import { activeRaceItemOr } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { presetIdFor } from "@/lib/birdStatus";
 import { recalcRace } from "@/lib/race-results";
+import { applyLostRefunds } from "@/lib/hayloft-fees";
 import { notifyRaceEnded } from "@/lib/notifications";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -152,6 +153,15 @@ export async function POST(
         const feesCleared = await clearRaceFeeForLostBirds(tx, itemsToLose);
         for (const itemId of itemsToRecover) {
           await writeRaceFeeForBasketedBird(tx, race.seasonId!, itemId);
+        }
+
+        // HayLoft refunds a lost bird's entry / hot spot fee and bets, and
+        // clears them again if it turns up (BIRD_REFUNDS_MODIFY).
+        for (const birdId of birdsToLose) {
+          await applyLostRefunds(tx, { birdId, raceId: raceIdInt, isLost: true });
+        }
+        for (const birdId of birdsToRecover) {
+          await applyLostRefunds(tx, { birdId, raceId: raceIdInt, isLost: false });
         }
 
         return {

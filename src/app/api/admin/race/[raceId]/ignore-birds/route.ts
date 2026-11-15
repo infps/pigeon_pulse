@@ -19,8 +19,8 @@ const bodySchema = z.object({
  * for any other reason. The table came across with 612 rows but was never
  * applied to results and had no interface.
  *
- * The result engine now excludes these birds from both the position and
- * hotspot rankings, so marking one requires a recalculation to take effect.
+ * HayLoft ranks these birds anyway, and so does the result engine (see
+ * lib/race-results). To drop a bird from results use race status IGNORED.
  */
 export async function GET(
   request: Request,

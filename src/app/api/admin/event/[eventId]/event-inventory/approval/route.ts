@@ -1,3 +1,4 @@
+import { PAYMENT_TYPE } from "@/lib/payment-types";
 import { requirePermission } from "@/lib/authorize";
 import { notifySafely } from "@/lib/notifications";
 import { computePaymentTotals } from "@/lib/paymentStatus";
@@ -50,7 +51,7 @@ export async function POST(
         approvalStatus: true,
         breeder: { select: { userId: true } },
         payments: {
-          select: { id: true, paymentValue: true, paymentDesc: true, paymentType: true, status: true },
+          select: { id: true, paymentValue: true, paymentDesc: true, paymentType: true, hotspotGate: true, status: true },
         },
         refunds: { select: { amount: true } },
       },
@@ -131,8 +132,9 @@ export async function POST(
         for (const bet of openBets.filter((b) => stakePaid(b) && !isOwner(b))) {
           await tx.payment.create({
             data: {
-              paymentType: 3,
-              paymentValue: bet.amount,
+              // Money out is stored negative, as HayLoft does (lib/payment-types).
+              paymentType: PAYMENT_TYPE.BETS_REFUND,
+              paymentValue: -Math.abs(bet.amount),
               paymentDate: now,
               paymentDesc: `Bet refund: ${bet.category} tier ${bet.tierIndex} (registration rejected)`,
               status: "PENDING",

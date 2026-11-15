@@ -19,8 +19,12 @@
  *   - Lost birds are excluded from both rankings.
  *   - A bird with no matching prize band gets NULL, not zero.
  *
- * Deliberate departure from legacy: birds on the race's ignore list are also
- * excluded from ranking. HayLoft had RACE_IGNORE_BIRD but never applied it here.
+ * Birds on the race's ignore list are ranked, as in HayLoft: its position
+ * procedures never consult RACE_IGNORE_BIRD. (An earlier version excluded them,
+ * which shifted every later finisher by a place relative to HayLoft.)
+ *
+ * Checked against HayLoft's own RACE_RECALC on every final and hot spot race:
+ * scripts/hayloft-sync/reconcile-races.ts.
  *
  * Implementation note: the legacy procedures looped row by row, which is free
  * inside the database engine but not from an application server talking to a
@@ -110,17 +114,13 @@ export async function recalcPositions(
              ) AS pos
       FROM "RaceItemResult" rir
       JOIN "RaceItem" ri ON ri."ID_RACE_ITEM" = rir."ID_RACE_ITEM"
-      LEFT JOIN "EventInventoryItem" eii
+      -- HayLoft: an inner join, so a race entry with no event entry is not ranked.
+      JOIN "EventInventoryItem" eii
              ON eii."ID_EVENT_INVENTORY_ITEM" = ri."ID_INVENTORY_ITEM"
       WHERE ri."ID_RACE" = ${raceId}
         AND COALESCE(ri."IS_LOST", 0) <> 1
         AND ri."status" NOT IN ('IGNORED', 'STRAY', 'LOST')
         AND rir."ARRIVAL_TIME" IS NOT NULL
-        AND NOT EXISTS (
-          SELECT 1 FROM "RaceIgnoreBird" ib
-          WHERE ib."ID_RACE" = ${raceId}
-            AND ib."ID_EVENT_INVENTORY_ITEM" = ri."ID_INVENTORY_ITEM"
-        )
         AND (${isFinal}::boolean = false OR COALESCE(eii."ENTRY_FEE_PAID", 0) = 1)
         AND ${activeItemSql("eii")}
     )
@@ -137,16 +137,11 @@ export async function recalcPositions(
       COUNT(*) FILTER (
         WHERE ${isFinal}::boolean = true AND COALESCE(eii."ENTRY_FEE_PAID", 0) <> 1
       ) AS skipped_unpaid,
-      COUNT(*) FILTER (
-        WHERE EXISTS (
-          SELECT 1 FROM "RaceIgnoreBird" ib
-          WHERE ib."ID_RACE" = ${raceId}
-            AND ib."ID_EVENT_INVENTORY_ITEM" = ri."ID_INVENTORY_ITEM"
-        )
-      ) AS skipped_ignored
+      -- Ignore-listed birds are ranked (as in HayLoft), so none are skipped.
+      0::bigint AS skipped_ignored
     FROM "RaceItemResult" rir
     JOIN "RaceItem" ri ON ri."ID_RACE_ITEM" = rir."ID_RACE_ITEM"
-    LEFT JOIN "EventInventoryItem" eii
+    JOIN "EventInventoryItem" eii
            ON eii."ID_EVENT_INVENTORY_ITEM" = ri."ID_INVENTORY_ITEM"
     WHERE ri."ID_RACE" = ${raceId}
       AND COALESCE(ri."IS_LOST", 0) <> 1
@@ -196,11 +191,6 @@ export async function recalcHotspotPositions(
         AND rir."ARRIVAL_TIME" IS NOT NULL
         AND COALESCE(eii."HOT_SPOT_FEE_VALUE", 0) > 0
         AND ${activeItemSql("eii")}
-        AND NOT EXISTS (
-          SELECT 1 FROM "RaceIgnoreBird" ib
-          WHERE ib."ID_RACE" = ${raceId}
-            AND ib."ID_EVENT_INVENTORY_ITEM" = ri."ID_INVENTORY_ITEM"
-        )
     )
     UPDATE "RaceItemResult" t
     SET "BIRD_POSITION_HOT_SPOT" = eligible.pos
@@ -332,19 +322,23 @@ export async function calcRacePrizes(
     ),
     resolved AS (
       SELECT id,
-             -- Legacy stored prizes as NUMERIC(15,4); this column is double
-             -- precision, so an even split like 25000/24 would otherwise
-             -- differ from the legacy value in the far decimals.
-             ROUND(
-               (CASE
-                 -- Drop-splitting is FINAL-only. Legacy's hotspot branch never
-                 -- looked at BIRD_DROP: it paid each bird its own position's
-                 -- prize even when the whole race shared one drop number.
-                 WHEN ${isFinal}::boolean = false OR drop_no IS NULL THEN prize
-                 ELSE NULLIF(AVG(COALESCE(prize, 0)) OVER (PARTITION BY drop_no), 0)
-               END)::numeric,
-               4
-             )::double precision AS final_prize
+             -- Legacy stored prizes as NUMERIC(15,4). A drop's share is
+             -- NUMERIC(15,4) ÷ bird count, which Firebird truncates to 4
+             -- decimals ($12,500 / 12 = 1,041.6666, not 1,041.6667).
+             (CASE
+               -- Drop-splitting is FINAL-only. Legacy's hotspot branch never
+               -- looked at BIRD_DROP: it paid each bird its own position's
+               -- prize even when the whole race shared one drop number.
+               WHEN ${isFinal}::boolean = false OR drop_no IS NULL THEN ROUND(prize::numeric, 4)
+               ELSE NULLIF(
+                 TRUNC(
+                   SUM(ROUND(COALESCE(prize, 0)::numeric, 4)) OVER (PARTITION BY drop_no)
+                     / COUNT(*) OVER (PARTITION BY drop_no),
+                   4
+                 ),
+                 0
+               )
+             END)::double precision AS final_prize
       FROM banded
     )
     UPDATE "RaceItemResult" t

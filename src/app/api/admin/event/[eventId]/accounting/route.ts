@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { entryInvoice, prizeStatements, seasonLedger } from "@/lib/accounting";
+import { seasonAccounts } from "@/lib/hayloft-account";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -13,6 +14,7 @@ import { NextResponse } from "next/server";
  *   ?view=earned                     only those owed money
  *   ?view=prizes                     every payout across the season
  *   ?view=invoice&inventoryId=123    one registration's entry invoice
+ *   ?view=account&inventoryId=123    one registration's HayLoft account (fees, payments, prizes, balance)
  *
  * Reports over money already recorded — nothing here stores a second copy, so
  * no figure can drift from the payment it came from.
@@ -34,6 +36,23 @@ export async function GET(
 
     const url = new URL(request.url);
     const view = url.searchParams.get("view") ?? "ledger";
+
+    if (view === "account") {
+      // One registration's account, exactly as HayLoft computes it (lib/hayloft-account).
+      const inventoryId = parseInt(url.searchParams.get("inventoryId") ?? "", 10);
+      if (Number.isNaN(inventoryId)) {
+        return NextResponse.json({ message: "An inventoryId is required" }, { status: 400 });
+      }
+      const inv = await prisma.eventInventory.findFirst({
+        where: { id: inventoryId, season: { eventId: eventIdInt } },
+        select: { seasonId: true },
+      });
+      if (!inv?.seasonId) {
+        return NextResponse.json({ message: "Registration not found" }, { status: 404 });
+      }
+      const { accounts } = await seasonAccounts(inv.seasonId, { inventoryIds: [inventoryId] });
+      return NextResponse.json({ view, account: accounts[0] ?? null });
+    }
 
     if (view === "invoice") {
       const inventoryId = parseInt(url.searchParams.get("inventoryId") ?? "", 10);

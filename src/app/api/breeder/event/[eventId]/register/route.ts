@@ -1,3 +1,4 @@
+import { PAYMENT_TYPE } from "@/lib/payment-types";
 import { auth } from "@/lib/auth";
 import { requireApproved } from "@/lib/roles";
 import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
@@ -317,7 +318,7 @@ export async function POST(
           await tx.eventInventoryItem.update({
             where: { id: inventoryItems[i].id },
             data: {
-              entryFeeValue: i === 0 ? fees.purgeFee : 0,
+              entryFeeValue: fees.entryFeePerBird, // entry fee on every bird, as HayLoft
               perchFeeValue: birdBreakdown?.perchFee ?? 0,
               hotSpotFeeValue: birdBreakdown?.hotspotFee ?? 0,
               hotSpot1FeeValue: birdBreakdown?.hotspot1Fee ?? 0,
@@ -345,6 +346,7 @@ export async function POST(
           data: {
             eventInventoryId: eventInventory.id,
             breederId,
+            paymentType: PAYMENT_TYPE.REGISTRATION,
             paymentValue: grandTotal,
             paymentDate: new Date(),
             paymentTimestamp: new Date(),

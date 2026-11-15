@@ -1,3 +1,4 @@
+import { PAYMENT_TYPE } from "@/lib/payment-types";
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
 import { approvedItem } from "@/lib/entry-filters";
@@ -123,8 +124,9 @@ export async function POST(
         if (r.status === "WON" && r.payoutValue > 0) {
           await tx.payment.create({
             data: {
-              paymentType: 3, // Winner payout
-              paymentValue: r.payoutValue,
+              // Money out is stored negative, as HayLoft does (lib/payment-types).
+              paymentType: PAYMENT_TYPE.WINNER_PAYOUT,
+              paymentValue: -Math.abs(r.payoutValue),
               paymentDate: new Date(),
               paymentDesc: `Betting payout: ${r.category} tier ${r.tierIndex}`,
               status: "PENDING",
@@ -134,8 +136,8 @@ export async function POST(
         } else if (r.status === "REFUNDED") {
           await tx.payment.create({
             data: {
-              paymentType: 3,
-              paymentValue: r.payoutValue,
+              paymentType: PAYMENT_TYPE.BETS_REFUND,
+              paymentValue: -Math.abs(r.payoutValue),
               paymentDate: new Date(),
               paymentDesc: `Bet refund: ${r.category} tier ${r.tierIndex} (pool below minimum)`,
               status: "PENDING",

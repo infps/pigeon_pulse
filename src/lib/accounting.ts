@@ -9,7 +9,10 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { activeItem, activeRaceItemOr, approvedInventory } from "@/lib/entry-filters";
+import { activeItem } from "@/lib/entry-filters";
+import { prizeRoleOf, raceTypeWithRole, itemBetsValue, seasonAccounts } from "@/lib/hayloft-account";
+import { hotspotOwedFor } from "@/lib/paymentStatus";
+import { openHotspotGate } from "@/lib/hotspot-gates";
 
 export interface LedgerLine {
   eventInventoryId: number;
@@ -18,9 +21,11 @@ export interface LedgerLine {
   loft: string | null;
   /** Registration fees charged across all birds. */
   charged: number;
-  /** Fee-level refunds recorded on the bird entries themselves. */
+  /** Entry and hot spot refunds recorded on the bird entries themselves. */
   itemRefunds: number;
-  /** Payments marked PAID. */
+  /** Transfer charges recorded on the bird entries. */
+  transferDue: number;
+  /** HayLoft's total of payments (PAYMENT_CALC): payouts paid out count negative. */
   paid: number;
   /** Money returned through the refunds ledger. */
   refunded: number;
@@ -30,7 +35,7 @@ export interface LedgerLine {
   prizeEarned: number;
   /** Class payouts. */
   classEarned: number;
-  /** charged − itemRefunds − paid  (positive means they owe). */
+  /** HayLoft's BALANCE_VALUE (positive: they owe; negative: they are owed). */
   balance: number;
   /** What the organization owes them. */
   owedOut: number;
@@ -56,125 +61,97 @@ export interface Ledger {
 const round = (n: number) => Math.round(n * 100) / 100;
 
 /**
- * One line per registration, covering everything owed in both directions.
+ * One line per registration: HayLoft's account for it (lib/hayloft-account,
+ * a port of EVENT_INVENTORY_GET), so every figure is HayLoft's.
  *
- * Money owed to a breeder is kept separate from money they owe rather than
- * netted off, because an organizer needs to see both: a breeder can be owed
- * prize money and still be behind on fees, and collapsing that into one number
- * hides the collection problem.
+ *   charged  fees + class bets + transfer due (+ portal race fees and pool
+ *            stakes), less the refunds set on the birds
+ *   paid     HayLoft's total of payments (payouts paid out count negative)
+ *   won      prizes HayLoft owes: final race, Hot Spot 1 and 2, average speed,
+ *            and class-bet winnings (+ portal class payouts)
+ *   balance  HayLoft's BALANCE_VALUE: charged − won − paid. Positive, the
+ *            breeder owes; negative, the organization owes them. The portal's
+ *            own refunds ledger adjusts it (issued: money back; owed: due).
  */
 export async function seasonLedger(seasonId: number): Promise<Ledger> {
-  const inventories = await prisma.eventInventory.findMany({
-    // Participants, plus anyone the organizer still owes a refund: a rejected
-    // registration drops out of the event but not out of the books.
-    where: {
-      seasonId,
-      OR: [approvedInventory, { refunds: { some: { status: "OWED" } } }],
-    },
-    select: {
-      id: true,
-      loft: true,
-      breederId: true,
-      cashPromised: true,
-      approvalStatus: true,
-      breeder: { select: { firstName: true, lastName: true } },
-      items: {
-        select: {
-          deletedAt: true,
-          entryFeeValue: true,
-          perchFeeValue: true,
-          hotSpotFeeValue: true,
-          raceFeeValue: true,
-          entryRefund: true,
-          hotSpotRefund: true,
-          betsRefund: true,
-          raceItems: { select: { result: { select: { prizeValue: true } } } },
-          raceClassEntries: { select: { payoutValue: true } },
+  const [{ accounts }, inventories] = await Promise.all([
+    seasonAccounts(seasonId),
+    prisma.eventInventory.findMany({
+      where: { seasonId },
+      select: {
+        id: true,
+        loft: true,
+        cashPromised: true,
+        breeder: { select: { firstName: true, lastName: true } },
+        items: {
+          where: { deletedAt: null },
+          select: { raceClassEntries: { select: { payoutValue: true } } },
         },
+        refunds: { select: { amount: true, status: true } },
       },
-      payments: { select: { paymentValue: true, status: true } },
-      refunds: { select: { amount: true, status: true } },
-    },
-  });
+    }),
+  ]);
+  const invById = new Map(inventories.map((i) => [i.id, i]));
 
-  const lines: LedgerLine[] = inventories.map((inv) => {
-    // A registration that is not approved is charged nothing.
-    // A deleted entry is no longer billed or refunded, nor paid a class payout
-    // (as in prizeStatements); its race prizes are history and stay owed.
-    const live = inv.items.filter((it) => it.deletedAt == null);
-    const billable = inv.approvalStatus === "APPROVED" ? live : [];
-    const charged = billable.reduce(
-      (sum, it) =>
-        sum +
-        (it.entryFeeValue ?? 0) +
-        (it.perchFeeValue ?? 0) +
-        (it.hotSpotFeeValue ?? 0) +
-        (it.raceFeeValue ?? 0),
-      0
-    );
-    const itemRefunds = live.reduce(
-      (sum, it) => sum + (it.entryRefund ?? 0) + (it.hotSpotRefund ?? 0) + (it.betsRefund ?? 0),
-      0
-    );
-    const prizeEarned = inv.items.reduce(
-      (sum, it) =>
-        sum + it.raceItems.reduce((s, ri) => s + (ri.result?.prizeValue ?? 0), 0),
-      0
-    );
-    const classEarned = live.reduce(
-      (sum, it) => sum + it.raceClassEntries.reduce((s, ce) => s + (ce.payoutValue ?? 0), 0),
-      0
-    );
-    const paid = inv.payments
-      .filter((p) => p.status === "PAID")
-      .reduce((sum, p) => sum + (p.paymentValue ?? 0), 0);
-    const refunded = inv.refunds
-      .filter((r) => r.status === "ISSUED")
-      .reduce((sum, r) => sum + r.amount, 0);
-    const refundOwed = inv.refunds
-      .filter((r) => r.status === "OWED")
-      .reduce((sum, r) => sum + r.amount, 0);
+  const lines: LedgerLine[] = [];
+  // The same figures unrounded: HayLoft totals its exact 4-decimal values.
+  const exactLines: Array<Omit<LedgerLine, "breederName" | "loft" | "cashPromised" | "breederId" | "eventInventoryId">> = [];
+  for (const a of accounts) {
+    const inv = invById.get(a.eventInventoryId);
+    if (!inv) continue;
+    const refunded = inv.refunds.filter((r) => r.status === "ISSUED").reduce((s, r) => s + r.amount, 0);
+    const refundOwed = inv.refunds.filter((r) => r.status === "OWED").reduce((s, r) => s + r.amount, 0);
+    // Participants, plus anyone with money on the books: a registration that
+    // is not approved is charged nothing, but what it paid or is owed stays.
+    if (a.approvalStatus !== "APPROVED" && a.totalPayment === 0 && refundOwed === 0 && refunded === 0) continue;
 
-    return {
-      eventInventoryId: inv.id,
-      breederId: inv.breederId ?? null,
+    const classEarned = inv.items.reduce(
+      (s, it) => s + it.raceClassEntries.reduce((t, ce) => t + (ce.payoutValue ?? 0), 0),
+      0
+    );
+    const itemRefunds = a.entryRefund + a.betsRefund + a.hotSpotRefund;
+    const charged =
+      a.perchFee + a.entryFee + a.hotSpotFee + a.betsValue + a.raceFee + a.poolStakes + a.transferDue - itemRefunds;
+    const balance = a.balance - classEarned + refunded - refundOwed;
+
+    exactLines.push({
+      charged, itemRefunds, transferDue: a.transferDue, paid: a.totalPayment, refunded, refundOwed,
+      prizeEarned: a.winnerPayoutValue, classEarned, balance, owedOut: Math.max(0, -balance),
+    });
+    lines.push({
+      eventInventoryId: a.eventInventoryId,
+      breederId: a.breederId,
       breederName: `${inv.breeder?.firstName ?? ""} ${inv.breeder?.lastName ?? ""}`.trim(),
       loft: inv.loft,
       charged: round(charged),
       itemRefunds: round(itemRefunds),
-      paid: round(paid),
+      transferDue: round(a.transferDue),
+      paid: round(a.totalPayment),
       refunded: round(refunded),
       refundOwed: round(refundOwed),
-      prizeEarned: round(prizeEarned),
+      prizeEarned: round(a.winnerPayoutValue),
       classEarned: round(classEarned),
-      balance: round(charged - itemRefunds - paid),
-      owedOut: round(prizeEarned + classEarned - refunded + refundOwed),
+      balance: round(balance),
+      owedOut: round(Math.max(0, -balance)),
       cashPromised: inv.cashPromised === true,
-    };
-  });
+    });
+  }
 
   lines.sort((a, b) => a.breederName.localeCompare(b.breederName));
 
-  const totals = lines.reduce<LedgerTotals>(
-    (acc, l) => ({
-      charged: round(acc.charged + l.charged),
-      paid: round(acc.paid + l.paid),
-      refunded: round(acc.refunded + l.refunded),
-      prizeEarned: round(acc.prizeEarned + l.prizeEarned),
-      classEarned: round(acc.classEarned + l.classEarned),
-      balance: round(acc.balance + l.balance),
-      owedOut: round(acc.owedOut + l.owedOut),
-    }),
-    {
-      charged: 0,
-      paid: 0,
-      refunded: 0,
-      prizeEarned: 0,
-      classEarned: 0,
-      balance: 0,
-      owedOut: 0,
-    }
-  );
+  // Totals are summed from the exact figures, then rounded once, as HayLoft
+  // does; summing lines already rounded to the cent drifts by cents.
+  const exact = (pick: (a: (typeof exactLines)[number]) => number) =>
+    round(exactLines.reduce((s, l) => s + pick(l), 0));
+  const totals: LedgerTotals = {
+    charged: exact((l) => l.charged),
+    paid: exact((l) => l.paid),
+    refunded: exact((l) => l.refunded),
+    prizeEarned: exact((l) => l.prizeEarned),
+    classEarned: exact((l) => l.classEarned),
+    balance: exact((l) => l.balance),
+    owedOut: exact((l) => l.owedOut),
+  };
 
   return { seasonId, lines, totals };
 }
@@ -194,13 +171,18 @@ export interface Invoice {
   lines: InvoiceLine[];
   charged: number;
   paid: number;
+  /** Prizes and class-bet winnings HayLoft owes this registration. */
+  won: number;
   refunded: number;
+  /** HayLoft's BALANCE_VALUE (positive: they owe; negative: they are owed). */
   balance: number;
 }
 
 /**
  * An entry invoice for one registration: what was charged, what was paid, and
  * what is left. Built per bird so a breeder can see which entry cost what.
+ * The lines add up to HayLoft's charges for the registration, and paid, won
+ * and balance are HayLoft's account for it (lib/hayloft-account).
  */
 export async function entryInvoice(eventInventoryId: number): Promise<Invoice | null> {
   const inv = await prisma.eventInventory.findUnique({
@@ -209,15 +191,37 @@ export async function entryInvoice(eventInventoryId: number): Promise<Invoice | 
       id: true,
       loft: true,
       breeder: { select: { firstName: true, lastName: true } },
-      season: { select: { name: true, event: { select: { name: true } } } },
+      seasonId: true,
+      approvalStatus: true,
+      hotspotsPaidMask: true,
+      season: {
+        select: {
+          name: true,
+          event: { select: { name: true } },
+          bettingScheme: true,
+        },
+      },
       items: {
         where: { deletedAt: null },
         select: {
           birdNo: true,
+          hotSpot1FeeValue: true,
+          hotSpot2FeeValue: true,
+          hotSpot3FeeValue: true,
+          hotSpotFinalFeeValue: true,
+          betsRefund: true,
+          belgianShowBet1: true, belgianShowBet2: true, belgianShowBet3: true, belgianShowBet4: true,
+          belgianShowBet5: true, belgianShowBet6: true, belgianShowBet7: true,
+          standardShowBet1: true, standardShowBet2: true, standardShowBet3: true,
+          standardShowBet4: true, standardShowBet5: true, standardShowBet6: true,
+          wtaBet1: true, wtaBet2: true, wtaBet3: true, wtaBet4: true, wtaBet5: true,
           entryFeeValue: true,
           perchFeeValue: true,
           hotSpotFeeValue: true,
           raceFeeValue: true,
+          entryRefund: true,
+          hotSpotRefund: true,
+          transferDue: true,
           bird: { select: { band1: true, band2: true, band3: true, band4: true, band: true } },
           raceClassEntries: {
             select: { feeCharged: true, raceClass: { select: { code: true } } },
@@ -225,11 +229,18 @@ export async function entryInvoice(eventInventoryId: number): Promise<Invoice | 
         },
         orderBy: { birdNo: "asc" },
       },
-      payments: { select: { paymentValue: true, status: true } },
-      refunds: { select: { amount: true } },
+      refunds: { select: { amount: true, status: true } },
     },
   });
-  if (!inv) return null;
+  if (!inv || inv.seasonId == null) return null;
+
+  const [{ accounts }, openGate] = await Promise.all([
+    seasonAccounts(inv.seasonId, { inventoryIds: [inv.id] }),
+    openHotspotGate(inv.seasonId),
+  ]);
+  const account = accounts[0];
+  const billable = inv.approvalStatus === "APPROVED";
+  const scheme = inv.season?.bettingScheme ?? null;
 
   const lines: InvoiceLine[] = [];
 
@@ -240,11 +251,20 @@ export async function entryInvoice(eventInventoryId: number): Promise<Invoice | 
         .join("-") || item.bird?.band || "";
     const label = `Bird ${item.birdNo ?? "?"}${band ? ` — ${band}` : ""}`;
 
+    // A registration that is not approved is charged nothing.
+    if (!billable) continue;
+    const hotSpot = hotspotOwedFor(item, inv.hotspotsPaidMask, openGate);
+    const bets = itemBetsValue(item, scheme);
     if (item.entryFeeValue) lines.push({ label, detail: "Entry fee", amount: item.entryFeeValue });
     if (item.perchFeeValue) lines.push({ label, detail: "Perch fee", amount: item.perchFeeValue });
-    if (item.hotSpotFeeValue)
-      lines.push({ label, detail: "Perch fee (hot spot)", amount: item.hotSpotFeeValue });
+    if (hotSpot) lines.push({ label, detail: "Hot spot fee", amount: hotSpot });
+    if (bets) lines.push({ label, detail: "Class bets", amount: bets });
     if (item.raceFeeValue) lines.push({ label, detail: "Race fee", amount: item.raceFeeValue });
+    if (item.transferDue) lines.push({ label, detail: "Transfer due", amount: item.transferDue });
+    if (item.entryRefund) lines.push({ label, detail: "Entry refund", amount: -item.entryRefund });
+    if (item.betsRefund) lines.push({ label, detail: "Bets refund", amount: -item.betsRefund });
+    if (item.hotSpotRefund)
+      lines.push({ label, detail: "Hot spot refund", amount: -item.hotSpotRefund });
 
     for (const ce of item.raceClassEntries) {
       if (!ce.feeCharged) continue;
@@ -252,11 +272,15 @@ export async function entryInvoice(eventInventoryId: number): Promise<Invoice | 
     }
   }
 
+  if (billable && account?.poolStakes) {
+    lines.push({ label: "Registration", detail: "Pool bet stakes", amount: account.poolStakes });
+  }
+
   const charged = round(lines.reduce((sum, l) => sum + l.amount, 0));
-  const paid = round(
-    inv.payments.filter((p) => p.status === "PAID").reduce((s, p) => s + (p.paymentValue ?? 0), 0)
-  );
-  const refunded = round(inv.refunds.reduce((s, r) => s + r.amount, 0));
+  const refunded = round(inv.refunds.filter((r) => r.status === "ISSUED").reduce((s, r) => s + r.amount, 0));
+  const refundOwed = inv.refunds.filter((r) => r.status === "OWED").reduce((s, r) => s + r.amount, 0);
+  const paid = round(account?.totalPayment ?? 0);
+  const won = round(account?.winnerPayoutValue ?? 0);
 
   return {
     eventInventoryId: inv.id,
@@ -267,8 +291,9 @@ export async function entryInvoice(eventInventoryId: number): Promise<Invoice | 
     lines,
     charged,
     paid,
+    won,
     refunded,
-    balance: round(charged - paid + refunded),
+    balance: round((account?.balance ?? 0) + refunded - refundOwed),
   };
 }
 
@@ -282,41 +307,30 @@ export interface PrizeStatementRow {
 }
 
 /**
- * Prize statements: every payout owed across a season, race prizes and class
- * payouts together, because a breeder is owed one cheque and does not care
- * which pot it came from.
+ * Prize statements: everything HayLoft owes the breeders of a season, one line
+ * per prize, because a breeder is owed one cheque and does not care which pot
+ * it came from. The lines are HayLoft's prize components (lib/hayloft-account,
+ * WINNER_PRIZE_PAYOUT_BIRD_GET + RACE_BETS_CALC): final race, Hot Spot 1 and 2,
+ * average speed, and class-bet winnings; plus portal class payouts. The total
+ * equals the ledger's "Won" column.
  */
 export async function prizeStatements(seasonId: number): Promise<{
   rows: PrizeStatementRow[];
   total: number;
 }> {
-  const [raceRows, classRows] = await Promise.all([
-    prisma.raceItemResult.findMany({
-      where: {
-        prizeValue: { not: null },
-        raceItem: {
-          race: { seasonId },
-          OR: activeRaceItemOr,
-        },
-      },
+  const { accounts } = await seasonAccounts(seasonId);
+  const itemIds = accounts.flatMap((a) => a.birdPrizes.map((p) => p.inventoryItemId));
+
+  const [items, classRows] = await Promise.all([
+    prisma.eventInventoryItem.findMany({
+      where: { id: { in: itemIds } },
       select: {
-        prizeValue: true,
-        birdPosition: true,
-        raceItem: {
-          select: {
-            race: { select: { name: true, raceNumber: true } },
-            inventoryItem: {
-              select: {
-                bird: { select: { band1: true, band2: true, band3: true, band4: true, band: true } },
-                eventInventory: {
-                  select: {
-                    loft: true,
-                    breeder: { select: { firstName: true, lastName: true } },
-                  },
-                },
-              },
-            },
-          },
+        id: true,
+        bird: { select: { band1: true, band2: true, band3: true, band4: true, band: true } },
+        eventInventory: { select: { loft: true, breeder: { select: { firstName: true, lastName: true } } } },
+        raceItems: {
+          where: { race: { raceType: raceTypeWithRole("FINAL", "HOTSPOT_1", "HOTSPOT_2") } },
+          select: { race: { select: { raceType: { select: { id: true, prizeRole: true } } } }, result: { select: { birdPosition: true } } },
         },
       },
     }),
@@ -337,40 +351,52 @@ export async function prizeStatements(seasonId: number): Promise<{
       },
     }),
   ]);
+  const itemById = new Map(items.map((i) => [i.id, i]));
 
   const bandOf = (b: { band1?: string | null; band2?: string | null; band3?: string | null; band4?: string | null; band?: string | null } | null | undefined) =>
     b ? [b.band1, b.band2, b.band3, b.band4].filter(Boolean).join("-") || b.band || "" : "";
 
-  const rows: PrizeStatementRow[] = [
-    ...raceRows.map((r) => {
-      const inv = r.raceItem?.inventoryItem;
-      const breeder = inv?.eventInventory?.breeder;
-      const race = r.raceItem?.race;
-      return {
+  const rows: PrizeStatementRow[] = [];
+  let exactTotal = 0;
+  for (const a of accounts) {
+    for (const p of a.birdPrizes) {
+      const it = itemById.get(p.inventoryItemId);
+      const breeder = it?.eventInventory?.breeder;
+      const posIn = (t: string) => it?.raceItems.find((r) => prizeRoleOf(r.race?.raceType) === t)?.result?.birdPosition ?? null;
+      const base = {
         breederName: `${breeder?.firstName ?? ""} ${breeder?.lastName ?? ""}`.trim(),
-        loft: inv?.eventInventory?.loft ?? null,
-        band: bandOf(inv?.bird),
-        source: race?.name || (race?.raceNumber != null ? `Race ${race.raceNumber}` : "Race"),
-        position: r.birdPosition,
-        amount: round(r.prizeValue ?? 0),
+        loft: it?.eventInventory?.loft ?? null,
+        band: bandOf(it?.bird),
       };
-    }),
-    ...classRows.map((c) => {
-      const breeder = c.inventoryItem?.eventInventory?.breeder;
-      return {
-        breederName: `${breeder?.firstName ?? ""} ${breeder?.lastName ?? ""}`.trim(),
-        loft: c.inventoryItem?.eventInventory?.loft ?? null,
-        band: bandOf(c.inventoryItem?.bird),
-        source: `Class ${c.raceClass?.code ?? "?"}`,
-        position: c.position,
-        amount: round(c.payoutValue ?? 0),
-      };
-    }),
-  ];
+      const parts: Array<[string, number, number | null]> = [
+        ["Final race", p.capital, posIn("FINAL")],
+        ["Hot Spot 1", p.hotSpot1, posIn("HOTSPOT_1")],
+        ["Hot Spot 2", p.hotSpot2, posIn("HOTSPOT_2")],
+        ["Average speed", p.avgSpeed, null],
+        ["Class bets", p.bets, posIn("FINAL")],
+      ];
+      for (const [source, amount, position] of parts) {
+        if (!amount) continue;
+        exactTotal += amount;
+        rows.push({ ...base, source, position, amount: round(amount) });
+      }
+    }
+  }
+  for (const c of classRows) {
+    const breeder = c.inventoryItem?.eventInventory?.breeder;
+    exactTotal += c.payoutValue ?? 0;
+    rows.push({
+      breederName: `${breeder?.firstName ?? ""} ${breeder?.lastName ?? ""}`.trim(),
+      loft: c.inventoryItem?.eventInventory?.loft ?? null,
+      band: bandOf(c.inventoryItem?.bird),
+      source: `Class ${c.raceClass?.code ?? "?"}`,
+      position: c.position,
+      amount: round(c.payoutValue ?? 0),
+    });
+  }
 
-  rows.sort(
-    (a, b) => a.breederName.localeCompare(b.breederName) || b.amount - a.amount
-  );
+  rows.sort((a, b) => a.breederName.localeCompare(b.breederName) || b.amount - a.amount);
 
-  return { rows, total: round(rows.reduce((sum, r) => sum + r.amount, 0)) };
+  // Summed from the exact values, then rounded once, as the ledger and HayLoft do.
+  return { rows, total: round(exactTotal) };
 }

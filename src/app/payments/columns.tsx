@@ -3,10 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { Badge } from "@/components/ui/badge";
-
-const TYPE_LABELS: Record<number, string> = {
-  0: "Perch Fee", 1: "Per Bird Fee", 2: "Races Fee", 3: "Payouts", 4: "Other",
-};
+import { paymentTypeLabel } from "@/lib/payment-types";
 const METHOD_LABELS: Record<number, string> = {
   0: "Cash", 1: "Credit Card", 2: "PayPal", 3: "Bank Transfer",
 };
@@ -51,7 +48,7 @@ export const paymentColumns: ColumnDef<Payment>[] = [
     header: ({ column }) => <DataTableColumnHeader column={column} title="Type" />,
     cell: ({ row }) => {
       const type = row.original.paymentType;
-      return <span>{type != null ? TYPE_LABELS[type] ?? type : "-"}</span>;
+      return <span>{paymentTypeLabel(type)}</span>;
     },
   },
   {

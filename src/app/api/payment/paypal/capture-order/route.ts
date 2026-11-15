@@ -1,5 +1,7 @@
+import { PAYMENT_TYPE } from "@/lib/payment-types";
 import { auth } from "@/lib/auth";
 import { settleHotspotsForPayments } from "@/lib/hotspot-settle";
+import { pendingForCapture } from "@/lib/paypal-capture";
 import { paypalClient, paypal } from "@/lib/paypal";
 import { prisma } from "@/lib/prisma";
 import { PaymentStatus } from "@/generated/prisma/enums";
@@ -53,8 +55,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "No capture found" }, { status: 400 });
     }
 
-    // Update or create Payment record
-    const pendingPayment = eventInventory.payments.find((p) => p.status === PaymentStatus.PENDING);
+    // Already recorded (the webhook got here first): nothing more to do.
+    const recorded = await prisma.payment.findFirst({ where: { transactionId: capture.id }, select: { id: true } });
+    if (recorded) {
+      return NextResponse.json({
+        message: "Payment successful",
+        orderID: captureData.id,
+        captureID: capture.id,
+        status: captureData.status,
+      });
+    }
+
+    // The pending payment this amount pays, matched to the cent. With no match
+    // the money is recorded as its own row rather than forced onto another.
+    const pendingPayment = pendingForCapture(eventInventory.payments, parseFloat(capture.amount.value));
 
     if (pendingPayment) {
       // Update existing PENDING payment to PAID
@@ -81,6 +95,7 @@ export async function POST(request: Request) {
         data: {
           eventInventoryId,
           breederId: eventInventory.breederId,
+          paymentType: PAYMENT_TYPE.REGISTRATION,
           paymentValue: parseFloat(capture.amount.value),
           status: PaymentStatus.PAID,
           transactionId: capture.id,

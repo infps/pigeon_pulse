@@ -17,6 +17,16 @@ import { setEntryDeleted } from "@/lib/api/event-inventory-items";
 import { Download, Plus, Trash2, Edit, UserPlus, ArrowLeft, Repeat, UserCog } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { Event, EventInventory, EventInventoryItem } from "@/lib/types";
+import type { RegistrationAccount } from "@/lib/hayloft-account";
+import { useQuery } from "@tanstack/react-query";
+import {
+  MANUAL_PAYMENT_TYPES,
+  isOutgoing,
+  paymentTypeKey,
+  paymentTypeLabel,
+  signedAmount,
+  type PaymentTypeKey,
+} from "@/lib/payment-types";
 import { EditBirdDialog } from "./edit-bird-dialog";
 import { CreateBirdDialog } from "./create-bird-dialog";
 import { ExportButton } from "./export-button";
@@ -26,7 +36,6 @@ import { BreederBetsSection, RegistrationStatusEditor } from "./breeder-registra
 import { SubstitutionDialog } from "@/app/admin/events/[eventId]/substitution-dialog";
 
 const METHOD_LABELS: Record<number, string> = { 0: "Cash", 1: "Credit Card", 2: "PayPal", 3: "Bank Transfer" };
-const TYPE_LABELS: Record<number, string> = { 0: "Perch Fee", 1: "Per Bird Fee", 2: "Races Fee", 3: "Refund", 4: "Other" };
 
 interface BreederDetailsDialogProps {
   open: boolean;
@@ -38,6 +47,31 @@ interface BreederDetailsDialogProps {
 function fmtDate(d: string | null | undefined) {
   if (!d) return "-";
   return new Date(d).toLocaleDateString();
+}
+
+/** One block of the account: its non-zero rows, and a total. */
+function AccountSection({ title, rows, total }: { title: string; rows: Array<[string, number]>; total?: number }) {
+  const shown = rows.filter(([, v]) => Math.abs(v) >= 0.005);
+  const sum = total ?? rows.reduce((s, [, v]) => s + v, 0);
+  return (
+    <div className="mb-3">
+      <p className="font-medium text-muted-foreground uppercase text-xs tracking-wide mb-1">{title}</p>
+      {shown.length === 0 ? (
+        <p className="text-xs text-muted-foreground">None</p>
+      ) : (
+        shown.map(([label, v]) => (
+          <div key={label} className="flex justify-between">
+            <span className="text-muted-foreground">{label}</span>
+            <span className="tabular-nums">{fmtMoney(v)}</span>
+          </div>
+        ))
+      )}
+      <div className="flex justify-between font-semibold border-t pt-1 mt-1">
+        <span>Total</span>
+        <span className="tabular-nums">{fmtMoney(sum)}</span>
+      </div>
+    </div>
+  );
 }
 
 function fmtMoney(v: number) {
@@ -63,11 +97,29 @@ export function BreederDetailsDialog({
   // Payment form state
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"CREDIT_CARD" | "PAYPAL" | "BANK_TRANSFER" | "CASH">("CASH");
-  const [paymentType, setPaymentType] = useState<"PERCH_FEE" | "BIRD_FEE" | "RACES_FEE" | "PAYOUTS" | "OTHER">("OTHER");
+  const [paymentType, setPaymentType] = useState<PaymentTypeKey>("OTHER");
   const [paymentDescription, setPaymentDescription] = useState("");
   const [referenceNumber, setReferenceNumber] = useState("");
 
-  const { data, isPending, error, refetch } = useGetEventInventory(eventInventoryId ? String(eventInventoryId) : "");
+  const { data, isPending, error, refetch: refetchInventory } = useGetEventInventory(eventInventoryId ? String(eventInventoryId) : "");
+  // The registration's account exactly as HayLoft computes it (lib/hayloft-account).
+  const accountQuery = useQuery({
+    queryKey: ["hayloft-account", event.id, eventInventoryId],
+    enabled: !!eventInventoryId,
+    queryFn: async (): Promise<RegistrationAccount | null> => {
+      const res = await fetch(
+        `/api/admin/event/${event.id}/accounting?view=account&inventoryId=${eventInventoryId}`,
+        { credentials: "include" }
+      );
+      if (!res.ok) return null;
+      return (await res.json()).account ?? null;
+    },
+  });
+  const refetch = () => {
+    refetchInventory();
+    accountQuery.refetch();
+  };
+  const account = accountQuery.data ?? null;
   const { data: breedersData } = useListBreeders();
   const breederId = (data as any)?.eventInventory?.breederId;
   const { data: allBirdsData } = useAdminListBirds(
@@ -152,7 +204,8 @@ export function BreederDetailsDialog({
     e.preventDefault();
     if (!eventInventory) return;
     const amount = parseFloat(paymentAmount);
-    const isValid = (paymentType === "PAYOUTS" || paymentType === "OTHER") ? !isNaN(amount) && amount !== 0 : !isNaN(amount) && amount > 0;
+    // Enter amounts as positive; the server stores a refund or payout as money out.
+    const isValid = paymentType === "OTHER" ? !isNaN(amount) && amount !== 0 : !isNaN(amount) && amount > 0;
     if (!isValid) {
       toast.error("Please enter a valid amount");
       return;
@@ -186,13 +239,16 @@ export function BreederDetailsDialog({
   };
 
   const REVERSE_METHOD: Record<number, typeof paymentMethod> = { 0: "CASH", 1: "CREDIT_CARD", 2: "PAYPAL", 3: "BANK_TRANSFER" };
-  const REVERSE_TYPE: Record<number, typeof paymentType> = { 0: "PERCH_FEE", 1: "BIRD_FEE", 2: "RACES_FEE", 3: "PAYOUTS", 4: "OTHER" };
 
   const handleEditPayment = (payment: any) => {
     setEditingPayment(payment);
-    setPaymentAmount((payment.paymentValue ?? 0).toString());
+    // Shown positive: the type says which way the money went.
+    setPaymentAmount(
+      (isOutgoing(payment.paymentType) ? Math.abs(payment.paymentValue ?? 0) : payment.paymentValue ?? 0).toString()
+    );
     setPaymentMethod(REVERSE_METHOD[payment.paymentMethod] ?? "CASH");
-    setPaymentType(REVERSE_TYPE[payment.paymentType] ?? "OTHER");
+    const key = paymentTypeKey(payment.paymentType);
+    setPaymentType(key && key !== "REGISTRATION" ? key : "OTHER");
     setPaymentDescription(payment.paymentDesc || "");
     setReferenceNumber(payment.transactionId || "");
     setIsAddPaymentOpen(true);
@@ -348,32 +404,8 @@ export function BreederDetailsDialog({
     return (a.bird?.band ?? "").localeCompare(b.bird?.band ?? "");
   });
 
-  // Fee totals
-  const totalPerchFee = items.reduce((s, i) => s + (i.entryFeeValue ?? 0), 0);
-  const totalBirdFee = items.reduce((s, i) => s + (i.perchFeeValue ?? 0), 0);
-  const totalHotSpotFee = items.reduce((s, i) => s + (i.hotSpotFeeValue ?? 0), 0);
-  const totalRaceFee = items.reduce((s, i) => s + (i.raceFeeValue ?? 0), 0);
-  const totalClassesFee = payments
-    .filter((p) => p.paymentDesc?.toLowerCase().includes("bet stake"))
-    .reduce((s, p) => s + (p.paymentValue ?? 0), 0);
-  const totalFees = totalPerchFee + totalBirdFee + totalHotSpotFee + totalRaceFee + totalClassesFee;
-
-  // Refunds
-  const totalEntryRefund = items.reduce((s, i) => s + (i.entryRefund ?? 0), 0);
-  const totalHotSpotRefund = items.reduce((s, i) => s + (i.hotSpotRefund ?? 0), 0);
-  const totalRefunds = totalEntryRefund + totalHotSpotRefund;
-
-  // Payments — refunds (type=3) are money OUT to breeder
-  // Only PAID rows are money that has moved; a PENDING row is an unpaid order.
-  const winnerPayouts = payments
-    .filter((p) => p.paymentType === 3 && p.status === "PAID")
-    .reduce((s, p) => s + Math.abs(p.paymentValue ?? 0), 0);
-  const totalPaid = payments
-    .filter((p) => p.paymentType !== 3 && p.status === "PAID")
-    .reduce((s, p) => s + (p.paymentValue ?? 0), 0);
-  const transferDue = items.reduce((s, i) => s + (i.transferDue ?? 0), 0);
-  // balance: what's owed minus what's been received, plus what's been paid back out
-  const balance = (totalFees - totalRefunds) - totalPaid + winnerPayouts;
+  // HayLoft's BALANCE_VALUE (positive: the breeder owes; negative: they are owed).
+  const balance = account ? Math.round(account.balance * 100) / 100 : 0;
 
   // Filter breeders already added as partners
   const partnerBreederIds = new Set([
@@ -609,11 +641,11 @@ export function BreederDetailsDialog({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="PERCH_FEE">Perch Fee</SelectItem>
-                            <SelectItem value="BIRD_FEE">Per Bird Fee</SelectItem>
-                            <SelectItem value="RACES_FEE">Races Fee</SelectItem>
-                            <SelectItem value="PAYOUTS">Refund</SelectItem>
-                            <SelectItem value="OTHER">Other</SelectItem>
+                            {MANUAL_PAYMENT_TYPES.map((t) => (
+                              <SelectItem key={t.key} value={t.key}>
+                                {t.label}{t.outgoing ? " (money out)" : ""}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -678,7 +710,7 @@ export function BreederDetailsDialog({
                           <tr key={payment.id}>
                             <td className="px-4 py-2 text-sm">{fmtDate(payment.paymentDate)}</td>
                             <td className="px-4 py-2 text-sm">
-                              {payment.paymentType != null ? TYPE_LABELS[payment.paymentType] ?? payment.paymentType : "-"}
+                              {paymentTypeLabel(payment.paymentType)}
                             </td>
                             <td className="px-4 py-2 text-sm">
                               {payment.paymentMethod != null ? METHOD_LABELS[payment.paymentMethod] ?? payment.paymentMethod : "-"}
@@ -687,7 +719,7 @@ export function BreederDetailsDialog({
                               {payment.paymentDesc || "-"}
                             </td>
                             <td className="px-4 py-2 text-sm text-right">
-                              {fmtMoney(payment.paymentValue ?? 0)}
+                              {fmtMoney(signedAmount(payment))}
                             </td>
                             <td className="px-4 py-2 text-center">
                               <div className="flex items-center justify-center gap-2">
@@ -717,64 +749,59 @@ export function BreederDetailsDialog({
                 </div>
               </div>
 
-              {/* Fee Summary */}
+              {/* Account — HayLoft's figures for this registration */}
               <div className="space-y-4">
-                <h3 className="font-semibold text-lg">Fee Summary</h3>
+                <h3 className="font-semibold text-lg">Account</h3>
                 <div className="border rounded-lg p-4 space-y-1 bg-transparent border-border text-sm">
-                  <p className="font-medium text-muted-foreground uppercase text-xs tracking-wide mb-2">Fees</p>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Perch Fee</span>
-                    <span>{fmtMoney(totalPerchFee)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Per Bird Fee</span>
-                    <span>{fmtMoney(totalBirdFee)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Race Fee</span>
-                    <span>{fmtMoney(totalRaceFee)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Perch Fee (Hot Spot)</span>
-                    <span>{fmtMoney(totalHotSpotFee)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Classes</span>
-                    <span>{fmtMoney(totalClassesFee)}</span>
-                  </div>
-                  <div className="flex justify-between font-semibold border-t pt-1 mt-1">
-                    <span>Total</span>
-                    <span>{fmtMoney(totalFees)}</span>
-                  </div>
-
-                  <p className="font-medium text-muted-foreground uppercase text-xs tracking-wide mb-2 mt-4">Refunds</p>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Entry Refund</span>
-                    <span>{fmtMoney(totalEntryRefund)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Perch Fee (Hot Spot) Refund</span>
-                    <span>{fmtMoney(totalHotSpotRefund)}</span>
-                  </div>
-                  <div className="flex justify-between font-semibold border-t pt-1 mt-1">
-                    <span>Total</span>
-                    <span>{fmtMoney(totalRefunds)}</span>
-                  </div>
-
-                  <div className="border-t pt-2 mt-2 space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Payments</span>
-                      <span>{fmtMoney(totalPaid)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Refunds Paid Out</span>
-                      <span>{fmtMoney(winnerPayouts)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Transfer Due</span>
-                      <span>{fmtMoney(transferDue)}</span>
-                    </div>
-                  </div>
+                  {!account ? (
+                    <Skeleton className="h-64 w-full" />
+                  ) : (
+                    <>
+                      <AccountSection
+                        title="Charges"
+                        rows={[
+                          ["Perch fee", account.perchFee],
+                          ["Entry fee", account.entryFee],
+                          ["Hot spot fee", account.hotSpotFee],
+                          ["Class bets", account.betsValue],
+                          ["Transfer due", account.transferDue],
+                          ["Race fee", account.raceFee],
+                          ["Pool bet stakes", account.poolStakes],
+                          ["Entry refund", -account.entryRefund],
+                          ["Bets refund", -account.betsRefund],
+                          ["Hot spot refund", -account.hotSpotRefund],
+                        ]}
+                      />
+                      <AccountSection
+                        title="Payments"
+                        rows={[
+                          ["Perch fee", account.pay.perchFee],
+                          ["Entry fee", account.pay.entryFee],
+                          ["Hot spot fee", account.pay.hotSpot],
+                          ["Bets", account.pay.bets],
+                          ["Transfer due", account.pay.transferDue],
+                          ["Registration", account.pay.registration],
+                          ["Other", account.pay.other],
+                          ["Entry refund paid", account.pay.entryRefund],
+                          ["Bets refund paid", account.pay.betsRefund],
+                          ["Hot spot refund paid", account.pay.hotSpotRefund],
+                          ["Winner payout paid", account.pay.winnerPayout],
+                        ]}
+                        total={account.totalPayment}
+                      />
+                      <AccountSection
+                        title="Won"
+                        rows={[
+                          ["Final race", account.capitalPrize],
+                          ["Hot Spot 1", account.hotSpot1Prize],
+                          ["Hot Spot 2", account.hotSpot2Prize],
+                          ["Average speed", account.avgSpeedPrize],
+                          ["Class bets", account.betsPrize],
+                        ]}
+                        total={account.winnerPayoutValue}
+                      />
+                    </>
+                  )}
 
                   {owedRefunds.map((r) => (
                     <div key={r.id} className="flex items-center justify-between border-t pt-2 mt-2">
@@ -795,11 +822,14 @@ export function BreederDetailsDialog({
                   ))}
 
                   <div className="flex justify-between font-bold text-base border-t pt-2 mt-2">
-                    <span>Balance</span>
+                    <span>{balance < 0 ? "Owed to breeder" : "Balance"}</span>
                     <span className={balance === 0 ? "text-green-600" : balance > 0 ? "text-red-600" : "text-yellow-600"}>
-                      {fmtMoney(balance)}
+                      {fmtMoney(Math.abs(balance))}
                     </span>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Charges − refunds − won − payments, as HayLoft computes it.
+                  </p>
                 </div>
               </div>
             </div>

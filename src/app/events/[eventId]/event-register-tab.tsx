@@ -486,10 +486,12 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
               <div className="space-y-4">
                 <h3 className="font-semibold">Payment Summary</h3>
                 <div className="border rounded-lg p-4 space-y-2">
-                  {fees && fees.purgeFee > 0 && (
+                  {fees && fees.entryFees > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Entry Fee (one-time):</span>
-                      <span className="font-medium">${fees.purgeFee.toFixed(2)}</span>
+                      <span className="text-muted-foreground">
+                        Entry Fee (${fees.entryFeePerBird.toFixed(2)} × {fees.perBirdBreakdown.length} birds):
+                      </span>
+                      <span className="font-medium">${fees.entryFees.toFixed(2)}</span>
                     </div>
                   )}
                   {fees && fees.perchFees > 0 && (
@@ -556,19 +558,20 @@ export function EventRegisterTab({ event, eventId }: EventRegisterTabProps) {
                       <tbody>
                         {fees.perBirdBreakdown.map((b, i) => {
                           const hotspot = i === 0 ? fees.hotspotBilled / fees.perBirdBreakdown.length : fees.hotspotBilled / fees.perBirdBreakdown.length;
-                          const purge = i === 0 ? fees.purgeFee : 0;
+                          // The entry fee is charged on every bird, as in HayLoft.
+                          const entry = fees.entryFeePerBird;
                           return (
                             <tr key={b.position} className="border-t">
                               <td className="px-3 py-2">
                                 #{b.position}
-                                {purge > 0 && (
-                                  <span className="text-muted-foreground"> + purge ${purge.toFixed(2)}</span>
+                                {entry > 0 && (
+                                  <span className="text-muted-foreground"> + entry ${entry.toFixed(2)}</span>
                                 )}
                               </td>
                               <td className="px-3 py-2 text-right">${b.perchFee.toFixed(2)}</td>
                               <td className="px-3 py-2 text-right">${hotspot.toFixed(2)}</td>
                               <td className="px-3 py-2 text-right font-medium">
-                                ${(purge + b.perchFee + hotspot).toFixed(2)}
+                                ${(entry + b.perchFee + hotspot).toFixed(2)}
                               </td>
                             </tr>
                           );

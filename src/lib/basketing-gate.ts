@@ -45,11 +45,11 @@ export async function requirePaidBeforeBasketing(
           hotSpot1FeeValue: true,
           hotSpot2FeeValue: true,
           hotSpot3FeeValue: true,
-          hotSpotFinalFeeValue: true,
+          hotSpotFinalFeeValue: true, entryRefund: true, hotSpotRefund: true, transferDue: true,
         },
       },
       payments: {
-        select: { paymentValue: true, paymentDesc: true, paymentType: true, status: true },
+        select: { paymentValue: true, paymentDesc: true, paymentType: true, hotspotGate: true, status: true },
       },
     },
   });

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { approvedInventory } from "@/lib/entry-filters";
+import { paymentTypeLabel, signedAmount } from "@/lib/payment-types";
 
 export interface ExportData {
   columns: string[];
@@ -9,13 +10,6 @@ export interface ExportData {
 
 const SEX_LABEL: Record<number, string> = { 0: "Cock", 1: "Hen", 2: "Unknown" };
 
-const PAYMENT_TYPE_LABEL: Record<number, string> = {
-  0: "Perch Fee",
-  1: "Per Bird Fee",
-  2: "Races Fee",
-  3: "Payouts",
-  4: "Other",
-};
 const PAYMENT_METHOD_LABEL: Record<number, string> = {
   0: "Cash",
   1: "Credit Card",
@@ -242,9 +236,9 @@ export async function getPaymentsRows(
   const rows: string[][] = payments.map((p) => [
     p.eventInventory?.season?.event?.name ?? "",
     fmtDateTime(p.paymentDate ?? null),
-    p.paymentType != null ? PAYMENT_TYPE_LABEL[p.paymentType] ?? String(p.paymentType) : "",
+    paymentTypeLabel(p.paymentType),
     p.paymentMethod != null ? PAYMENT_METHOD_LABEL[p.paymentMethod] ?? String(p.paymentMethod) : "",
-    p.paymentValue != null ? p.paymentValue.toFixed(2) : "",
+    p.paymentValue != null ? signedAmount(p).toFixed(2) : "",
     String(p.status ?? ""),
     p.transactionId ?? "",
     p.paymentDesc ?? "",
