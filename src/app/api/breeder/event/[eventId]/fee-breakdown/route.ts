@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { seasonAccounts } from "@/lib/hayloft-account";
 import { prisma } from "@/lib/prisma";
 import { requireBirdOwner } from "@/lib/roles";
 import { feesPaidNet } from "@/lib/payment-types";
@@ -183,6 +184,11 @@ export async function GET(
     );
     const status = { totalPaid };
 
+    // The registration's account exactly as HayLoft computes it: charges incl.
+    // class bets, prizes and bet winnings won, payments, and the balance.
+    const { accounts } = await seasonAccounts(seasonId, { inventoryIds: [inventory.id] });
+    const account = accounts[0] ?? null;
+
     const hotspots = HOTSPOT_GATES.map((gate: HotspotGate) => ({
       gate,
       paid: (inventory.hotspotsPaidMask & (1 << GATE_BIT[gate])) !== 0,
@@ -191,6 +197,16 @@ export async function GET(
 
     return NextResponse.json({
       eventInventoryId: inventory.id,
+      // HayLoft account (positive balance: owes; negative: is owed). Prefer these
+      // over totalOwed/totalPaid/balance, which cover fees only.
+      account: account
+        ? {
+            charges: Math.round((account.perchFee + account.entryFee + account.hotSpotFee + account.betsValue + account.raceFee + account.poolStakes + account.transferDue - account.entryRefund - account.betsRefund - account.hotSpotRefund) * 100) / 100,
+            payments: Math.round(account.totalPayment * 100) / 100,
+            won: Math.round(account.winnerPayoutValue * 100) / 100,
+            balance: Math.round(account.balance * 100) / 100,
+          }
+        : null,
       approvalStatus: inventory.approvalStatus,
       seasonId,
       totalOwed: Math.round(totalOwed * 100) / 100,

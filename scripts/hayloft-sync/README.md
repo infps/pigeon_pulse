@@ -47,10 +47,20 @@ Class bets are priced from the entry flags by `src/lib/class-bets.ts`
   rows written with the portal's old codes. It finds them from the data alone
   (HayLoft never leaves the type empty and never stores 4/6/8 positive), so it
   is safe on any database; dry run first. Rerunning changes nothing.
+- Each registration's account is `src/lib/hayloft-account.ts`, a port of
+  HayLoft's stored procedure `EVENT_INVENTORY_GET` (and `PAYMENT_CALC`,
+  `INVENTORY_BETS_CALC`, `WINNER_PRIZE_PAYOUT_BIRD_GET`, `EVENT_BET_TOTALS`,
+  `RACE_BETS_CALC`): fees, class bets, payments by type, prizes, class-bet
+  winnings and the balance. The Details screen, Accounting tab, prize
+  statements, invoice, breeder dialog and breeders table all read it.
+- `node scripts/hayloft-sync/hayloft-oracle.cjs <copy.FDB> <dump-dir>/oracle.json`
+  runs HayLoft's own `EVENT_INVENTORY_GET` for every event on a copy of the
+  .FDB: the answer key.
+- `bun scripts/hayloft-sync/reconcile-accounts.ts <dump-dir>` compares all 32
+  of HayLoft's fields for every registration with the portal's account.
 - `bun scripts/hayloft-sync/reconcile-details.ts <dump-dir> [eventId ...]`
-  recomputes every event's Details screen and Accounting totals from the
-  HayLoft export with HayLoft's rules and compares them with what the app
-  shows. Exits 1 on any difference. Run it after every sync.
+  compares every event's Details boxes and Accounting totals with HayLoft's.
+  Both exit 1 on any difference. Run them after every sync.
 - `bun test tests/` (`pnpm test`) locks the rules themselves.
 
 ## Before running against another database

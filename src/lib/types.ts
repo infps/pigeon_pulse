@@ -273,6 +273,10 @@ export interface EventInventoryFeeTotals {
   owed: number;
   paid: number;
   status: "PAID" | "OVERPAID" | "PENDING" | "PARTIAL" | "NA";
+  /** HayLoft BALANCE_VALUE: positive, the breeder owes; negative, they are owed. */
+  balance?: number | null;
+  /** Prizes and class-bet winnings HayLoft owes this registration. */
+  won?: number | null;
 }
 
 export interface EventInventory {

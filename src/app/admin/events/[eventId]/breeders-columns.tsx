@@ -139,6 +139,27 @@ export const createBreedersColumns = (
     cell: ({ row }) => <span>${(row.original.feeTotals?.perchHotspot ?? 0).toFixed(2)}</span>,
   },
   {
+    id: "won",
+    accessorFn: (row) => row.feeTotals?.won ?? 0,
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Won" />,
+    cell: ({ row }) => {
+      const v = row.original.feeTotals?.won ?? 0;
+      return <span>{v ? `$${v.toFixed(2)}` : "-"}</span>;
+    },
+  },
+  {
+    // HayLoft's balance: charges − refunds − won − payments.
+    id: "balance",
+    accessorFn: (row) => row.feeTotals?.balance ?? 0,
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Balance" />,
+    cell: ({ row }) => {
+      const v = row.original.feeTotals?.balance;
+      if (v == null) return <span>-</span>;
+      const cls = v > 0 ? "text-red-600" : v < 0 ? "text-emerald-600" : "";
+      return <span className={cls}>{v < 0 ? `-$${(-v).toFixed(2)}` : `$${v.toFixed(2)}`}</span>;
+    },
+  },
+  {
     id: "paymentStatus",
     accessorFn: (row) => rowStatus(row),
     header: ({ column }) => (

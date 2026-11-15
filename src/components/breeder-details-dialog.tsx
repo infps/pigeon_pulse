@@ -17,10 +17,10 @@ import { setEntryDeleted } from "@/lib/api/event-inventory-items";
 import { Download, Plus, Trash2, Edit, UserPlus, ArrowLeft, Repeat, UserCog } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { Event, EventInventory, EventInventoryItem } from "@/lib/types";
+import type { RegistrationAccount } from "@/lib/hayloft-account";
+import { useQuery } from "@tanstack/react-query";
 import {
   MANUAL_PAYMENT_TYPES,
-  PAYMENT_TYPE,
-  feesPaidNet,
   isOutgoing,
   paymentTypeKey,
   paymentTypeLabel,
@@ -47,6 +47,31 @@ interface BreederDetailsDialogProps {
 function fmtDate(d: string | null | undefined) {
   if (!d) return "-";
   return new Date(d).toLocaleDateString();
+}
+
+/** One block of the account: its non-zero rows, and a total. */
+function AccountSection({ title, rows, total }: { title: string; rows: Array<[string, number]>; total?: number }) {
+  const shown = rows.filter(([, v]) => Math.abs(v) >= 0.005);
+  const sum = total ?? rows.reduce((s, [, v]) => s + v, 0);
+  return (
+    <div className="mb-3">
+      <p className="font-medium text-muted-foreground uppercase text-xs tracking-wide mb-1">{title}</p>
+      {shown.length === 0 ? (
+        <p className="text-xs text-muted-foreground">None</p>
+      ) : (
+        shown.map(([label, v]) => (
+          <div key={label} className="flex justify-between">
+            <span className="text-muted-foreground">{label}</span>
+            <span className="tabular-nums">{fmtMoney(v)}</span>
+          </div>
+        ))
+      )}
+      <div className="flex justify-between font-semibold border-t pt-1 mt-1">
+        <span>Total</span>
+        <span className="tabular-nums">{fmtMoney(sum)}</span>
+      </div>
+    </div>
+  );
 }
 
 function fmtMoney(v: number) {
@@ -76,7 +101,25 @@ export function BreederDetailsDialog({
   const [paymentDescription, setPaymentDescription] = useState("");
   const [referenceNumber, setReferenceNumber] = useState("");
 
-  const { data, isPending, error, refetch } = useGetEventInventory(eventInventoryId ? String(eventInventoryId) : "");
+  const { data, isPending, error, refetch: refetchInventory } = useGetEventInventory(eventInventoryId ? String(eventInventoryId) : "");
+  // The registration's account exactly as HayLoft computes it (lib/hayloft-account).
+  const accountQuery = useQuery({
+    queryKey: ["hayloft-account", event.id, eventInventoryId],
+    enabled: !!eventInventoryId,
+    queryFn: async (): Promise<RegistrationAccount | null> => {
+      const res = await fetch(
+        `/api/admin/event/${event.id}/accounting?view=account&inventoryId=${eventInventoryId}`,
+        { credentials: "include" }
+      );
+      if (!res.ok) return null;
+      return (await res.json()).account ?? null;
+    },
+  });
+  const refetch = () => {
+    refetchInventory();
+    accountQuery.refetch();
+  };
+  const account = accountQuery.data ?? null;
   const { data: breedersData } = useListBreeders();
   const breederId = (data as any)?.eventInventory?.breederId;
   const { data: allBirdsData } = useAdminListBirds(
@@ -361,37 +404,8 @@ export function BreederDetailsDialog({
     return (a.bird?.band ?? "").localeCompare(b.bird?.band ?? "");
   });
 
-  // Fee totals
-  const totalPerchFee = items.reduce((s, i) => s + (i.entryFeeValue ?? 0), 0);
-  const totalBirdFee = items.reduce((s, i) => s + (i.perchFeeValue ?? 0), 0);
-  const totalHotSpotFee = items.reduce((s, i) => s + (i.hotSpotFeeValue ?? 0), 0);
-  const totalRaceFee = items.reduce((s, i) => s + (i.raceFeeValue ?? 0), 0);
-  const totalFees = totalPerchFee + totalBirdFee + totalHotSpotFee + totalRaceFee;
-
-  // Refunds
-  const totalEntryRefund = items.reduce((s, i) => s + (i.entryRefund ?? 0), 0);
-  const totalHotSpotRefund = items.reduce((s, i) => s + (i.hotSpotRefund ?? 0), 0);
-  const totalRefunds = totalEntryRefund + totalHotSpotRefund;
-
-  // Same rules as the season ledger (lib/accounting) and HayLoft's payment
-  // types (lib/payment-types). Only PAID rows count; PENDING is an unpaid order.
-  // Fees: fee payments in, net of fee refunds paid back.
-  const feePayments = payments.filter((p) => !p.paymentDesc?.toLowerCase().includes("bet stake"));
-  const totalPaid = feesPaidNet(feePayments);
-  const feeRefundsPaidOut = feePayments
-    .filter((p) => p.status === "PAID" && isOutgoing(p.paymentType) && p.paymentType !== PAYMENT_TYPE.BETS_REFUND && p.paymentType !== PAYMENT_TYPE.WINNER_PAYOUT)
-    .reduce((s, p) => s + Math.abs(p.paymentValue ?? 0), 0);
-  const transferDue = items.reduce((s, i) => s + (i.transferDue ?? 0), 0);
-  // Bets are separate money: stakes in; bet refunds and winner payouts out.
-  const paidRows = payments.filter((p) => p.status === "PAID");
-  const betsPaid = paidRows
-    .filter((p) => p.paymentType === PAYMENT_TYPE.BETS || p.paymentDesc?.toLowerCase().includes("bet stake"))
-    .reduce((s, p) => s + (p.paymentValue ?? 0), 0);
-  const betsPaidOut = paidRows
-    .filter((p) => p.paymentType === PAYMENT_TYPE.BETS_REFUND || p.paymentType === PAYMENT_TYPE.WINNER_PAYOUT)
-    .reduce((s, p) => s + Math.abs(p.paymentValue ?? 0), 0);
-  // Balance on fees: positive means the breeder owes.
-  const balance = Math.round((totalFees - totalRefunds + transferDue - totalPaid) * 100) / 100;
+  // HayLoft's BALANCE_VALUE (positive: the breeder owes; negative: they are owed).
+  const balance = account ? Math.round(account.balance * 100) / 100 : 0;
 
   // Filter breeders already added as partners
   const partnerBreederIds = new Set([
@@ -735,70 +749,59 @@ export function BreederDetailsDialog({
                 </div>
               </div>
 
-              {/* Fee Summary */}
+              {/* Account — HayLoft's figures for this registration */}
               <div className="space-y-4">
-                <h3 className="font-semibold text-lg">Fee Summary</h3>
+                <h3 className="font-semibold text-lg">Account</h3>
                 <div className="border rounded-lg p-4 space-y-1 bg-transparent border-border text-sm">
-                  <p className="font-medium text-muted-foreground uppercase text-xs tracking-wide mb-2">Fees</p>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Entry Fee</span>
-                    <span>{fmtMoney(totalPerchFee)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Perch Fee (per bird)</span>
-                    <span>{fmtMoney(totalBirdFee)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Race Fee</span>
-                    <span>{fmtMoney(totalRaceFee)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Perch Fee (Hot Spot)</span>
-                    <span>{fmtMoney(totalHotSpotFee)}</span>
-                  </div>
-                  <div className="flex justify-between font-semibold border-t pt-1 mt-1">
-                    <span>Total</span>
-                    <span>{fmtMoney(totalFees)}</span>
-                  </div>
-
-                  <p className="font-medium text-muted-foreground uppercase text-xs tracking-wide mb-2 mt-4">Refunds</p>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Entry Refund</span>
-                    <span>{fmtMoney(totalEntryRefund)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Perch Fee (Hot Spot) Refund</span>
-                    <span>{fmtMoney(totalHotSpotRefund)}</span>
-                  </div>
-                  <div className="flex justify-between font-semibold border-t pt-1 mt-1">
-                    <span>Total</span>
-                    <span>{fmtMoney(totalRefunds)}</span>
-                  </div>
-
-                  <div className="border-t pt-2 mt-2 space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Transfer Due</span>
-                      <span>{fmtMoney(transferDue)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Fees Paid (net)</span>
-                      <span>{fmtMoney(totalPaid)}</span>
-                    </div>
-                    {feeRefundsPaidOut > 0 && (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">of which fee refunds paid out</span>
-                        <span>{fmtMoney(-feeRefundsPaidOut)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Bets Paid</span>
-                      <span>{fmtMoney(betsPaid)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Bet Refunds / Payouts Paid Out</span>
-                      <span>{fmtMoney(betsPaidOut)}</span>
-                    </div>
-                  </div>
+                  {!account ? (
+                    <Skeleton className="h-64 w-full" />
+                  ) : (
+                    <>
+                      <AccountSection
+                        title="Charges"
+                        rows={[
+                          ["Perch fee", account.perchFee],
+                          ["Entry fee", account.entryFee],
+                          ["Hot spot fee", account.hotSpotFee],
+                          ["Class bets", account.betsValue],
+                          ["Transfer due", account.transferDue],
+                          ["Race fee", account.raceFee],
+                          ["Pool bet stakes", account.poolStakes],
+                          ["Entry refund", -account.entryRefund],
+                          ["Bets refund", -account.betsRefund],
+                          ["Hot spot refund", -account.hotSpotRefund],
+                        ]}
+                      />
+                      <AccountSection
+                        title="Payments"
+                        rows={[
+                          ["Perch fee", account.pay.perchFee],
+                          ["Entry fee", account.pay.entryFee],
+                          ["Hot spot fee", account.pay.hotSpot],
+                          ["Bets", account.pay.bets],
+                          ["Transfer due", account.pay.transferDue],
+                          ["Registration", account.pay.registration],
+                          ["Other", account.pay.other],
+                          ["Entry refund paid", account.pay.entryRefund],
+                          ["Bets refund paid", account.pay.betsRefund],
+                          ["Hot spot refund paid", account.pay.hotSpotRefund],
+                          ["Winner payout paid", account.pay.winnerPayout],
+                        ]}
+                        total={account.totalPayment}
+                      />
+                      <AccountSection
+                        title="Won"
+                        rows={[
+                          ["Final race", account.capitalPrize],
+                          ["Hot Spot 1", account.hotSpot1Prize],
+                          ["Hot Spot 2", account.hotSpot2Prize],
+                          ["Average speed", account.avgSpeedPrize],
+                          ["Class bets", account.betsPrize],
+                        ]}
+                        total={account.winnerPayoutValue}
+                      />
+                    </>
+                  )}
 
                   {owedRefunds.map((r) => (
                     <div key={r.id} className="flex items-center justify-between border-t pt-2 mt-2">
@@ -819,11 +822,14 @@ export function BreederDetailsDialog({
                   ))}
 
                   <div className="flex justify-between font-bold text-base border-t pt-2 mt-2">
-                    <span>Balance</span>
+                    <span>{balance < 0 ? "Owed to breeder" : "Balance"}</span>
                     <span className={balance === 0 ? "text-green-600" : balance > 0 ? "text-red-600" : "text-yellow-600"}>
-                      {fmtMoney(balance)}
+                      {fmtMoney(Math.abs(balance))}
                     </span>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Charges − refunds − won − payments, as HayLoft computes it.
+                  </p>
                 </div>
               </div>
             </div>
