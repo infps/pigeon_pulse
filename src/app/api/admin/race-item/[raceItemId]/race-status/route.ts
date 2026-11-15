@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
+import { invalidate, raceKey } from "@/lib/ttl-cache";
 import { presetIdFor } from "@/lib/birdStatus";
 import { recalcRace } from "@/lib/race-results";
 import { headers } from "next/headers";
@@ -104,6 +105,7 @@ export async function POST(
 
     // Positions and prize money shift when a bird leaves or rejoins the results.
     const recalc = await recalcRace(raceItem.raceId);
+    invalidate(raceKey(raceItem.raceId));
 
     return NextResponse.json({
       recalc,

@@ -48,17 +48,31 @@ export async function GET(
         },
         deletedAt: null,
       },
-      include: {
-        bird: true,
+      // Public route: only what the event birds tab (web + mobile) reads. No breeder
+      // contact/SSN/tax/login fields, no bird RFID.
+      select: {
+        id: true,
+        birdId: true,
+        bird: {
+          select: {
+            id: true, band: true, band1: true, band2: true, band3: true, band4: true,
+            birdName: true, color: true, sex: true, image: true,
+          },
+        },
         eventInventory: {
-          include: {
-            breeder: true,
+          select: {
+            id: true,
+            breederId: true,
+            loft: true,
+            breeder: { select: { id: true, userId: true, firstName: true, lastName: true } },
           },
         },
         raceItems: {
-          include: {
+          select: {
+            id: true,
+            status: true,
             race: { select: { id: true, name: true } },
-            result: true,
+            result: { select: { birdPosition: true, arrivalTime: true } },
           },
         },
       },

@@ -257,15 +257,21 @@ export async function POST(
         select: { id: true },
       });
       const raceItemsByInventory = new Map<number, number[]>();
-      for (const race of existingRaces) {
-        for (const item of inventoryItems) {
-          const ri = await tx.raceItem.create({
-            data: { raceId: race.id, inventoryItemId: item.id, displayStatusId: restingStatus?.id ?? null },
-          });
-          const list = raceItemsByInventory.get(item.id) ?? [];
-          list.push(ri.id);
-          raceItemsByInventory.set(item.id, list);
-        }
+      // One insert for every (race, bird) pair instead of one round trip each.
+      const createdRaceItems = await tx.raceItem.createManyAndReturn({
+        data: existingRaces.flatMap((race) =>
+          inventoryItems.map((item) => ({
+            raceId: race.id,
+            inventoryItemId: item.id,
+            displayStatusId: restingStatus?.id ?? null,
+          }))
+        ),
+        select: { id: true, inventoryItemId: true },
+      });
+      for (const ri of createdRaceItems) {
+        const list = raceItemsByInventory.get(ri.inventoryItemId!) ?? [];
+        list.push(ri.id);
+        raceItemsByInventory.set(ri.inventoryItemId!, list);
       }
 
       // Build owner bets (same pools applied to the bird in every race).

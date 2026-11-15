@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
 import { activeItem, activeRaceItemOr } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
+import { invalidate, raceKey } from "@/lib/ttl-cache";
 import { notifyRaceStarted } from "@/lib/notifications";
 import { presetIdFor } from "@/lib/birdStatus";
 import { releaseHolds } from "@/lib/bet-hold";
@@ -101,6 +102,7 @@ export async function POST(
 
     // Everyone with a bird in the air hears about it. Fire-and-forget: a
     // failed announcement must not stop the race from starting.
+    invalidate(raceKey(raceIdInt));
     const notified = await notifyRaceStarted(raceIdInt);
 
     return NextResponse.json(

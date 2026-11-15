@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
 import { approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
+import { invalidate, raceKey } from "@/lib/ttl-cache";
 import { presetIdFor } from "@/lib/birdStatus";
 import { lockRace } from "@/lib/race-results";
 import { headers } from "next/headers";
@@ -138,6 +139,7 @@ export async function POST(
 
       return { recorded };
     });
+    invalidate(raceKey(raceIdInt));
 
     return NextResponse.json({
       message: result.recorded

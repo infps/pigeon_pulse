@@ -3,6 +3,7 @@ import { clearRaceFeeForLostBirds, writeRaceFeeForBasketedBird } from "@/lib/rac
 import { requirePermission } from "@/lib/authorize";
 import { activeRaceItemOr } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
+import { invalidate, raceKey } from "@/lib/ttl-cache";
 import { presetIdFor } from "@/lib/birdStatus";
 import { recalcRace } from "@/lib/race-results";
 import { applyLostRefunds } from "@/lib/hayloft-fees";
@@ -177,6 +178,7 @@ export async function POST(
     // Positions and prizes are only meaningful once the lost set is settled,
     // so this runs after the transaction above commits.
     const recalc = await recalcRace(raceIdInt);
+    invalidate(raceKey(raceIdInt));
 
     // Results are final once the recalculation has run, so announce after it.
     await notifyRaceEnded(raceIdInt, lostCount);

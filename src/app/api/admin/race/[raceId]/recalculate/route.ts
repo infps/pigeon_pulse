@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
+import { invalidate, raceKey } from "@/lib/ttl-cache";
 import { recalcRace } from "@/lib/race-results";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -51,6 +52,7 @@ export async function POST(
     const dryRun = new URL(request.url).searchParams.get("dryRun") === "1";
 
     const summary = await recalcRace(raceIdInt, { dryRun });
+    if (!dryRun) invalidate(raceKey(raceIdInt));
 
     const verb = dryRun ? "Would recalculate" : "Recalculated";
     return NextResponse.json(

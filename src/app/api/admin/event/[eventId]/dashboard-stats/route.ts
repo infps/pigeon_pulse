@@ -1,10 +1,8 @@
-import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
 import { approvedItem, activeRaceItemOr } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { BET_PRICE_SELECT } from "@/lib/class-bets";
 import { seasonAccounts } from "@/lib/hayloft-account";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 /**
@@ -23,7 +21,6 @@ export async function GET(
   const eventId = parseInt(eventIdParam);
   if (isNaN(eventId)) return NextResponse.json({ message: "Invalid event ID" }, { status: 400 });
 
-  const session = await auth.api.getSession({ headers: await headers() });
   const guard = await requirePermission("events.view");
   if ("error" in guard) return guard.error;
 
@@ -97,7 +94,31 @@ export async function GET(
     const cutPct = activeSeason.feeScheme?.feesCutPercent ?? 0;
 
     // --- HayLoft's registration rows (EVENT_INVENTORY_GET); the boxes are their totals ---
-    const { accounts, bettingCutPercent } = await seasonAccounts(activeSeason.id);
+    // Independent reads, run together.
+    const [{ accounts, bettingCutPercent }, foreignBirdRows, injuredRows, poolBetsAgg] = await Promise.all([
+      seasonAccounts(activeSeason.id),
+      prisma.raceItem.count({
+        where: { race: { seasonId: activeSeason.id }, OR: activeRaceItemOr, status: "FOREIGN_BIRD" },
+      }),
+      // Birds counted once each, not once per race flown.
+      prisma.raceItem.groupBy({
+        by: ["inventoryItemId"],
+        where: {
+          race: { seasonId: activeSeason.id },
+          OR: activeRaceItemOr,
+          inventoryItemId: { not: null },
+          displayStatus: { trigger: "INJURED" },
+        },
+      }),
+      prisma.bet.aggregate({
+        where: {
+          race: { seasonId: activeSeason.id },
+          raceItem: { inventoryItem: approvedItem },
+          status: { not: "REFUNDED" },
+        },
+        _sum: { amount: true },
+      }),
+    ]);
     // Every registration HayLoft would list; a portal registration an admin rejected is out.
     const rows = accounts.filter((a) => a.approvalStatus !== "REJECTED");
     const sum = (pick: (a: (typeof rows)[number]) => number) => rows.reduce((s, a) => s + pick(a), 0);
@@ -125,21 +146,6 @@ export async function GET(
     const hotSpotValue = hotSpotFees - hotSpotRefunds - hotSpotCommission;
 
     // --- Birds: counted once each, not once per race flown ---
-    const [foreignBirdRows, injuredRows] = await Promise.all([
-      prisma.raceItem.count({
-        where: { race: { seasonId: activeSeason.id }, OR: activeRaceItemOr, status: "FOREIGN_BIRD" },
-      }),
-      prisma.raceItem.findMany({
-        where: {
-          race: { seasonId: activeSeason.id },
-          OR: activeRaceItemOr,
-          inventoryItemId: { not: null },
-          displayStatus: { trigger: "INJURED" },
-        },
-        select: { inventoryItemId: true },
-        distinct: ["inventoryItemId"],
-      }),
-    ]);
     const totalBirdsCount = hereCount + replacedCount;
     const injuredBirds = injuredRows.length;
     const foreignBirds = foreignBirdRows;
@@ -158,14 +164,6 @@ export async function GET(
     // race pool bets placed through the portal, which are separate money ---
     const classBets = sum((a) => a.betsValue);
     const classBetsRefund = sum((a) => a.betsRefund);
-    const poolBetsAgg = await prisma.bet.aggregate({
-      where: {
-        race: { seasonId: activeSeason.id },
-        raceItem: { inventoryItem: approvedItem },
-        status: { not: "REFUNDED" },
-      },
-      _sum: { amount: true },
-    });
     const poolBets = poolBetsAgg._sum.amount ?? 0;
     const totalBets = classBets + poolBets;
     const betsRefund = classBetsRefund;

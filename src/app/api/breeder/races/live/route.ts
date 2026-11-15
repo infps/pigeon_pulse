@@ -42,28 +42,33 @@ export async function GET(req: NextRequest) {
             raceItems: { where: { OR: activeRaceItemOr } },
           },
         },
-        raceItems: {
-          where: { status: "ARRIVED", OR: activeRaceItemOr },
-          select: { id: true },
-        },
       },
       orderBy: {
         id: "desc",
       },
     });
 
-    const hiddenArrived = new Set(
-      (await prisma.raceStatusVisibility.findMany({
-        where: { status: "ARRIVED", visible: false, raceId: { in: liveRaces.map((r) => r.id) } },
+    const raceIds = liveRaces.map((r) => r.id);
+    // Count arrivals in the DB instead of loading every arrived id.
+    const [hidden, arrived] = await Promise.all([
+      prisma.raceStatusVisibility.findMany({
+        where: { status: "ARRIVED", visible: false, raceId: { in: raceIds } },
         select: { raceId: true },
-      })).map((v) => v.raceId)
-    );
+      }),
+      prisma.raceItem.groupBy({
+        by: ["raceId"],
+        where: { raceId: { in: raceIds }, status: "ARRIVED", OR: activeRaceItemOr },
+        _count: { _all: true },
+      }),
+    ]);
+    const hiddenArrived = new Set(hidden.map((v) => v.raceId));
+    const arrivedByRace = new Map(arrived.map((a) => [a.raceId, a._count._all]));
 
-    const races = liveRaces.map(({ raceItems, seasonRel, ...r }) => ({
+    const races = liveRaces.map(({ seasonRel, ...r }) => ({
       ...r,
       seasonRel,
       event: seasonRel?.event ?? null,
-      arrivedCount: hiddenArrived.has(r.id) ? 0 : raceItems.length,
+      arrivedCount: hiddenArrived.has(r.id) ? 0 : arrivedByRace.get(r.id) ?? 0,
     }));
 
     return NextResponse.json({

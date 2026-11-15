@@ -42,15 +42,35 @@ export async function GET(
 
     const eventInventory = await prisma.eventInventory.findMany({
       where: { seasonId, ...visible },
-      include: {
+      // Public route: only what the event breeders tab (web + mobile) reads. No breeder
+      // contact/SSN/tax/login fields, no bird RFID.
+      select: {
+        id: true,
+        breederId: true,
+        loft: true,
+        approvalStatus: true,
         breeder: {
-          include: {
+          select: {
+            id: true,
+            userId: true,
+            firstName: true,
+            lastName: true,
+            country: true,
+            state1: true,
             user: { select: { id: true, image: true, name: true } },
           },
         },
         items: {
           where: { deletedAt: null },
-          include: { bird: true },
+          select: {
+            id: true,
+            bird: {
+              select: {
+                id: true, band: true, band1: true, band2: true, band3: true, band4: true,
+                birdName: true, color: true, sex: true,
+              },
+            },
+          },
         },
       },
       orderBy: { signInDate: "desc" },

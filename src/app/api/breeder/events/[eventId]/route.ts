@@ -18,7 +18,7 @@ export async function GET(
       where: { id: eventId },
       include: {
         eventType: true,
-        createdBy: true,
+        createdBy: { select: { name: true } }, // public: organizer name only, no email/ssn
         seasons: {
           include: {
             feeScheme: {

@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       where: whereClause,
       include: {
         eventType: true,
-        createdBy: true,
+        createdBy: { select: { name: true } }, // public: organizer name only, no email/ssn
         seasons: {
           include: {
             feeScheme: {

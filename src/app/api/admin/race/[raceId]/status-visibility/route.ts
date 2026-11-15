@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { requireAnyPermission, requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
+import { invalidate, raceKey } from "@/lib/ttl-cache";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { RaceItemStatus } from "@/generated/prisma/enums";
@@ -60,6 +61,7 @@ export async function PATCH(
     create: { raceId: raceIdInt, status, visible },
     update: { visible },
   });
+  invalidate(raceKey(raceIdInt));
 
   return NextResponse.json({ status, visible });
 }

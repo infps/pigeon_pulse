@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
 import { activeItem } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
+import { invalidate, raceKey } from "@/lib/ttl-cache";
 import { presetIdFor } from "@/lib/birdStatus";
 import { lockRace } from "@/lib/race-results";
 import { notifyBirdArrived } from "@/lib/notifications";
@@ -179,6 +180,7 @@ export async function POST(
         });
         return { foreignRaceItem: ri, invItemId: invItem.id };
       });
+      invalidate(raceKey(raceIdInt));
 
       await assignDefaulterGroup(race.seasonId, invItemId, session?.user?.id);
 
@@ -223,6 +225,7 @@ export async function POST(
           },
         },
       });
+      invalidate(raceKey(raceIdInt));
 
       return NextResponse.json(
         {
@@ -278,6 +281,7 @@ export async function POST(
         },
       });
 
+      invalidate(raceKey(raceIdInt));
       await assignDefaulterGroup(race.seasonId, raceItem.inventoryItemId, session?.user?.id);
 
       return NextResponse.json(
@@ -303,6 +307,9 @@ export async function POST(
     const { updatedRaceItem, birdPosition } = await prisma.$transaction(async (tx) => {
       await lockRace(tx, raceIdInt);
 
+      // ponytail: one COUNT per arrival under the race lock, no full re-rank here (recalcRace
+      // runs only on end/recalculate). Fine with a RaceItem(raceId) index; keep a counter
+      // on Race if lock wait ever shows up at peak arrival rates.
       const arrivedCount = await tx.raceItem.count({
         where: { raceId: raceIdInt, status: "ARRIVED" },
       });
@@ -332,27 +339,24 @@ export async function POST(
       return { updatedRaceItem: updated, birdPosition: pos };
     });
 
-    await prisma.birdEventHistory.create({
-      data: {
-        eventInventoryItemId: raceItem.inventoryItemId!,
-        action: "ARRIVED",
-        detail: `Arrived at position ${birdPosition}, race ${raceId}`,
-        performedById: session?.user?.id ?? null,
-      },
-    });
+    invalidate(raceKey(raceIdInt));
 
-    // Tell the owner their bird is home, with the place it took.
-    await notifyBirdArrived(
-      raceIdInt,
-      raceItem.inventoryItemId,
-      bird.band ?? bird.rfid ?? ringNo,
-      birdPosition
-    );
-
-    // Auto STATUS group: if birdPosition matches a BirdStatusCode, assign it
-    const statusCode = await prisma.birdStatusCode.findFirst({
-      where: { code: birdPosition },
-    });
+    // Post-commit side work, independent of each other: run together so the
+    // scanner gets its answer after one round trip, not three.
+    const [, , statusCode] = await Promise.all([
+      prisma.birdEventHistory.create({
+        data: {
+          eventInventoryItemId: raceItem.inventoryItemId!,
+          action: "ARRIVED",
+          detail: `Arrived at position ${birdPosition}, race ${raceId}`,
+          performedById: session?.user?.id ?? null,
+        },
+      }),
+      // Tell the owner their bird is home, with the place it took.
+      notifyBirdArrived(raceIdInt, raceItem.inventoryItemId, bird.band ?? bird.rfid ?? ringNo, birdPosition),
+      // Auto STATUS group: if birdPosition matches a BirdStatusCode, assign it
+      prisma.birdStatusCode.findFirst({ where: { code: birdPosition } }),
+    ]);
     if (statusCode) {
       let statusGroup = await prisma.eventGroup.findFirst({
         where: { seasonId: race.seasonId ?? undefined, type: "STATUS", statusCodeId: statusCode.id },
@@ -369,19 +373,21 @@ export async function POST(
           },
         });
       }
-      await prisma.eventInventoryItem.update({
-        where: { id: raceItem.inventoryItemId! },
-        data: { statusGroupId: statusGroup.id },
-      });
-      await prisma.birdEventHistory.create({
-        data: {
-          eventInventoryItemId: raceItem.inventoryItemId!,
-          action: "STATUS_CHANGED",
-          detail: `Status set to: ${statusCode.label} (code ${statusCode.code})`,
-          groupId: statusGroup.id,
-          performedById: session?.user?.id ?? null,
-        },
-      });
+      await Promise.all([
+        prisma.eventInventoryItem.update({
+          where: { id: raceItem.inventoryItemId! },
+          data: { statusGroupId: statusGroup.id },
+        }),
+        prisma.birdEventHistory.create({
+          data: {
+            eventInventoryItemId: raceItem.inventoryItemId!,
+            action: "STATUS_CHANGED",
+            detail: `Status set to: ${statusCode.label} (code ${statusCode.code})`,
+            groupId: statusGroup.id,
+            performedById: session?.user?.id ?? null,
+          },
+        }),
+      ]);
     }
 
     return NextResponse.json(

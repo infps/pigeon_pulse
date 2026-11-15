@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
 import { approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
+import { invalidate, raceKey } from "@/lib/ttl-cache";
 import { lockRace } from "@/lib/race-results";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
@@ -299,35 +300,37 @@ export async function POST(
     if (knownForeign.length > 0) {
       const dg = await getDefaulterGroup();
 
-      await Promise.all(
-        knownForeign.map(async ({ ringNo, timestamp, bird }) => {
-          const arrivalTime = parseTimestamp(timestamp);
+      // Sequential: one transaction each in parallel would take one pool
+      // connection per foreign bird and starve every other request.
+      for (const { ringNo, timestamp, bird } of knownForeign) {
+        const arrivalTime = parseTimestamp(timestamp);
 
-          await prisma.$transaction(async (tx) => {
-            const birdId = bird!.id;
-            const eventInv = await tx.eventInventory.create({ data: { seasonId: race.seasonId } });
-            const invItem = await tx.eventInventoryItem.create({
-              data: { birdId, eventInventoryId: eventInv.id, statusGroupId: dg.id },
-            });
-            const ri = await tx.raceItem.create({
-              data: { raceId: raceIdInt, inventoryItemId: invItem.id, status: "FOREIGN_BIRD", raceBasketTime: arrivalTime },
-            });
-            await tx.raceItemResult.create({ data: { raceItemId: ri.id, arrivalTime } });
-            await tx.birdEventHistory.create({
-              data: {
-                eventInventoryItemId: invItem.id,
-                action: "STATUS_CHANGED",
-                detail: "Marked as FOREIGN_BIRD (Defaulter)",
-                groupId: dg.id,
-                performedById: session.user.id ?? null,
-              },
-            });
+        await prisma.$transaction(async (tx) => {
+          const birdId = bird!.id;
+          const eventInv = await tx.eventInventory.create({ data: { seasonId: race.seasonId } });
+          const invItem = await tx.eventInventoryItem.create({
+            data: { birdId, eventInventoryId: eventInv.id, statusGroupId: dg.id },
           });
+          const ri = await tx.raceItem.create({
+            data: { raceId: raceIdInt, inventoryItemId: invItem.id, status: "FOREIGN_BIRD", raceBasketTime: arrivalTime },
+          });
+          await tx.raceItemResult.create({ data: { raceItemId: ri.id, arrivalTime } });
+          await tx.birdEventHistory.create({
+            data: {
+              eventInventoryItemId: invItem.id,
+              action: "STATUS_CHANGED",
+              detail: "Marked as FOREIGN_BIRD (Defaulter)",
+              groupId: dg.id,
+              performedById: session.user.id ?? null,
+            },
+          });
+        });
 
-          results.push({ ringNo, scanType: "foreign", isNewScan: true, message: `Unknown bird ${ringNo} registered as foreign` });
-        })
-      );
+        results.push({ ringNo, scanType: "foreign", isNewScan: true, message: `Unknown bird ${ringNo} registered as foreign` });
+      }
     }
+
+    invalidate(raceKey(raceIdInt));
 
     // ── 9. Skipped ──────────────────────────────────────────────────────────
     for (const s of skipped) {
