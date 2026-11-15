@@ -19,6 +19,7 @@ import { BirdEventHistoryPanel } from "./bird-event-history-panel";
 import { BirdActions } from "./bird-actions";
 import { BirdPropertiesCard } from "./bird-properties-card";
 import { BirdFeesCard } from "./bird-fees-card";
+import { BirdPaymentsCard, type PaymentItemView } from "./bird-payments-card";
 import { BirdClassesCard } from "./bird-classes-card";
 import { BirdNotesCard } from "./bird-notes-card";
 import { BirdHealthCard } from "./bird-health-card";
@@ -243,6 +244,10 @@ export default function BirdDetailPage({
         {showEventScopedCards && <BirdClassesCard items={scopedItems} />}
         {showEventScopedCards && <BirdHistoryPanel birdId={birdId} />}
       </div>
+
+      {isOwner && (
+        <BirdPaymentsCard items={scopedItems as unknown as PaymentItemView[]} />
+      )}
 
       {isAdmin && <BirdEventHistoryPanel birdId={birdId} />}
 

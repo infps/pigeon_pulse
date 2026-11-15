@@ -43,6 +43,7 @@ export interface User {
   city2?: string | null;
   state2?: string | null;
   zip2?: string | null;
+  country2?: string | null;
   defaultTeamName?: string | null;
   primaryAddress?: "1" | "2";
 }

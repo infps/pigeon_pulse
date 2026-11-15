@@ -31,6 +31,7 @@ export const createUserSchema = z.object({
     city2: z.string().optional(),
     state2: z.string().optional(),
     zip2: z.string().optional(),
+    country2: z.string().optional(),
     defaultTeamName: z.string().optional(),
     primaryAddress: z.enum(["1", "2"]).optional(),
 });
@@ -64,6 +65,7 @@ export const updateUserSchema = z.object({
     city2: z.string().optional(),
     state2: z.string().optional(),
     zip2: z.string().optional(),
+    country2: z.string().optional(),
     defaultTeamName: z.string().optional(),
     primaryAddress: z.enum(["1", "2"]).optional(),
 });
