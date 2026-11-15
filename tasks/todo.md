@@ -263,6 +263,7 @@ Applied to the Neon dev DB on 2026-10-09 unless marked otherwise.
 6. Payment types onto HayLoft's codes: DATA, no schema. `node scripts/hayloft-sync/normalize-payment-types.cjs` (dry run), then `--apply`.
    - **Must go out together with the code** that reads HayLoft's codes (commit after 84f275e). Old code read type 3 as a payout and 4 as "other"; new code reads 3 as hot spot fee, 4 as entry refund. Either half alone misreads the books.
    - Applied to the Neon dev DB on 2026-11-15: 24 portal rows (4 "other" → 9, 20 untyped registrations → 10). No amounts changed.
+   - Also on 2026-11-15 (dev), approved: deleted portal test data from the 2009 American Showcase (season 10): 4 sample registrations (Pedro Diaz, James Smith, Wei Chen, Carlos Martinez, signed in 2026-02-28), their 12 entries, 120 race entries and 108 results ($13,500 of prizes). Breeders and birds kept. And set entry 8900's ID_REPLACED_ITEM to 9342 as HayLoft has it (AGN 2023 FALL). Check live for the same rows by breeder + season; the reconcile below shows whether they are there.
 7. After 4–6 on any DB: `bun scripts/hayloft-sync/reconcile-details.ts <dump-dir>` must report all events matching (exit 0) before the deploy is called done.
 
 Deploy order: migrations 1–3, then the code. Code from phase 2 on fails without 1; code from phase 3 on fails without 2.
