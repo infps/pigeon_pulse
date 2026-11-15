@@ -275,8 +275,6 @@ model Breeder {
   zip2           String?   @map("ZIP_2")
   country2       String?   @map("COUNTRY_2")
   country        String?   @map("COUNTRY")
-  /// Second address country (column added by feat/bird-payments-addresses; kept).
-  country2       String?   @map("COUNTRY_2")
   webAddress     String?   @map("WEB_ADDRESS")
   ssn            String?   @map("SOCIAL_SECURITY_NUMBER")
   taxNumber      String?   @map("TAX_NUMBER")
