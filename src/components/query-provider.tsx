@@ -22,7 +22,7 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
+      <BirdPopupProvider>{children}</BirdPopupProvider>
     </QueryClientProvider>
   );
 }
