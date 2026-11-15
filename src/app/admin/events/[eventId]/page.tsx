@@ -37,6 +37,7 @@ import { EventStoreTab } from "./event-store-tab";
 import { GroupsTab } from "./groups-tab";
 import { CalcuttaTab } from "./calcutta-tab";
 import { AveragesTab } from "./averages-tab";
+import { AvgSpeedPrizesCard } from "./avg-speed-prizes-card";
 import { TournamentsTab } from "./tournaments-tab";
 import { ClassesTab } from "./classes-tab";
 import { ContentTab } from "./content-tab";
@@ -217,7 +218,12 @@ export default function EventDetailsPage({ params }: { params: Promise<{ eventId
         </TabsContent>
 
         <TabsContent value="averages" className="mt-6">
-          {visitedTabs.has("averages") && <AveragesTab eventId={eventId} />}
+          {visitedTabs.has("averages") && (
+            <div className="space-y-6">
+              <AveragesTab eventId={eventId} />
+              <AvgSpeedPrizesCard eventId={eventId} />
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="tournaments" className="mt-6">
