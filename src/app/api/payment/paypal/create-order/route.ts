@@ -1,10 +1,10 @@
 import { auth } from "@/lib/auth";
 import { paypalClient, paypal } from "@/lib/paypal";
 import { prisma } from "@/lib/prisma";
-import { PaymentStatus } from "@/generated/prisma/enums";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { oldestPending } from "@/lib/paypal-capture";
 
 const createOrderSchema = z.object({
   eventInventoryId: z.number(),
@@ -35,9 +35,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: "Event inventory not found" }, { status: 404 });
     }
 
-    const pendingPayment = eventInventory.payments.find(
-      (p) => p.status === PaymentStatus.PENDING
-    );
+    // Deterministic: the capture settles the same row (lib/paypal-capture).
+    const pendingPayment = oldestPending(eventInventory.payments);
 
     if (!pendingPayment) {
       return NextResponse.json(

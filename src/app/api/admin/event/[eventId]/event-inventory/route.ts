@@ -96,7 +96,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ even
                         hotSpot1FeeValue: true,
                         hotSpot2FeeValue: true,
                         hotSpot3FeeValue: true,
-                        hotSpotFinalFeeValue: true,
+                        hotSpotFinalFeeValue: true, entryRefund: true, hotSpotRefund: true, transferDue: true,
                         birdId: true,
                         eventInventoryId: true,
                     },

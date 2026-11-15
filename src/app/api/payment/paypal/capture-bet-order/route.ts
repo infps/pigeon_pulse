@@ -1,3 +1,4 @@
+import { PAYMENT_TYPE } from "@/lib/payment-types";
 import { auth } from "@/lib/auth";
 import { paypalClient, paypal } from "@/lib/paypal";
 import { prisma } from "@/lib/prisma";
@@ -89,7 +90,7 @@ export async function POST(request: Request) {
     const result = await prisma.$transaction(async (tx) => {
       const payment = await tx.payment.create({
         data: {
-          paymentType: 2, // Classes/bets payment
+          paymentType: PAYMENT_TYPE.BETS, // bet stake
           paymentValue: totalPaid,
           status: "PAID",
           paymentMethod: 2, // PayPal

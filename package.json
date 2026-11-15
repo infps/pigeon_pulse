@@ -8,6 +8,7 @@
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
+    "test": "bun test tests/",
     "db:studio": "bun prisma studio up"
   },
   "dependencies": {

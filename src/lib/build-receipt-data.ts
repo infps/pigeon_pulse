@@ -1,18 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import type { ReceiptData } from "@/components/receipt-pdf";
+import { PAYMENT_TYPE, paymentTypeLabel, signedAmount } from "@/lib/payment-types";
+import { priceItemBets, type BettingPrices } from "@/lib/class-bets";
 
 const METHOD_LABELS: Record<number, string> = {
   0: "Cash",
   1: "Credit Card",
   2: "PayPal",
   3: "Bank Transfer",
-};
-const TYPE_LABELS: Record<number, string> = {
-  0: "Perch fee payment",
-  1: "Entry fee payment",
-  2: "Classes payment",
-  3: "Winner payout",
-  4: "Other",
 };
 
 type BetField =
@@ -79,7 +74,9 @@ export async function buildReceiptData(inventoryId: number): Promise<ReceiptData
   const itemsList = (inv.items ?? []).filter((it) => it.deletedAt == null);
 
   const items = itemsList.map((item) => {
-    const betsSum = BET_FIELDS.reduce((s, f) => s + Number(item[f] ?? 0), 0);
+    // Class bets in dollars: each flag priced by the season's betting scheme
+    // (HayLoft EVENT_INVENTORY_ITEM_BET_CALC). The flags themselves are 1s.
+    const betsSum = priceItemBets(item, inv.season?.bettingScheme as BettingPrices | null);
     const total =
       Number(item.entryFeeValue ?? 0) +
       Number(item.perchFeeValue ?? 0) +
@@ -103,22 +100,25 @@ export async function buildReceiptData(inventoryId: number): Promise<ReceiptData
 
   const sumItems = (fn: (it: (typeof itemsList)[number]) => number) =>
     itemsList.reduce((s, it) => s + fn(it), 0);
+  // Only PAID rows are money received.
   const sumPayments = (typeId: number) =>
     (inv.payments ?? [])
-      .filter((p) => p.paymentType === typeId)
+      .filter((p) => p.paymentType === typeId && p.status === "PAID")
       .reduce((s, p) => s + Number(p.paymentValue ?? 0), 0);
 
+  // HayLoft: perch fee = PERCH_FEE_VALUE, paid by type 0; entry fee =
+  // ENTRY_FEE_VALUE, paid by type 1; hot spot paid by type 3; classes by type 2.
   const fees = {
-    perchDue: sumItems((i) => Number(i.entryFeeValue ?? 0)),
-    perchPaid: sumPayments(0),
-    entryDue: sumItems((i) => Number(i.perchFeeValue ?? 0)),
-    entryPaid: sumPayments(1),
+    perchDue: sumItems((i) => Number(i.perchFeeValue ?? 0)),
+    perchPaid: sumPayments(PAYMENT_TYPE.PERCH_FEE),
+    entryDue: sumItems((i) => Number(i.entryFeeValue ?? 0)),
+    entryPaid: sumPayments(PAYMENT_TYPE.ENTRY_FEE),
     hotSpotDue: sumItems((i) => Number(i.hotSpotFeeValue ?? 0)),
-    hotSpotPaid: 0,
+    hotSpotPaid: sumPayments(PAYMENT_TYPE.HOT_SPOT),
     shippingDue: 0,
     shippingPaid: 0,
-    classesDue: sumItems((i) => BET_FIELDS.reduce((s, f) => s + Number(i[f] ?? 0), 0)),
-    classesPaid: sumPayments(2),
+    classesDue: sumItems((i) => priceItemBets(i, inv.season?.bettingScheme as BettingPrices | null)),
+    classesPaid: sumPayments(PAYMENT_TYPE.BETS),
   };
 
   const refunds = {
@@ -170,13 +170,10 @@ export async function buildReceiptData(inventoryId: number): Promise<ReceiptData
     items,
     classFeeLabels,
     payments: (inv.payments ?? []).map((p) => {
-      const typeId = p.paymentType;
-      const isPayout = typeId === 3;
-      const v = Number(p.paymentValue ?? 0);
       return {
-        type: typeof typeId === "number" ? (TYPE_LABELS[typeId] ?? "Other") : "Other",
+        type: paymentTypeLabel(p.paymentType),
         date: p.paymentDate?.toISOString() ?? null,
-        value: isPayout ? -Math.abs(v) : v,
+        value: signedAmount(p),
         method: typeof p.paymentMethod === "number" ? (METHOD_LABELS[p.paymentMethod] ?? "Other") : "Other",
         desc: p.paymentDesc ?? null,
       };

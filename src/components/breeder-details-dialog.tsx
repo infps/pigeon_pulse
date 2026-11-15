@@ -17,6 +17,16 @@ import { setEntryDeleted } from "@/lib/api/event-inventory-items";
 import { Download, Plus, Trash2, Edit, UserPlus, ArrowLeft, Repeat, UserCog } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { Event, EventInventory, EventInventoryItem } from "@/lib/types";
+import {
+  MANUAL_PAYMENT_TYPES,
+  PAYMENT_TYPE,
+  feesPaidNet,
+  isOutgoing,
+  paymentTypeKey,
+  paymentTypeLabel,
+  signedAmount,
+  type PaymentTypeKey,
+} from "@/lib/payment-types";
 import { EditBirdDialog } from "./edit-bird-dialog";
 import { CreateBirdDialog } from "./create-bird-dialog";
 import { ExportButton } from "./export-button";
@@ -26,7 +36,6 @@ import { BreederBetsSection, RegistrationStatusEditor } from "./breeder-registra
 import { SubstitutionDialog } from "@/app/admin/events/[eventId]/substitution-dialog";
 
 const METHOD_LABELS: Record<number, string> = { 0: "Cash", 1: "Credit Card", 2: "PayPal", 3: "Bank Transfer" };
-const TYPE_LABELS: Record<number, string> = { 0: "Perch Fee", 1: "Per Bird Fee", 2: "Races Fee", 3: "Refund", 4: "Other" };
 
 interface BreederDetailsDialogProps {
   open: boolean;
@@ -63,7 +72,7 @@ export function BreederDetailsDialog({
   // Payment form state
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"CREDIT_CARD" | "PAYPAL" | "BANK_TRANSFER" | "CASH">("CASH");
-  const [paymentType, setPaymentType] = useState<"PERCH_FEE" | "BIRD_FEE" | "RACES_FEE" | "PAYOUTS" | "OTHER">("OTHER");
+  const [paymentType, setPaymentType] = useState<PaymentTypeKey>("OTHER");
   const [paymentDescription, setPaymentDescription] = useState("");
   const [referenceNumber, setReferenceNumber] = useState("");
 
@@ -152,7 +161,8 @@ export function BreederDetailsDialog({
     e.preventDefault();
     if (!eventInventory) return;
     const amount = parseFloat(paymentAmount);
-    const isValid = (paymentType === "PAYOUTS" || paymentType === "OTHER") ? !isNaN(amount) && amount !== 0 : !isNaN(amount) && amount > 0;
+    // Enter amounts as positive; the server stores a refund or payout as money out.
+    const isValid = paymentType === "OTHER" ? !isNaN(amount) && amount !== 0 : !isNaN(amount) && amount > 0;
     if (!isValid) {
       toast.error("Please enter a valid amount");
       return;
@@ -186,13 +196,16 @@ export function BreederDetailsDialog({
   };
 
   const REVERSE_METHOD: Record<number, typeof paymentMethod> = { 0: "CASH", 1: "CREDIT_CARD", 2: "PAYPAL", 3: "BANK_TRANSFER" };
-  const REVERSE_TYPE: Record<number, typeof paymentType> = { 0: "PERCH_FEE", 1: "BIRD_FEE", 2: "RACES_FEE", 3: "PAYOUTS", 4: "OTHER" };
 
   const handleEditPayment = (payment: any) => {
     setEditingPayment(payment);
-    setPaymentAmount((payment.paymentValue ?? 0).toString());
+    // Shown positive: the type says which way the money went.
+    setPaymentAmount(
+      (isOutgoing(payment.paymentType) ? Math.abs(payment.paymentValue ?? 0) : payment.paymentValue ?? 0).toString()
+    );
     setPaymentMethod(REVERSE_METHOD[payment.paymentMethod] ?? "CASH");
-    setPaymentType(REVERSE_TYPE[payment.paymentType] ?? "OTHER");
+    const key = paymentTypeKey(payment.paymentType);
+    setPaymentType(key && key !== "REGISTRATION" ? key : "OTHER");
     setPaymentDescription(payment.paymentDesc || "");
     setReferenceNumber(payment.transactionId || "");
     setIsAddPaymentOpen(true);
@@ -353,27 +366,32 @@ export function BreederDetailsDialog({
   const totalBirdFee = items.reduce((s, i) => s + (i.perchFeeValue ?? 0), 0);
   const totalHotSpotFee = items.reduce((s, i) => s + (i.hotSpotFeeValue ?? 0), 0);
   const totalRaceFee = items.reduce((s, i) => s + (i.raceFeeValue ?? 0), 0);
-  const totalClassesFee = payments
-    .filter((p) => p.paymentDesc?.toLowerCase().includes("bet stake"))
-    .reduce((s, p) => s + (p.paymentValue ?? 0), 0);
-  const totalFees = totalPerchFee + totalBirdFee + totalHotSpotFee + totalRaceFee + totalClassesFee;
+  const totalFees = totalPerchFee + totalBirdFee + totalHotSpotFee + totalRaceFee;
 
   // Refunds
   const totalEntryRefund = items.reduce((s, i) => s + (i.entryRefund ?? 0), 0);
   const totalHotSpotRefund = items.reduce((s, i) => s + (i.hotSpotRefund ?? 0), 0);
   const totalRefunds = totalEntryRefund + totalHotSpotRefund;
 
-  // Payments — refunds (type=3) are money OUT to breeder
-  // Only PAID rows are money that has moved; a PENDING row is an unpaid order.
-  const winnerPayouts = payments
-    .filter((p) => p.paymentType === 3 && p.status === "PAID")
+  // Same rules as the season ledger (lib/accounting) and HayLoft's payment
+  // types (lib/payment-types). Only PAID rows count; PENDING is an unpaid order.
+  // Fees: fee payments in, net of fee refunds paid back.
+  const feePayments = payments.filter((p) => !p.paymentDesc?.toLowerCase().includes("bet stake"));
+  const totalPaid = feesPaidNet(feePayments);
+  const feeRefundsPaidOut = feePayments
+    .filter((p) => p.status === "PAID" && isOutgoing(p.paymentType) && p.paymentType !== PAYMENT_TYPE.BETS_REFUND && p.paymentType !== PAYMENT_TYPE.WINNER_PAYOUT)
     .reduce((s, p) => s + Math.abs(p.paymentValue ?? 0), 0);
-  const totalPaid = payments
-    .filter((p) => p.paymentType !== 3 && p.status === "PAID")
-    .reduce((s, p) => s + (p.paymentValue ?? 0), 0);
   const transferDue = items.reduce((s, i) => s + (i.transferDue ?? 0), 0);
-  // balance: what's owed minus what's been received, plus what's been paid back out
-  const balance = (totalFees - totalRefunds) - totalPaid + winnerPayouts;
+  // Bets are separate money: stakes in; bet refunds and winner payouts out.
+  const paidRows = payments.filter((p) => p.status === "PAID");
+  const betsPaid = paidRows
+    .filter((p) => p.paymentType === PAYMENT_TYPE.BETS || p.paymentDesc?.toLowerCase().includes("bet stake"))
+    .reduce((s, p) => s + (p.paymentValue ?? 0), 0);
+  const betsPaidOut = paidRows
+    .filter((p) => p.paymentType === PAYMENT_TYPE.BETS_REFUND || p.paymentType === PAYMENT_TYPE.WINNER_PAYOUT)
+    .reduce((s, p) => s + Math.abs(p.paymentValue ?? 0), 0);
+  // Balance on fees: positive means the breeder owes.
+  const balance = Math.round((totalFees - totalRefunds + transferDue - totalPaid) * 100) / 100;
 
   // Filter breeders already added as partners
   const partnerBreederIds = new Set([
@@ -609,11 +627,11 @@ export function BreederDetailsDialog({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="PERCH_FEE">Perch Fee</SelectItem>
-                            <SelectItem value="BIRD_FEE">Per Bird Fee</SelectItem>
-                            <SelectItem value="RACES_FEE">Races Fee</SelectItem>
-                            <SelectItem value="PAYOUTS">Refund</SelectItem>
-                            <SelectItem value="OTHER">Other</SelectItem>
+                            {MANUAL_PAYMENT_TYPES.map((t) => (
+                              <SelectItem key={t.key} value={t.key}>
+                                {t.label}{t.outgoing ? " (money out)" : ""}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -678,7 +696,7 @@ export function BreederDetailsDialog({
                           <tr key={payment.id}>
                             <td className="px-4 py-2 text-sm">{fmtDate(payment.paymentDate)}</td>
                             <td className="px-4 py-2 text-sm">
-                              {payment.paymentType != null ? TYPE_LABELS[payment.paymentType] ?? payment.paymentType : "-"}
+                              {paymentTypeLabel(payment.paymentType)}
                             </td>
                             <td className="px-4 py-2 text-sm">
                               {payment.paymentMethod != null ? METHOD_LABELS[payment.paymentMethod] ?? payment.paymentMethod : "-"}
@@ -687,7 +705,7 @@ export function BreederDetailsDialog({
                               {payment.paymentDesc || "-"}
                             </td>
                             <td className="px-4 py-2 text-sm text-right">
-                              {fmtMoney(payment.paymentValue ?? 0)}
+                              {fmtMoney(signedAmount(payment))}
                             </td>
                             <td className="px-4 py-2 text-center">
                               <div className="flex items-center justify-center gap-2">
@@ -723,11 +741,11 @@ export function BreederDetailsDialog({
                 <div className="border rounded-lg p-4 space-y-1 bg-transparent border-border text-sm">
                   <p className="font-medium text-muted-foreground uppercase text-xs tracking-wide mb-2">Fees</p>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Perch Fee</span>
+                    <span className="text-muted-foreground">Entry Fee</span>
                     <span>{fmtMoney(totalPerchFee)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Per Bird Fee</span>
+                    <span className="text-muted-foreground">Perch Fee (per bird)</span>
                     <span>{fmtMoney(totalBirdFee)}</span>
                   </div>
                   <div className="flex justify-between">
@@ -737,10 +755,6 @@ export function BreederDetailsDialog({
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Perch Fee (Hot Spot)</span>
                     <span>{fmtMoney(totalHotSpotFee)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Classes</span>
-                    <span>{fmtMoney(totalClassesFee)}</span>
                   </div>
                   <div className="flex justify-between font-semibold border-t pt-1 mt-1">
                     <span>Total</span>
@@ -763,16 +777,26 @@ export function BreederDetailsDialog({
 
                   <div className="border-t pt-2 mt-2 space-y-1">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Payments</span>
-                      <span>{fmtMoney(totalPaid)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Refunds Paid Out</span>
-                      <span>{fmtMoney(winnerPayouts)}</span>
-                    </div>
-                    <div className="flex justify-between">
                       <span className="text-muted-foreground">Transfer Due</span>
                       <span>{fmtMoney(transferDue)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Fees Paid (net)</span>
+                      <span>{fmtMoney(totalPaid)}</span>
+                    </div>
+                    {feeRefundsPaidOut > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">of which fee refunds paid out</span>
+                        <span>{fmtMoney(-feeRefundsPaidOut)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Bets Paid</span>
+                      <span>{fmtMoney(betsPaid)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Bet Refunds / Payouts Paid Out</span>
+                      <span>{fmtMoney(betsPaidOut)}</span>
                     </div>
                   </div>
 

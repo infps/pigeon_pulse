@@ -4,6 +4,7 @@ import {
     HOTSPOT_CASCADE,
     type HotspotGate,
 } from "@/lib/fee-calculator";
+import { feesPaidNet } from "@/lib/payment-types";
 
 export type PaymentStatus = "PAID" | "OVERPAID" | "PENDING" | "PARTIAL" | "NA";
 
@@ -25,12 +26,18 @@ export interface PaymentStatusItem {
     hotSpot2FeeValue?: number | null;
     hotSpot3FeeValue?: number | null;
     hotSpotFinalFeeValue?: number | null;
+    entryRefund?: number | null;
+    hotSpotRefund?: number | null;
+    transferDue?: number | null;
 }
 
 export interface PaymentStatusPayment {
     paymentValue?: number | null;
     paymentDesc?: string | null;
+    /** HayLoft payment type code — see lib/payment-types. */
     paymentType?: number | null;
+    /** Set on a hot spot gate payment; such a payment is settled through the mask. */
+    hotspotGate?: string | null;
     /** Only PAID rows are money received; a PENDING row is an unpaid order. */
     status: string;
 }
@@ -94,10 +101,10 @@ export interface PaymentTotals {
 /**
  * The ledger for one registration.
  *
- * Payouts (type 3) are money going the other way and are netted off rather than
- * counted as receipts. Bet stakes ride on the same payment row as registration
- * fees but are not a registration fee, so they are excluded by description —
- * which is fragile, and the reason bets should carry their own type.
+ * Paid is fee money in, net of fee refunds paid back (lib/payment-types,
+ * HayLoft's codes). Bets, bet refunds and winner payouts are separate money.
+ * Bet stakes written as their own rows carry type 2 and drop out by type; the
+ * older "bet stake" description check stays for rows written before that.
  */
 export function computePaymentTotals(
     items: ReadonlyArray<PaymentStatusItem>,
@@ -105,7 +112,7 @@ export function computePaymentTotals(
     hotspotsPaidMask = 0,
     openGate: HotspotGate = "HS1"
 ): PaymentTotals {
-    const owed = items.reduce(
+    const gross = items.reduce(
         (s, i) =>
             s +
             (i.entryFeeValue ?? 0) +
@@ -115,16 +122,26 @@ export function computePaymentTotals(
         0
     );
 
-    const received = payments.filter((p) => p.status === "PAID");
+    // Owed is net of refunds already set on the birds, plus transfer charges,
+    // matching what HayLoft records against them (entry/hot spot refund and
+    // transfer due payments).
+    const owed =
+        gross -
+        items.reduce((s, i) => s + (i.entryRefund ?? 0) + (i.hotSpotRefund ?? 0), 0) +
+        items.reduce((s, i) => s + (i.transferDue ?? 0), 0);
 
-    const refundsOut = received
-        .filter((p) => p.paymentType === 3)
-        .reduce((s, p) => s + Math.abs(p.paymentValue ?? 0), 0);
-
-    const totalPaid =
-        received
-            .filter((p) => !p.paymentDesc?.toLowerCase().includes("bet stake") && p.paymentType !== 3)
-            .reduce((s, p) => s + (p.paymentValue ?? 0), 0) - refundsOut;
+    // Hot spot gate payments: under SINGLE the settled gate stays in `owed`
+    // (hotspotOwedFor returns its price), so its payment counts as paid. Under
+    // CUMULATIVE a settled gate drops out of `owed`, so counting its payment as
+    // well would report the breeder overpaid by exactly that amount.
+    const gatePaymentsCount = HOTSPOT_CASCADE !== "CUMULATIVE";
+    const totalPaid = feesPaidNet(
+        payments.filter(
+            (p) =>
+                (gatePaymentsCount || !p.hotspotGate) &&
+                !p.paymentDesc?.toLowerCase().includes("bet stake")
+        )
+    );
 
     return {
         owed: Math.round(owed * 100) / 100,

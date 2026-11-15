@@ -1,3 +1,4 @@
+import { PAYMENT_TYPE } from "@/lib/payment-types";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireApproved, requireBirdOwner } from "@/lib/roles";
@@ -167,8 +168,7 @@ export async function POST(
           eventInventoryId: inventory.id,
           breederId: breeder.id,
           paymentValue: amount,
-          // 2 = RACES_FEE in the portal's payment taxonomy.
-          paymentType: 2,
+          paymentType: PAYMENT_TYPE.HOT_SPOT,
           paymentMethod: method === "PAYPAL" ? 2 : 0,
           paymentDesc: label,
           // Structured, so a capture that rewrites the description still knows

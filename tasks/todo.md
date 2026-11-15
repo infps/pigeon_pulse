@@ -260,5 +260,9 @@ Applied to the Neon dev DB on 2026-10-09 unless marked otherwise.
    - Every HayLoft-imported payment had `ID_BREEDER` null, so the breeder payment screens (`/payments`, pending, single payment) showed nothing / $0. It copies the registration's breeder.
    - Applied to the Neon dev DB on 2026-11-14: 8,379 updated; 3 ($470) have no registration and stay null.
    - Safe to rerun. `sync.cjs` now does the same inside its transaction, so a later sync does not reintroduce it.
+6. Payment types onto HayLoft's codes: DATA, no schema. `node scripts/hayloft-sync/normalize-payment-types.cjs` (dry run), then `--apply`.
+   - **Must go out together with the code** that reads HayLoft's codes (commit after 84f275e). Old code read type 3 as a payout and 4 as "other"; new code reads 3 as hot spot fee, 4 as entry refund. Either half alone misreads the books.
+   - Applied to the Neon dev DB on 2026-11-15: 24 portal rows (4 "other" → 9, 20 untyped registrations → 10). No amounts changed.
+7. After 4–6 on any DB: `bun scripts/hayloft-sync/reconcile-details.ts <dump-dir>` must report all events matching (exit 0) before the deploy is called done.
 
 Deploy order: migrations 1–3, then the code. Code from phase 2 on fails without 1; code from phase 3 on fails without 2.

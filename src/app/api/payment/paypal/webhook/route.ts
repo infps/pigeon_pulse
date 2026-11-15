@@ -1,5 +1,7 @@
+import { PAYMENT_TYPE } from "@/lib/payment-types";
 import { paypalClient, paypal } from "@/lib/paypal";
 import { settleHotspotsForPayments } from "@/lib/hotspot-settle";
+import { pendingForCapture } from "@/lib/paypal-capture";
 import { prisma } from "@/lib/prisma";
 import { PaymentStatus } from "@/generated/prisma/enums";
 import { NextResponse } from "next/server";
@@ -67,8 +69,16 @@ export async function POST(request: Request) {
           break;
         }
 
-        // Update or create payment
-        const pendingPayment = eventInventory.payments.find((p) => p.status === PaymentStatus.PENDING);
+        // Already recorded by the capture endpoint: nothing more to do.
+        const recorded = await prisma.payment.findFirst({ where: { transactionId: captureId }, select: { id: true } });
+        if (recorded) {
+          console.log(`Capture ${captureId} already recorded as payment ${recorded.id}`);
+          break;
+        }
+
+        // The pending payment this amount pays, matched to the cent; never a
+        // different row, and its amount and description are kept.
+        const pendingPayment = pendingForCapture(eventInventory.payments, amount);
 
         if (pendingPayment) {
           await prisma.payment.update({
@@ -76,10 +86,11 @@ export async function POST(request: Request) {
             data: {
               status: PaymentStatus.PAID,
               transactionId: captureId,
-              paymentValue: amount,
               paymentDate: new Date(),
               paymentTimestamp: new Date(),
-              paymentDesc: `PayPal webhook: ${event.id}`,
+              paymentDesc: pendingPayment.paymentDesc
+                ? `${pendingPayment.paymentDesc} · PayPal webhook: ${event.id}`
+                : `PayPal webhook: ${event.id}`,
             },
           });
           await settleHotspotsForPayments([pendingPayment.id]);
@@ -88,6 +99,7 @@ export async function POST(request: Request) {
             data: {
               eventInventoryId,
               breederId: eventInventory.breederId,
+              paymentType: PAYMENT_TYPE.REGISTRATION,
               paymentValue: amount,
               status: PaymentStatus.PAID,
               transactionId: captureId,

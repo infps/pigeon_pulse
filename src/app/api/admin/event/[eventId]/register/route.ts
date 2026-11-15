@@ -1,3 +1,4 @@
+import { PAYMENT_TYPE } from "@/lib/payment-types";
 import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
@@ -247,6 +248,7 @@ export async function POST(
           data: {
             eventInventoryId: eventInventory.id,
             breederId,
+            paymentType: PAYMENT_TYPE.REGISTRATION,
             paymentValue: fees.total,
             paymentDate: new Date(),
             paymentTimestamp: new Date(),

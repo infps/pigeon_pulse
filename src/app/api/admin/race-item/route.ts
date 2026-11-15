@@ -80,12 +80,12 @@ export async function GET(req: NextRequest) {
         select: {
           id: true,
           hotspotsPaidMask: true,
-          payments: { select: { paymentValue: true, paymentDesc: true, paymentType: true, status: true } },
+          payments: { select: { paymentValue: true, paymentDesc: true, paymentType: true, hotspotGate: true, status: true } },
           items: {
             where: { deletedAt: null },
             select: {
               entryFeeValue: true, perchFeeValue: true, raceFeeValue: true, hotSpotFeeValue: true,
-              hotSpot1FeeValue: true, hotSpot2FeeValue: true, hotSpot3FeeValue: true, hotSpotFinalFeeValue: true,
+              hotSpot1FeeValue: true, hotSpot2FeeValue: true, hotSpot3FeeValue: true, hotSpotFinalFeeValue: true, entryRefund: true, hotSpotRefund: true, transferDue: true,
             },
           },
         },

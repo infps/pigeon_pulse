@@ -142,6 +142,9 @@ export async function POST(
           birdId: bird.id,
           eventInventoryId: eventInventory.id,
           isBackup: isBackup ? 1 : 0,
+          // HayLoft creates every entry with its bets active; refund or
+          // replacement is what turns them off (EVENT_INVENTORY_ITEM_CHANGE).
+          isBetActive: 1,
           arrivalDate: arrivalTime ? new Date(arrivalTime) : new Date(),
           departureDate: departureTime ? new Date(departureTime) : null,
           perchFeeValue: perchFeeValue ?? null,

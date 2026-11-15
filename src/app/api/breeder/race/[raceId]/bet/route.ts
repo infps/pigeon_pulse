@@ -1,3 +1,4 @@
+import { PAYMENT_TYPE } from "@/lib/payment-types";
 import { auth } from "@/lib/auth";
 import { requireApproved } from "@/lib/roles";
 import { prisma } from "@/lib/prisma";
@@ -113,7 +114,7 @@ export async function POST(
 
       const newPayment = await tx.payment.create({
         data: {
-          paymentType: 2,
+          paymentType: PAYMENT_TYPE.BETS,
           paymentValue: amount,
           paymentDate: new Date(),
           paymentDesc: `Bet stake: ${category} tier ${tierIndex}`,

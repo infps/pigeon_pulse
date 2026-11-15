@@ -33,6 +33,26 @@ Brings a newer `HAYLOFT.FDB` into a database that already holds the original
   status is derived (arrived / lost / basketed → RELEASED / REGISTERED), which matches
   the original import on 376,527 of 376,530 rows.
 
+## Accounting: one set of rules, checked against HayLoft
+
+Payment types are HayLoft's codes everywhere (`src/lib/payment-types.ts`, from
+HayLoft's stored procedure `PAYMENT_CALC`): 0 perch fee, 1 entry fee, 2 bets,
+3 hot spot, 4 entry refund, 5 bets refund, 6 hot spot refund, 7 transfer due,
+8 winner payout; the portal adds 9 other and 10 registration (one payment for
+a self-registration's fees). Money going out (4, 5, 6, 8) is stored negative.
+Class bets are priced from the entry flags by `src/lib/class-bets.ts`
+(`EVENT_BET_TOTALS`: active entries only).
+
+- `node scripts/hayloft-sync/normalize-payment-types.cjs [--apply]` converts
+  rows written with the portal's old codes. It finds them from the data alone
+  (HayLoft never leaves the type empty and never stores 4/6/8 positive), so it
+  is safe on any database; dry run first. Rerunning changes nothing.
+- `bun scripts/hayloft-sync/reconcile-details.ts <dump-dir> [eventId ...]`
+  recomputes every event's Details screen and Accounting totals from the
+  HayLoft export with HayLoft's rules and compares them with what the app
+  shows. Exits 1 on any difference. Run it after every sync.
+- `bun test tests/` (`pnpm test`) locks the rules themselves.
+
 ## Before running against another database
 
 `CUTOFF` in `sync.cjs` is the highest HayLoft id per table at the original import

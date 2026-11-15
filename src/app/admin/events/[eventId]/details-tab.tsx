@@ -58,6 +58,7 @@ interface DashboardStats {
   paidPerchFee: number;
   paidEntryFee: number;
   paidHotSpot: number;
+  paidRegistration: number;
   paymentClasses: number;
 }
 
@@ -212,6 +213,10 @@ export function DetailsTab({ event, eventId, feeSchemes, prizeSchemes, bettingSc
               <StatRow label="Entry fee" value={fmtCurrency(stats?.paidEntryFee ?? 0)} />
               <StatRow label="Perch fee (hot spot)" value={fmtCurrency(stats?.paidHotSpot ?? 0)} />
               <StatRow label="Classes" value={fmtCurrency(stats?.paymentClasses ?? 0)} />
+              {/* Portal registrations pay all fees in one payment; HayLoft has no such line. */}
+              {(stats?.paidRegistration ?? 0) !== 0 && (
+                <StatRow label="Registration (all fees)" value={fmtCurrency(stats?.paidRegistration ?? 0)} />
+              )}
             </CardContent>
           </Card>
         </div>

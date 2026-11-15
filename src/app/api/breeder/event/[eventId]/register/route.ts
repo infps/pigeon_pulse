@@ -1,3 +1,4 @@
+import { PAYMENT_TYPE } from "@/lib/payment-types";
 import { auth } from "@/lib/auth";
 import { requireApproved } from "@/lib/roles";
 import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
@@ -345,6 +346,7 @@ export async function POST(
           data: {
             eventInventoryId: eventInventory.id,
             breederId,
+            paymentType: PAYMENT_TYPE.REGISTRATION,
             paymentValue: grandTotal,
             paymentDate: new Date(),
             paymentTimestamp: new Date(),

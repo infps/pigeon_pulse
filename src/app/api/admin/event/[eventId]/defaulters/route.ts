@@ -57,12 +57,13 @@ export async function GET(
       select: {
         id: true, breederId: true, loft: true, cashPromised: true,
         breeder: { select: { firstName: true, lastName: true } },
-        payments: { select: { paymentValue: true, paymentDesc: true, paymentType: true, status: true } },
+        payments: { select: { paymentValue: true, paymentDesc: true, paymentType: true, hotspotGate: true, status: true } },
         items: {
           where: { deletedAt: null },
           select: {
             id: true, birdNo: true, birdId: true,
             entryFeeValue: true, perchFeeValue: true, raceFeeValue: true, hotSpotFeeValue: true,
+            entryRefund: true, hotSpotRefund: true, transferDue: true,
           },
           orderBy: { birdNo: "asc" },
         },

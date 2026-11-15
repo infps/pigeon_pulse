@@ -10,6 +10,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { activeItem, activeRaceItemOr, approvedInventory } from "@/lib/entry-filters";
+import { feesPaidNet } from "@/lib/payment-types";
 
 export interface LedgerLine {
   eventInventoryId: number;
@@ -18,9 +19,11 @@ export interface LedgerLine {
   loft: string | null;
   /** Registration fees charged across all birds. */
   charged: number;
-  /** Fee-level refunds recorded on the bird entries themselves. */
+  /** Entry and hot spot refunds recorded on the bird entries themselves. */
   itemRefunds: number;
-  /** Payments marked PAID. */
+  /** Transfer charges recorded on the bird entries. */
+  transferDue: number;
+  /** Fee payments marked PAID, net of fee refunds paid back (lib/payment-types). */
   paid: number;
   /** Money returned through the refunds ledger. */
   refunded: number;
@@ -30,7 +33,7 @@ export interface LedgerLine {
   prizeEarned: number;
   /** Class payouts. */
   classEarned: number;
-  /** charged − itemRefunds − paid  (positive means they owe). */
+  /** charged − itemRefunds + transferDue − paid  (positive means they owe). */
   balance: number;
   /** What the organization owes them. */
   owedOut: number;
@@ -87,12 +90,12 @@ export async function seasonLedger(seasonId: number): Promise<Ledger> {
           raceFeeValue: true,
           entryRefund: true,
           hotSpotRefund: true,
-          betsRefund: true,
+          transferDue: true,
           raceItems: { select: { result: { select: { prizeValue: true } } } },
           raceClassEntries: { select: { payoutValue: true } },
         },
       },
-      payments: { select: { paymentValue: true, status: true } },
+      payments: { select: { paymentValue: true, paymentType: true, paymentDesc: true, status: true } },
       refunds: { select: { amount: true, status: true } },
     },
   });
@@ -112,10 +115,13 @@ export async function seasonLedger(seasonId: number): Promise<Ledger> {
         (it.raceFeeValue ?? 0),
       0
     );
+    // Bets are not part of the fees charged here, so a bets refund is not
+    // either; it is settled on the bets side.
     const itemRefunds = live.reduce(
-      (sum, it) => sum + (it.entryRefund ?? 0) + (it.hotSpotRefund ?? 0) + (it.betsRefund ?? 0),
+      (sum, it) => sum + (it.entryRefund ?? 0) + (it.hotSpotRefund ?? 0),
       0
     );
+    const transferDue = live.reduce((sum, it) => sum + (it.transferDue ?? 0), 0);
     const prizeEarned = inv.items.reduce(
       (sum, it) =>
         sum + it.raceItems.reduce((s, ri) => s + (ri.result?.prizeValue ?? 0), 0),
@@ -125,9 +131,10 @@ export async function seasonLedger(seasonId: number): Promise<Ledger> {
       (sum, it) => sum + it.raceClassEntries.reduce((s, ce) => s + (ce.payoutValue ?? 0), 0),
       0
     );
-    const paid = inv.payments
-      .filter((p) => p.status === "PAID")
-      .reduce((sum, p) => sum + (p.paymentValue ?? 0), 0);
+    // Fee money only: bets, bet refunds and winner payouts are separate money.
+    const paid = feesPaidNet(
+      inv.payments.filter((p) => !p.paymentDesc?.toLowerCase().includes("bet stake"))
+    );
     const refunded = inv.refunds
       .filter((r) => r.status === "ISSUED")
       .reduce((sum, r) => sum + r.amount, 0);
@@ -142,12 +149,13 @@ export async function seasonLedger(seasonId: number): Promise<Ledger> {
       loft: inv.loft,
       charged: round(charged),
       itemRefunds: round(itemRefunds),
+      transferDue: round(transferDue),
       paid: round(paid),
       refunded: round(refunded),
       refundOwed: round(refundOwed),
       prizeEarned: round(prizeEarned),
       classEarned: round(classEarned),
-      balance: round(charged - itemRefunds - paid),
+      balance: round(charged - itemRefunds + transferDue - paid),
       owedOut: round(prizeEarned + classEarned - refunded + refundOwed),
       cashPromised: inv.cashPromised === true,
     };
@@ -218,6 +226,9 @@ export async function entryInvoice(eventInventoryId: number): Promise<Invoice | 
           perchFeeValue: true,
           hotSpotFeeValue: true,
           raceFeeValue: true,
+          entryRefund: true,
+          hotSpotRefund: true,
+          transferDue: true,
           bird: { select: { band1: true, band2: true, band3: true, band4: true, band: true } },
           raceClassEntries: {
             select: { feeCharged: true, raceClass: { select: { code: true } } },
@@ -225,7 +236,7 @@ export async function entryInvoice(eventInventoryId: number): Promise<Invoice | 
         },
         orderBy: { birdNo: "asc" },
       },
-      payments: { select: { paymentValue: true, status: true } },
+      payments: { select: { paymentValue: true, paymentType: true, paymentDesc: true, status: true } },
       refunds: { select: { amount: true } },
     },
   });
@@ -245,6 +256,10 @@ export async function entryInvoice(eventInventoryId: number): Promise<Invoice | 
     if (item.hotSpotFeeValue)
       lines.push({ label, detail: "Perch fee (hot spot)", amount: item.hotSpotFeeValue });
     if (item.raceFeeValue) lines.push({ label, detail: "Race fee", amount: item.raceFeeValue });
+    if (item.transferDue) lines.push({ label, detail: "Transfer due", amount: item.transferDue });
+    if (item.entryRefund) lines.push({ label, detail: "Entry refund", amount: -item.entryRefund });
+    if (item.hotSpotRefund)
+      lines.push({ label, detail: "Hot spot refund", amount: -item.hotSpotRefund });
 
     for (const ce of item.raceClassEntries) {
       if (!ce.feeCharged) continue;
@@ -253,8 +268,9 @@ export async function entryInvoice(eventInventoryId: number): Promise<Invoice | 
   }
 
   const charged = round(lines.reduce((sum, l) => sum + l.amount, 0));
-  const paid = round(
-    inv.payments.filter((p) => p.status === "PAID").reduce((s, p) => s + (p.paymentValue ?? 0), 0)
+  // Fee money only, net of fee refunds paid back; bets and payouts are separate.
+  const paid = feesPaidNet(
+    inv.payments.filter((p) => !p.paymentDesc?.toLowerCase().includes("bet stake"))
   );
   const refunded = round(inv.refunds.reduce((s, r) => s + r.amount, 0));
 
@@ -372,5 +388,11 @@ export async function prizeStatements(seasonId: number): Promise<{
     (a, b) => a.breederName.localeCompare(b.breederName) || b.amount - a.amount
   );
 
-  return { rows, total: round(rows.reduce((sum, r) => sum + r.amount, 0)) };
+  // The total is summed from the exact stored values, then rounded once, as
+  // the ledger and HayLoft do. Summing rows already rounded to the cent puts
+  // split prizes (e.g. $5,000 / 3 = 1,666.6667 each) a cent or more out.
+  const exactTotal =
+    raceRows.reduce((sum, r) => sum + (r.prizeValue ?? 0), 0) +
+    classRows.reduce((sum, c) => sum + (c.payoutValue ?? 0), 0);
+  return { rows, total: round(exactTotal) };
 }

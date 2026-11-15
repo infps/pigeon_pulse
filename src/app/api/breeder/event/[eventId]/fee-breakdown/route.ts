@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireBirdOwner } from "@/lib/roles";
-import { computePaymentTotals } from "@/lib/paymentStatus";
+import { feesPaidNet } from "@/lib/payment-types";
 import {
   chargeableGate,
   GATE_BIT,
@@ -92,10 +92,8 @@ export async function GET(
             hotSpot1FeeValue: true,
             hotSpot2FeeValue: true,
             hotSpot3FeeValue: true,
-            hotSpotFinalFeeValue: true,
+            hotSpotFinalFeeValue: true, entryRefund: true, hotSpotRefund: true, transferDue: true,
             raceFeeValue: true,
-            entryRefund: true,
-            hotSpotRefund: true,
             bird: { select: { band: true, birdName: true } },
             raceItems: {
               select: {
@@ -114,6 +112,7 @@ export async function GET(
             paymentDate: true,
             paymentDesc: true,
             paymentType: true,
+            hotspotGate: true,
           },
         },
       },
@@ -173,16 +172,16 @@ export async function GET(
       };
     });
 
-    const totalOwed = items.reduce((sum, i) => sum + i.total, 0);
-
-    // Reuse the ledger's own rules rather than re-deriving "what counts as
-    // paid" — payouts are money out, bet stakes are not registration fees.
-    const status = computePaymentTotals(
-      inventory.items,
-      inventory.payments,
-      inventory.hotspotsPaidMask,
-      openGate
+    // This view keeps a settled hot spot gate in what is owed (it shows each
+    // bird's hot spot cost), so it counts the gate payment as paid. Refunds set
+    // on the birds come off; transfer charges go on.
+    const totalOwed =
+      items.reduce((sum, i) => sum + i.total - i.refunds, 0) +
+      inventory.items.reduce((sum, i) => sum + (i.transferDue ?? 0), 0);
+    const totalPaid = feesPaidNet(
+      inventory.payments.filter((p) => !p.paymentDesc?.toLowerCase().includes("bet stake"))
     );
+    const status = { totalPaid };
 
     const hotspots = HOTSPOT_GATES.map((gate: HotspotGate) => ({
       gate,
