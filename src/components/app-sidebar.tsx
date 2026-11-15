@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { authClient } from "@/lib/auth-client"
 import { usePermissions } from "@/hooks/usePermissions"
+import { clearListCache } from "@/lib/list-cache"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   userRole?: "BREEDER" | "ADMIN" | "SUPERADMIN"
@@ -147,6 +148,7 @@ export function AppSidebar({
   const { can, isPending: permissionsLoading } = usePermissions()
 
   const handleLogout = async () => {
+    await clearListCache()
     await authClient.signOut({
       fetchOptions: {
         onSuccess: () => {

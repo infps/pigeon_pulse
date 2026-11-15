@@ -16,6 +16,7 @@ import { LogOut, User, Shield, Bell, Settings } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { useState } from "react";
+import { clearListCache } from "@/lib/list-cache";
 
 export function Header() {
   const pathname = usePathname();
@@ -42,6 +43,7 @@ export function Header() {
   };
 
   const handleLogout = async () => {
+    await clearListCache();
     await authClient.signOut();
   };
 

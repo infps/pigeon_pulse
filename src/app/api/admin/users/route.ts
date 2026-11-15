@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/authorize";
 import { approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
+import type { UserRole } from "@/generated/prisma/enums";
 import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
 import { createUserSchema, updateUserSchema } from "@/lib/zod";
 import { headers } from "next/headers";
@@ -110,6 +111,29 @@ function mapBreederToUser(breeder: any) {
   };
 }
 
+// List rows get cached in browsers/phones — keep sensitive fields out.
+const userListSelect = { ...userSelect, ssn: false, ssnDocKey: false, taxDocKey: false, taxNumber: false } as const;
+
+/** Attach breederId + breeder extras to users (by userId, fallback to email). */
+async function attachBreeders<T extends { id: string; email: string }>(users: T[]) {
+  if (users.length === 0) return [];
+  const linked = await prisma.breeder.findMany({
+    where: {
+      OR: [
+        { userId: { in: users.map((u) => u.id) } },
+        { email: { in: users.map((u) => u.email?.toLowerCase()).filter(Boolean) } },
+      ],
+    },
+    select: { id: true, userId: true, email: true, ...breederExtraSelect },
+  });
+  const byUserId = new Map(linked.filter((b) => b.userId).map((b) => [b.userId, b]));
+  const byEmail = new Map(linked.filter((b) => b.email).map((b) => [b.email!.toLowerCase(), b]));
+  return users.map((u) => {
+    const b = byUserId.get(u.id) ?? byEmail.get(u.email?.toLowerCase());
+    return { ...u, ...(b ? breederExtras(b) : {}), breederId: b?.id ?? null };
+  });
+}
+
 export async function GET(request: Request) {
   try {
     const session = await auth.api.getSession({
@@ -128,6 +152,54 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const eventId = searchParams.get("eventId");
     const role = searchParams.get("role");
+
+    // Single full record (incl. sensitive fields) for edit/details dialogs.
+    const id = searchParams.get("id");
+    if (id) {
+      if (id.startsWith("legacy-")) {
+        const breeder = await prisma.breeder.findUnique({ where: { id: Number(id.slice(7)) || 0 } });
+        if (!breeder) return NextResponse.json({ message: "Not found" }, { status: 404 });
+        return NextResponse.json({ user: mapBreederToUser(breeder) }, { status: 200 });
+      }
+      const user = await prisma.user.findUnique({ where: { id }, select: userSelect });
+      if (!user) return NextResponse.json({ message: "Not found" }, { status: 404 });
+      return NextResponse.json({ user: (await attachBreeders([user]))[0] }, { status: 200 });
+    }
+
+    // Paged slim list (no sensitive fields) — clients cache it. Without `limit` the
+    // legacy full response below is kept for already-installed mobile builds.
+    const limitRaw = searchParams.get("limit");
+    if (limitRaw && !eventId) {
+      const take = Math.min(Number(limitRaw) || 500, 1000);
+      const cursor = searchParams.get("cursor");
+      const userWhere: Prisma.UserWhereInput = role ? { role: role as UserRole } : {};
+      const includeLegacy = !role || role === "BREEDER";
+
+      // Phase 1: users ("u:<id>" cursor). Phase 2: legacy breeders ("b:<id>" cursor).
+      if (!cursor || cursor.startsWith("u:")) {
+        const page = await prisma.user.findMany({
+          where: userWhere,
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take,
+          ...(cursor ? { cursor: { id: cursor.slice(2) }, skip: 1 } : {}),
+          select: userListSelect,
+        });
+        const nextCursor = page.length === take ? `u:${page[page.length - 1].id}` : includeLegacy ? "b:0" : null;
+        return NextResponse.json({ users: await attachBreeders(page), nextCursor }, { status: 200 });
+      }
+
+      const afterId = Number(cursor.slice(2)) || 0;
+      const page = await prisma.breeder.findMany({ where: { id: { gt: afterId } }, orderBy: { id: "asc" }, take });
+      // ponytail: loads every user email per legacy page (~10K short strings); SQL anti-join if it grows
+      const userEmails = new Set(
+        (await prisma.user.findMany({ where: userWhere, select: { email: true } })).map((u) => u.email.toLowerCase())
+      );
+      const users = page
+        .filter((b) => !b.email || !userEmails.has(b.email.toLowerCase()))
+        .map((b) => ({ ...mapBreederToUser(b), ssn: undefined, taxNumber: undefined })); // undefined → dropped from JSON
+      const nextCursor = page.length === take ? `b:${page[page.length - 1].id}` : null;
+      return NextResponse.json({ users, nextCursor }, { status: 200 });
+    }
 
     let users;
     let legacyBreeders: any[] = [];
@@ -185,39 +257,7 @@ export async function GET(request: Request) {
       }
     }
 
-    // Attach breederId to regular users (by userId, fallback to email)
-    const userIds = users.map((u: any) => u.id);
-    const emails = users.map((u: any) => u.email?.toLowerCase()).filter(Boolean);
-    const allLinkedBreeders = userIds.length > 0
-      ? await prisma.breeder.findMany({
-          where: {
-            OR: [
-              { userId: { in: userIds } },
-              { email: { in: emails } },
-            ],
-          },
-          select: { id: true, userId: true, email: true, ...breederExtraSelect },
-        })
-      : [];
-    const breederByUserId = new Map(
-      allLinkedBreeders.filter(b => b.userId).map(b => [b.userId, b.id])
-    );
-    const breederByEmail = new Map(
-      allLinkedBreeders.filter(b => b.email).map(b => [b.email!.toLowerCase(), b.id])
-    );
-    const extrasByUserId = new Map(
-      allLinkedBreeders.filter(b => b.userId).map(b => [b.userId, breederExtras(b)])
-    );
-    const extrasByEmail = new Map(
-      allLinkedBreeders.filter(b => b.email).map(b => [b.email!.toLowerCase(), breederExtras(b)])
-    );
-    const usersWithBreeder = users.map((u: any) => ({
-      ...u,
-      ...(extrasByUserId.get(u.id) ?? extrasByEmail.get(u.email?.toLowerCase())),
-      breederId: breederByUserId.get(u.id) ?? breederByEmail.get(u.email?.toLowerCase()) ?? null,
-    }));
-
-    const merged = [...usersWithBreeder, ...legacyBreeders];
+    const merged = [...(await attachBreeders(users)), ...legacyBreeders];
 
     return NextResponse.json(
       { users: merged, message: "Users fetched successfully" },

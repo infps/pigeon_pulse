@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/select";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 
-import { useAdminListBirds, AdminBirdsFilters } from "@/lib/api/admin-birds";
+import { useCachedList } from "@/lib/list-cache";
+import { apiEndpoints } from "@/lib/endpoints";
 import { useListBreeders } from "@/lib/api/breeders";
 import { COLORS, SEX_LABELS } from "@/lib/bird-constants";
 import type { Breeder } from "@/lib/types";
@@ -66,15 +67,30 @@ export default function AdminBirdsPage() {
   const [band, setBand] = useState("");
   const [selectedBirdId, setSelectedBirdId] = useState<number | null>(null);
 
-  const filters: AdminBirdsFilters = useMemo(
-    () => ({ search, breederId, color, sex, status, band }),
-    [search, breederId, color, sex, status, band]
+  // Whole list cached in the browser; filters run locally (no request per keystroke).
+  // ponytail: bird edits elsewhere show here after the 5-min background refresh.
+  const { data, isPending, isError } = useCachedList<AdminBirdRow>(
+    ["admin-birds", "cached-all"],
+    apiEndpoints.admin.birds.base,
+    "birds"
   );
-
-  const { data, isPending, isError } = useAdminListBirds(filters);
   const { data: breedersData } = useListBreeders();
 
-  const birds: AdminBirdRow[] = data?.birds ?? [];
+  const birds: AdminBirdRow[] = useMemo(() => {
+    const has = (v: string | null | undefined, q: string) => (v ?? "").toLowerCase().includes(q);
+    const q = search.trim().toLowerCase();
+    const bandQ = band.trim().toLowerCase();
+    return (data ?? []).filter((b) => {
+      if (breederId && String(b.breeder?.id ?? "") !== breederId) return false;
+      if (bandQ && !has(b.band, bandQ)) return false;
+      if (color && b.color !== color) return false;
+      if (sex !== "" && b.sex !== Number(sex)) return false;
+      if (status === "active" && !(b.isActive === 1 && (b.isLost === 0 || b.isLost == null))) return false;
+      if (status === "lost" && b.isLost !== 1) return false;
+      return !q || has(b.birdName, q) || has(b.band, q) || has(b.rfid, q) ||
+        has(b.breeder?.firstName, q) || has(b.breeder?.lastName, q);
+    });
+  }, [data, search, breederId, color, sex, status, band]);
   const breeders: Breeder[] = breedersData?.breeders ?? [];
 
   const clearFilters = () => {

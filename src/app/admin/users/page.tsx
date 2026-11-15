@@ -14,6 +14,8 @@ import {
   useUpdateUser,
 } from "@/lib/api/users";
 import { useListEvents } from "@/lib/api/events";
+import { useCachedList } from "@/lib/list-cache";
+import { apiEndpoints } from "@/lib/endpoints";
 import {
   useCreateTeam,
   useDeleteTeam,
@@ -72,12 +74,31 @@ export default function UsersPage() {
     (a: Event, b: Event) => new Date(b.eventDate ?? 0).getTime() - new Date(a.eventDate ?? 0).getTime()
   );
 
+  // Event-scoped list is small → server-filtered. Full list → cached in browser, role filtered locally.
+  const eventScoped = eventFilter !== "all";
   const userParams: Record<string, string> = {};
-  if (eventFilter !== "all") userParams.eventId = eventFilter;
-  if (roleFilter !== "all") userParams.role = roleFilter;
+  if (eventScoped) userParams.eventId = eventFilter;
+  if (eventScoped && roleFilter !== "all") userParams.role = roleFilter;
 
-  const { data: usersData, isPending, isError } = useListUsers({ params: userParams });
-  const users: User[] = usersData?.users || [];
+  const eventUsers = useListUsers({ params: userParams, enabled: eventScoped });
+  const allUsers = useCachedList<User>(["users", "cached-all"], apiEndpoints.users.base, "users");
+  const { isPending, isError } = eventScoped ? eventUsers : allUsers;
+  const users: User[] = eventScoped
+    ? eventUsers.data?.users || []
+    : (allUsers.data || []).filter(u => roleFilter === "all" || u.role === roleFilter);
+
+  // List rows omit SSN/tax/doc keys; dialogs get the full record.
+  const loadFullUser = async (user: User): Promise<User | null> => {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL ?? ""}${apiEndpoints.users.base}?id=${encodeURIComponent(user.id)}`,
+      { credentials: "include" }
+    );
+    if (!res.ok) {
+      toast.error("Failed to load user");
+      return null;
+    }
+    return (await res.json()).user;
+  };
 
   const uniqueCountries = Array.from(new Set(users.map(u => u.country).filter(Boolean))) as string[];
 
@@ -100,12 +121,14 @@ export default function UsersPage() {
   const updateTeamMutation = useUpdateTeam({});
   const deleteTeamMutation = useDeleteTeam({});
 
-  const handleEdit = (user: User) => {
+  const handleEdit = async (user: User) => {
     if (user.id.startsWith("legacy-")) {
       toast.error("Legacy breeder — create a user account to edit");
       return;
     }
-    setEditingUser(user);
+    const full = await loadFullUser(user);
+    if (!full) return;
+    setEditingUser(full);
     setIsOpen(true);
   };
 
@@ -223,8 +246,10 @@ export default function UsersPage() {
     setEditingTeamId(null);
   };
 
-  const handleRowClick = (user: User) => {
-    setSelectedUser(user);
+  const handleRowClick = async (user: User) => {
+    const full = await loadFullUser(user);
+    if (!full) return;
+    setSelectedUser(full);
     setIsDetailsOpen(true);
   };
 
