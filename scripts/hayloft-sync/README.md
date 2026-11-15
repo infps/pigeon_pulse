@@ -61,6 +61,14 @@ Class bets are priced from the entry flags by `src/lib/class-bets.ts`
 - `bun scripts/hayloft-sync/reconcile-details.ts <dump-dir> [eventId ...]`
   compares every event's Details boxes and Accounting totals with HayLoft's.
   Both exit 1 on any difference. Run them after every sync.
+- Race results (positions, hot spot positions, prizes) come from
+  `src/lib/race-results.ts`, a port of HayLoft's `RACE_RECALC`.
+  `node scripts/hayloft-sync/hayloft-race-oracle.cjs <scratch-copy.FDB> <dump-dir>/race-oracle.json`
+  runs HayLoft's `RACE_RECALC` on every final / hot spot race of a **scratch**
+  copy (it rewrites results), and
+  `bun scripts/hayloft-sync/reconcile-races.ts <dump-dir>` compares the portal's
+  engine (dry run) with it. Stored results are snapshots from scan time; HayLoft's
+  own recalc changes them too, so the engines are compared with each other.
 - `bun test tests/` (`pnpm test`) locks the rules themselves.
 
 ## Before running against another database
