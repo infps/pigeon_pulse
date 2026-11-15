@@ -137,7 +137,7 @@ export async function POST(
       // TODO: Fee integration — see docs/06-add-birds-fee-integration.md
 
       return { added: totalAdded, skipped: totalSkipped };
-    });
+    }, { maxWait: 20000, timeout: 60000 }); // per-bird writes
 
     return NextResponse.json({
       message: `${result.added} bird(s) added${result.skipped > 0 ? `, ${result.skipped} skipped (already in event)` : ""}`,

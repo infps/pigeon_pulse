@@ -300,6 +300,7 @@ model Breeder {
   storeListingsOriginal  EventStoreListing[] @relation("OriginalBreeder")
   storeListingsPurchased EventStoreListing[] @relation("PurchasedByBreeder")
 
+  @@index([email])
   @@map("Breeders")
 }
 
@@ -593,6 +594,8 @@ model Race {
   paymentPenalties   PaymentPenalty[]
   videos             EventVideo[]
   feeLines           FeeLine[]
+
+  @@index([seasonId])
 }
 
 model TruckPing {
@@ -619,6 +622,8 @@ model ArrivalGroup {
   arrivalTimeEnd   DateTime?
   race             Race             @relation(fields: [raceId], references: [id])
   results          RaceItemResult[]
+
+  @@index([raceId])
 }
 
 model RaceStatusVisibility {
@@ -649,6 +654,9 @@ model RaceItem {
   scans         RaceItemScan[]
   bets          Bet[]
   displayStatus BirdStatusPreset?   @relation(fields: [displayStatusId], references: [id])
+
+  @@index([raceId, status])
+  @@index([inventoryItemId])
 }
 
 model RaceItemResult {
@@ -662,6 +670,8 @@ model RaceItemResult {
 
   raceItem RaceItem      @relation(fields: [raceItemId], references: [id])
   group    ArrivalGroup? @relation(fields: [groupId], references: [id])
+
+  @@index([groupId])
 }
 
 model RaceItemScan {
@@ -686,6 +696,9 @@ model RacePhantomBird {
   bird  Bird?  @relation(fields: [birdId], references: [id])
   event Event? @relation(fields: [eventId], references: [id])
   race  Race?  @relation(fields: [raceId], references: [id])
+
+  @@index([raceId, rfid])
+  @@index([birdId])
 }
 
 model RaceIgnoreBird {
@@ -696,6 +709,8 @@ model RaceIgnoreBird {
 
   inventoryItem EventInventoryItem? @relation(fields: [inventoryItemId], references: [id])
   race          Race?               @relation(fields: [raceId], references: [id])
+
+  @@index([raceId, inventoryItemId])
 }
 
 // ============================================================
@@ -887,6 +902,9 @@ model EventInventory {
   refunds                  Refund[]
   feeLines                 FeeLine[]
   calcuttaGroupMemberships CalcuttaBetGroupMember[]
+
+  @@index([seasonId, approvalStatus])
+  @@index([breederId])
 }
 
 model EventInventoryItem {
@@ -962,6 +980,12 @@ model EventInventoryItem {
   tournamentEntries  TournamentEntry[]
   raceClassEntries   RaceClassEntry[]
   feeLines           FeeLine[]
+
+  @@index([eventInventoryId])
+  @@index([birdId])
+  @@index([currentGroupId])
+  @@index([statusGroupId])
+  @@index([tagColorGroupId])
 }
 
 model Partner {
@@ -1029,6 +1053,9 @@ model Payment {
   bettor         User?            @relation("BettorPayments", fields: [bettorId], references: [id])
 
   @@unique([transactionId])
+  @@index([eventInventoryId])
+  @@index([breederId])
+  @@index([bettorId])
   @@map("Payments")
 }
 
@@ -1082,6 +1109,7 @@ model Bird {
   birdImages     BirdImage[]
   birdNotes      BirdNote[]
 
+  @@index([breederId])
   @@map("Birds")
 }
 
@@ -1168,6 +1196,8 @@ model LostHistory {
 
   bird Bird? @relation(fields: [birdId], references: [id])
   race Race? @relation(fields: [raceId], references: [id])
+
+  @@index([birdId])
 }
 
 model RfidScan {
@@ -1280,6 +1310,8 @@ model BirdGroupHistory {
   movedAt         DateTime @default(now())
 
   inventoryItem EventInventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@index([inventoryItemId])
 }
 
 model BirdBreederHistory {
@@ -1289,6 +1321,8 @@ model BirdBreederHistory {
   transferredAt   DateTime @default(now())
 
   inventoryItem EventInventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@index([inventoryItemId])
 }
 
 model BirdVaccinationRecord {
@@ -1340,6 +1374,7 @@ model Bet {
 
   @@unique([raceItemId, category, tierIndex])
   @@index([raceId, category, tierIndex])
+  @@index([bettorId])
   @@map("Bets")
 }
 

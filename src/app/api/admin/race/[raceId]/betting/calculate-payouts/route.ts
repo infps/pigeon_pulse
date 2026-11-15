@@ -146,7 +146,7 @@ export async function POST(
           });
         }
       }
-    });
+    }, { maxWait: 20000, timeout: 60000 }); // one write per bet
 
     const summary = {
       totalPools: pools.size,

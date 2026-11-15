@@ -266,7 +266,7 @@ export async function POST(
         eventInventory,
         inventoryItems,
       };
-    });
+    }, { maxWait: 20000, timeout: 60000 }); // per-bird writes
 
     return NextResponse.json(
       {

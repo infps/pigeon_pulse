@@ -171,7 +171,7 @@ export async function POST(
           refundsOwed += 1;
         }
       }
-    });
+    }, { maxWait: 20000, timeout: 60000 }); // bulk approve: per-registration + bet refunds
 
     await notifySafely(
       changing

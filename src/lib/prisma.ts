@@ -3,40 +3,29 @@ import pg from 'pg'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '../generated/prisma/client'
 
-const rawUrl = process.env.DATABASE_URL!
-const url = new URL(rawUrl)
-const isLocal = url.hostname === 'localhost' || url.hostname === '127.0.0.1'
-const isPooler = url.hostname.includes('-pooler.')
+function createClient() {
+  const rawUrl = process.env.DATABASE_URL!
+  const { hostname } = new URL(rawUrl)
+  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1'
 
-let adapter: PrismaPg
+  const adapter = isLocal
+    ? new PrismaPg({ connectionString: rawUrl })
+    : new PrismaPg(new pg.Pool({
+        connectionString: rawUrl,
+        ssl: { rejectUnauthorized: false }, // RDS; URL also carries sslmode=no-verify
+        connectionTimeoutMillis: 10000,
+        idleTimeoutMillis: 30000,
+        max: 20,
+        query_timeout: 30000,
+      }))
 
-if (isLocal) {
-  adapter = new PrismaPg({ connectionString: rawUrl })
-} else {
-  // Pooler: small pool — pgbouncer manages real connections. keepAlive off.
-  // Direct: larger pool + keepAlive to survive Neon compute cold starts.
-  const pool = new pg.Pool({
-    connectionString: rawUrl,
-    ssl: { rejectUnauthorized: false },
-    connectionTimeoutMillis: 10000,
-    idleTimeoutMillis: isPooler ? 60000 : 30000,
-    keepAlive: !isPooler,
-    max: isPooler ? 5 : 20,
-    // Neon compute can take 2-5s to wake from suspension
-    query_timeout: 30000,
-  })
-  adapter = new PrismaPg(pool)
+  // Long bulk transactions pass their own timeout.
+  return new PrismaClient({ adapter, transactionOptions: { maxWait: 20000, timeout: 15000 } })
 }
 
-const prisma = new PrismaClient({ adapter, transactionOptions: { maxWait: 20000, timeout: 180000 } })
-
-// Keep Neon compute warm — ping every 4 min to stay under the 5 min suspend threshold.
-// Also fire immediately on module load so first request doesn't hit a cold Neon.
-if (!isLocal) {
-  prisma.$queryRaw`SELECT 1`.catch(() => {});
-  setInterval(() => {
-    prisma.$queryRaw`SELECT 1`.catch(() => {});
-  }, 4 * 60 * 1000);
-}
+// Reuse across dev hot reloads so each edit doesn't open a new pool.
+const globalForPrisma = globalThis as unknown as { prisma?: ReturnType<typeof createClient> }
+const prisma = globalForPrisma.prisma ?? createClient()
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 export { prisma }
