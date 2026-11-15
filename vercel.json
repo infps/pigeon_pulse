@@ -3,6 +3,6 @@
   "buildCommand": "pnpm exec prisma generate && pnpm exec next build",
   "installCommand": "pnpm install",
   "routes": [
-    { "src": "/(.*)", "dest": "https://pigeonpulse.com/$1" }
+    { "src": "/(.*)", "dest": "https://app.pigeonpulse.com/$1" }
   ]
 }
