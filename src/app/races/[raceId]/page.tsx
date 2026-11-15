@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
+import { useBirdPopup } from "@/components/bird-popup";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useApiQuery } from "@/hooks/useApi";
 import { apiEndpoints } from "@/lib/endpoints";
@@ -10,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
-import { Cloud, Thermometer, Wind, TrendingUp, Gauge, Building, Home as HomeIcon, Users, Bird as BirdIcon, Calendar, Trophy, ExternalLink, DollarSign, MapPin as MapPinIcon, Volume2, VolumeX, MapPin, Link2, Check, Copy } from "lucide-react";
+import { Cloud, Thermometer, Wind, TrendingUp, Gauge, Building, Home as HomeIcon, Users, Calendar, ExternalLink, DollarSign, MapPin as MapPinIcon, Volume2, VolumeX, MapPin, Link2, Check, Copy } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { makeRaceResultsColumns, type EnrichedRaceItem } from "./race-results-columns";
@@ -78,14 +79,14 @@ export default function PublicRacePage() {
   }, []);
   const [linksOpen, setLinksOpen] = useState(false);
   const [breederPopup, setBreederPopup] = useState<{ id: number; name: string } | null>(null);
-  const [birdPopup, setBirdPopup] = useState<{ id: number; band: string } | null>(null);
+  const { openBird } = useBirdPopup();
   const { velocityUnit, sexTerminology } = useSettings();
   const columns = useMemo(() => makeRaceResultsColumns({
     velocityUnit,
     sexTerminology,
     onBreederClick: (id, name) => setBreederPopup({ id, name }),
-    onBirdClick: (id, band) => setBirdPopup({ id, band }),
-  }), [velocityUnit, sexTerminology]);
+    onBirdClick: (id) => openBird(id),
+  }), [velocityUnit, sexTerminology, openBird]);
 
   const { data: raceData, isPending: raceLoading } = useApiQuery({
     endpoint: apiEndpoints.breeder.races,
@@ -472,31 +473,12 @@ export default function PublicRacePage() {
           onClose={() => setBreederPopup(null)}
         />
       )}
-      {birdPopup && (
-        <BirdHistoryModal
-          birdId={birdPopup.id}
-          band={birdPopup.band}
-          onClose={() => setBirdPopup(null)}
-          onLoftClick={(breederId, loftName) => {
-            setBirdPopup(null);
-            setBreederPopup({ id: breederId, name: loftName });
-          }}
-        />
-      )}
     </div>
   );
 }
 
 // ── Shared helpers ─────────────────────────────────────────────────────────
 
-function fmsFlight(ms: number): string {
-  const t = Math.round(ms);
-  const h = Math.floor(t / 3600000);
-  const m = Math.floor((t % 3600000) / 60000);
-  const s = Math.floor((t % 60000) / 1000);
-  const ms3 = t % 1000;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(ms3).padStart(3, "0")}`;
-}
 
 function fmsArrival(d: string): string {
   const dt = new Date(d);
@@ -512,12 +494,6 @@ function fmsGap(ms: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(ms3).padStart(3, "0")}`;
 }
 
-function fmsRaceDate(d: string): { date: string; time: string } {
-  const dt = new Date(d);
-  const date = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
-  const time = dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  return { date, time };
-}
 
 // ── Links Dialog ──────────────────────────────────────────────────────────
 
@@ -727,295 +703,3 @@ function BreederBirdsModal({
   );
 }
 
-// ── Bird History Modal ─────────────────────────────────────────────────────
-
-interface BirdInfo {
-  band: string;
-  loftName: string;
-  breederName: string;
-  loftImage: string | null;
-  eligible: boolean;
-  breederId: number | null;
-}
-
-interface HistoryEntry {
-  type: string;
-  date: string;
-  eventId?: number;
-  eventName?: string;
-  raceId?: number;
-  raceName?: string;
-  position?: number;
-  prizeValue?: number;
-  distance?: number;
-  ypm?: number;
-  gapMs?: number;
-  raceTypeName?: string | null;
-  startTime?: string;
-  flightTimeMs?: number;
-  eventBanner?: string | null;
-}
-
-function RaceHistoryTable({ entries, velocityUnit }: { entries: HistoryEntry[]; velocityUnit: string }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b text-xs text-muted-foreground uppercase tracking-wide">
-            <th className="text-left pb-2 w-12">Rank</th>
-            <th className="text-left pb-2">Release Name</th>
-            <th className="text-right pb-2">Date &amp; Time</th>
-            <th className="text-right pb-2">Arrival / Gap</th>
-            <th className="text-right pb-2">Dist. (MI)</th>
-            <th className="text-right pb-2">Speed</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((e, i) => {
-            const dt = e.startTime ? fmsRaceDate(e.startTime) : { date: "-", time: "-" };
-            const arrival = e.date ? fmsArrival(e.date) : "-";
-            const gapDisplay =
-              e.gapMs === 0 ? "+0" : e.gapMs != null ? fmsGap(e.gapMs) : "-";
-            const speed =
-              e.ypm != null
-                ? velocityUnit === "MPM"
-                  ? (e.ypm * 0.9144).toFixed(6)
-                  : e.ypm.toFixed(6)
-                : "-";
-            return (
-              <tr key={i} className="border-b last:border-0 hover:bg-muted/30">
-                <td className="py-2.5">
-                  <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-semibold border ${e.position != null && e.position <= 10 ? "border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300" : "border-border text-foreground"}`}>
-                    {e.position ?? "-"}
-                  </span>
-                </td>
-                <td className="py-2.5 font-medium pr-2">{e.raceName || "-"}</td>
-                <td className="py-2.5 text-right text-muted-foreground">
-                  <div className="text-xs">{dt.date}</div>
-                  <div className="text-xs">{dt.time}</div>
-                </td>
-                <td className="py-2.5 text-right">
-                  <div className="font-mono text-xs">{arrival}</div>
-                  <div className={`text-xs font-semibold ${e.gapMs === 0 ? "text-green-600" : "text-red-500"}`}>{gapDisplay}</div>
-                </td>
-                <td className="py-2.5 text-right font-semibold">{e.distance?.toFixed(2) ?? "-"}</td>
-                <td className="py-2.5 text-right font-semibold">{speed}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function BirdHistoryModal({
-  birdId,
-  band,
-  onClose,
-  onLoftClick,
-}: {
-  birdId: number;
-  band: string;
-  onClose: () => void;
-  onLoftClick?: (breederId: number, loftName: string) => void;
-}) {
-  const [entries, setEntries] = useState<HistoryEntry[]>([]);
-  const [birdInfo, setBirdInfo] = useState<BirdInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const { velocityUnit } = useSettings();
-
-  useEffect(() => {
-    setLoading(true);
-    fetch(`/api/birds/${birdId}/history`)
-      .then((r) => r.json())
-      .then((d) => {
-        setEntries(d.entries ?? []);
-        setBirdInfo(d.birdInfo ?? null);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [birdId]);
-
-  const raceEntries = entries.filter((e) => e.type === "ARRIVED" && e.raceTypeName !== "T");
-  const trainingEntries = entries.filter((e) => e.type === "ARRIVED" && e.raceTypeName === "T");
-  const banner = entries.find((e) => e.eventBanner)?.eventBanner ?? null;
-
-  function raceStats(items: HistoryEntry[]) {
-    if (!items.length) return null;
-    const ranked = items.filter((e) => e.position != null);
-    const avgRank = ranked.length
-      ? Math.round(ranked.reduce((s, e) => s + e.position!, 0) / ranked.length)
-      : null;
-    const totalFlight = items.reduce((s, e) => s + (e.flightTimeMs ?? 0), 0);
-    const totalDist = items.reduce((s, e) => s + (e.distance ?? 0), 0);
-    const speeds = items.filter((e) => e.ypm != null).map((e) => e.ypm!);
-    const avgSpeed = speeds.length ? speeds.reduce((s, v) => s + v, 0) / speeds.length : null;
-    return { avgRank, totalFlight, totalDist, avgSpeed };
-  }
-
-  function trainingStats(items: HistoryEntry[]) {
-    const long = items.filter((e) => (e.distance ?? 0) >= 10);
-    if (!long.length) return null;
-    const ranked = long.filter((e) => e.position != null);
-    const avgPos = ranked.length
-      ? Math.round(ranked.reduce((s, e) => s + e.position!, 0) / ranked.length)
-      : null;
-    const totalFlight = long.reduce((s, e) => s + (e.flightTimeMs ?? 0), 0);
-    const totalDist = long.reduce((s, e) => s + (e.distance ?? 0), 0);
-    const speeds = long.filter((e) => e.ypm != null).map((e) => e.ypm!);
-    const avgSpeed = speeds.length ? speeds.reduce((s, v) => s + v, 0) / speeds.length : null;
-    return { avgPos, totalFlight, totalDist, avgSpeed };
-  }
-
-  const rs = raceStats(raceEntries);
-  const ts = trainingStats(trainingEntries);
-
-  const displayBand = birdInfo?.band || band;
-  const displayLoft = birdInfo?.loftName || "-";
-
-  return (
-    <Dialog open onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden gap-0">
-        {/* Header */}
-        <div className="flex items-center gap-3 p-4 pr-12 border-b">
-          <div className="w-14 h-14 rounded-full overflow-hidden bg-blue-100 shrink-0 border-2 border-white shadow-md">
-            {birdInfo?.loftImage ? (
-              <Image src={birdInfo.loftImage} alt={displayLoft} width={56} height={56} className="object-cover w-full h-full" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center font-bold text-sm text-blue-700">
-                {displayLoft.substring(0, 2).toUpperCase()}
-              </div>
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
-              <button
-                className="font-bold text-base leading-tight hover:underline cursor-pointer text-left"
-                onClick={() => {
-                  if (birdInfo?.breederId && onLoftClick) {
-                    onLoftClick(birdInfo.breederId, displayLoft);
-                    onClose();
-                  }
-                }}
-                disabled={!birdInfo?.breederId || !onLoftClick}
-              >
-                {displayLoft}
-              </button>
-              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            </div>
-            {birdInfo?.breederName && birdInfo.breederName !== displayLoft && (
-              <p className="text-sm text-muted-foreground">{birdInfo.breederName}</p>
-            )}
-            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              <div className="flex items-center gap-1">
-                <span className="font-mono text-sm">{displayBand}</span>
-                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              </div>
-              {birdInfo?.eligible && (
-                <Badge className="bg-green-500 hover:bg-green-500 text-white text-xs px-2 py-0 h-5">Active</Badge>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Banner */}
-        <div className="h-28 bg-gradient-to-r from-blue-700 to-blue-900 relative overflow-hidden shrink-0">
-          {banner && <Image src={banner} alt="Event banner" fill className="object-cover opacity-70" />}
-        </div>
-
-        {/* Content */}
-        <div className="overflow-y-auto flex-1">
-          {loading ? (
-            <div className="p-6 space-y-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-16 w-full" />
-              ))}
-            </div>
-          ) : (
-            <div>
-              {/* RACES section */}
-              {raceEntries.length > 0 && (
-                <div className="p-4 space-y-3 border-b">
-                  <div className="flex items-center gap-2">
-                    <Trophy className="h-4 w-4 text-yellow-500" />
-                    <h3 className="font-bold text-sm uppercase tracking-wide">RACES (AVERAGE SPEED)</h3>
-                  </div>
-                  {rs && (
-                    <div className="grid grid-cols-4 gap-3 py-2">
-                      <div className="text-center">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">RANK</p>
-                        <p className="text-2xl font-bold">{rs.avgRank ?? "-"}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">TOTAL FLIGHT TIME</p>
-                        <p className="text-xs font-bold">{fmsFlight(rs.totalFlight)}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">TOTAL DISTANCE (MI)</p>
-                        <p className="text-2xl font-bold">{rs.totalDist.toFixed(2)}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">AVG SPEED ({velocityUnit})</p>
-                        <p className="text-xl font-bold text-purple-600">
-                          {rs.avgSpeed != null
-                            ? velocityUnit === "MPM"
-                              ? (rs.avgSpeed * 0.9144).toFixed(4)
-                              : rs.avgSpeed.toFixed(4)
-                            : "-"}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  <RaceHistoryTable entries={raceEntries} velocityUnit={velocityUnit} />
-                </div>
-              )}
-
-              {/* TRAINING section */}
-              {trainingEntries.length > 0 && (
-                <div className="p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <BirdIcon className="h-4 w-4 text-blue-500" />
-                    <h3 className="font-bold text-sm uppercase tracking-wide">TRAINING</h3>
-                    <span className="text-xs text-muted-foreground">Summary includes 10+ mile training</span>
-                  </div>
-                  {ts && (
-                    <div className="grid grid-cols-4 gap-3 py-2">
-                      <div className="text-center">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">AVG POSITION</p>
-                        <p className="text-2xl font-bold">{ts.avgPos ?? "-"}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">TOTAL FLIGHT TIME</p>
-                        <p className="text-xs font-bold">{fmsFlight(ts.totalFlight)}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">TOTAL DISTANCE (MI)</p>
-                        <p className="text-2xl font-bold">{ts.totalDist.toFixed(2)}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">AVG SPEED ({velocityUnit})</p>
-                        <p className="text-xl font-bold text-purple-600">
-                          {ts.avgSpeed != null
-                            ? velocityUnit === "MPM"
-                              ? (ts.avgSpeed * 0.9144).toFixed(4)
-                              : ts.avgSpeed.toFixed(4)
-                            : "-"}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  <RaceHistoryTable entries={trainingEntries} velocityUnit={velocityUnit} />
-                </div>
-              )}
-
-              {raceEntries.length === 0 && trainingEntries.length === 0 && (
-                <p className="text-center text-muted-foreground py-12">No history found</p>
-              )}
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}

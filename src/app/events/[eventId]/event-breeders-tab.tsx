@@ -1,6 +1,7 @@
 "use client";
 
 import { shortBand } from "@/lib/bird-constants";
+import { BirdLink } from "@/components/bird-popup";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
@@ -111,7 +112,7 @@ function DefaultersCard({ eventId }: { eventId: string }) {
                           <TableBody>
                             {d.birds.map((b) => (
                               <TableRow key={b.id}>
-                                <TableCell className="font-mono text-sm">{shortBand(b.band) || "-"}</TableCell>
+                                <TableCell className="font-mono text-sm"><BirdLink band={b.band}>{shortBand(b.band) || "-"}</BirdLink></TableCell>
                                 <TableCell>{b.birdName ?? "-"}</TableCell>
                                 <TableCell>{b.color ?? "-"}</TableCell>
                                 <TableCell className="capitalize">{b.sex != null ? String(b.sex) : "-"}</TableCell>
@@ -227,7 +228,7 @@ function BreederDialog({ open, onOpenChange, inventory }: BreederDialogProps) {
             <TableBody>
               {birds.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell className="font-mono">{shortBand(item.bird?.band) || "-"}</TableCell>
+                  <TableCell className="font-mono"><BirdLink band={item.bird?.band}>{shortBand(item.bird?.band) || "-"}</BirdLink></TableCell>
                   <TableCell>{item.bird?.birdName || "-"}</TableCell>
                   <TableCell>{item.bird?.color || "-"}</TableCell>
                   <TableCell className="capitalize">{item.bird?.sex != null ? String(item.bird.sex) : "-"}</TableCell>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useBirdPopup } from "@/components/bird-popup";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,7 +15,7 @@ import { BirdDialog } from "./bird-dialog";
 import { ExportButton } from "@/components/export-button";
 
 export default function BirdsPage() {
-  const router = useRouter();
+  const { openBird } = useBirdPopup();
   const { data: session, isPending: sessionLoading } = authClient.useSession();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBird, setEditingBird] = useState<Bird | null>(null);
@@ -96,7 +96,7 @@ export default function BirdsPage() {
                 { id: "band", title: "Band" },
                 { id: "birdName", title: "Bird Name" },
               ]}
-              onRowClick={(bird) => router.push(`/birds/${bird.id}`)}
+              onRowClick={(bird) => openBird(bird.id)}
             />
           </CardContent>
         </Card>

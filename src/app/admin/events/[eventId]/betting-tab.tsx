@@ -1,6 +1,7 @@
 "use client";
 
 import { shortBand } from "@/lib/bird-constants";
+import { BirdLink } from "@/components/bird-popup";
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -211,7 +212,7 @@ function AdminPlaceBetsSection({ raceId }: { raceId: string }) {
             )}
             {visibleBirds.map((bird) => (
               <tr key={bird.raceItemId} className="border-b hover:bg-muted/40">
-                <td className="p-2 font-medium">{shortBand(bird.band) || "-"}</td>
+                <td className="p-2 font-medium"><BirdLink band={bird.band}>{shortBand(bird.band) || "-"}</BirdLink></td>
                 <td className="p-2 text-muted-foreground">{bird.ownerName ?? "-"}</td>
                 {pools.map((pool) => {
                   const existing = bird.bets.find((b) => b.category === pool.category && b.tierIndex === pool.tierIndex);
@@ -498,7 +499,7 @@ export function BettingTab({ event, eventId }: { event: unknown; eventId: string
                             <div className="font-medium">{e.bettorName || "-"}</div>
                             <div className="text-xs text-muted-foreground">{e.bettorEmail}</div>
                           </td>
-                          <td className="p-2 font-medium">{shortBand(e.band) || "-"}</td>
+                          <td className="p-2 font-medium"><BirdLink band={e.band}>{shortBand(e.band) || "-"}</BirdLink></td>
                           <td className="p-2 text-muted-foreground">{e.ownerName ?? "-"}</td>
                           <td className="p-2">{e.poolLabel}</td>
                           <td className="p-2 text-right">${e.amountIn}</td>
@@ -543,7 +544,7 @@ export function BettingTab({ event, eventId }: { event: unknown; eventId: string
                             <div className="font-medium">{e.bettorName || "-"}</div>
                             <div className="text-xs text-muted-foreground">{e.bettorEmail}</div>
                           </td>
-                          <td className="p-2">{shortBand(e.band) || "-"}</td>
+                          <td className="p-2"><BirdLink band={e.band}>{shortBand(e.band) || "-"}</BirdLink></td>
                           <td className="p-2 text-muted-foreground">{e.ownerName ?? "-"}</td>
                           <td className="p-2 text-center">{e.position ?? "-"}</td>
                           <td className="p-2 text-right">${e.amountIn}</td>

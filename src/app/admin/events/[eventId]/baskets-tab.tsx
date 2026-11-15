@@ -1,6 +1,7 @@
 "use client";
 
 import { shortBand } from "@/lib/bird-constants";
+import { BirdLink } from "@/components/bird-popup";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useDialogHotkeys } from "@/lib/use-dialog-hotkeys";
 import { useSeasonContext } from "@/lib/season-context";
@@ -1553,7 +1554,7 @@ function BirdPrescanPanel({ eventId }: { eventId: string }) {
                   <tr key={entry.rfid} className={entry.unknown ? "bg-red-50" : undefined}>
                     <td className="px-3 py-2 font-mono text-xs">{entry.rfid}</td>
                     <td className="px-3 py-2">{entry.birdName ?? <span className="text-muted-foreground italic">—</span>}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{shortBand(entry.band) || "—"}</td>
+                    <td className="px-3 py-2 font-mono text-xs"><BirdLink band={entry.band}>{shortBand(entry.band) || "—"}</BirdLink></td>
                     <td className="px-3 py-2">{entry.breederName ?? <span className="text-muted-foreground italic">—</span>}</td>
                     <td className="px-3 py-2">{statusBadge(entry)}</td>
                   </tr>
@@ -1817,7 +1818,7 @@ function LoftScanDialog({
                     }`}>
                       {lastScan.status === "placed" ? "Place in Basket" : "Not Basketed Yet"}
                     </span>
-                    <p className="text-xl font-bold font-mono mt-0.5">{shortBand(lastScan.bird?.band) || "—"}</p>
+                    <p className="text-xl font-bold font-mono mt-0.5"><BirdLink band={lastScan.bird?.band}>{shortBand(lastScan.bird?.band) || "—"}</BirdLink></p>
                     {lastScan.bird?.birdName && <p className="text-sm text-muted-foreground">{lastScan.bird.birdName}</p>}
                     <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
                       {lastScan.status === "placed" && (
@@ -1878,7 +1879,7 @@ function LoftScanDialog({
                   {scannedLog.map((row, i) => (
                     <tr key={`${row.band}-${row.scannedAt}`}>
                       <td className="px-3 py-2 text-muted-foreground">{scannedLog.length - i}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{shortBand(row.band) || "—"}</td>
+                      <td className="px-3 py-2 font-mono text-xs"><BirdLink band={row.band}>{shortBand(row.band) || "—"}</BirdLink></td>
                       <td className="px-3 py-2 font-medium">{row.birdName || "—"}</td>
                       <td className="px-3 py-2 text-muted-foreground">{row.loftName || "—"}</td>
                       <td className="px-3 py-2 text-muted-foreground">{row.breeder || "—"}</td>

@@ -1,4 +1,5 @@
 import { PAYMENT_TYPE } from "@/lib/payment-types";
+import { nextPerch } from "@/lib/bird-moves";
 import { auth } from "@/lib/auth";
 import { requireApproved } from "@/lib/roles";
 import { getOrCreateBreeder } from "@/lib/get-or-create-breeder";
@@ -234,6 +235,9 @@ export async function POST(
           data: {
             birdId: bird.id,
             eventInventoryId: eventInventory.id,
+            // Every bird takes a perch, as in HayLoft (BIRD_NO).
+            birdNo: await nextPerch(tx, eventInventory.id),
+            isBackup: 0,
           },
         });
 

@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { Trophy } from "lucide-react";
 import { useSeasonContext } from "@/lib/season-context";
+import { BirdLink } from "@/components/bird-popup";
 
 interface RaceOption {
   id: number;
@@ -55,7 +56,7 @@ const hms = (ms: number) => {
  * prize from the season's average prize scheme. The prizes go to the breeders'
  * accounts. Same procedures as HayLoft (lib/hayloft-avg-speed).
  */
-export function AvgSpeedPrizesCard({ eventId, onBirdClick }: { eventId: string; onBirdClick?: (birdId: number) => void }) {
+export function AvgSpeedPrizesCard({ eventId }: { eventId: string }) {
   const { selectedSeasonId } = useSeasonContext();
   const [races, setRaces] = useState<RaceOption[]>([]);
   const [chosen, setChosen] = useState<Set<number>>(new Set());
@@ -197,13 +198,7 @@ export function AvgSpeedPrizesCard({ eventId, onBirdClick }: { eventId: string; 
                     <tr key={r.inventoryItemId} className="border-b last:border-0">
                       <td className="py-1 pr-3">{r.position}</td>
                       <td className="py-1 pr-3">
-                        {r.birdId != null && onBirdClick ? (
-                          <button className="underline-offset-2 hover:underline" onClick={() => onBirdClick(r.birdId!)}>
-                            {r.band}
-                          </button>
-                        ) : (
-                          r.band
-                        )}
+                        <BirdLink birdId={r.birdId} band={r.band}>{r.band}</BirdLink>
                       </td>
                       <td className="py-1 pr-3">{r.breederName}{r.loft ? ` · ${r.loft}` : ""}</td>
                       <td className="py-1 pr-3 text-right">{r.raceCount}</td>

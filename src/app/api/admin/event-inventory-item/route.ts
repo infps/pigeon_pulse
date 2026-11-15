@@ -1,4 +1,5 @@
 import { auth } from "@/lib/auth";
+import { nextPerch } from "@/lib/bird-moves";
 import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
@@ -111,6 +112,7 @@ export async function POST(request: Request) {
         data: {
           eventInventoryId,
           birdId: bird.id,
+          birdNo: await nextPerch(tx, eventInventoryId), // its perch, as in HayLoft
           arrivalDate: arrivalTime ? new Date(arrivalTime) : null,
           departureDate: departureTime ? new Date(departureTime) : null,
           isBackup: isBackup != null ? (isBackup ? 1 : 0) : 0,
