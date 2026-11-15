@@ -42,8 +42,8 @@ jobs:
           # NEXT_PUBLIC_* are inlined into the browser bundle, so they are public by
           # design — not secrets. Change both URLs here when the domain goes live.
           build-args: |
-            NEXT_PUBLIC_API_URL=https://pigeonpulse.com
-            NEXT_PUBLIC_AUTH_BASE_URL=https://pigeonpulse.com
+            NEXT_PUBLIC_API_URL=https://app.pigeonpulse.com
+            NEXT_PUBLIC_AUTH_BASE_URL=https://app.pigeonpulse.com
             NEXT_PUBLIC_PUSHER_KEY=096f733f13b727c5f7d9
             NEXT_PUBLIC_PUSHER_CLUSTER=ap2
             NEXT_PUBLIC_WINDY_MAP_KEY=zmN9ThTPoR9GKqKdLLAu28TcqatqE0Wi
