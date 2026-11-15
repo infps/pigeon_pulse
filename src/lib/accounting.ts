@@ -10,7 +10,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { activeItem } from "@/lib/entry-filters";
-import { RACE_TYPE, itemBetsValue, seasonAccounts } from "@/lib/hayloft-account";
+import { prizeRoleOf, raceTypeWithRole, itemBetsValue, seasonAccounts } from "@/lib/hayloft-account";
 import { hotspotOwedFor } from "@/lib/paymentStatus";
 import { openHotspotGate } from "@/lib/hotspot-gates";
 
@@ -329,8 +329,8 @@ export async function prizeStatements(seasonId: number): Promise<{
         bird: { select: { band1: true, band2: true, band3: true, band4: true, band: true } },
         eventInventory: { select: { loft: true, breeder: { select: { firstName: true, lastName: true } } } },
         raceItems: {
-          where: { race: { raceTypeId: { in: [RACE_TYPE.FINAL, RACE_TYPE.HOT_SPOT_1, RACE_TYPE.HOT_SPOT_2] } } },
-          select: { race: { select: { raceTypeId: true } }, result: { select: { birdPosition: true } } },
+          where: { race: { raceType: raceTypeWithRole("FINAL", "HOTSPOT_1", "HOTSPOT_2") } },
+          select: { race: { select: { raceType: { select: { id: true, prizeRole: true } } } }, result: { select: { birdPosition: true } } },
         },
       },
     }),
@@ -362,18 +362,18 @@ export async function prizeStatements(seasonId: number): Promise<{
     for (const p of a.birdPrizes) {
       const it = itemById.get(p.inventoryItemId);
       const breeder = it?.eventInventory?.breeder;
-      const posIn = (t: number) => it?.raceItems.find((r) => r.race?.raceTypeId === t)?.result?.birdPosition ?? null;
+      const posIn = (t: string) => it?.raceItems.find((r) => prizeRoleOf(r.race?.raceType) === t)?.result?.birdPosition ?? null;
       const base = {
         breederName: `${breeder?.firstName ?? ""} ${breeder?.lastName ?? ""}`.trim(),
         loft: it?.eventInventory?.loft ?? null,
         band: bandOf(it?.bird),
       };
       const parts: Array<[string, number, number | null]> = [
-        ["Final race", p.capital, posIn(RACE_TYPE.FINAL)],
-        ["Hot Spot 1", p.hotSpot1, posIn(RACE_TYPE.HOT_SPOT_1)],
-        ["Hot Spot 2", p.hotSpot2, posIn(RACE_TYPE.HOT_SPOT_2)],
+        ["Final race", p.capital, posIn("FINAL")],
+        ["Hot Spot 1", p.hotSpot1, posIn("HOTSPOT_1")],
+        ["Hot Spot 2", p.hotSpot2, posIn("HOTSPOT_2")],
         ["Average speed", p.avgSpeed, null],
-        ["Class bets", p.bets, posIn(RACE_TYPE.FINAL)],
+        ["Class bets", p.bets, posIn("FINAL")],
       ];
       for (const [source, amount, position] of parts) {
         if (!amount) continue;

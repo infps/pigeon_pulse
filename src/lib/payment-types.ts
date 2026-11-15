@@ -127,9 +127,16 @@ export const MANUAL_PAYMENT_TYPES: ReadonlyArray<{ key: PaymentTypeKey; label: s
   .filter((k) => k !== "REGISTRATION")
   .map((k) => ({ key: k, label: PAYMENT_TYPE_LABEL[PAYMENT_TYPE[k]], outgoing: isOutgoing(PAYMENT_TYPE[k]) }));
 
+/** Keys older app builds still send (pre-HayLoft codes), so they don't get a 400. */
+const LEGACY_KEYS: Record<string, PaymentTypeCode> = {
+  BIRD_FEE: PAYMENT_TYPE.ENTRY_FEE,
+  RACES_FEE: PAYMENT_TYPE.OTHER,
+  PAYOUTS: PAYMENT_TYPE.WINNER_PAYOUT,
+};
+
 export function paymentTypeFromKey(key: string | null | undefined): PaymentTypeCode | null {
   if (!key) return null;
-  return (PAYMENT_TYPE as Record<string, PaymentTypeCode>)[key] ?? null;
+  return (PAYMENT_TYPE as Record<string, PaymentTypeCode>)[key] ?? LEGACY_KEYS[key] ?? null;
 }
 
 export function paymentTypeKey(type: number | null | undefined): PaymentTypeKey | null {

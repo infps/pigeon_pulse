@@ -23,7 +23,7 @@ interface RaceOption {
   raceNumber: number | null;
   distance: number | null;
   raceTypeId: number | null;
-  raceType?: { name: string | null } | null;
+  raceType?: { name: string | null; prizeRole?: string } | null;
   name?: string | null;
 }
 
@@ -42,7 +42,9 @@ interface Row {
   loft: string | null;
 }
 
-const HOT_SPOT_TYPES = new Set([6, 7, 8]);
+// HayLoft's hot spot race types; legacy ids 6–8 for untagged imported types.
+const isHotSpot = (r: RaceOption) =>
+  /^HOTSPOT_/.test(r.raceType?.prizeRole ?? "") || ((r.raceType?.prizeRole ?? "NONE") === "NONE" && [6, 7, 8].includes(r.raceTypeId ?? -1));
 const money = (n: number) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const hms = (ms: number) => {
   const s = Math.max(0, Math.round(ms / 1000));
@@ -75,7 +77,7 @@ export function AvgSpeedPrizesCard({ eventId, onBirdClick }: { eventId: string; 
         const list: RaceOption[] = (d.races ?? []).filter((r: RaceOption) => (r.distance ?? 0) > 0);
         setRaces(list);
         // HayLoft's usual choice: the hot spot races.
-        setChosen(new Set(list.filter((r) => HOT_SPOT_TYPES.has(r.raceTypeId ?? -1)).map((r) => r.id)));
+        setChosen(new Set(list.filter(isHotSpot).map((r) => r.id)));
         setRows(null);
       });
     return () => {

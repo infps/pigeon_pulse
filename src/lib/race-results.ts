@@ -119,7 +119,7 @@ export async function recalcPositions(
              ON eii."ID_EVENT_INVENTORY_ITEM" = ri."ID_INVENTORY_ITEM"
       WHERE ri."ID_RACE" = ${raceId}
         AND COALESCE(ri."IS_LOST", 0) <> 1
-        AND ri."status" NOT IN ('STRAY', 'LOST')
+        AND ri."status" NOT IN ('IGNORED', 'STRAY', 'LOST')
         AND rir."ARRIVAL_TIME" IS NOT NULL
         AND (${isFinal}::boolean = false OR COALESCE(eii."ENTRY_FEE_PAID", 0) = 1)
         AND ${activeItemSql("eii")}
@@ -145,7 +145,7 @@ export async function recalcPositions(
            ON eii."ID_EVENT_INVENTORY_ITEM" = ri."ID_INVENTORY_ITEM"
     WHERE ri."ID_RACE" = ${raceId}
       AND COALESCE(ri."IS_LOST", 0) <> 1
-      AND ri."status" NOT IN ('STRAY', 'LOST')
+      AND ri."status" NOT IN ('IGNORED', 'STRAY', 'LOST')
       AND rir."ARRIVAL_TIME" IS NOT NULL
       AND ${activeItemSql("eii")}`;
 
@@ -187,7 +187,7 @@ export async function recalcHotspotPositions(
              ON eii."ID_EVENT_INVENTORY_ITEM" = ri."ID_INVENTORY_ITEM"
       WHERE ri."ID_RACE" = ${raceId}
         AND COALESCE(ri."IS_LOST", 0) <> 1
-        AND ri."status" NOT IN ('STRAY', 'LOST')
+        AND ri."status" NOT IN ('IGNORED', 'STRAY', 'LOST')
         AND rir."ARRIVAL_TIME" IS NOT NULL
         AND COALESCE(eii."HOT_SPOT_FEE_VALUE", 0) > 0
         AND ${activeItemSql("eii")}

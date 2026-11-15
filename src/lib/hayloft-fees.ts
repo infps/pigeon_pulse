@@ -17,7 +17,7 @@
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { itemBetsValue, RACE_TYPE } from "@/lib/hayloft-account";
+import { itemBetsValue, prizeRoleOf, raceTypeWithRole } from "@/lib/hayloft-account";
 
 type Tx = Prisma.TransactionClient;
 
@@ -88,9 +88,9 @@ export async function applyLostRefunds(
   const { birdId, raceId, isLost } = args;
   let raceSeasonId: number | null = null;
   if (raceId != null) {
-    const race = await tx.race.findUnique({ where: { id: raceId }, select: { raceTypeId: true, seasonId: true } });
+    const race = await tx.race.findUnique({ where: { id: raceId }, select: { seasonId: true, raceType: { select: { id: true, prizeRole: true } } } });
     // No refunds at all for a bird lost in the final race.
-    if (race?.raceTypeId === RACE_TYPE.FINAL) return;
+    if (prizeRoleOf(race?.raceType) === "FINAL") return;
     raceSeasonId = race?.seasonId ?? null;
   }
 
@@ -120,7 +120,7 @@ export async function applyLostRefunds(
   // HayLoft's check looks up no event and always passes; kept as is.
   const hs1Flown =
     raceSeasonId != null &&
-    (await tx.race.count({ where: { seasonId: raceSeasonId, raceTypeId: RACE_TYPE.HOT_SPOT_1 } })) > 0;
+    (await tx.race.count({ where: { seasonId: raceSeasonId, raceType: raceTypeWithRole("HOTSPOT_1") } })) > 0;
   if (!hs1Flown) {
     const hs = entries.find((e) => (e.hotSpotFeeValue ?? 0) > 0);
     if (hs) {

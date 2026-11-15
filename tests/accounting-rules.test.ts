@@ -38,8 +38,7 @@ describe("payment types are HayLoft's codes", () => {
     expect(signedAmount({ paymentValue: -40, paymentType: 0 })).toBe(-40);
   });
   test("unknown keys are refused, untyped rows read as registration", () => {
-    expect(paymentTypeFromKey("PAYOUTS")).toBeNull();
-    expect(paymentTypeFromKey("BIRD_FEE")).toBeNull();
+    expect(paymentTypeFromKey("NOPE")).toBeNull();
     expect(paymentTypeFromKey("HOT_SPOT")).toBe(3);
     expect(paymentTypeLabel(null)).toBe("Registration");
     expect(paymentTypeLabel(3)).toBe("Hot spot fee");
@@ -151,5 +150,14 @@ describe("registration fees (calculateFees)", () => {
     expect(fees.entryFees).toBe(1400);
     expect(fees.perchFees).toBe(510);
     expect(fees.total).toBe(1910);
+  });
+});
+
+describe("legacy payment keys", () => {
+  test("old app builds' keys still map", () => {
+    expect(paymentTypeFromKey("BIRD_FEE")).toBe(PAYMENT_TYPE.ENTRY_FEE);
+    expect(paymentTypeFromKey("RACES_FEE")).toBe(PAYMENT_TYPE.OTHER);
+    expect(paymentTypeFromKey("PAYOUTS")).toBe(PAYMENT_TYPE.WINNER_PAYOUT);
+    expect(paymentTypeFromKey("NOPE")).toBeNull();
   });
 });

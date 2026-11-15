@@ -389,10 +389,9 @@ const log = (...a) => {
   plan.PAYMENTS.finish();
 
   // ================================================================ race items + results
-  const ignored = new Set(FB("RACE_IGNORE_BIRD").map((r) => r.ID_RACE + ":" + r.ID_EVENT_INVENTORY_ITEM));
   const statusOf = (ri) => {
     const arr = fbRes.get(ri.ID_RACE_ITEM)?.ARRIVAL_TIME;
-    if (arr && ignored.has(ri.ID_RACE + ":" + ri.ID_INVENTORY_ITEM)) return "IGNORED";
+    // HayLoft ranks its ignore-list birds; status IGNORED is the portal's manual "drop from results".
     if (arr) return "ARRIVED";
     if (ri.IS_LOST === 1) return "LOST";
     if (ri.ID_RACE_BASKET != null || ri.IS_DIST_BASKETED === 1) return "RELEASED";

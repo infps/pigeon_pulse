@@ -34,6 +34,8 @@ import { prisma } from "@/lib/prisma";
 import { hotspotOwedFor } from "@/lib/paymentStatus";
 import { openHotspotGate } from "@/lib/hotspot-gates";
 import { PAYMENT_TYPE } from "@/lib/payment-types";
+import type { Prisma } from "@/generated/prisma/client";
+import type { RaceTypePrizeRole } from "@/generated/prisma/enums";
 
 // ---------------------------------------------------------------- arithmetic
 
@@ -51,8 +53,19 @@ const divIntU = (a: U, n: number): U => Math.trunc(a / n);
 
 // ---------------------------------------------------------------- race types
 
-/** HayLoft RACE_TYPE ids that carry money. */
-export const RACE_TYPE = { FINAL: 5, HOT_SPOT_1: 6, HOT_SPOT_2: 7, HOT_SPOT_3: 8 } as const;
+type MoneyRole = Exclude<RaceTypePrizeRole, "NONE">;
+/** HayLoft's hardcoded RACE_TYPE ids for each money-carrying role. */
+const LEGACY_ID: Record<MoneyRole, number> = { FINAL: 5, HOTSPOT_1: 6, HOTSPOT_2: 7, HOTSPOT_3: 8, AVERAGE: 9 };
+const LEGACY_ROLE = new Map(Object.entries(LEGACY_ID).map(([r, id]) => [id, r as MoneyRole]));
+
+/** Race types playing one of `roles`: tagged with it, or an untagged legacy HayLoft id. */
+export const raceTypeWithRole = (...roles: MoneyRole[]): Prisma.RaceTypeWhereInput => ({
+  OR: [{ prizeRole: { in: roles } }, { prizeRole: "NONE", id: { in: roles.map((r) => LEGACY_ID[r]) } }],
+});
+
+/** A race type's prize role; an untagged legacy HayLoft id falls back to its old role. */
+export const prizeRoleOf = (rt: { id: number; prizeRole: RaceTypePrizeRole } | null | undefined): RaceTypePrizeRole =>
+  !rt ? "NONE" : rt.prizeRole !== "NONE" ? rt.prizeRole : (LEGACY_ROLE.get(rt.id) ?? "NONE");
 
 // ---------------------------------------------------------------- class bets
 
@@ -353,26 +366,26 @@ export async function seasonAccounts(
 
   const finalAndHotSpots = await prisma.raceItem.findMany({
     where: {
-      race: { seasonId, raceTypeId: { in: [RACE_TYPE.FINAL, RACE_TYPE.HOT_SPOT_1, RACE_TYPE.HOT_SPOT_2, RACE_TYPE.HOT_SPOT_3] } },
+      race: { seasonId, raceType: raceTypeWithRole("FINAL", "HOTSPOT_1", "HOTSPOT_2", "HOTSPOT_3") },
       inventoryItemId: { not: null },
     },
     select: {
       id: true,
       inventoryItemId: true,
-      race: { select: { raceTypeId: true } },
+      race: { select: { raceType: { select: { id: true, prizeRole: true } } } },
       result: { select: { birdPosition: true, arrivalTime: true, birdDrop: true, prizeValue: true } },
     },
   });
-  const hasFinalRace = (await prisma.race.count({ where: { seasonId, raceTypeId: RACE_TYPE.FINAL } })) > 0;
+  const hasFinalRace = (await prisma.race.count({ where: { seasonId, raceType: raceTypeWithRole("FINAL") } })) > 0;
 
   const allItems = registrations.flatMap((r) => r.items);
   const itemById = new Map(allItems.map((i) => [i.id, i]));
 
-  // Prizes per entry, by race type (WINNER_PRIZE_PAYOUT_BIRD_GET).
-  const prizeByItem = new Map<number, Record<number, number | null>>();
+  // Prizes per entry, by prize role (WINNER_PRIZE_PAYOUT_BIRD_GET).
+  const prizeByItem = new Map<number, Partial<Record<RaceTypePrizeRole, number | null>>>();
   for (const ri of finalAndHotSpots) {
-    const t = ri.race?.raceTypeId;
-    if (t == null || ri.inventoryItemId == null || !ri.result) continue;
+    const t = prizeRoleOf(ri.race?.raceType);
+    if (t === "NONE" || ri.inventoryItemId == null || !ri.result) continue;
     const rec = prizeByItem.get(ri.inventoryItemId) ?? {};
     rec[t] = ri.result.prizeValue;
     prizeByItem.set(ri.inventoryItemId, rec);
@@ -387,7 +400,7 @@ export async function seasonAccounts(
   const betsPrizeByItem = new Map<number, U>();
   if (hasFinalRace && scheme) {
     const finalEntries: FinalRaceEntry[] = finalAndHotSpots
-      .filter((ri) => ri.race?.raceTypeId === RACE_TYPE.FINAL && ri.inventoryItemId != null && itemById.has(ri.inventoryItemId))
+      .filter((ri) => prizeRoleOf(ri.race?.raceType) === "FINAL" && ri.inventoryItemId != null && itemById.has(ri.inventoryItemId))
       .map((ri) => ({
         raceItemId: ri.id,
         inventoryItemId: ri.inventoryItemId as number,
@@ -450,12 +463,12 @@ export async function seasonAccounts(
       if (i.birdId == null) continue;
       anyBird = true;
       const p = prizeByItem.get(i.id) ?? {};
-      const c = toU(p[RACE_TYPE.FINAL]), h1 = toU(p[RACE_TYPE.HOT_SPOT_1]), h2 = toU(p[RACE_TYPE.HOT_SPOT_2]);
+      const c = toU(p.FINAL), h1 = toU(p.HOTSPOT_1), h2 = toU(p.HOTSPOT_2);
       const a = toU(avgByItem.get(i.id) ?? null);
       capital += c;
       hs1 += h1;
       hs2 += h2;
-      hs3 += toU(p[RACE_TYPE.HOT_SPOT_3]);
+      hs3 += toU(p.HOTSPOT_3);
       avgP += a;
       if (billable && (c || h1 || h2 || a || b)) {
         birdPrizes.push({

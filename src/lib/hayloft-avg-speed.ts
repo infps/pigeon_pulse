@@ -21,10 +21,9 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { raceTypeWithRole } from "@/lib/hayloft-account";
 
 export const HAYLOFT_TIME_ZONE = "America/Los_Angeles";
-/** HayLoft RACE_TYPE id the average-speed prize values are kept under. */
-export const AVG_PRIZE_RACE_TYPE = 9;
 
 const DAY = 86_400_000;
 const IMPORT_TIME_SHIFT = 330 * 60_000; // the original import wrote TIME columns 5:30 early
@@ -151,7 +150,7 @@ export async function averageSpeedWinners(
       a.inventoryItemId - b.inventoryItemId
   );
 
-  // GET_PRIZE_VALUE(scheme, event, 9, pos, pos): the PrizeValue of every band covering pos.
+  // GET_PRIZE_VALUE(scheme, event, 9, pos, pos), 9 = the AVERAGE role: the PrizeValue of every band covering pos.
   let prizeAt: (pos: number) => number | null = () => null;
   if (opts.calcPrize) {
     const season = await prisma.season.findUnique({ where: { id: seasonId }, select: { hotSpotAvgPrizeSchemeId: true } });
@@ -161,7 +160,7 @@ export async function averageSpeedWinners(
           select: {
             fromPosition: true,
             toPosition: true,
-            prizeValues: { where: { seasonId, raceTypeId: AVG_PRIZE_RACE_TYPE }, select: { prizeValue: true } },
+            prizeValues: { where: { seasonId, raceType: raceTypeWithRole("AVERAGE") }, select: { prizeValue: true } },
           },
         })
       : [];
