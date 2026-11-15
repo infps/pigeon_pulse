@@ -28,6 +28,7 @@ const itemSelect = {
           color: true,
           breeder: {
             select: {
+              id: true, // breeder popup + "active lofts" on public race page
               firstName: true,
               lastName: true,
               country: true,
