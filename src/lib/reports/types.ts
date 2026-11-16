@@ -38,6 +38,8 @@ export interface ReportDefinition {
   scope: ReportScope;
   /** Which parameter the report requires to run. */
   requires: keyof ReportParams | null;
+  /** Honours params.breederId, so it can be run for (and emailed to) one breeder. */
+  perBreeder?: boolean;
   /** Renders as mailing labels rather than a table. */
   isLabelSheet?: boolean;
   build: (params: ReportParams) => Promise<ReportData>;

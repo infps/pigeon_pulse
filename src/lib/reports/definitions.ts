@@ -51,6 +51,7 @@ async function buildRaceResult(params: ReportParams): Promise<ReportData> {
       raceId,
       result: { isNot: null },
       OR: activeRaceItemOr,
+      inventoryItem: params.breederId != null ? { eventInventory: { breederId: params.breederId } } : undefined,
     },
     select: {
       isLost: true,
@@ -207,11 +208,12 @@ async function buildBreederAverage(params: ReportParams, short: boolean): Promis
     byBreeder.set(breeder.id, agg);
   }
 
-  const ranked = [...byBreeder.values()]
-    .map((a) => ({ ...a, speed: speedYPM(a.miles, a.minutes) }))
+  const ranked = [...byBreeder.entries()]
+    .map(([id, a]) => ({ ...a, id, speed: speedYPM(a.miles, a.minutes) }))
     .sort((a, b) => (b.speed ?? -1) - (a.speed ?? -1));
 
-  const rows = ranked.map((a, i) => {
+  // Ranked across the whole season first so a single breeder's rank stays true.
+  const rows = ranked.flatMap((a, i) => (params.breederId == null || a.id === params.breederId ? [{ a, i }] : [])).map(({ a, i }) => {
     const rank = String(i + 1);
     if (short) {
       return [rank, a.breeder, a.loft, String(a.birds), a.speed != null ? num(a.speed, 2) : ""];
@@ -246,7 +248,7 @@ async function buildBreederBalance(params: ReportParams): Promise<ReportData> {
   const seasonId = requireParam(params, "seasonId");
 
   const inventories = await prisma.eventInventory.findMany({
-    where: { seasonId, ...approvedInventory },
+    where: { seasonId, ...approvedInventory, breederId: params.breederId },
     select: {
       loft: true,
       cashPromised: true,
@@ -327,7 +329,7 @@ async function buildInventoryList(params: ReportParams): Promise<ReportData> {
   const seasonId = requireParam(params, "seasonId");
 
   const items = await prisma.eventInventoryItem.findMany({
-    where: { eventInventory: { seasonId, ...approvedInventory }, deletedAt: null },
+    where: { eventInventory: { seasonId, ...approvedInventory, breederId: params.breederId }, deletedAt: null },
     select: {
       birdNo: true,
       isBackup: true,
@@ -719,8 +721,10 @@ async function buildLedger(params: ReportParams, filter: "all" | "unpaid" | "ear
   const seasonId = requireParam(params, "seasonId");
   const ledger = await seasonLedger(seasonId);
 
-  const lines = ledger.lines.filter((l) =>
-    filter === "unpaid" ? l.balance > 0 : filter === "earned" ? l.owedOut > 0 : true
+  const lines = ledger.lines.filter(
+    (l) =>
+      (params.breederId == null || l.breederId === params.breederId) &&
+      (filter === "unpaid" ? l.balance > 0 : filter === "earned" ? l.owedOut > 0 : true)
   );
 
   const rows = lines.map((l) => [
@@ -763,7 +767,9 @@ async function buildLedger(params: ReportParams, filter: "all" | "unpaid" | "ear
 
 async function buildPrizeStatements(params: ReportParams): Promise<ReportData> {
   const seasonId = requireParam(params, "seasonId");
-  const { rows, total } = await prizeStatements(seasonId);
+  const all = await prizeStatements(seasonId);
+  const rows = params.breederId == null ? all.rows : all.rows.filter((r) => r.breederId === params.breederId);
+  const total = params.breederId == null ? all.total : rows.reduce((s, r) => s + r.amount, 0);
 
   return {
     title: "Prize Statements",
@@ -823,6 +829,7 @@ async function buildRulesAndFees(params: ReportParams): Promise<ReportData> {
 export const REPORTS: ReportDefinition[] = [
   {
     key: "race-result",
+    perBreeder: true,
     title: "Race Result",
     description: "Finishing order with arrival time, flight time, speed and prize money.",
     legacyTemplate: "race_result.fr3",
@@ -832,6 +839,7 @@ export const REPORTS: ReportDefinition[] = [
   },
   {
     key: "breeder-average",
+    perBreeder: true,
     title: "Breeder Average",
     description: "Breeders ranked by average speed across the season, with miles and time flown.",
     legacyTemplate: "breeder_avg_report.fr3",
@@ -841,6 +849,7 @@ export const REPORTS: ReportDefinition[] = [
   },
   {
     key: "breeder-average-short",
+    perBreeder: true,
     title: "Breeder Average (Short)",
     description: "Condensed average standings — rank, breeder, birds and speed.",
     legacyTemplate: "breeder_avg_short_report.fr3",
@@ -850,6 +859,7 @@ export const REPORTS: ReportDefinition[] = [
   },
   {
     key: "breeder-balance",
+    perBreeder: true,
     title: "Breeder Balance",
     description: "Fees charged against payments received, with the outstanding balance per breeder.",
     legacyTemplate: "inventory_item_balance.fr3",
@@ -859,6 +869,7 @@ export const REPORTS: ReportDefinition[] = [
   },
   {
     key: "inventory-list",
+    perBreeder: true,
     title: "Inventory List",
     description: "Every bird entered in the season with band, owner, loft group and status.",
     legacyTemplate: "inventory_list.fr3",
@@ -904,6 +915,7 @@ export const REPORTS: ReportDefinition[] = [
   },
   {
     key: "season-ledger",
+    perBreeder: true,
     title: "Season Ledger",
     description: "Every registration: charged, paid, refunded, owed and won.",
     legacyTemplate: "wincompanion: Accounting",
@@ -913,6 +925,7 @@ export const REPORTS: ReportDefinition[] = [
   },
   {
     key: "unpaid-balances",
+    perBreeder: true,
     title: "Unpaid Balances",
     description: "Only the registrations that still owe money.",
     legacyTemplate: "wincompanion: Accounting > Unpaid",
@@ -922,6 +935,7 @@ export const REPORTS: ReportDefinition[] = [
   },
   {
     key: "earnings-owed",
+    perBreeder: true,
     title: "Earnings Owed",
     description: "Prize and class money the organization still owes out.",
     legacyTemplate: "wincompanion: Accounting > Earned",
@@ -931,6 +945,7 @@ export const REPORTS: ReportDefinition[] = [
   },
   {
     key: "prize-statements",
+    perBreeder: true,
     title: "Prize Statements",
     description: "Every payout across the season, race prizes and class payouts together.",
     legacyTemplate: "wincompanion: Accounting > Prize Stmts",
@@ -940,6 +955,7 @@ export const REPORTS: ReportDefinition[] = [
   },
   {
     key: "rules-and-fees",
+    perBreeder: true,
     title: "Event Rules and Fees",
     description: "The published rules and fee structure, as a printable sheet.",
     legacyTemplate: "agn: Event Rules & Fees",

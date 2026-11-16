@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FileDown, FileSpreadsheet, FileText, Printer } from "lucide-react";
+import { FileDown, FileSpreadsheet, FileText, Mail, Printer } from "lucide-react";
 import { toast } from "sonner";
 
 interface ReportInfo {
@@ -27,12 +27,19 @@ interface ReportInfo {
   requires: "seasonId" | "raceId" | null;
   legacyTemplate: string;
   isLabelSheet: boolean;
+  perBreeder: boolean;
+}
+
+interface BreederOption {
+  id: number;
+  name: string;
+  email: string | null;
 }
 
 interface SeasonOption {
   id: number;
   name: string;
-  event?: { name?: string | null } | null;
+  event?: { id?: number; name?: string | null } | null;
 }
 
 const SCOPE_LABEL: Record<ReportInfo["scope"], string> = {
@@ -46,6 +53,8 @@ export default function ReportsPage() {
   const { show: showDoc, previewNode } = useDocumentPreview();
   const [seasonId, setSeasonId] = useState<string>("");
   const [raceId, setRaceId] = useState<string>("");
+  const [breederId, setBreederId] = useState<string>("");
+  const [sending, setSending] = useState<string | null>(null);
 
   const { data: catalogue, isPending: catalogueLoading } = useApiQuery({
     endpoint: apiEndpoints.reports.base,
@@ -63,6 +72,28 @@ export default function ReportsPage() {
 
   const reports: ReportInfo[] = useMemo(() => catalogue?.reports ?? [], [catalogue]);
   const seasons: SeasonOption[] = useMemo(() => seasonsData?.seasons ?? [], [seasonsData]);
+  const eventId = seasons.find((s) => String(s.id) === seasonId)?.event?.id;
+
+  // Breeders registered in the season — the people a report can be sent to.
+  const { data: registrations } = useApiQuery({
+    endpoint: eventId ? apiEndpoints.eventInventory.byEvent(eventId) : undefined,
+    queryKey: ["reports", "season-breeders", seasonId],
+    params: { seasonId },
+    enabled: !!eventId,
+  });
+  const breeders: BreederOption[] = useMemo(() => {
+    const byId = new Map<number, BreederOption>();
+    for (const inv of (registrations?.eventInventory ?? []) as Array<{
+      breeder?: { id: number; firstName?: string | null; lastName?: string | null; email?: string | null } | null;
+    }>) {
+      const b = inv.breeder;
+      if (!b || byId.has(b.id)) continue;
+      const name = [b.firstName, b.lastName].filter(Boolean).join(" ").trim() || `Breeder #${b.id}`;
+      byId.set(b.id, { id: b.id, name, email: b.email?.trim() || null });
+    }
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [registrations]);
+  const breeder = breeders.find((b) => String(b.id) === breederId);
   const races = useMemo(
     () =>
       (racesData?.races ?? []) as Array<{
@@ -89,9 +120,31 @@ export default function ReportsPage() {
     const url = apiEndpoints.reports.download(report.key, format, {
       seasonId: seasonId || undefined,
       raceId: raceId || undefined,
+      // Preview exactly what the breeder would be sent.
+      breederId: report.perBreeder ? breederId || undefined : undefined,
     });
     if (isPreviewableFormat(format)) showDoc(url, report.title);
     else window.open(url, "_blank", "noopener");
+  };
+
+  const sendTo = async (report: ReportInfo) => {
+    if (!breeder?.email) return;
+    setSending(report.key);
+    try {
+      const url = apiEndpoints.reports.download(report.key, "pdf", {
+        seasonId: seasonId || undefined,
+        raceId: raceId || undefined,
+        breederId: breeder.id,
+      });
+      const res = await fetch(url, { method: "POST" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.message || "Failed to send");
+      toast.success(body.message || `Sent to ${breeder.email}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to send");
+    } finally {
+      setSending(null);
+    }
   };
 
   if (catalogueLoading || seasonsLoading) {
@@ -133,6 +186,7 @@ export default function ReportsPage() {
               onValueChange={(v) => {
                 setSeasonId(v);
                 setRaceId("");
+                setBreederId("");
               }}
             >
               <SelectTrigger>
@@ -165,6 +219,33 @@ export default function ReportsPage() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="flex-1 space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Breeder (optional)
+            </label>
+            <Select
+              value={breederId || "all"}
+              onValueChange={(v) => setBreederId(v === "all" ? "" : v)}
+              disabled={!seasonId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={seasonId ? "All breeders" : "Select a season first"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All breeders</SelectItem>
+                {breeders.map((b) => (
+                  <SelectItem key={b.id} value={String(b.id)}>
+                    {b.name}
+                    {b.email ? "" : " · no email"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {breeder && !breeder.email ? (
+              <p className="text-xs text-amber-600">No email on file — reports can&apos;t be sent.</p>
+            ) : null}
           </div>
         </CardContent>
       </Card>
@@ -229,6 +310,18 @@ export default function ReportsPage() {
                       <Printer className="mr-1.5 h-3.5 w-3.5" />
                       Print
                     </Button>
+                    {report.perBreeder && breeder ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={!!blocked || !breeder.email || sending !== null}
+                        title={breeder.email ? `Email PDF to ${breeder.email}` : "Breeder has no email"}
+                        onClick={() => sendTo(report)}
+                      >
+                        <Mail className="mr-1.5 h-3.5 w-3.5" />
+                        {sending === report.key ? "Sending…" : "Email"}
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
               </CardContent>

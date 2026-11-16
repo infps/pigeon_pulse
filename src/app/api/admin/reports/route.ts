@@ -21,6 +21,7 @@ export async function GET() {
       requires: r.requires,
       legacyTemplate: r.legacyTemplate,
       isLabelSheet: r.isLabelSheet ?? false,
+      perBreeder: r.perBreeder ?? false,
     })),
   });
 }

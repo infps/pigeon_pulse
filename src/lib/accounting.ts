@@ -298,6 +298,7 @@ export async function entryInvoice(eventInventoryId: number): Promise<Invoice | 
 }
 
 export interface PrizeStatementRow {
+  breederId: number | null;
   breederName: string;
   loft: string | null;
   band: string;
@@ -327,7 +328,7 @@ export async function prizeStatements(seasonId: number): Promise<{
       select: {
         id: true,
         bird: { select: { band1: true, band2: true, band3: true, band4: true, band: true } },
-        eventInventory: { select: { loft: true, breeder: { select: { firstName: true, lastName: true } } } },
+        eventInventory: { select: { loft: true, breeder: { select: { id: true, firstName: true, lastName: true } } } },
         raceItems: {
           where: { race: { raceType: raceTypeWithRole("FINAL", "HOTSPOT_1", "HOTSPOT_2") } },
           select: { race: { select: { raceType: { select: { id: true, prizeRole: true } } } }, result: { select: { birdPosition: true } } },
@@ -344,7 +345,7 @@ export async function prizeStatements(seasonId: number): Promise<{
           select: {
             bird: { select: { band1: true, band2: true, band3: true, band4: true, band: true } },
             eventInventory: {
-              select: { loft: true, breeder: { select: { firstName: true, lastName: true } } },
+              select: { loft: true, breeder: { select: { id: true, firstName: true, lastName: true } } },
             },
           },
         },
@@ -364,6 +365,7 @@ export async function prizeStatements(seasonId: number): Promise<{
       const breeder = it?.eventInventory?.breeder;
       const posIn = (t: string) => it?.raceItems.find((r) => prizeRoleOf(r.race?.raceType) === t)?.result?.birdPosition ?? null;
       const base = {
+        breederId: breeder?.id ?? null,
         breederName: `${breeder?.firstName ?? ""} ${breeder?.lastName ?? ""}`.trim(),
         loft: it?.eventInventory?.loft ?? null,
         band: bandOf(it?.bird),
@@ -386,6 +388,7 @@ export async function prizeStatements(seasonId: number): Promise<{
     const breeder = c.inventoryItem?.eventInventory?.breeder;
     exactTotal += c.payoutValue ?? 0;
     rows.push({
+      breederId: breeder?.id ?? null,
       breederName: `${breeder?.firstName ?? ""} ${breeder?.lastName ?? ""}`.trim(),
       loft: c.inventoryItem?.eventInventory?.loft ?? null,
       band: bandOf(c.inventoryItem?.bird),
