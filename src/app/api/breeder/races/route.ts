@@ -47,6 +47,10 @@ export async function GET(request: Request) {
       ? { AND: [{ seasonRel: { eventId: parseInt(eventId) } }, visibility] }
       : visibility;
 
+    const limitParam = parseInt(searchParams.get("limit") ?? "", 10);
+    const limit = limitParam > 0 ? Math.min(limitParam, 500) : 0;
+    const offset = Math.max(parseInt(searchParams.get("cursor") ?? "", 10) || 0, 0);
+
     const races = await prisma.race.findMany({
       where: whereClause,
       include: {
@@ -63,13 +67,21 @@ export async function GET(request: Request) {
           },
         },
       },
-      orderBy: {
-        startTime: "desc",
-      },
+      orderBy: [{ startTime: "desc" }, { id: "desc" }],
+      ...(limit ? { skip: offset, take: limit + 1 } : {}),
     });
 
+    // Paged only when asked (?limit), so older clients still get the full list.
+    // ponytail: offset cursor; a race created mid-scroll can repeat one row, fine for display.
+    const hasMore = !!limit && races.length > limit;
+    if (hasMore) races.pop();
+
     return NextResponse.json(
-      { races, message: "Races fetched successfully" },
+      {
+        races,
+        nextCursor: hasMore ? offset + limit : null,
+        message: "Races fetched successfully",
+      },
       { status: 200 }
     );
   } catch (error) {

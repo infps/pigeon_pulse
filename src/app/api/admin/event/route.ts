@@ -29,7 +29,7 @@ export async function GET(request: Request) {
         where: { id: eventId },
         include: {
           eventType: true,
-          createdBy: true,
+          createdBy: { select: { id: true, name: true } },
           seasons: {
             include: {
               feeScheme: {
@@ -74,7 +74,7 @@ export async function GET(request: Request) {
     const events = await prisma.event.findMany({
       include: {
         eventType: true,
-        createdBy: true,
+        createdBy: { select: { id: true, name: true } },
       },
       orderBy: {
         id: "desc",
@@ -168,7 +168,7 @@ export async function POST(request: Request) {
       },
       include: {
         eventType: true,
-        createdBy: true,
+        createdBy: { select: { id: true, name: true } },
       },
     });
 
@@ -307,7 +307,7 @@ export async function PUT(request: Request) {
       },
       include: {
         eventType: true,
-        createdBy: true,
+        createdBy: { select: { id: true, name: true } },
       },
     });
 

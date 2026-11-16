@@ -22,6 +22,15 @@ const auth = betterAuth({
     emailAndPassword:{
         enabled:true,
     },
+    // Declared so the session (and its cookie cache) carries them; without this
+    // customSession below re-read the user on every request. input:false keeps
+    // sign-up from setting either one.
+    user: {
+        additionalFields: {
+            role: { type: "string", required: false, input: false },
+            approvalStatus: { type: "string", required: false, input: false },
+        },
+    },
     databaseHooks: {
         user: {
             create: {
@@ -75,14 +84,7 @@ const auth = betterAuth({
                     select: { role: true, approvalStatus: true },
                 });
             try {
-                let dbUser = await fetchUser().catch(async (e: any) => {
-                    // Retry once on Neon cold-start timeout
-                    if (e?.code === "ETIMEDOUT" || e?.code === "P1001") {
-                        await new Promise(r => setTimeout(r, 1500));
-                        return fetchUser();
-                    }
-                    throw e;
-                });
+                const dbUser = await fetchUser();
                 return {
                     ...session,
                     user: {
