@@ -67,7 +67,7 @@ export const createRacesColumns = (
           href={`/admin/events/${eventId}/races/${race.id}`}
           className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
         >
-          {race.name}
+          {race.name?.trim() || `Race ${race.raceNumber ?? race.id}`}
         </Link>
       );
     },

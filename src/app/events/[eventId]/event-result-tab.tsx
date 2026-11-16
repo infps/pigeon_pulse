@@ -39,7 +39,7 @@ function RaceList({ races }: { races: Race[] }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <h4 className="text-lg font-semibold line-clamp-1">
-                      {race.description ?? race.name ?? "Race"}
+                      {race.description || race.name || `Race ${race.raceNumber ?? race.id}`}
                     </h4>
                     {race.status === "STARTED" && (
                       <Badge variant="destructive" className="gap-1">

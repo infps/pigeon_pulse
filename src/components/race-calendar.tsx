@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 
 export interface CalendarRace {
   id: number;
+  raceNumber?: number | null;
   name?: string | null;
   description?: string | null;
   startTime: string | null;
@@ -35,7 +36,7 @@ function dayKey(d: Date): string {
 }
 
 function raceLabel(r: CalendarRace): string {
-  return r.description || r.name || "Race";
+  return r.description || r.name || `Race ${r.raceNumber ?? r.id}`;
 }
 
 export function RaceCalendar({

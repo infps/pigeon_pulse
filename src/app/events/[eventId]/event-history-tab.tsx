@@ -17,6 +17,7 @@ import { RaceCalendar, type CalendarRace } from "@/components/race-calendar";
 
 interface HistoryRace {
   id: number;
+  raceNumber: number | null;
   name: string | null;
   description: string | null;
   location: string | null;
@@ -90,6 +91,7 @@ export function EventHistoryTab({ eventId }: { eventId: string }) {
 
   const calendarRaces: CalendarRace[] = (data?.races ?? []).map((r) => ({
     id: r.id,
+    raceNumber: r.raceNumber,
     name: r.name,
     description: r.description,
     startTime: r.startTime,
@@ -141,7 +143,7 @@ function RaceGroup({ season, races }: { season: string; races: HistoryRace[] }) 
       {races.map((r, i) => (
         <TableRow key={r.id}>
           <TableCell>{i + 1}</TableCell>
-          <TableCell className="font-medium">{r.description ?? r.name ?? "-"}</TableCell>
+          <TableCell className="font-medium">{r.description || r.name || `Race ${r.raceNumber ?? r.id}`}</TableCell>
           <TableCell className="font-mono text-xs">{formatLiberation(r.startTime)}</TableCell>
           <TableCell>{deriveSeason(r)}</TableCell>
           <TableCell>{r.location ?? "-"}</TableCell>

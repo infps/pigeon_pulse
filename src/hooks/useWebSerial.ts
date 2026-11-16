@@ -24,7 +24,7 @@ function formatTimestamp(date: Date): string {
 
 // Real MC2100: "4F7D5A06-3E-05.09.26 04:17:29.58-001"
 // Legacy colon: "SN000/002:R500000672" or "SN000/003:0000026000/TLI200V3.01"
-function parseMessage(message: string): { rfid: string; timestamp: string; antenna: string } | null {
+export function parseMessage(message: string): { rfid: string; timestamp: string; antenna: string } | null {
   const firstToken = message.split("-")[0].trim();
 
   // Real MC2100: first token is 8-char hex RFID
