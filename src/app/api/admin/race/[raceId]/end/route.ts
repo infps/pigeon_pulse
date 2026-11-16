@@ -8,6 +8,7 @@ import { presetIdFor } from "@/lib/birdStatus";
 import { recalcRace } from "@/lib/race-results";
 import { applyLostRefunds } from "@/lib/hayloft-fees";
 import { notifyRaceEnded } from "@/lib/notifications";
+import { fillRaceWeather } from "@/lib/race-weather";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -192,6 +193,9 @@ export async function POST(
 
     // Results are final once the recalculation has run, so announce after it.
     await notifyRaceEnded(raceIdInt, lostCount);
+
+    // Actual arrival conditions at the loft for the real end time.
+    await fillRaceWeather(raceIdInt, { arrival: true, overwrite: true });
 
     return NextResponse.json(
       {

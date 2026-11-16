@@ -14,7 +14,7 @@ import { useGetEventInventory, useCreatePayment, useUpdatePayment, useDeletePaym
 import { useAdminListBirds } from "@/lib/api/admin-birds";
 import { useSettleRefund } from "@/lib/api/event-inventory";
 import { setEntryDeleted } from "@/lib/api/event-inventory-items";
-import { Download, Plus, Trash2, Edit, UserPlus, ArrowLeft, Repeat, UserCog } from "lucide-react";
+import { ChevronRight, Download, Plus, Trash2, Edit, UserPlus, ArrowLeft, Repeat, UserCog } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { Event, EventInventory, EventInventoryItem } from "@/lib/types";
 import type { RegistrationAccount } from "@/lib/hayloft-account";
@@ -487,7 +487,7 @@ export function BreederDetailsDialog({
           />
         )}
 
-        {view === "list" && <div className="space-y-6">
+        {view === "list" && <div className="space-y-6 min-w-0">
             {/* Breeder + Partners row */}
             <div className="grid grid-cols-4 gap-4">
               {/* Breeder Info — 3/4 */}
@@ -561,11 +561,19 @@ export function BreederDetailsDialog({
             </div>
 
             {/* Approval + registration note. Keyed so it resyncs after a save. */}
-            <RegistrationStatusEditor
-              key={`${eventInventory.id}-${eventInventory.approvalStatus}-${eventInventory.note}`}
-              eventInventory={eventInventory}
-              eventId={event.id}
-            />
+            <details className="group border rounded-lg">
+              <summary className="flex cursor-pointer select-none items-center gap-2 px-4 py-2 font-semibold text-lg">
+                <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+                Approval &amp; Note
+              </summary>
+              <div className="p-4 pt-0">
+                <RegistrationStatusEditor
+                  key={`${eventInventory.id}-${eventInventory.approvalStatus}-${eventInventory.note}`}
+                  eventInventory={eventInventory}
+                  eventId={event.id}
+                />
+              </div>
+            </details>
 
             {/* Payments and Fee Summary Side by Side */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -835,20 +843,21 @@ export function BreederDetailsDialog({
             </div>
 
             {/* Birds Table */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-lg">
+            <details className="group border rounded-lg">
+              <summary className="flex cursor-pointer select-none items-center justify-between px-4 py-2">
+                <h3 className="flex items-center gap-2 font-semibold text-lg">
+                  <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
                   Birds ({allBirds.length})
                   <span className="ml-2 text-sm font-normal text-muted-foreground">
                     {items.length} registered
                   </span>
                 </h3>
-                <Button size="sm" onClick={handleCreateBird}>
+                <Button size="sm" onClick={(e) => { e.preventDefault(); handleCreateBird(); }}>
                   <Plus className="h-4 w-4 mr-2" />
                   Add Bird
                 </Button>
-              </div>
-              <div className="border rounded-lg overflow-x-auto">
+              </summary>
+              <div className="border-t overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-primary">
                     <tr>
@@ -925,7 +934,7 @@ export function BreederDetailsDialog({
                   </tbody>
                 </table>
               </div>
-            </div>
+            </details>
 
             <BreederBetsSection eventInventoryId={eventInventory.id} />
           </div>}

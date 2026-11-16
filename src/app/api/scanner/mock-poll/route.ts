@@ -19,6 +19,9 @@ function saveNextIndex(index: number) {
 }
 
 export async function POST() {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ message: "Not found" }, { status: 404 });
+  }
   const index = getNextIndex();
   const rfid = RFIDS[index % RFIDS.length];
   saveNextIndex(index + 1);

@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { isStaff } from "@/lib/visibility";
 import { autoAssignToScannerGroup, resolveScannerGroup } from "@/lib/scanner-mapping";
 import { activeItem, approvedInventory } from "@/lib/entry-filters";
 
@@ -24,6 +26,11 @@ function getClientIp(req: NextRequest): string {
  */
 export async function POST(request: NextRequest) {
   try {
+    // Writes scans and files birds into groups: staff only (reader client logs in as admin).
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session?.user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    if (!isStaff(session.user.role)) return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+
     const body = await request.json();
     const { rfidTag, scannerId = "python-client", seasonId } = body;
 

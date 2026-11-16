@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { activeItem, activeRaceItemOr } from "@/lib/entry-filters";
 
@@ -31,11 +33,43 @@ interface HistoryEntry {
   eventBanner?: string | null;
 }
 
+// Statuses that mean the bird was actually released (IGNORED = didn't fly).
+const FLOWN = ["RELEASED", "ARRIVED", "FOREIGN_BIRD", "STRAY", "LOST"] as const;
+type FlownStatus = (typeof FLOWN)[number];
+
+/** One row per race the bird was released in (arrived or not). */
+interface Flight {
+  raceId: number;
+  eventId?: number;
+  raceName?: string;
+  raceTypeName: string | null;
+  isTraining: boolean;
+  date?: string; // release time
+  miles?: number;
+  status: FlownStatus;
+  position?: number;
+  fieldSize?: number;
+  arrivalTime?: string;
+  flightTimeMs?: number;
+  ypm?: number;
+  toWinMs?: number;
+  prizeValue?: number;
+}
+
+const isTrainingType = (name: string | null) => {
+  const n = (name ?? "").toUpperCase();
+  return n === "T" || n.includes("TRAINING");
+};
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ birdId: string }> }
 ) {
   try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
     const { birdId } = await params;
     const birdIdInt = parseInt(birdId);
     if (Number.isNaN(birdIdInt)) {
@@ -84,6 +118,7 @@ export async function GET(
                 seasonId: true,
                 distance: true,
                 raceType: { select: { name: true } },
+                raceStation: { select: { miles: true } },
               },
             },
             result: true,
@@ -96,13 +131,18 @@ export async function GET(
             },
           },
         },
+        breederHistory: { orderBy: { transferredAt: "desc" } },
       },
     });
 
     // Batch-fetch leader (first arrival) per race for gap computation
     const arrivedRaceIds = new Set<number>();
+    const flownRaceIds = new Set<number>();
     for (const inv of inventoryItems) {
       for (const ri of inv.raceItems) {
+        if (ri.race?.id && (FLOWN as readonly string[]).includes(ri.status)) {
+          flownRaceIds.add(ri.race.id);
+        }
         if (ri.status === "ARRIVED" && ri.race?.id && ri.result?.arrivalTime) {
           arrivedRaceIds.add(ri.race.id);
         }
@@ -131,12 +171,31 @@ export async function GET(
       }
     }
 
+    // Field size = birds released per race.
+    const fieldSizeMap = new Map<number, number>();
+    if (flownRaceIds.size > 0) {
+      const counts = await prisma.raceItem.groupBy({
+        by: ["raceId"],
+        where: {
+          raceId: { in: [...flownRaceIds] },
+          status: { in: [...FLOWN] },
+          OR: activeRaceItemOr,
+        },
+        _count: { _all: true },
+      });
+      for (const c of counts) {
+        if (c.raceId != null) fieldSizeMap.set(c.raceId, c._count._all);
+      }
+    }
+
     const lostHistory = await prisma.lostHistory.findMany({
       where: { birdId: birdIdInt },
       include: { race: { select: { id: true, name: true } } },
     });
 
     const entries: HistoryEntry[] = [];
+    const flights: Flight[] = [];
+    const transfers: { fromBreederName: string; transferredAt: string; eventName?: string }[] = [];
 
     for (const inv of inventoryItems) {
       const ev = inv.eventInventory?.season?.event;
@@ -151,9 +210,47 @@ export async function GET(
         });
       }
 
+      for (const t of inv.breederHistory) {
+        transfers.push({
+          fromBreederName: t.fromBreederName,
+          transferredAt: t.transferredAt.toISOString(),
+          eventName: ev?.name ?? undefined,
+        });
+      }
+
       for (const ri of inv.raceItems) {
         if (!ri.race) continue;
         const raceTypeName = ri.race.raceType?.name ?? null;
+        const raceMiles = ri.race.raceStation?.miles ?? ri.race.distance ?? 0;
+
+        if ((FLOWN as readonly string[]).includes(ri.status)) {
+          const startMs = ri.race.startTime?.getTime() ?? null;
+          const arrival = ri.status === "ARRIVED" ? ri.result?.arrivalTime ?? null : null;
+          const flightTimeMs =
+            arrival && startMs ? arrival.getTime() - startMs : undefined;
+          const leaderMs = leaderTimesMap.get(ri.race.id);
+          flights.push({
+            raceId: ri.race.id,
+            eventId: ev?.id,
+            raceName: ri.race.name ?? undefined,
+            raceTypeName,
+            isTraining: isTrainingType(raceTypeName),
+            date: ri.race.startTime?.toISOString(),
+            miles: raceMiles > 0 ? raceMiles : undefined,
+            status: ri.status as FlownStatus,
+            position: ri.status === "ARRIVED" ? ri.result?.birdPosition ?? undefined : undefined,
+            fieldSize: fieldSizeMap.get(ri.race.id),
+            arrivalTime: arrival?.toISOString(),
+            flightTimeMs,
+            ypm:
+              flightTimeMs && flightTimeMs > 0 && raceMiles > 0
+                ? (raceMiles * 1760) / (flightTimeMs / 60000)
+                : undefined,
+            toWinMs:
+              arrival && leaderMs !== undefined ? arrival.getTime() - leaderMs : undefined,
+            prizeValue: ri.result?.prizeValue ?? undefined,
+          });
+        }
 
         if (ri.status === "RELEASED") {
           if (ri.race.startTime) {
@@ -174,7 +271,7 @@ export async function GET(
             const startMs = ri.race.startTime
               ? new Date(ri.race.startTime).getTime()
               : null;
-            const distanceMi = ri.race.distance ?? 0;
+            const distanceMi = raceMiles;
             const distanceYards = distanceMi * 1760;
             let ypm: number | undefined;
             let flightTimeMs: number | undefined;
@@ -246,6 +343,9 @@ export async function GET(
     }
 
     entries.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    flights.sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
+    transfers.sort((a, b) => b.transferredAt.localeCompare(a.transferredAt));
+    const prizeTotal = flights.reduce((s, f) => s + (f.prizeValue ?? 0), 0);
 
     const breeder = bird.breeder;
     const loftName =
@@ -266,9 +366,12 @@ export async function GET(
       loftImage,
       eligible: bird.isActive === 1,
       breederId: breeder?.id ?? null,
+      color: bird.color ?? null,
+      sex: bird.sex ?? null,
+      birdName: bird.birdName ?? null,
     };
 
-    return NextResponse.json({ entries, birdInfo });
+    return NextResponse.json({ entries, birdInfo, flights, transfers, prizeTotal });
   } catch (error) {
     console.error("Error fetching bird history:", error);
     return NextResponse.json(

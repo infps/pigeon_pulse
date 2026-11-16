@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import {
   Dialog,
@@ -27,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ImageIcon, MessageSquare, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { ImageIcon, MessageSquare, Pencil, Pin, PinOff, Plus, Search, Trash2, X } from "lucide-react";
 import {
   useListAdminEventMessages,
   useCreateEventMessage,
@@ -52,6 +53,7 @@ interface EventMessage {
   mediaUrls: string[];
   createdAt: string;
   updatedAt: string;
+  isPinned: boolean;
   author: Author;
 }
 
@@ -145,12 +147,16 @@ export function MessagesTab({ eventId }: { eventId: string }) {
                   <AvatarFallback>{authorInitial(m.author)}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
-                  {m.title && <p className="font-bold truncate">{m.title}</p>}
+                  <div className="flex items-center gap-2 min-w-0">
+                    {m.isPinned && <Badge variant="secondary" className="gap-1 shrink-0"><Pin className="h-3 w-3" />Pinned</Badge>}
+                    {m.title && <p className="font-bold truncate">{m.title}</p>}
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     {authorName(m.author)} · {formatFullDate(m.createdAt)}
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
+                  <PinButton eventId={eventId} message={m} />
                   <Button
                     variant="ghost"
                     size="icon"
@@ -296,23 +302,21 @@ function CreateDialog({
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
-  const [sendPublic, setSendPublic] = useState(true);
-  const [sendBreeders, setSendBreeders] = useState(false);
+  const [notify, setNotify] = useState(true);
   const create = useCreateEventMessage({ eventId });
 
   const reset = () => {
     setTitle("");
     setBody("");
     setMediaUrls([]);
-    setSendPublic(true);
-    setSendBreeders(false);
+    setNotify(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!body.trim()) return;
     create.mutate(
-      { title: title.trim() || undefined, body, mediaUrls },
+      { title: title.trim() || undefined, body, mediaUrls, notify },
       {
         onSuccess: () => {
           toast.success("Message posted");
@@ -355,25 +359,10 @@ function CreateDialog({
             />
           </div>
           <ImageAttachments eventId={eventId} urls={mediaUrls} onChange={setMediaUrls} />
-          <div className="space-y-2">
-            <Label>Send To</Label>
-            <div className="flex flex-col gap-2">
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={sendPublic}
-                  onCheckedChange={(v) => setSendPublic(!!v)}
-                />
-                Public
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={sendBreeders}
-                  onCheckedChange={(v) => setSendBreeders(!!v)}
-                />
-                Active Breeders
-              </label>
-            </div>
-          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={notify} onCheckedChange={(v) => setNotify(!!v)} />
+            Notify breeders
+          </label>
           <DialogFooter>
             <Button
               type="button"
@@ -382,13 +371,32 @@ function CreateDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={!body.trim() || (!sendPublic && !sendBreeders)}>
+            <Button type="submit" disabled={!body.trim()}>
               Post
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function PinButton({ eventId, message }: { eventId: string; message: EventMessage }) {
+  const update = useUpdateEventMessage({ eventId, messageId: message.id });
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      disabled={update.isPending}
+      onClick={() =>
+        update.mutate({ isPinned: !message.isPinned }, {
+          onError: () => toast.error("Pin update failed"),
+        } as never)
+      }
+      aria-label={message.isPinned ? "Unpin message" : "Pin message"}
+    >
+      {message.isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+    </Button>
   );
 }
 

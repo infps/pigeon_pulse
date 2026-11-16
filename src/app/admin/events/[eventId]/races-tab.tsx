@@ -188,7 +188,7 @@ export function RacesTab({ event, eventId }: RacesTabProps) {
         distance: formData.raceStationId
           ? undefined
           : formData.distance
-            ? parseInt(formData.distance)
+            ? parseFloat(formData.distance)
             : undefined,
         location: formData.location,
         startTime: new Date(formData.startTime).toISOString(),
@@ -315,10 +315,10 @@ function toDateTimeLocal(iso: string) {
         distance: formData.raceStationId
           ? undefined
           : formData.distance
-            ? parseInt(formData.distance)
+            ? parseFloat(formData.distance)
             : undefined,
         location: formData.location,
-        startTime: formData.startTime,
+        startTime: new Date(formData.startTime).toISOString(),
         sunrise: sunriseDateTime.toISOString(),
         sunset: sunsetDateTime.toISOString(),
         arrivalTemperature: formData.arrivalTemperature
@@ -602,8 +602,8 @@ function toDateTimeLocal(iso: string) {
                   <Input
                     id="distance"
                     type="number"
-                    step="1"
-                    value={selectedStation ? (derivedMiles != null ? String(Math.round(derivedMiles)) : "") : formData.distance}
+                    step="any"
+                    value={selectedStation ? (derivedMiles != null ? String(Math.round(derivedMiles * 1000) / 1000) : "") : formData.distance}
                     onChange={(e) =>
                       setFormData({ ...formData, distance: e.target.value })
                     }

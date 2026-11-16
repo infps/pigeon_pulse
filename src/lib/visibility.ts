@@ -72,6 +72,16 @@ export async function raceVisibilityFilter(
   };
 }
 
+/** One race by id, same rules as raceVisibilityFilter. Use in every non-admin race-by-id route. */
+export async function canViewRace(
+  raceId: number,
+  userId: string | null | undefined,
+  role: string | null | undefined
+): Promise<boolean> {
+  const visibility = await raceVisibilityFilter(userId, role);
+  return (await prisma.race.count({ where: { AND: [{ id: raceId }, visibility] } })) > 0;
+}
+
 /** Item statuses an admin has hidden from non-staff viewers of this race. */
 export async function hiddenRaceStatuses(raceId: number) {
   const rows = await prisma.raceStatusVisibility.findMany({

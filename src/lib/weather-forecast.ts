@@ -33,11 +33,15 @@ function isHistorical(localDateTime: string): boolean {
   return date < cutoff;
 }
 
+// `when`: naive "YYYY-MM-DDTHH:MM" in the location's local time (browser form),
+// or a Date (server) — then queried in GMT so the hour match is exact.
 export async function fetchReleaseForecast(
   lat: number,
   lon: number,
-  localDateTime: string
+  when: string | Date
 ): Promise<ReleaseForecast> {
+  const utc = when instanceof Date;
+  const localDateTime = utc ? when.toISOString() : when;
   const date = localDateTime.slice(0, 10); // YYYY-MM-DD
   if (date.length !== 10) throw new Error("Invalid release time");
 
@@ -49,7 +53,7 @@ export async function fetchReleaseForecast(
   const url =
     baseUrl +
     `&hourly=temperature_2m,wind_speed_10m,weather_code` +
-    `&wind_speed_unit=kmh&timezone=auto&start_date=${date}&end_date=${date}`;
+    `&wind_speed_unit=kmh&timezone=${utc ? "GMT" : "auto"}&start_date=${date}&end_date=${date}`;
 
   const res = await fetch(url);
   if (!res.ok) {
@@ -100,4 +104,30 @@ export async function fetchSunriseSunset(
   if (!sr || !ss) throw new Error("No sunrise/sunset data");
   // Open-Meteo returns "YYYY-MM-DDTHH:MM" — extract HH:MM
   return { sunrise: sr.slice(11, 16), sunset: ss.slice(11, 16) };
+}
+
+// Server variant: sunrise/sunset as real instants for the local day containing `when`.
+// Queries ±1 UTC day in the location tz, then shifts by utc_offset_seconds.
+// ponytail: single offset per response; off by 1h on DST-switch days.
+export async function fetchSunTimes(
+  lat: number,
+  lon: number,
+  when: Date
+): Promise<{ sunrise: Date; sunset: Date }> {
+  const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  const t = when.getTime();
+  const url =
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    `&daily=sunrise,sunset&timezone=auto&start_date=${day(t - 864e5)}&end_date=${day(t + 864e5)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Sunrise/sunset fetch failed (${res.status})`);
+  const data = await res.json();
+  const offsetMs = Number(data?.utc_offset_seconds ?? 0) * 1000;
+  const idx = (data?.daily?.time ?? []).indexOf(day(t + offsetMs));
+  const sr: string | undefined = data?.daily?.sunrise?.[idx];
+  const ss: string | undefined = data?.daily?.sunset?.[idx];
+  if (idx < 0 || !sr || !ss) throw new Error("No sunrise/sunset data");
+  // Local "YYYY-MM-DDTHH:MM" → instant.
+  const toUtc = (local: string) => new Date(Date.parse(`${local}:00Z`) - offsetMs);
+  return { sunrise: toUtc(sr), sunset: toUtc(ss) };
 }

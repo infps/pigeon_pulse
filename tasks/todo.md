@@ -1,3 +1,73 @@
+# Race parity — weather auto-pull, averages wiring, announcements + board (2026-11-15)
+
+Source: comparison vs ../pigeonpulse-app. Items 1 (bird history) + 5 (tables/calcs) = report only, no code.
+
+## A. Weather auto-pull (reuse `lib/weather-forecast.ts`, Open-Meteo, no key, no dep)
+- [x] `api/admin/race/route.ts` POST+PUT: if station lat/lng + startTime present and weather fields blank → server-side `fetchReleaseForecast` (release @ station, arrival @ Event lat/lng, hour = endTime ?? startTime) + `fetchSunriseSunset` → fill fields. Fetch fail = save anyway, fields null.
+- [x] `api/cron/notify-daily/route.ts`: add step — races starting 20-28h out → refresh forecast. Add `CRON_SECRET` to `.env.example`.
+- [x] `api/admin/race/[raceId]/end/route.ts`: on end → pull actual arrival weather (archive/forecast @ endTime).
+- [x] Units: store °C (as now); display °F on `races/[raceId]/page.tsx:285-299` + admin race detail :478-541 (convert, not just relabel). races-columns arrival temp same.
+- [x] Keep "Fetch forecast" button as manual override in races-tab (no removal). Mobile RaceFormSheet untouched.
+
+## B. Averages → pages
+- [x] `averages-tab.tsx`: extract table :530-588 → exported `AverageResultsTable({rows})`; import `AverageResultRow` type from `lib/computeAverages`, delete dup interface :63.
+- [x] `lib/endpoints.ts` breeder block: `averages(eventId)`, `averageResults(eventId, avgId)`. `lib/api/averages.ts`: `usePublicAverageConfigs`, `usePublicAverageResults` (no seasonId gate).
+- [x] `event-result-tab.tsx:105-112`: replace stub with `AverageSection({eventId})` — config pills + table, empty-state when none public.
+- [x] `races/[raceId]/page.tsx:393,436`: drop dead `/avg-speed` push; render `AverageSection eventId={race.eventId}` in tab.
+- [x] Accuracy: `computeAverages.ts:77` require status ARRIVED (exclude foreign/stray/lost/ignored).
+
+## C. Announcements (pin / breeders-only / notify toggle) on `EventMessage`
+- [x] Schema: `isPinned Boolean @default(false)`, `breedersOnly Boolean @default(false)` + migration.
+- [x] Admin POST/PATCH accept `isPinned`, `breedersOnly`, `notify` (body flag, default true; skip `notifyEventMessage` when false).
+- [x] 3 GET routes order `[{isPinned:'desc'},{createdAt:'desc'}]`; breeder GETs hide `breedersOnly` unless session user in season (`usersInSeason`).
+- [x] `messages-tab.tsx`: Pin button + 2 checkboxes in form. `event-messages-tab.tsx` + `/news`: Pinned badge.
+
+## D. Message board (breeder posts)
+- [x] Schema: `BoardPost {id, seasonId, userId, body (≤2000), hiddenAt?, hiddenById?, createdAt}` + migration.
+- [x] `api/breeder/event/[eventId]/board` GET (public, hidden excluded) / POST (signed-in, rate limit 3/min via DB count) / DELETE own.
+- [x] `api/admin/event/[eventId]/board/[postId]` PATCH hide/unhide (`messages.manage`).
+- [x] Event page: "Board" tab (list + post form, sign-in prompt). Admin Messages tab: board list w/ Hide.
+- [x] Move dup `isEventCreator`/`resolveSeasonId` from 2 message routes into lib (needed by board too).
+
+## Verify
+- [x] `npx tsc --noEmit`, `npm run lint`, prisma migrate on dev DB
+- [x] Manual: create race w/ station → weather filled; average tab shows public config; pin message → top; breeder post → admin hide → gone.
+
+## Decisions (user 2026-11-15)
+- °F display. Averages + messages: logged-in only. Board = admin-only posting → D merged into C (no BoardPost, no breedersOnly).
+- Schema: `Race.distance Int→Float`, `EventMessage.isPinned`. Migration `20261115_race_distance_float_message_pin` (written, NOT applied).
+
+## E. Bird history page (theirs + ours combined) — agent C
+- [x] `/birds/[birdId]` page (login req): filters All/Training/Races via `?kind=`, stats clocked X of Y / avg place / weighted avg speed / miles / prize total, table date|race link|miles|place pos/field|clocked|flytime|speed|to-win + totals, timeline, transfers.
+- [x] race-page modal links to it.
+
+## F. Managing (copy from theirs)
+- [x] Race list: start date+time, winner YPM, home x/y columns — agent B
+- [x] Public race page: Results / Just landed / Still out / Strays tabs, next-day arrival label — agent C
+
+## G. Calc correctness — agent A
+- [x] ISO scan time everywhere + shared parser; reject arrival ≤ start
+- [x] exclude FOREIGN_BIRD from ranking; live pos via recalcPositions
+- [x] Vincenty; no distance rounding; one distance source (station miles ?? distance)
+- [x] admin speed column YPM; averages ARRIVED only (B section) ; write birdDrop from arrival groups
+- skipped: overnight dark time (club rule, needs per-race toggle), loft timezone field
+
+## Review (2026-11-15)
+- Done A–G. D (BoardPost) dropped: admin-only posting = announcements. breedersOnly dropped (all logged-in).
+- tsc clean; `npx tsx scripts/check-scan-time.ts` ok; Open-Meteo calls verified live. No DB/UI run yet.
+- Migration written, NOT applied. Mobile untouched (uses Bearer → still works on now-authed routes).
+- Extra fix: message PATCH/DELETE scoped by event not active season (pin on old season 404'd).
+- Follow-ups: batch scan marks any status ARRIVED (single requires RELEASED); arrival-group drop now feeds FINAL prize split; dark time; loft tz.
+
+## H. Security + release time + clock (2026-11-15)
+- [x] `canViewRace` in lib/visibility.ts; guarded breeder race items, overlay, track, track/history, bet GET/POST, wind-route
+- [x] scanner/push = staff session; scanner/poll = any session; tipes oid → `TIPES_OID` env (empty = no fallback); mock-poll 404 in prod; python client sends Bearer on push
+- [x] Start dialog: liberation time input → `liberatedAt` (ISO); server rejects invalid/future
+- [x] Admin race page: localStorage retry queue (5s + online event), 30s same-tag suppression, `/api/time` drift check + badge, browser-stamped scans offset-corrected
+- skipped: one-computer clock lock (server already idempotent per bird), listen-only mode, hardware clock correction
+
+---
+
 # Task 1b — Betting UI
 
 Decisions: bettors = breeders (no BETTOR signup). Bet UI = tab on race page. Admin payout = event "Betting" tab. Extend GET /bet w/ pool defs.

@@ -53,14 +53,28 @@ function formatArrival(d: string | null): string {
   return `${hh}:${mm}:${ss}.${ms}`;
 }
 
+/** "Day 2" etc. when a bird clocks on a later calendar day than release; null on release day. */
+function dayLabel(arrival: string, release: string | null | undefined): string | null {
+  if (!release) return null;
+  const a = new Date(arrival);
+  const r = new Date(release);
+  const days = Math.round(
+    (new Date(a.getFullYear(), a.getMonth(), a.getDate()).getTime() -
+      new Date(r.getFullYear(), r.getMonth(), r.getDate()).getTime()) / 86400000
+  );
+  return days > 0 ? `Day ${days + 1}` : null;
+}
+
 export function makeRaceResultsColumns({
   velocityUnit,
   sexTerminology,
+  releaseTime,
   onBreederClick,
   onBirdClick,
 }: {
   velocityUnit: VelocityUnit;
   sexTerminology: SexTerminology;
+  releaseTime?: string | null;
   onBreederClick?: (breederId: number, loftName: string) => void;
   onBirdClick?: (birdId: number, band: string) => void;
 }): ColumnDef<EnrichedRaceItem>[] {
@@ -174,7 +188,8 @@ return [
     cell: ({ row }) => {
       const o = row.original;
       if (!o.arrivalTime) return <span className="text-muted-foreground text-xs">-</span>;
-      const arrival = formatArrival(o.arrivalTime);
+      const day = dayLabel(o.arrivalTime, releaseTime);
+      const arrival = day ? `${formatArrival(o.arrivalTime)} · ${day}` : formatArrival(o.arrivalTime);
       if (o.rank === 1) {
         return (
           <div className="flex flex-col">

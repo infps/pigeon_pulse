@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { hiddenRaceStatuses, isStaff } from "@/lib/visibility";
+import { canViewRace, hiddenRaceStatuses, isStaff } from "@/lib/visibility";
 import { activeRaceItemOr } from "@/lib/entry-filters";
 import { cached, raceKey } from "@/lib/ttl-cache";
 
@@ -118,6 +118,9 @@ export async function GET(
     const raceIdInt = parseInt(raceId);
 
     const session = await auth.api.getSession({ headers: await headers() });
+    if (!(await canViewRace(raceIdInt, session?.user?.id, session?.user?.role))) {
+      return NextResponse.json({ message: "Race not found" }, { status: 404 });
+    }
     const staff = isStaff(session?.user?.role);
 
     // Polled every 5-15s by every viewer of a live race; one DB pass per race per 3s.

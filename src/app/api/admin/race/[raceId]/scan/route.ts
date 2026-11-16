@@ -4,7 +4,8 @@ import { activeItem } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { invalidate, raceKey } from "@/lib/ttl-cache";
 import { presetIdFor } from "@/lib/birdStatus";
-import { lockRace } from "@/lib/race-results";
+import { lockRace, recalcPositions } from "@/lib/race-results";
+import { parseScanTime } from "@/lib/scan-time";
 import { notifyBirdArrived } from "@/lib/notifications";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -12,23 +13,9 @@ import { z } from "zod";
 
 const scanSchema = z.object({
   ringNo: z.string(),
-  timestamp: z.string(),
+  timestamp: z.union([z.string(), z.number()]),
   antenna: z.string().optional(),
 });
-
-function parseTimestamp(ts: string): Date {
-  // Format: YYYYMMDDHHMMSSsss (17 chars with ms) or YYYYMMDDHHMMSS (14 chars legacy)
-  const ms = ts.length >= 17 ? parseInt(ts.substring(14, 17)) : 0;
-  return new Date(Date.UTC(
-    parseInt(ts.substring(0, 4)),
-    parseInt(ts.substring(4, 6)) - 1,
-    parseInt(ts.substring(6, 8)),
-    parseInt(ts.substring(8, 10)),
-    parseInt(ts.substring(10, 12)),
-    parseInt(ts.substring(12, 14)),
-    ms,
-  ));
-}
 
 async function assignDefaulterGroup(seasonId: number | null, inventoryItemId: number | null, userId: string | null | undefined) {
   if (!inventoryItemId || !seasonId) return;
@@ -73,7 +60,10 @@ export async function POST(
 
     const race = await prisma.race.findUnique({
       where: { id: raceIdInt },
-      include: { seasonRel: { select: { eventId: true } } },
+      include: {
+        seasonRel: { select: { eventId: true } },
+        raceType: { select: { prizeRole: true } },
+      },
     });
 
     if (!race) {
@@ -81,6 +71,20 @@ export async function POST(
         { message: "Race not found" },
         { status: 404 }
       );
+    }
+
+    const arrivalTime = parseScanTime(timestamp);
+    if (!arrivalTime) {
+      return NextResponse.json({ message: `Invalid timestamp: ${timestamp}` }, { status: 400 });
+    }
+    const isLive = race.status === "STARTED" || race.status === "ENDED";
+    // A live-race scan stamped at or before release is a clock/format error, not an arrival.
+    if (isLive && race.startTime && arrivalTime <= race.startTime) {
+      return NextResponse.json({
+        message: `Scan time ${arrivalTime.toISOString()} is not after race start ${race.startTime.toISOString()}; ignored.`,
+        isNewScan: false,
+        scanType: "skipped",
+      });
     }
 
     // Find the bird by band or rfid
@@ -123,8 +127,6 @@ export async function POST(
           scanType: "foreign",
         });
       }
-
-      const arrivalTime = parseTimestamp(timestamp);
 
       // An RFID that matches no bird at all is a phantom scan: record the raw
       // signal and let an admin reconcile it.
@@ -192,8 +194,6 @@ export async function POST(
       });
     }
 
-    const isLive = race.status === "STARTED" || race.status === "ENDED";
-
     // Pre-race scan (loft basketing)
     if (!isLive) {
       if (raceItem.status === "LOFT_BASKETED") {
@@ -259,8 +259,6 @@ export async function POST(
       );
     }
 
-    const arrivalTime = parseTimestamp(timestamp);
-
     // Race already ended → foreign bird (arrived after race closed)
     if (race.status === "ENDED") {
       const updatedRaceItem = await prisma.raceItem.update({
@@ -307,13 +305,6 @@ export async function POST(
     const { updatedRaceItem, birdPosition } = await prisma.$transaction(async (tx) => {
       await lockRace(tx, raceIdInt);
 
-      // ponytail: one COUNT per arrival under the race lock, no full re-rank here (recalcRace
-      // runs only on end/recalculate). Fine with a RaceItem(raceId) index; keep a counter
-      // on Race if lock wait ever shows up at peak arrival rates.
-      const arrivedCount = await tx.raceItem.count({
-        where: { raceId: raceIdInt, status: "ARRIVED" },
-      });
-      const pos = arrivedCount + 1;
       const updated = await tx.raceItem.update({
         where: { id: raceItem.id },
         data: { status: "ARRIVED", raceBasketTime: arrivalTime, displayStatusId: arrivedStatusId },
@@ -333,10 +324,16 @@ export async function POST(
       });
       await tx.raceItemResult.upsert({
         where: { raceItemId: raceItem.id },
-        create: { raceItemId: raceItem.id, arrivalTime, birdPosition: pos },
-        update: { arrivalTime, birdPosition: pos },
+        create: { raceItemId: raceItem.id, arrivalTime },
+        update: { arrivalTime },
       });
-      return { updatedRaceItem: updated, birdPosition: pos };
+      // Re-rank the whole race so out-of-order scans and the FINAL unpaid rule hold.
+      await recalcPositions(tx, raceIdInt, race.raceType?.prizeRole === "FINAL");
+      const result = await tx.raceItemResult.findUnique({
+        where: { raceItemId: raceItem.id },
+        select: { birdPosition: true },
+      });
+      return { updatedRaceItem: updated, birdPosition: result?.birdPosition ?? null };
     });
 
     invalidate(raceKey(raceIdInt));
@@ -348,15 +345,17 @@ export async function POST(
         data: {
           eventInventoryItemId: raceItem.inventoryItemId!,
           action: "ARRIVED",
-          detail: `Arrived at position ${birdPosition}, race ${raceId}`,
+          detail: birdPosition != null ? `Arrived at position ${birdPosition}, race ${raceId}` : `Arrived (unplaced), race ${raceId}`,
           performedById: session?.user?.id ?? null,
         },
       }),
       // Tell the owner their bird is home, with the place it took.
       notifyBirdArrived(raceIdInt, raceItem.inventoryItemId, bird.band ?? bird.rfid ?? ringNo, birdPosition),
       // Auto STATUS group: if birdPosition matches a BirdStatusCode, assign it
-      prisma.birdStatusCode.findFirst({ where: { code: birdPosition } }),
+      birdPosition == null ? null : prisma.birdStatusCode.findFirst({ where: { code: birdPosition } }),
     ]);
+
+
     if (statusCode) {
       let statusGroup = await prisma.eventGroup.findFirst({
         where: { seasonId: race.seasonId ?? undefined, type: "STATUS", statusCodeId: statusCode.id },

@@ -6,6 +6,7 @@ import {
   notifyPaymentRisk,
 } from "@/lib/notifications";
 import { activeItem } from "@/lib/entry-filters";
+import { fillRaceWeather } from "@/lib/race-weather";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -35,6 +36,12 @@ export async function GET(req: NextRequest) {
       seasonRel: { select: { eventId: true } },
     },
   });
+
+  // Step 0: refresh forecast for tomorrow's races (fresher than create-time).
+  // fillRaceWeather never throws.
+  for (const race of tomorrowRaces) {
+    await fillRaceWeather(race.id, { overwrite: true });
+  }
 
   // Step A: race reminders
   for (const race of tomorrowRaces) {

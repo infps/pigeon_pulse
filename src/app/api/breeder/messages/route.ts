@@ -1,8 +1,14 @@
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { MESSAGE_ORDER } from "@/lib/event-messages";
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
   try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
     const { searchParams } = new URL(request.url);
     const limitRaw = parseInt(searchParams.get("limit") ?? "10");
     const offsetRaw = parseInt(searchParams.get("offset") ?? "0");
@@ -29,7 +35,7 @@ export async function GET(request: Request) {
             select: { id: true, name: true, lastName: true, image: true },
           },
         },
-        orderBy: { createdAt: "desc" },
+        orderBy: MESSAGE_ORDER,
         take: limit,
         skip: offset,
       }),

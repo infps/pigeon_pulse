@@ -1,11 +1,12 @@
 "use client";
 
 import { use, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Bird as BirdIcon,
   ArrowLeft,
@@ -15,154 +16,54 @@ import {
   Pencil,
   Globe,
   EyeOff,
+  ArrowRightLeft,
 } from "lucide-react";
 import { SEX_LABELS } from "@/lib/bird-constants";
 import { useGetBreederBird } from "@/lib/api/breeder";
-import { useBirdHistory, type BirdHistoryEntry } from "@/lib/api/birds";
+import { useBirdHistory, type BirdFlight, type BirdHistoryResponse } from "@/lib/api/birds";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { apiEndpoints } from "@/lib/endpoints";
 import { authClient } from "@/lib/auth-client";
+import { useSettings } from "@/lib/settings-context";
 import { BirdDialog } from "@/app/birds/bird-dialog";
-import { toast } from "sonner";
+import { BirdHistoryPanel } from "@/app/admin/birds/[birdId]/bird-history-panel";
 
-function formatMs(ms: number) {
-  const totalSec = Math.floor(ms / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
+function duration(ms?: number) {
+  if (ms == null) return "—";
+  const t = Math.floor(ms / 1000);
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = t % 60;
   return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function formatGap(ms: number) {
-  if (ms === 0) return "Leader";
-  const totalSec = Math.floor(Math.abs(ms) / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
+function toWin(ms?: number) {
+  if (ms == null) return "—";
+  if (ms <= 0) return "Winner";
+  const t = Math.floor(ms / 1000);
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = t % 60;
   return h > 0
-    ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
-    : `${m}:${String(s).padStart(2, "0")}`;
+    ? `+${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+    : `+${m}:${String(s).padStart(2, "0")}`;
 }
 
-interface HistoryTableProps {
-  entries: BirdHistoryEntry[];
-  label: string;
-  accent?: string;
-}
+const STATUS_LABEL: Record<BirdFlight["status"], string> = {
+  ARRIVED: "Home",
+  RELEASED: "Not home",
+  LOST: "Lost",
+  STRAY: "Stray",
+  FOREIGN_BIRD: "DNF",
+};
 
-function HistoryTable({ entries, label, accent }: HistoryTableProps) {
-  const [page, setPage] = useState(0);
-  const [perPage, setPerPage] = useState(10);
-  const total = entries.length;
-  const pageCount = Math.ceil(total / perPage);
-  const slice = entries.slice(page * perPage, page * perPage + perPage);
+const KINDS = [
+  { id: "all", label: "All", match: () => true },
+  { id: "races", label: "Races", match: (f: BirdFlight) => !f.isTraining },
+  { id: "training", label: "Training", match: (f: BirdFlight) => f.isTraining },
+] as const;
 
-  if (entries.length === 0) return null;
-
-  return (
-    <div className="mt-6">
-      <div className={`flex items-center gap-2 mb-3 ${accent ?? ""}`}>
-        <span className="text-sm font-semibold uppercase tracking-wide">{label}</span>
-        <span className="text-xs text-muted-foreground">Summary includes via-training</span>
-      </div>
-      <div className="rounded-xl border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-muted/50 border-b text-muted-foreground text-xs uppercase">
-              <th className="px-4 py-3 text-left w-12">Rank</th>
-              <th className="px-4 py-3 text-left">Race Name</th>
-              <th className="px-4 py-3 text-left">Date &amp; Time</th>
-              <th className="px-4 py-3 text-left">Arrival / Gap</th>
-              <th className="px-4 py-3 text-right">Dist. (mi)</th>
-              <th className="px-4 py-3 text-right">Speed</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {slice.map((e, i) => {
-              const arrivalDate = new Date(e.date);
-              const isLeader = (e as any).gapMs === 0;
-              return (
-                <tr key={i} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-3">
-                    {e.position != null ? (
-                      <span
-                        className={`font-semibold ${
-                          e.position === 1
-                            ? "text-yellow-500"
-                            : e.position <= 3
-                            ? "text-primary"
-                            : ""
-                        }`}
-                      >
-                        {e.position}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 font-medium">{e.raceName ?? "—"}</td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    <div>{arrivalDate.toLocaleDateString()}</div>
-                    <div className="text-xs">{arrivalDate.toLocaleTimeString()}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="text-xs">
-                      {(e as any).flightTimeMs != null
-                        ? formatMs((e as any).flightTimeMs)
-                        : "—"}
-                    </div>
-                    <div
-                      className={`text-xs font-medium ${
-                        isLeader ? "text-green-600" : "text-red-500"
-                      }`}
-                    >
-                      {(e as any).gapMs != null
-                        ? isLeader
-                          ? "00:00:00"
-                          : formatGap((e as any).gapMs)
-                        : "—"}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
-                    {(e as any).distance != null
-                      ? ((e as any).distance as number).toFixed(2)
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
-                    {(e as any).ypm != null
-                      ? ((e as any).ypm as number).toFixed(4)
-                      : "—"}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      {pageCount > 1 && (
-        <div className="flex items-center justify-between mt-3 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <span>Rows per page</span>
-            <select
-              className="border rounded px-2 py-1 text-xs bg-background"
-              value={perPage}
-              onChange={(e) => { setPerPage(Number(e.target.value)); setPage(0); }}
-            >
-              {[10, 25, 50].map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </div>
-          <div className="flex items-center gap-1">
-            <span>{page * perPage + 1}–{Math.min((page + 1) * perPage, total)} of {total}</span>
-            <Button variant="ghost" size="icon-xs" disabled={page === 0} onClick={() => setPage(0)}>«</Button>
-            <Button variant="ghost" size="icon-xs" disabled={page === 0} onClick={() => setPage(p => p - 1)}>‹</Button>
-            <Button variant="ghost" size="icon-xs" disabled={page >= pageCount - 1} onClick={() => setPage(p => p + 1)}>›</Button>
-            <Button variant="ghost" size="icon-xs" disabled={page >= pageCount - 1} onClick={() => setPage(pageCount - 1)}>»</Button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+const fmtDate = (iso?: string) => (iso ? new Date(iso).toLocaleDateString() : "—");
 
 export default function BirdProfilePage({
   params,
@@ -171,12 +72,15 @@ export default function BirdProfilePage({
 }) {
   const { birdId } = use(params);
   const router = useRouter();
-  const { data: session } = authClient.useSession();
+  const searchParams = useSearchParams();
+  const { data: session, isPending: sessionLoading } = authClient.useSession();
+  const { velocityUnit } = useSettings();
   const [copied, setCopied] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
-  const { data: birdData, isPending: birdLoading, refetch } = useGetBreederBird({ birdId });
-  const { data: historyData, isPending: historyLoading } = useBirdHistory(birdId);
+  // Owner/public profile data (photo, owner actions). History API is the source for everything else.
+  const { data: birdData, refetch } = useGetBreederBird({ birdId: session ? birdId : "" });
+  const { data: historyData, isPending: historyLoading } = useBirdHistory(session ? birdId : "");
 
   const { mutate: togglePublic, isPending: toggling } = useApiMutation({
     endpoint: apiEndpoints.breeder.birdById(birdId),
@@ -184,59 +88,41 @@ export default function BirdProfilePage({
     onSuccess: () => refetch(),
   });
 
+  const history = historyData as BirdHistoryResponse | undefined;
+  const info = history?.birdInfo;
   const bird = birdData?.bird;
   const isOwner: boolean = birdData?.isOwner ?? false;
+  const isPublic = bird?.isPublic === 1;
 
-  const bandDisplay = bird
-    ? [bird.band1, bird.band2, bird.band3, bird.band4].filter(Boolean).join("-")
-    : "";
+  const kind = KINDS.find((k) => k.id === searchParams.get("kind")) ?? KINDS[0];
+  const allFlights = useMemo(() => history?.flights ?? [], [history]);
+  const flights = useMemo(() => allFlights.filter(kind.match), [allFlights, kind]);
 
-  const allEntries: BirdHistoryEntry[] = (historyData as any)?.entries ?? [];
-  const arrivedEntries = allEntries.filter((e) => e.type === "ARRIVED");
-
-  // Split competition vs training
-  const competitionRaces = arrivedEntries.filter(
-    (e) => !(e as any).raceTypeName?.toLowerCase().includes("training")
-  );
-  const trainingRaces = arrivedEntries.filter((e) =>
-    (e as any).raceTypeName?.toLowerCase().includes("training")
-  );
-
-  // Compute aggregate stats from ARRIVED entries
   const stats = useMemo(() => {
-    if (arrivedEntries.length === 0)
-      return { bestRank: null, totalDist: 0, bestFlightMs: null, avgYpm: null };
-    const positions = arrivedEntries
-      .map((e) => e.position)
-      .filter((p): p is number => p != null);
-    const distances = arrivedEntries
-      .map((e) => (e as any).distance as number | undefined)
-      .filter((d): d is number => d != null);
-    const ypms = arrivedEntries
-      .map((e) => (e as any).ypm as number | undefined)
-      .filter((y): y is number => y != null);
-    const flightTimes = arrivedEntries
-      .map((e) => (e as any).flightTimeMs as number | undefined)
-      .filter((f): f is number => f != null);
+    const clocked = flights.filter((f) => f.status === "ARRIVED" && f.flightTimeMs);
+    const totalMiles = clocked.reduce((s, f) => s + (f.miles ?? 0), 0);
+    const totalMs = clocked.reduce((s, f) => s + (f.flightTimeMs ?? 0), 0);
+    const placed = clocked.filter((f) => f.position != null);
     return {
-      bestRank: positions.length > 0 ? Math.min(...positions) : null,
-      totalDist: distances.reduce((s, d) => s + d, 0),
-      bestFlightMs: flightTimes.length > 0 ? Math.min(...flightTimes) : null,
-      avgYpm:
-        ypms.length > 0 ? ypms.reduce((s, y) => s + y, 0) / ypms.length : null,
+      clocked: clocked.length,
+      totalMiles,
+      totalMs,
+      avgPos: placed.length ? placed.reduce((s, f) => s + f.position!, 0) / placed.length : null,
+      // Weighted: total yards / total minutes, not a mean of per-race speeds.
+      avgYpm: totalMs > 0 && totalMiles > 0 ? (totalMiles * 1760) / (totalMs / 60000) : null,
     };
-  }, [arrivedEntries]);
+  }, [flights]);
 
-  const shareUrl =
-    typeof window !== "undefined" ? window.location.href : `/birds/${birdId}`;
+  const speed = (ypm?: number | null) =>
+    ypm == null ? "—" : (velocityUnit === "MPM" ? ypm * 0.9144 : ypm).toFixed(2);
 
+  const shareUrl = typeof window !== "undefined" ? window.location.href : `/birds/${birdId}`;
   const handleCopy = () => {
     navigator.clipboard.writeText(shareUrl).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
   };
-
   const handleWhatsApp = () => {
     window.open(
       `https://wa.me/?text=${encodeURIComponent(`Check out this pigeon: ${shareUrl}`)}`,
@@ -244,26 +130,37 @@ export default function BirdProfilePage({
     );
   };
 
-  if (birdLoading) {
+  if (sessionLoading || (session && historyLoading)) {
     return (
-      <div className="container mx-auto p-6 space-y-6 max-w-4xl">
+      <div className="container mx-auto p-6 space-y-6 max-w-5xl">
         <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-48 w-full rounded-xl" />
-        <div className="grid grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
-        </div>
+        <Skeleton className="h-40 w-full rounded-xl" />
         <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
   }
 
-  if (!bird) {
+  if (!session) {
     return (
-      <div className="container mx-auto p-6 max-w-4xl">
+      <div className="container mx-auto p-6 max-w-5xl">
+        <Card>
+          <CardContent className="py-16 text-center space-y-4">
+            <BirdIcon className="h-12 w-12 mx-auto text-muted-foreground" />
+            <p className="text-muted-foreground">Log in to see this bird&apos;s history.</p>
+            <Button onClick={() => router.push("/login")}>Log in</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!info) {
+    return (
+      <div className="container mx-auto p-6 max-w-5xl">
         <Card>
           <CardContent className="py-16 text-center">
             <BirdIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">Bird not found or profile is private.</p>
+            <p className="text-muted-foreground">Bird not found.</p>
             <Button variant="outline" className="mt-4" onClick={() => router.back()}>
               Go Back
             </Button>
@@ -273,99 +170,75 @@ export default function BirdProfilePage({
     );
   }
 
-  const isPublic = bird.isPublic === 1;
+  const outlineBtn = "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 gap-1";
 
   return (
-    <div className="container mx-auto p-6 space-y-6 max-w-4xl">
-      {/* Back */}
+    <div className="container mx-auto p-6 space-y-6 max-w-5xl">
       <Button variant="ghost" size="sm" onClick={() => router.back()} className="gap-1 -ml-2">
         <ArrowLeft className="h-4 w-4" />
         Back
       </Button>
 
-      {/* Header card */}
+      {/* Header */}
       <Card className="overflow-hidden">
         <CardContent className="p-0">
           <div className="bg-gradient-to-r from-slate-900 to-slate-800 dark:from-slate-950 dark:to-slate-900 p-6">
-            <div className="flex items-start gap-6">
-              {/* Photo */}
-              <div className="h-36 w-36 shrink-0 rounded-xl overflow-hidden bg-slate-700 flex items-center justify-center border border-slate-600">
-                {bird.image ? (
+            <div className="flex flex-col sm:flex-row items-start gap-6">
+              <div className="h-28 w-28 shrink-0 rounded-xl overflow-hidden bg-slate-700 flex items-center justify-center border border-slate-600">
+                {bird?.image ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={bird.image}
-                    alt={bird.birdName ?? "Bird"}
-                    className="h-full w-full object-cover"
-                  />
+                  <img src={bird.image} alt={info.birdName ?? "Bird"} className="h-full w-full object-cover" />
                 ) : (
-                  <BirdIcon className="h-16 w-16 text-slate-400" />
+                  <BirdIcon className="h-14 w-14 text-slate-400" />
                 )}
               </div>
 
-              {/* Info */}
               <div className="flex-1 min-w-0">
-                <h1 className="text-2xl font-bold text-white truncate">
-                  {bird.birdName || "Unnamed Bird"}
-                </h1>
-                <p className="font-mono text-sm text-slate-300 mt-0.5">{bandDisplay || "—"}</p>
-
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {bird.color && (
-                    <Badge variant="secondary" className="bg-slate-700 text-slate-200 border-slate-600">
-                      {bird.color}
-                    </Badge>
+                <h1 className="font-mono text-2xl font-bold text-white truncate">{info.band || "—"}</h1>
+                {info.birdName && <p className="text-slate-300 text-sm mt-0.5">{info.birdName}</p>}
+                <p className="text-slate-300 text-sm mt-1">
+                  {info.breederName || "Unknown breeder"}
+                  {info.loftName && info.loftName !== info.breederName && (
+                    <span className="text-slate-400"> / {info.loftName}</span>
                   )}
-                  {bird.sex != null && (
+                </p>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {info.color && (
+                    <Badge variant="secondary" className="bg-slate-700 text-slate-200 border-slate-600">{info.color}</Badge>
+                  )}
+                  {info.sex != null && (
                     <Badge variant="secondary" className="bg-slate-700 text-slate-200 border-slate-600">
-                      {SEX_LABELS[bird.sex as keyof typeof SEX_LABELS] ?? "Unknown"}
+                      {SEX_LABELS[info.sex as keyof typeof SEX_LABELS] ?? "Unknown"}
                     </Badge>
                   )}
                   {isPublic && (
-                    <Badge className="bg-green-600/20 text-green-400 border-green-600/30">
-                      Public
-                    </Badge>
+                    <Badge className="bg-green-600/20 text-green-400 border-green-600/30">Public</Badge>
                   )}
                 </div>
-
-                {(historyData as any)?.birdInfo?.loftName && (
-                  <p className="text-slate-400 text-sm mt-2">
-                    {(historyData as any).birdInfo.loftName}
-                  </p>
-                )}
+                <div className="flex gap-6 mt-3 text-sm text-slate-300">
+                  <span>
+                    Prize money <span className="font-semibold text-white">${(history?.prizeTotal ?? 0).toLocaleString()}</span>
+                  </span>
+                  <span>
+                    Flights <span className="font-semibold text-white">{allFlights.length}</span>
+                  </span>
+                </div>
               </div>
 
-              {/* Actions (right side) */}
               <div className="flex flex-col items-end gap-2 shrink-0">
-                {(isOwner || isPublic) && (
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 gap-1"
-                      onClick={handleCopy}
-                    >
-                      {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                      {copied ? "Copied!" : "Copy Link"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 gap-1"
-                      onClick={handleWhatsApp}
-                    >
-                      <Share2 className="h-3.5 w-3.5" />
-                      WhatsApp
-                    </Button>
-                  </div>
-                )}
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className={outlineBtn} onClick={handleCopy}>
+                    {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copied ? "Copied!" : "Copy Link"}
+                  </Button>
+                  <Button size="sm" variant="outline" className={outlineBtn} onClick={handleWhatsApp}>
+                    <Share2 className="h-3.5 w-3.5" />
+                    WhatsApp
+                  </Button>
+                </div>
                 {isOwner && (
                   <div className="flex gap-2 mt-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 gap-1"
-                      onClick={() => setEditOpen(true)}
-                    >
+                    <Button size="sm" variant="outline" className={outlineBtn} onClick={() => setEditOpen(true)}>
                       <Pencil className="h-3.5 w-3.5" />
                       Edit
                     </Button>
@@ -373,14 +246,10 @@ export default function BirdProfilePage({
                       size="sm"
                       variant="outline"
                       disabled={toggling}
-                      className="border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700 gap-1"
+                      className={outlineBtn}
                       onClick={() => togglePublic({ isPublic: isPublic ? 0 : 1 })}
                     >
-                      {isPublic ? (
-                        <><EyeOff className="h-3.5 w-3.5" /> Make Private</>
-                      ) : (
-                        <><Globe className="h-3.5 w-3.5" /> Make Public</>
-                      )}
+                      {isPublic ? <><EyeOff className="h-3.5 w-3.5" /> Make Private</> : <><Globe className="h-3.5 w-3.5" /> Make Public</>}
                     </Button>
                   </div>
                 )}
@@ -390,77 +259,145 @@ export default function BirdProfilePage({
         </CardContent>
       </Card>
 
+      {/* Kind filter (shareable via ?kind=) */}
+      <div role="tablist" aria-label="Flights" className="flex w-fit gap-1 rounded-lg bg-muted p-1">
+        {KINDS.map((k) => (
+          <Link
+            key={k.id}
+            role="tab"
+            aria-selected={k.id === kind.id}
+            scroll={false}
+            href={k.id === "all" ? `/birds/${birdId}` : `/birds/${birdId}?kind=${k.id}`}
+            className={`rounded-md px-3.5 py-1.5 text-sm font-medium ${
+              k.id === kind.id ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {k.label} <span className="tabular-nums text-muted-foreground">{allFlights.filter(k.match).length}</span>
+          </Link>
+        ))}
+      </div>
+
       {/* Stat tiles */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[
+          ["Flights clocked", `${stats.clocked} of ${flights.length}`],
+          ["Average place", stats.avgPos != null ? stats.avgPos.toFixed(1) : "—"],
+          ["Average speed", stats.avgYpm != null ? `${speed(stats.avgYpm)} ${velocityUnit}` : "—"],
+          ["Miles flown", stats.totalMiles ? stats.totalMiles.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "—"],
+        ].map(([k, v]) => (
+          <Card key={k}>
+            <CardContent className="py-4 px-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">{k}</p>
+              <p className="text-xl font-bold tabular-nums">{v}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Flights table */}
+      {flights.length === 0 ? (
         <Card>
-          <CardContent className="py-5 px-4 text-center">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Best Rank</p>
-            <p className="text-3xl font-bold text-yellow-500">
-              {stats.bestRank != null ? `#${stats.bestRank}` : "—"}
-            </p>
-          </CardContent>
+          <CardContent className="py-10 text-center text-muted-foreground text-sm">No flights yet.</CardContent>
         </Card>
-        <Card>
-          <CardContent className="py-5 px-4 text-center">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Total Distance</p>
-            <p className="text-3xl font-bold">
-              {stats.totalDist > 0 ? stats.totalDist.toFixed(1) : "—"}
-            </p>
-            {stats.totalDist > 0 && (
-              <p className="text-xs text-muted-foreground">mi</p>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border">
+          <table className="w-full min-w-[760px] text-sm">
+            <thead className="bg-muted/50 border-b text-muted-foreground text-xs uppercase">
+              <tr>
+                <th className="px-4 py-2.5 text-left">Date</th>
+                <th className="px-4 py-2.5 text-left">Race</th>
+                <th className="px-4 py-2.5 text-right">Miles</th>
+                <th className="px-4 py-2.5 text-right">Place</th>
+                <th className="px-4 py-2.5 text-right">Clocked</th>
+                <th className="px-4 py-2.5 text-right">Flytime</th>
+                <th className="px-4 py-2.5 text-right">Speed</th>
+                <th className="px-4 py-2.5 text-right">To win</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {flights.map((f) => {
+                const home = f.status === "ARRIVED";
+                return (
+                  <tr key={f.raceId} className="hover:bg-muted/30">
+                    <td className="px-4 py-2.5 whitespace-nowrap text-muted-foreground">{fmtDate(f.date)}</td>
+                    <td className="px-4 py-2.5">
+                      <Link href={`/races/${f.raceId}`} className="font-medium hover:underline">
+                        {f.raceName ?? `Race #${f.raceId}`}
+                      </Link>
+                      <div className="text-xs text-muted-foreground">{f.isTraining ? "Training" : "Race"}</div>
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">{f.miles?.toFixed(1) ?? "—"}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">
+                      {home ? (
+                        <>
+                          <span className="font-semibold">{f.position ?? "—"}</span>
+                          {f.fieldSize ? <span className="text-muted-foreground"> / {f.fieldSize}</span> : null}
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">{STATUS_LABEL[f.status]}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums">
+                      {home && f.arrivalTime ? new Date(f.arrivalTime).toLocaleTimeString([], { hour12: false }) : "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{home ? duration(f.flightTimeMs) : "—"}</td>
+                    <td className="px-4 py-2.5 text-right font-medium tabular-nums">{home ? speed(f.ypm) : "—"}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{home ? toWin(f.toWinMs) : "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            {stats.clocked > 0 && (
+              <tfoot className="border-t bg-muted/50 text-muted-foreground">
+                <tr>
+                  <td className="px-4 py-2.5 font-medium" colSpan={2}>Totals</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">
+                    {stats.totalMiles.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums">
+                    {stats.avgPos != null ? `avg ${stats.avgPos.toFixed(1)}` : ""}
+                  </td>
+                  <td />
+                  <td className="px-4 py-2.5 text-right tabular-nums">{duration(stats.totalMs)}</td>
+                  <td className="px-4 py-2.5 text-right font-medium tabular-nums">{speed(stats.avgYpm)}</td>
+                  <td />
+                </tr>
+              </tfoot>
             )}
-          </CardContent>
-        </Card>
+          </table>
+        </div>
+      )}
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <BirdHistoryPanel birdId={birdId} />
+
         <Card>
-          <CardContent className="py-5 px-4 text-center">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Best Flight Time</p>
-            <p className="text-2xl font-bold tabular-nums">
-              {stats.bestFlightMs != null ? formatMs(stats.bestFlightMs) : "—"}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="py-5 px-4 text-center">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Avg Speed</p>
-            <p className="text-3xl font-bold">
-              {stats.avgYpm != null ? stats.avgYpm.toFixed(2) : "—"}
-            </p>
-            {stats.avgYpm != null && (
-              <p className="text-xs text-muted-foreground">YPM</p>
+          <CardHeader className="py-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ArrowRightLeft className="h-4 w-4" />
+              Team changes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(history?.transfers ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">No transfers.</p>
+            ) : (
+              <ul className="space-y-3">
+                {history!.transfers.map((t, i) => (
+                  <li key={i} className="flex flex-col">
+                    <span className="text-xs text-muted-foreground">{new Date(t.transferredAt).toLocaleString()}</span>
+                    <span className="text-sm font-medium">Transferred from {t.fromBreederName}</span>
+                    {t.eventName && <span className="text-xs text-muted-foreground">{t.eventName}</span>}
+                  </li>
+                ))}
+              </ul>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Race history */}
-      {historyLoading ? (
-        <Skeleton className="h-64 w-full rounded-xl" />
-      ) : arrivedEntries.length === 0 ? (
-        <Card>
-          <CardContent className="py-10 text-center text-muted-foreground text-sm">
-            No race results yet.
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="pt-6 pb-4">
-            <HistoryTable entries={competitionRaces} label="Competition" />
-            <HistoryTable
-              entries={trainingRaces}
-              label="Training"
-              accent="text-primary"
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {isOwner && (
-        <BirdDialog
-          open={editOpen}
-          onOpenChange={setEditOpen}
-          bird={bird as any}
-          onSuccess={() => refetch()}
-        />
+      {isOwner && bird && (
+        <BirdDialog open={editOpen} onOpenChange={setEditOpen} bird={bird as any} onSuccess={() => refetch()} />
       )}
     </div>
   );

@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
-import { Cloud, Thermometer, Wind, TrendingUp, Building, Home as HomeIcon, Users, Calendar, DollarSign, MapPin as MapPinIcon, Volume2, VolumeX, MapPin, Check, Share2, ArrowLeft } from "lucide-react";
+import { Cloud, Thermometer, Wind, TrendingUp, Gauge, Building, Home as HomeIcon, Users, Calendar, DollarSign, MapPin as MapPinIcon, Volume2, VolumeX, MapPin, Check, Share2, ArrowLeft } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { makeRaceResultsColumns, type EnrichedRaceItem } from "./race-results-columns";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -22,6 +22,8 @@ import { useSettings } from "@/lib/settings-context";
 import type { Race, RaceItem } from "@/lib/types";
 import { RaceWindButton } from "@/components/map/race-wind-dialog";
 import Image from "next/image";
+import { cToF } from "@/lib/temperature";
+import { AverageSection } from "@/components/average-section";
 
 // Own component so the 1s tick re-renders only this span, not the whole results page.
 function ElapsedTimer({ startTime }: { startTime: string | null | undefined }) {
@@ -100,12 +102,6 @@ export default function PublicRacePage() {
   const [breederPopup, setBreederPopup] = useState<{ id: number; name: string } | null>(null);
   const { openBird } = useBirdPopup();
   const { velocityUnit, sexTerminology } = useSettings();
-  const columns = useMemo(() => makeRaceResultsColumns({
-    velocityUnit,
-    sexTerminology,
-    onBreederClick: (id, name) => setBreederPopup({ id, name }),
-    onBirdClick: (id) => openBird(id),
-  }), [velocityUnit, sexTerminology, openBird]);
 
   const { data: raceData, isPending: raceLoading } = useApiQuery({
     endpoint: apiEndpoints.breeder.races,
@@ -116,6 +112,14 @@ export default function PublicRacePage() {
   });
 
   const race = raceData?.race as Race;
+  const releaseTime = race?.startTime ?? null;
+  const columns = useMemo(() => makeRaceResultsColumns({
+    velocityUnit,
+    sexTerminology,
+    releaseTime,
+    onBreederClick: (id, name) => setBreederPopup({ id, name }),
+    onBirdClick: (id) => openBird(id),
+  }), [velocityUnit, sexTerminology, releaseTime, openBird]);
   const isLive = race?.status === "STARTED";
   if (race?.status && race.status !== raceStatus) setRaceStatus(race.status); // derived state, React "adjust during render" pattern
   // While live, open on View All → Just landed (newest arrivals first).
@@ -362,7 +366,7 @@ export default function PublicRacePage() {
                     <Cloud className="h-3 w-3 text-blue-500 shrink-0" />
                     <span>{race.weather || "-"}</span>
                     <Thermometer className="h-3 w-3 text-red-500 shrink-0" />
-                    <span className="text-red-600 dark:text-red-400 font-semibold">{race.temperature ? `${race.temperature}°F` : "-"}</span>
+                    <span className="text-red-600 dark:text-red-400 font-semibold">{cToF(race.temperature) ?? "-"}</span>
                     <Wind className="h-3 w-3 shrink-0" />
                     <span>{race.wind || "-"}</span>
                   </div>
@@ -372,7 +376,7 @@ export default function PublicRacePage() {
                     <Cloud className="h-3 w-3 text-blue-500 shrink-0" />
                     <span>{race.arrivalWeather || "-"}</span>
                     <Thermometer className="h-3 w-3 text-red-500 shrink-0" />
-                    <span className="text-red-600 dark:text-red-400 font-semibold">{race.arrivalTemperature ? `${race.arrivalTemperature}°F` : "-"}</span>
+                    <span className="text-red-600 dark:text-red-400 font-semibold">{cToF(race.arrivalTemperature) ?? "-"}</span>
                     <Wind className="h-3 w-3 shrink-0" />
                     <span>{race.arrivalWind || "-"}</span>
                   </div>
@@ -476,6 +480,12 @@ export default function PublicRacePage() {
               </span>
               Go Live
             </TabsTrigger>
+            <TabsTrigger
+              value="avgspeed"
+              className="gap-1.5 text-sm px-3 py-1.5 data-[state=active]:text-green-600 data-[state=active]:bg-green-50 dark:data-[state=active]:bg-green-950/40"
+            >
+              <Gauge className="h-3.5 w-3.5" /> Avg. Speed
+            </TabsTrigger>
             <TabsTrigger value="all" className="gap-1.5 text-sm px-3 py-1.5">
               <TrendingUp className="h-3.5 w-3.5" /> View All Results
             </TabsTrigger>
@@ -519,6 +529,11 @@ export default function PublicRacePage() {
             returned={returned}
             velocityUnit={velocityUnit}
           />
+        </TabsContent>
+
+        {/* Avg Speed — season average leaderboard */}
+        <TabsContent value="avgspeed" className="mt-4">
+          {race.eventId != null && <AverageSection eventId={race.eventId} />}
         </TabsContent>
 
         {/* View All Results — includes not-yet-arrived birds */}
@@ -754,4 +769,3 @@ function BreederBirdsModal({
     </Dialog>
   );
 }
-

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar, MapPin, Radio } from "lucide-react";
 import type { Event, Race } from "@/lib/types";
+import { AverageSection } from "@/components/average-section";
 
 interface EventResultTabProps {
   event: Event;
@@ -81,7 +82,7 @@ function RaceList({ races }: { races: Race[] }) {
   );
 }
 
-export function EventResultTab({ event }: EventResultTabProps) {
+export function EventResultTab({ event, eventId }: EventResultTabProps) {
   const races = (event.races || []) as Race[];
   const trainingRaces = useMemo(() => races.filter(isTraining), [races]);
   const competitionRaces = useMemo(() => races.filter((r) => !isTraining(r)), [races]);
@@ -103,12 +104,7 @@ export function EventResultTab({ event }: EventResultTabProps) {
       </TabsContent>
 
       <TabsContent value="average" className="mt-4">
-        <Card>
-          <CardContent className="py-16 text-center text-muted-foreground">
-            <p>Bird-level average speed leaderboard (Long / Sprint).</p>
-            <p className="text-xs mt-2">Endpoint pending — coming next.</p>
-          </CardContent>
-        </Card>
+        <AverageSection eventId={eventId} />
       </TabsContent>
     </Tabs>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useApiQuery } from "@/hooks/useApi";
 import { useApiMutation } from "@/hooks/useApiMutation";
@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useWebSerial } from "@/hooks/useWebSerial";
 import { LinksDialog } from "@/components/race-links-dialog";
+import { cToF } from "@/lib/temperature";
 
 /** Entry fees not settled: the bird's registration is unpaid or only partly paid (hybrid status). */
 const isUnpaid = (ri: RaceItem) => ri.paymentStatus === "PENDING" || ri.paymentStatus === "PARTIAL";
@@ -111,6 +112,35 @@ export default function RaceDetailsPage() {
   const isLive =
     queryClient.getQueryData<{ race?: Race }>(["races", "detail", raceId])?.race?.status === "STARTED";
 
+  // Scan reliability: scans that fail to reach the server (offline / 5xx) wait
+  // in a localStorage queue with their ORIGINAL timestamp and are retried.
+  // Re-sends are safe: the scan route ignores a bird that already arrived.
+  const queueKey = `scan-queue-${raceId}`;
+  const queueRef = useRef<{ ringNo: string; timestamp: string }[]>([]);
+  const [queuedCount, setQueuedCount] = useState(0);
+  const recentScansRef = useRef(new Map<string, number>());
+  // server − browser clock, ms. Applied to browser-stamped scans only.
+  const clockOffsetRef = useRef(0);
+  const [clockOffset, setClockOffset] = useState<number | null>(null);
+
+  const saveQueue = useCallback(() => {
+    setQueuedCount(queueRef.current.length);
+    try { localStorage.setItem(queueKey, JSON.stringify(queueRef.current)); } catch { /* memory copy still holds it */ }
+  }, [queueKey]);
+
+  useEffect(() => {
+    try { queueRef.current = JSON.parse(localStorage.getItem(queueKey) ?? "[]"); } catch { queueRef.current = []; }
+    setQueuedCount(queueRef.current.length);
+
+    const t0 = Date.now();
+    fetch("/api/time").then((r) => r.json()).then(({ now }) => {
+      // ponytail: one round-trip midpoint, ~RTT/2 error; resample on scanner start if drift matters
+      const offset = now - (t0 + Date.now()) / 2;
+      clockOffsetRef.current = offset;
+      setClockOffset(offset);
+    }).catch(() => {});
+  }, [queueKey]);
+
   // Fetch race details
   const { data: raceData, isPending: raceLoading } = useApiQuery({
     endpoint: apiEndpoints.races.base,
@@ -159,21 +189,17 @@ export default function RaceDetailsPage() {
   });
 
   // Scanner functions
-  // timestamp: pre-built YYYYMMDDHHMMSSsss from scanner, or built from scanTime/now
+  // timestamp: compact UTC string from Web Serial, else ISO from scanTime/now (server parses both)
   const handleScan = useCallback(async (rfid: string, scanTime?: Date | string) => {
-    let timestamp: string;
-    if (typeof scanTime === "string") {
-      timestamp = scanTime;
-    } else {
-      const now = scanTime ?? new Date();
-      timestamp =
-        now.getFullYear().toString() +
-        (now.getMonth() + 1).toString().padStart(2, "0") +
-        now.getDate().toString().padStart(2, "0") +
-        now.getHours().toString().padStart(2, "0") +
-        now.getMinutes().toString().padStart(2, "0") +
-        now.getSeconds().toString().padStart(2, "0");
-    }
+    // Antenna re-reads: ignore the same tag within 30s.
+    const nowMs = Date.now();
+    const last = recentScansRef.current.get(rfid);
+    if (last && nowMs - last < 30_000) return;
+    recentScansRef.current.set(rfid, nowMs);
+
+    const timestamp = typeof scanTime === "string"
+      ? scanTime
+      : (scanTime ?? new Date(nowMs + clockOffsetRef.current)).toISOString();
 
     try {
       const res = await fetch(`/api/admin/race/${raceId}/scan`, {
@@ -181,6 +207,7 @@ export default function RaceDetailsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ringNo: rfid, timestamp }),
       });
+      if (res.status >= 500) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
       if (!res.ok) {
@@ -196,16 +223,51 @@ export default function RaceDetailsPage() {
         } else if (data.scanType === "loft") {
           toast.success(`${birdName} added to loft basket`);
         } else {
-          toast.success(`${birdName} arrived! Position: ${data.raceItem?.birdPosition}`);
+          toast.success(`${birdName} arrived! Position: ${data.birdPosition ?? "—"}`);
         }
         queryClient.invalidateQueries({ queryKey: ["raceItems", "list", `raceId-${raceId}`] });
       } else {
         toast.info(data.message || 'Bird already scanned');
       }
     } catch {
-      toast.error('Scan request failed');
+      queueRef.current.push({ ringNo: rfid, timestamp });
+      saveQueue();
+      toast.warning(`Connection problem — ${rfid} queued, will retry (${queueRef.current.length} waiting)`);
     }
-  }, [raceId, queryClient]);
+  }, [raceId, queryClient, saveQueue]);
+
+  // Drain the queue in order; stop at the first failure and try again later.
+  const flushingRef = useRef(false);
+  const flushQueue = useCallback(async () => {
+    if (flushingRef.current || queueRef.current.length === 0) return;
+    flushingRef.current = true;
+    let sent = 0;
+    try {
+      while (queueRef.current.length > 0) {
+        const scan = queueRef.current[0];
+        const res = await fetch(`/api/admin/race/${raceId}/scan`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(scan),
+        });
+        if (res.status >= 500) break;
+        queueRef.current.shift(); // 2xx or 4xx: server has decided, drop it
+        saveQueue();
+        sent++;
+      }
+    } catch { /* still offline */ }
+    flushingRef.current = false;
+    if (sent > 0) {
+      toast.success(`${sent} queued scan${sent > 1 ? "s" : ""} sent`);
+      queryClient.invalidateQueries({ queryKey: ["raceItems", "list", `raceId-${raceId}`] });
+    }
+  }, [raceId, queryClient, saveQueue]);
+
+  useEffect(() => {
+    const id = setInterval(flushQueue, 5000);
+    window.addEventListener("online", flushQueue);
+    return () => { clearInterval(id); window.removeEventListener("online", flushQueue); };
+  }, [flushQueue]);
 
   const { isConnected: isSerial, connect: connectSerial, disconnect: disconnectSerial } =
     useWebSerial({ onScan: handleScan });
@@ -241,7 +303,9 @@ export default function RaceDetailsPage() {
           for (const scan of data) {
             if (scan.el && scan.el !== lastScannedRfidRef.current) {
               lastScannedRfidRef.current = scan.el;
-              handleScan(scan.el, scan.timestamp ? new Date(scan.timestamp) : undefined);
+              // Browser parses ISO/local strings; compact YYYYMMDDHHmmss falls through raw for the server.
+              const at = scan.timestamp ? new Date(scan.timestamp) : undefined;
+              handleScan(scan.el, at && isNaN(at.getTime()) ? String(scan.timestamp) : at);
             }
           }
         }
@@ -415,7 +479,7 @@ export default function RaceDetailsPage() {
                         eventId={eventId}
                         raceId={raceId}
                         isPending={isStartingRace}
-                        onStart={(basketIds) => startRace(basketIds ? { basketIds } : {})}
+                        onStart={(basketIds, liberatedAt) => startRace({ liberatedAt, ...(basketIds ? { basketIds } : {}) })}
                       />
                     )}
                     {race.status === "STARTED" && (
@@ -464,6 +528,16 @@ export default function RaceDetailsPage() {
                       <Usb className="h-4 w-4" />
                       {isSerial ? "USB Connected" : "USB Serial"}
                     </Button>
+                    {queuedCount > 0 && (
+                      <Badge variant="destructive" title="Scans waiting to reach the server; retried every 5s">
+                        {queuedCount} scan{queuedCount > 1 ? "s" : ""} queued
+                      </Badge>
+                    )}
+                    {clockOffset != null && Math.abs(clockOffset) > 2000 && (
+                      <Badge variant="outline" className="border-amber-500 text-amber-600" title="Browser-stamped scans are corrected to server time. Scanner hardware clocks are not — check the reader's clock.">
+                        PC clock {clockOffset > 0 ? "behind" : "ahead"} by {(Math.abs(clockOffset) / 1000).toFixed(1)}s
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex flex-wrap items-center gap-3 mt-1">
                     <p className="text-sm md:text-base text-blue-600">
@@ -502,7 +576,7 @@ export default function RaceDetailsPage() {
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-orange-500">
                           <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>
                         </svg>
-                        <span className="font-medium text-foreground">{race.temperature}°F</span>
+                        <span className="font-medium text-foreground">{cToF(race.temperature)}</span>
                       </div>
                     )}
                     {race.wind && (
@@ -537,7 +611,7 @@ export default function RaceDetailsPage() {
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-orange-500">
                           <path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>
                         </svg>
-                        <span className="font-medium text-foreground">{race.arrivalTemperature}°F</span>
+                        <span className="font-medium text-foreground">{cToF(race.arrivalTemperature)}</span>
                       </div>
                     )}
                     {race.arrivalWind && (

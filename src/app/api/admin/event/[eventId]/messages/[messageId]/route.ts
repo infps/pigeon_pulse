@@ -2,35 +2,8 @@ import { auth } from "@/lib/auth";
 import { requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
+import { isEventCreator } from "@/lib/event-messages";
 import { NextResponse } from "next/server";
-
-async function isEventCreator(eventId: number, sessionEmail: string, role: string) {
-  if (role === "SUPERADMIN") return true;
-  if (role !== "ADMIN") return false;
-  const organizer = await prisma.organizerData.findFirst({
-    where: { email: sessionEmail },
-  });
-  if (!organizer) return false;
-  const event = await prisma.event.findFirst({
-    where: { id: eventId, createdById: organizer.id },
-    select: { id: true },
-  });
-  return !!event;
-}
-
-async function resolveSeasonId(request: Request, eventId: number): Promise<number | NextResponse> {
-  const { searchParams } = new URL(request.url);
-  const seasonIdParam = searchParams.get("seasonId");
-  if (seasonIdParam) return parseInt(seasonIdParam);
-  const activeSeason = await prisma.season.findFirst({
-    where: { eventId, isActive: true },
-    orderBy: { startDate: "desc" },
-  });
-  if (!activeSeason) {
-    return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
-  }
-  return activeSeason.id;
-}
 
 export async function PATCH(
   request: Request,
@@ -54,11 +27,8 @@ export async function PATCH(
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
-    const seasonId = await resolveSeasonId(request, eventId);
-    if (seasonId instanceof NextResponse) return seasonId;
-
     const body = await request.json();
-    const data: { title?: string | null; body?: string; mediaUrls?: string[] } = {};
+    const data: { title?: string | null; body?: string; mediaUrls?: string[]; isPinned?: boolean } = {};
     if (body.title !== undefined) data.title = body.title?.trim() || null;
     if (body.body !== undefined) {
       const trimmed = String(body.body).trim();
@@ -68,9 +38,10 @@ export async function PATCH(
       data.body = trimmed;
     }
     if (Array.isArray(body.mediaUrls)) data.mediaUrls = body.mediaUrls;
+    if (typeof body.isPinned === "boolean") data.isPinned = body.isPinned;
 
     const existing = await prisma.eventMessage.findFirst({
-      where: { id: messageId, seasonId },
+      where: { id: messageId, season: { eventId } },
       select: { id: true },
     });
     if (!existing) {
@@ -116,11 +87,8 @@ export async function DELETE(
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
-    const seasonId = await resolveSeasonId(request, eventId);
-    if (seasonId instanceof NextResponse) return seasonId;
-
     const existing = await prisma.eventMessage.findFirst({
-      where: { id: messageId, seasonId },
+      where: { id: messageId, season: { eventId } },
       select: { id: true },
     });
     if (!existing) {

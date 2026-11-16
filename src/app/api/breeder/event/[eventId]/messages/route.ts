@@ -1,4 +1,7 @@
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { resolveSeasonId, MESSAGE_ORDER } from "@/lib/event-messages";
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 export async function GET(
@@ -13,21 +16,11 @@ export async function GET(
   }
 
   try {
-    const { searchParams } = new URL(request.url);
-    const seasonIdParam = searchParams.get("seasonId");
-    let seasonId: number;
-    if (seasonIdParam) {
-      seasonId = parseInt(seasonIdParam);
-    } else {
-      const activeSeason = await prisma.season.findFirst({
-        where: { eventId, isActive: true },
-        orderBy: { startDate: "desc" },
-      });
-      if (!activeSeason) {
-        return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
-      }
-      seasonId = activeSeason.id;
-    }
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
+    const seasonId = await resolveSeasonId(request, eventId);
+    if (seasonId instanceof NextResponse) return seasonId;
 
     const messages = await prisma.eventMessage.findMany({
       where: { seasonId },
@@ -36,7 +29,7 @@ export async function GET(
           select: { id: true, name: true, lastName: true, image: true },
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: MESSAGE_ORDER,
     });
 
     return NextResponse.json(

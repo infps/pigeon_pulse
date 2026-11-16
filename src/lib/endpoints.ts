@@ -93,6 +93,9 @@ const breeder = {
   raceItems: (raceId: number | string) => `/api/breeder/races/${raceId}/items`,
   eventMessages: (eventId: number | string) => `/api/breeder/event/${eventId}/messages`,
   messages: "/api/breeder/messages",
+  averages: (eventId: number | string) => `/api/breeder/event/${eventId}/averages`,
+  averageResults: (eventId: number | string, avgId: number | string) =>
+    `/api/breeder/event/${eventId}/averages/${avgId}/results`,
 };
 
 const betting = {

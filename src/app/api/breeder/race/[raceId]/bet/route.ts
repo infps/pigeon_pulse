@@ -6,6 +6,7 @@ import { activeRaceItemOr } from "@/lib/entry-filters";
 import { expiredHold, releaseHolds } from "@/lib/bet-hold";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { canViewRace } from "@/lib/visibility";
 import z from "zod";
 
 const placeBetSchema = z.object({
@@ -31,6 +32,9 @@ export async function POST(
 
     const { raceId } = await params;
     const raceIdInt = parseInt(raceId);
+    if (!(await canViewRace(raceIdInt, session.user.id, session.user.role))) {
+      return NextResponse.json({ message: "Race not found" }, { status: 404 });
+    }
 
     const body = await request.json();
     const parsed = placeBetSchema.safeParse(body);
@@ -163,6 +167,9 @@ export async function GET(
 
     const { raceId } = await params;
     const raceIdInt = parseInt(raceId);
+    if (!(await canViewRace(raceIdInt, session.user.id, session.user.role))) {
+      return NextResponse.json({ message: "Race not found" }, { status: 404 });
+    }
 
     // Lapsed PayPal holds would otherwise show as taken slots.
     await releaseHolds(raceIdInt, expiredHold());

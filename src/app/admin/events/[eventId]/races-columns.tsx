@@ -19,6 +19,10 @@ import { Switch } from "@/components/ui/switch";
 import { useToggleBetting } from "@/lib/api/bets";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { cToF } from "@/lib/temperature";
+
+// Extra list-only stats from /api/admin/race GET.
+type RaceRow = Race & { winnerYpm?: number | null; arrived?: number; released?: number };
 
 function BettingToggleCell({ race }: { race: Race }) {
   const queryClient = useQueryClient();
@@ -103,7 +107,12 @@ export const createRacesColumns = (
       const startTime = row.original.startTime;
       if (!startTime) return <span>-</span>;
       const date = new Date(startTime);
-      return <span>{date.toLocaleDateString()}</span>;
+      return (
+        <span>
+          {date.toLocaleDateString()}{" "}
+          {date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        </span>
+      );
     },
   },
   {
@@ -140,7 +149,7 @@ export const createRacesColumns = (
     ),
     cell: ({ row }) => {
       const temp = row.original.arrivalTemperature;
-      return <span>{temp ? `${temp}°` : "-"}</span>;
+      return <span>{cToF(temp) ?? "-"}</span>;
     },
   },
   {
@@ -151,6 +160,22 @@ export const createRacesColumns = (
     cell: ({ row }) => {
       const weather = row.original.arrivalWeather;
       return <span>{weather || "-"}</span>;
+    },
+  },
+  {
+    id: "winner",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Winner" />,
+    cell: ({ row }) => {
+      const ypm = (row.original as RaceRow).winnerYpm;
+      return <span>{ypm != null ? `${ypm.toFixed(1)} YPM` : "-"}</span>;
+    },
+  },
+  {
+    id: "home",
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Home" />,
+    cell: ({ row }) => {
+      const r = row.original as RaceRow;
+      return <span>{r.released ? `${r.arrived ?? 0}/${r.released}` : "-"}</span>;
     },
   },
   {

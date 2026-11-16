@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { canViewRace } from "@/lib/visibility";
 
 /**
  * Transport route history with a time range.
@@ -63,7 +66,8 @@ export async function GET(
       return NextResponse.json({ message: "Race not found" }, { status: 404 });
     }
     // A private race's movements are not public either.
-    if (race.isPrivate || race.seasonRel?.event?.isPrivate) {
+    const viewer = (await auth.api.getSession({ headers: await headers() }))?.user;
+    if (!(await canViewRace(raceIdInt, viewer?.id, viewer?.role))) {
       return NextResponse.json({ message: "Race not found" }, { status: 404 });
     }
 

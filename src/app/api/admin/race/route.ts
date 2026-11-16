@@ -3,10 +3,12 @@ import { requireAnyPermission, requirePermission } from "@/lib/authorize";
 import { activeRaceItemOr } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { haversine } from "@/lib/geo";
+import { fillRaceWeather } from "@/lib/race-weather";
+import { speedYPM } from "@/lib/reports/helpers";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-// Resolve a race's distance (miles, rounded int) from its launch station + event loft.
+// Resolve a race's distance (miles, 3dp) from its launch station + event loft.
 // Prefers the station's stored `miles`; falls back to haversine when coords exist.
 async function deriveStationDistance(
   raceStationId: number,
@@ -14,7 +16,8 @@ async function deriveStationDistance(
 ): Promise<number | null> {
   const station = await prisma.raceStation.findUnique({ where: { id: raceStationId } });
   if (!station) return null;
-  if (station.miles != null) return Math.round(station.miles);
+  const r3 = (x: number) => Math.round(x * 1000) / 1000;
+  if (station.miles != null) return r3(station.miles);
   const event = await prisma.event.findUnique({
     where: { id: eventId },
     select: { latitude: true, longitude: true },
@@ -25,7 +28,7 @@ async function deriveStationDistance(
     station.latitude != null &&
     station.longitude != null
   ) {
-    return Math.round(haversine(event.latitude, event.longitude, station.latitude, station.longitude).miles);
+    return r3(haversine(event.latitude, event.longitude, station.latitude, station.longitude).miles);
   }
   return null;
 }
@@ -78,6 +81,7 @@ export async function GET(request: Request) {
       include: {
         raceType: true,
         seasonRel: { include: { event: { select: { id: true, name: true, shortName: true } } } },
+        raceStation: { select: { miles: true } },
       },
       orderBy: {
         startTime: "desc",
@@ -95,20 +99,42 @@ export async function GET(request: Request) {
       },
       _count: { _all: true },
     });
-    const counts = new Map<number, { activeBirds: number; lostBirds: number; foreignBirds: number }>();
+    const empty = { activeBirds: 0, lostBirds: 0, foreignBirds: 0, arrived: 0, released: 0 };
+    const counts = new Map<number, typeof empty>();
     for (const g of grouped) {
       if (g.raceId == null) continue;
-      const c = counts.get(g.raceId) ?? { activeBirds: 0, lostBirds: 0, foreignBirds: 0 };
+      const c = counts.get(g.raceId) ?? { ...empty };
       const n = g._count._all;
+      // Home = arrived / released (birds that actually flew).
+      if (g.status === "ARRIVED") c.arrived += n;
+      if (["RELEASED", "ARRIVED", "STRAY", "LOST"].includes(g.status)) c.released += n;
       if (g.status === "FOREIGN_BIRD") c.foreignBirds += n;
       else if (g.status === "LOST" || g.isLost === 1) c.lostBirds += n;
       else if (g.status !== "IGNORED") c.activeBirds += n;
       counts.set(g.raceId, c);
     }
-    const racesWithCounts = races.map((r) => ({
-      ...r,
-      ...(counts.get(r.id) ?? { activeBirds: 0, lostBirds: 0, foreignBirds: 0 }),
-    }));
+    // Winner speed: position-1 arrival per race, one query.
+    const winners = await prisma.raceItemResult.findMany({
+      where: { birdPosition: 1, arrivalTime: { not: null }, raceItem: { raceId: { in: races.map((r) => r.id) } } },
+      select: { arrivalTime: true, raceItem: { select: { raceId: true } } },
+    });
+    const winnerArrival = new Map<number, Date>();
+    for (const w of winners) {
+      const id = w.raceItem.raceId;
+      if (id != null && w.arrivalTime && !winnerArrival.has(id)) winnerArrival.set(id, w.arrivalTime);
+    }
+    const racesWithCounts = races.map((r) => {
+      const arr = winnerArrival.get(r.id);
+      const ypm =
+        arr && r.startTime
+          ? speedYPM(r.raceStation?.miles ?? r.distance, (arr.getTime() - r.startTime.getTime()) / 60000)
+          : null;
+      return {
+        ...r,
+        ...(counts.get(r.id) ?? empty),
+        winnerYpm: ypm != null ? Math.round(ypm * 10) / 10 : null,
+      };
+    });
 
     return NextResponse.json(
       { races: racesWithCounts, message: "Races fetched successfully" },
@@ -191,7 +217,7 @@ export async function POST(request: Request) {
           name: name || "",
           description,
           raceStationId: stationId,
-          distance: stationId != null ? derivedDistance : distance ? parseInt(distance) : null,
+          distance: stationId != null ? derivedDistance : distance ? parseFloat(distance) : null,
           location,
           startTime: startTime ? new Date(startTime) : null,
           sunrise: sunrise ? new Date(sunrise) : null,
@@ -221,6 +247,9 @@ export async function POST(request: Request) {
 
       return created;
     });
+
+    // Auto-fill blank weather/sun fields; never fails the request.
+    await fillRaceWeather(race.id);
 
     return NextResponse.json(
       { race, message: "Race created successfully" },
@@ -278,7 +307,7 @@ export async function PUT(request: Request) {
         }
       }
     } else if (data.distance) {
-      updateData.distance = parseInt(data.distance);
+      updateData.distance = parseFloat(data.distance);
     }
     if (data.startTime) updateData.startTime = new Date(data.startTime);
     if (data.sunrise) updateData.sunrise = new Date(data.sunrise);
@@ -328,6 +357,8 @@ export async function PUT(request: Request) {
         seasonRel: { include: { event: { select: { id: true, name: true, shortName: true } } } },
       },
     });
+
+    await fillRaceWeather(race.id);
 
     return NextResponse.json(
       { race, message: "Race updated successfully" },

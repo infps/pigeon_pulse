@@ -546,7 +546,7 @@ model Race {
   seasonId           Int?            @map("SEASON_ID")
   raceNumber         Int?            @map("RACE_NUMBER")
   description        String?         @map("DESCRIPTION")
-  distance           Int?            @map("DISTANCE")
+  distance           Float?          @map("DISTANCE")
   location           String?         @map("LOCATION")
   startTime          DateTime?       @map("START_TIME")
   endTime            DateTime?       @map("END_TIME")
@@ -855,6 +855,7 @@ model EventMessage {
   title     String?  @map("TITLE")
   body      String   @map("BODY")
   mediaUrls String[] @map("MEDIA_URLS")
+  isPinned  Boolean  @default(false) @map("IS_PINNED")
   createdAt DateTime @default(now()) @map("CREATED_AT")
   updatedAt DateTime @updatedAt @map("UPDATED_AT")
 

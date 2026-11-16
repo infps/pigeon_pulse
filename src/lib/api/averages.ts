@@ -50,3 +50,20 @@ export function useDeleteAverageConfig(eventId: string | number) {
     exact: false,
   });
 }
+
+// Breeder/public side: server resolves the active season.
+export function useListPublicAverages(eventId: string | number) {
+  return useApiQuery({
+    endpoint: apiEndpoints.breeder.averages(eventId),
+    queryKey: ["breeder", "averages", String(eventId)],
+    enabled: !!eventId,
+  });
+}
+
+export function usePublicAverageResults(eventId: string | number, avgId: number | null) {
+  return useApiQuery({
+    endpoint: avgId ? apiEndpoints.breeder.averageResults(eventId, avgId) : "",
+    queryKey: ["breeder", "averages", String(eventId), "results", String(avgId)],
+    enabled: !!eventId && !!avgId,
+  });
+}

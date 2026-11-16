@@ -27,6 +27,15 @@ export async function POST(
         ? body.basketIds.map(Number)
         : undefined;
 
+    // Liberation time as typed by the convoyer (ISO). Default: now.
+    const liberatedAt = body?.liberatedAt ? new Date(body.liberatedAt) : new Date();
+    if (Number.isNaN(liberatedAt.getTime())) {
+      return NextResponse.json({ message: "Invalid liberation time" }, { status: 400 });
+    }
+    if (liberatedAt.getTime() > Date.now() + 60_000) {
+      return NextResponse.json({ message: "Liberation time cannot be in the future" }, { status: 400 });
+    }
+
     const race = await prisma.race.findUnique({
       where: { id: raceIdInt },
     });
@@ -62,7 +71,7 @@ export async function POST(
     const [updatedRace] = await prisma.$transaction([
       prisma.race.update({
         where: { id: raceIdInt },
-        data: { startTime: new Date(), status: "STARTED" },
+        data: { startTime: liberatedAt, status: "STARTED" },
         include: {
           raceType: true,
           seasonRel: { include: { event: { select: { id: true, name: true, shortName: true } } } },

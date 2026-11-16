@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, Newspaper } from "lucide-react";
+import { ArrowLeft, Newspaper, Pin } from "lucide-react";
 import { useListBreederMessages } from "@/lib/api/event-messages";
 import { plainSnippet } from "@/lib/text";
 
@@ -18,6 +18,7 @@ interface NewsMessage {
   body: string;
   mediaUrls: string[];
   createdAt: string;
+  isPinned: boolean;
   event: {
     id: number;
     name: string;
@@ -30,7 +31,7 @@ interface NewsMessage {
 export default function NewsPage() {
   const router = useRouter();
   const [limit, setLimit] = useState(20);
-  const { data, isPending } = useListBreederMessages({ limit, offset: 0 });
+  const { data, isPending, error } = useListBreederMessages({ limit, offset: 0 });
 
   const messages: NewsMessage[] = (data?.messages ?? []).filter(
     (m: NewsMessage) => m?.event?.id
@@ -51,7 +52,12 @@ export default function NewsPage() {
         </div>
       </div>
 
-      {isPending ? (
+      {(error as Error)?.cause === 401 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
+          <p>Sign in to view messages.</p>
+          <Button asChild size="sm"><Link href="/login">Sign in</Link></Button>
+        </div>
+      ) : isPending ? (
         <div className="rounded-md border divide-y">
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-24 w-full rounded-none" />
@@ -84,6 +90,9 @@ export default function NewsPage() {
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm">
+                    {m.isPinned && (
+                      <Badge variant="secondary" className="gap-1 mr-2 align-middle"><Pin className="h-3 w-3" />Pinned</Badge>
+                    )}
                     {new Date(m.createdAt).toLocaleDateString()} — {m.event.name}
                     {m.title && <span className="text-muted-foreground"> · {m.title}</span>}
                   </p>

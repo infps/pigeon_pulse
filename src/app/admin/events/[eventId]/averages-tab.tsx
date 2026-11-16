@@ -1,7 +1,7 @@
 "use client";
 
-import { shortBand } from "@/lib/bird-constants";
-import { BirdLink } from "@/components/bird-popup";
+import type { AverageResultRow } from "@/lib/computeAverages";
+import { AverageResultsTable } from "@/components/average-section";
 import { useState, useMemo } from "react";
 import { useDialogHotkeys } from "@/lib/use-dialog-hotkeys";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,7 +31,6 @@ import {
   Plus,
   RefreshCw,
   Download,
-  Trophy,
   Search,
 } from "lucide-react";
 import { useSeasonContext } from "@/lib/season-context";
@@ -59,18 +58,6 @@ interface AverageConfig {
   isPublic: boolean;
   selectedRaceTypes: { raceType: { id: number; name: string } }[];
   selectedRaces: { race: { id: number; name: string } }[];
-}
-
-interface AverageResultRow {
-  rank: number | null;
-  birdId: number;
-  band: string;
-  color: string | null;
-  sex: number | null;
-  loft: string | null;
-  breederName: string;
-  racesFlown: number;
-  avgSpeedYPM: number | null;
 }
 
 const FILTER_MODE_LABELS: Record<FilterMode, string> = {
@@ -530,62 +517,7 @@ export function AveragesTab({ eventId }: { eventId: string }) {
               No results found.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-muted/50 border-b text-xs uppercase text-muted-foreground">
-                    <th className="px-4 py-3 text-left w-12">Rank</th>
-                    <th className="px-4 py-3 text-left">Loft · Band · Sex · Color</th>
-                    <th className="px-4 py-3 text-right">Races</th>
-                    <th className="px-4 py-3 text-right">Avg Speed (YPM)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {filteredResults.map((row, i) => {
-                    const isDNP = row.avgSpeedYPM === null;
-                    return (
-                      <tr
-                        key={row.birdId}
-                        className={`hover:bg-muted/30 transition-colors ${
-                          isDNP ? "opacity-50" : ""
-                        }`}
-                      >
-                        <td className="px-4 py-3">
-                          {isDNP ? (
-                            <span className="text-muted-foreground">—</span>
-                          ) : row.rank === 1 ? (
-                            <Trophy className="h-4 w-4 text-yellow-500" />
-                          ) : row.rank === 2 ? (
-                            <Trophy className="h-4 w-4 text-slate-400" />
-                          ) : row.rank === 3 ? (
-                            <Trophy className="h-4 w-4 text-amber-600" />
-                          ) : (
-                            <span className="font-medium tabular-nums">{row.rank}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="font-medium">{row.loft ?? row.breederName}</p>
-                          <p className="text-xs text-muted-foreground font-mono">
-                            <BirdLink birdId={row.birdId} band={row.band}>{shortBand(row.band)}</BirdLink>
-                            {row.sex != null && (
-                              <span className="ml-2">{SEX_LABELS[row.sex as keyof typeof SEX_LABELS]}</span>
-                            )}
-                            {row.color && <span className="ml-2">{row.color}</span>}
-                          </p>
-                          {isDNP && (
-                            <span className="text-xs text-muted-foreground italic">Did Not Participate</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-right tabular-nums">{row.racesFlown}</td>
-                        <td className="px-4 py-3 text-right tabular-nums font-medium">
-                          {row.avgSpeedYPM != null ? row.avgSpeedYPM.toFixed(4) : "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <AverageResultsTable rows={filteredResults} />
           )}
         </CardContent>
       </Card>

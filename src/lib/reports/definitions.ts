@@ -156,7 +156,8 @@ async function buildBreederAverage(params: ReportParams, short: boolean): Promis
         },
       },
       raceItems: {
-        where: { result: { arrivalTime: { not: null } } },
+        // Same rule as computeAverages: only placed arrivals count.
+        where: { status: "ARRIVED", result: { arrivalTime: { not: null }, birdPosition: { not: null } } },
         select: { raceId: true, result: { select: { arrivalTime: true } } },
       },
     },

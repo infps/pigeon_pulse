@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { hiddenRaceStatuses } from "@/lib/visibility";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { canViewRace, hiddenRaceStatuses } from "@/lib/visibility";
 import { activeRaceItemOr } from "@/lib/entry-filters";
 import { cached, raceKey } from "@/lib/ttl-cache";
 
@@ -27,6 +29,11 @@ export async function GET(
     const raceId = parseInt(raceIdParam, 10);
     if (Number.isNaN(raceId)) {
       return NextResponse.json({ message: "Invalid race ID" }, { status: 400 });
+    }
+
+    const viewer = (await auth.api.getSession({ headers: await headers() }))?.user;
+    if (!(await canViewRace(raceId, viewer?.id, viewer?.role))) {
+      return NextResponse.json({ message: "Race not found" }, { status: 404 });
     }
 
     // OBS polls every few seconds; one DB pass per race per 3s.

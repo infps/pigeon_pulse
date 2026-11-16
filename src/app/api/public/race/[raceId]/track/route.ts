@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { canViewRace } from "@/lib/visibility";
 
 const MAX_PINGS = 200;
 
@@ -25,6 +28,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ raceId:
     const raceId = parseInt(raceIdParam);
     if (isNaN(raceId)) {
       return NextResponse.json({ message: "Invalid race ID" }, { status: 400 });
+    }
+
+    const viewer = (await auth.api.getSession({ headers: await headers() }))?.user;
+    if (!(await canViewRace(raceId, viewer?.id, viewer?.role))) {
+      return NextResponse.json({ message: "Race not found" }, { status: 404 });
     }
 
     const race = await prisma.race.findUnique({

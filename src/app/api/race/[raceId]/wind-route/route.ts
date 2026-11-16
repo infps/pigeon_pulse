@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { canViewRace } from "@/lib/visibility";
 import { bearing, samplePoints } from "@/lib/map/geo";
 import { resolveWind } from "@/lib/map/wind";
 import type { RouteConfig, RouteSample } from "@/lib/map/types";
@@ -60,6 +61,10 @@ export async function GET(
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user || !["ADMIN", "SUPERADMIN", "BREEDER"].includes(session.user.role)) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!(await canViewRace(raceId, session.user.id, session.user.role))) {
+    return NextResponse.json({ message: "Race not found" }, { status: 404 });
   }
 
   const apiKey = process.env.WINDY_POINT_KEY;

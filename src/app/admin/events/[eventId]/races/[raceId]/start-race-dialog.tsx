@@ -12,6 +12,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useEventBaskets } from "@/lib/api/event-baskets";
 import type { EventBasketItem } from "@/lib/types";
 
@@ -19,12 +21,14 @@ interface StartRaceDialogProps {
   eventId: string;
   raceId: string;
   isPending: boolean;
-  onStart: (basketIds?: number[]) => void;
+  onStart: (basketIds: number[] | undefined, liberatedAt: string) => void;
 }
 
 export function StartRaceDialog({ eventId, raceId, isPending, onStart }: StartRaceDialogProps) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  // datetime-local value in the operator's local time; sent as ISO.
+  const [liberatedAt, setLiberatedAt] = useState("");
 
   const { data } = useEventBaskets(eventId, "LOFT");
   const loftBaskets: EventBasketItem[] = (data?.baskets ?? []).filter(
@@ -41,12 +45,16 @@ export function StartRaceDialog({ eventId, raceId, isPending, onStart }: StartRa
 
   function handleOpen() {
     setSelected(new Set(loftBaskets.map((b) => b.id)));
+    const now = new Date();
+    now.setSeconds(0, 0);
+    setLiberatedAt(new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 16));
     setOpen(true);
   }
 
   function handleConfirm() {
     const all = selected.size === loftBaskets.length;
-    onStart(all ? undefined : Array.from(selected));
+    const at = liberatedAt ? new Date(liberatedAt) : new Date();
+    onStart(all ? undefined : Array.from(selected), at.toISOString());
     setOpen(false);
   }
 
@@ -67,6 +75,18 @@ export function StartRaceDialog({ eventId, raceId, isPending, onStart }: StartRa
           <DialogHeader>
             <DialogTitle>Start Race — Select Baskets</DialogTitle>
           </DialogHeader>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="liberated-at">Liberation time</Label>
+            <Input
+              id="liberated-at"
+              type="datetime-local"
+              step={1}
+              value={liberatedAt}
+              onChange={(e) => setLiberatedAt(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">Actual release time at the station. All speeds use this.</p>
+          </div>
 
           {loftBaskets.length === 0 ? (
             <p className="text-sm text-muted-foreground">No loft baskets found. All birds will be released.</p>

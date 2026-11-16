@@ -74,7 +74,12 @@ export async function computeAverageResults(
         },
       },
       raceItems: {
-        where: { raceId: { in: qualifyingRaceIds }, result: { arrivalTime: { not: null } } },
+        // Only placed arrivals count — foreign, stray, lost and ignored flights are excluded.
+        where: {
+          raceId: { in: qualifyingRaceIds },
+          status: "ARRIVED",
+          result: { arrivalTime: { not: null }, birdPosition: { not: null } },
+        },
         select: {
           raceId: true,
           result: { select: { arrivalTime: true } },

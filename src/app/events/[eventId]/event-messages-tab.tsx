@@ -1,10 +1,13 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, Pin } from "lucide-react";
 import { useListBreederEventMessages } from "@/lib/api/event-messages";
 
 interface Author {
@@ -23,6 +26,7 @@ interface EventMessage {
   mediaUrls: string[];
   createdAt: string;
   updatedAt: string;
+  isPinned: boolean;
   author: Author;
 }
 
@@ -59,6 +63,15 @@ export function EventMessagesTab({ eventId }: { eventId: string }) {
     );
   }
 
+  if (isError && (error as Error)?.cause === 401) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
+        <p>Sign in to view messages.</p>
+        <Button asChild size="sm"><Link href="/login">Sign in</Link></Button>
+      </div>
+    );
+  }
+
   if (isError) {
     return (
       <p className="text-red-500 text-center py-8">
@@ -88,7 +101,10 @@ export function EventMessagesTab({ eventId }: { eventId: string }) {
               <AvatarFallback>{authorInitial(m.author)}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              {m.title && <p className="font-bold truncate">{m.title}</p>}
+              <div className="flex items-center gap-2 min-w-0">
+                {m.isPinned && <Badge variant="secondary" className="gap-1 shrink-0"><Pin className="h-3 w-3" />Pinned</Badge>}
+                {m.title && <p className="font-bold truncate">{m.title}</p>}
+              </div>
               <p className="text-xs text-muted-foreground">
                 {authorName(m.author)} · {formatFullDate(m.createdAt)}
               </p>

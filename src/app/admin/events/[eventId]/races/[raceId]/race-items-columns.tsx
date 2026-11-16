@@ -120,11 +120,11 @@ export const createRaceItemsColumns = (
     accessorKey: "speed",
     sortingFn: nullsLast,
     header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Speed" />
+      <DataTableColumnHeader column={column} title="Speed (YPM)" />
     ),
     cell: ({ row }) => {
       const speed = row.original.speed;
-      return <span>{speed ? `${speed.toFixed(2)} mph` : "-"}</span>;
+      return <span>{speed ? `${speed.toFixed(2)} YPM` : "-"}</span>;
     },
   },
   {

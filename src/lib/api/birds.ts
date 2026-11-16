@@ -34,6 +34,48 @@ export interface BirdHistoryEntry {
   prizeValue?: number;
 }
 
+export interface BirdFlight {
+  raceId: number;
+  eventId?: number;
+  raceName?: string;
+  raceTypeName: string | null;
+  isTraining: boolean;
+  date?: string;
+  miles?: number;
+  status: "RELEASED" | "ARRIVED" | "FOREIGN_BIRD" | "STRAY" | "LOST";
+  position?: number;
+  fieldSize?: number;
+  arrivalTime?: string;
+  flightTimeMs?: number;
+  ypm?: number;
+  toWinMs?: number;
+  prizeValue?: number;
+}
+
+export interface BirdTransfer {
+  fromBreederName: string;
+  transferredAt: string;
+  eventName?: string;
+}
+
+export interface BirdHistoryResponse {
+  entries: BirdHistoryEntry[];
+  birdInfo: {
+    band: string;
+    loftName: string;
+    breederName: string;
+    loftImage: string | null;
+    eligible: boolean;
+    breederId: number | null;
+    color: string | null;
+    sex: number | null;
+    birdName: string | null;
+  };
+  flights: BirdFlight[];
+  transfers: BirdTransfer[];
+  prizeTotal: number;
+}
+
 export function useBirdLocation(birdId: number | string) {
   return useApiQuery({
     endpoint: apiEndpoints.birds.location(birdId),

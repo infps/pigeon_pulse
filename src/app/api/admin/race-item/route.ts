@@ -5,6 +5,7 @@ import { requireAnyPermission } from "@/lib/authorize";
 import { activeRaceItemOr } from "@/lib/entry-filters";
 import { computePaymentTotals } from "@/lib/paymentStatus";
 import { openHotspotGate } from "@/lib/hotspot-gates";
+import { flightMinutes, speedYPM } from "@/lib/reports/helpers";
 
 export async function GET(req: NextRequest) {
   try {
@@ -24,6 +25,12 @@ export async function GET(req: NextRequest) {
     if (!raceId) {
       return Response.json({ error: "Race ID is required" }, { status: 400 });
     }
+
+    const race = await prisma.race.findUnique({
+      where: { id: parseInt(raceId) },
+      select: { seasonId: true, startTime: true, distance: true, raceStation: { select: { miles: true } } },
+    });
+    const raceMiles = race?.raceStation?.miles ?? race?.distance ?? null;
 
     const raceItems = await prisma.raceItem.findMany({
       where: {
@@ -73,7 +80,6 @@ export async function GET(req: NextRequest) {
     );
     const statusByInventory = new Map<number, string>();
     if (inventoryIds.length > 0) {
-      const race = await prisma.race.findUnique({ where: { id: parseInt(raceId) }, select: { seasonId: true } });
       const openGate = race?.seasonId != null ? await openHotspotGate(race.seasonId) : undefined;
       const inventories = await prisma.eventInventory.findMany({
         where: { id: { in: inventoryIds } },
@@ -125,7 +131,10 @@ export async function GET(req: NextRequest) {
         birdDrop: item.result?.birdDrop ?? null,
         arrivalTime: item.result?.arrivalTime ?? null,
         groupId: item.result?.groupId ?? null,
-        speed: null,
+        // Yards per minute; foreign/stray birds carry no velocity.
+        speed: item.status === "ARRIVED"
+          ? speedYPM(raceMiles, flightMinutes(race?.startTime, item.result?.arrivalTime))
+          : null,
         loftBasketLabel: loftLabel,
         raceBasketLabel: raceLabel,
       };

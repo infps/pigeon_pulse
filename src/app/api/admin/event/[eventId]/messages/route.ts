@@ -3,35 +3,8 @@ import { requireAnyPermission, requirePermission } from "@/lib/authorize";
 import { prisma } from "@/lib/prisma";
 import { notifyEventMessage } from "@/lib/notifications";
 import { headers } from "next/headers";
+import { isEventCreator, resolveSeasonId, MESSAGE_ORDER } from "@/lib/event-messages";
 import { NextResponse } from "next/server";
-
-async function isEventCreator(eventId: number, sessionEmail: string, role: string) {
-  if (role === "SUPERADMIN") return true;
-  if (role !== "ADMIN") return false;
-  const organizer = await prisma.organizerData.findFirst({
-    where: { email: sessionEmail },
-  });
-  if (!organizer) return false;
-  const event = await prisma.event.findFirst({
-    where: { id: eventId, createdById: organizer.id },
-    select: { id: true },
-  });
-  return !!event;
-}
-
-async function resolveSeasonId(request: Request, eventId: number): Promise<number | NextResponse> {
-  const { searchParams } = new URL(request.url);
-  const seasonIdParam = searchParams.get("seasonId");
-  if (seasonIdParam) return parseInt(seasonIdParam);
-  const activeSeason = await prisma.season.findFirst({
-    where: { eventId, isActive: true },
-    orderBy: { startDate: "desc" },
-  });
-  if (!activeSeason) {
-    return NextResponse.json({ message: "No active season for this event" }, { status: 404 });
-  }
-  return activeSeason.id;
-}
 
 export async function GET(
   request: Request,
@@ -59,7 +32,7 @@ export async function GET(
           select: { id: true, name: true, lastName: true, image: true },
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: MESSAGE_ORDER,
     });
 
     return NextResponse.json(
@@ -106,6 +79,8 @@ export async function POST(
     const title: string | null = body.title?.trim() || null;
     const messageBody: string = (body.body ?? "").trim();
     const mediaUrls: string[] = Array.isArray(body.mediaUrls) ? body.mediaUrls : [];
+    const isPinned = body.isPinned === true;
+    const notify = body.notify !== false;
 
     if (!messageBody) {
       return NextResponse.json({ message: "Body is required" }, { status: 400 });
@@ -118,6 +93,7 @@ export async function POST(
         title,
         body: messageBody,
         mediaUrls,
+        isPinned,
       },
       include: {
         author: {
@@ -127,7 +103,7 @@ export async function POST(
     });
 
     // Broadcasts reach the season as notifications too, not only the message list.
-    const notified = await notifyEventMessage(seasonId, title, messageBody, eventId);
+    const notified = notify ? await notifyEventMessage(seasonId, title, messageBody, eventId) : 0;
 
     return NextResponse.json(
       { message: created, notified, status: "Message created" },

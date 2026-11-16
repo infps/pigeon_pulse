@@ -79,8 +79,8 @@ export async function POST(
 
   const created = await prisma.$transaction(async (tx) => {
     await tx.raceItemResult.updateMany({
-      where: { raceItem: { raceId }, groupId: { not: null } },
-      data: { groupId: null },
+      where: { raceItem: { raceId }, OR: [{ groupId: { not: null } }, { birdDrop: { not: null } }] },
+      data: { groupId: null, birdDrop: null },
     });
     await tx.arrivalGroup.deleteMany({ where: { raceId } });
 
@@ -97,7 +97,8 @@ export async function POST(
       });
       await tx.raceItemResult.updateMany({
         where: { raceItemId: { in: g.arrivalIds } },
-        data: { groupId: grp.id },
+        // birdDrop = 1-based group index; calcRacePrizes splits FINAL prizes within a drop.
+        data: { groupId: grp.id, birdDrop: i + 1 },
       });
       out.push({ id: grp.id, raceItemIds: g.arrivalIds });
     }
@@ -137,7 +138,7 @@ export async function DELETE(
   await prisma.$transaction([
     prisma.raceItemResult.updateMany({
       where: { groupId, raceItem: { raceId } },
-      data: { groupId: null },
+      data: { groupId: null, birdDrop: null },
     }),
     prisma.arrivalGroup.delete({ where: { id: groupId } }),
   ]);

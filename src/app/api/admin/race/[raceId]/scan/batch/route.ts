@@ -3,7 +3,8 @@ import { requirePermission } from "@/lib/authorize";
 import { approvedInventory } from "@/lib/entry-filters";
 import { prisma } from "@/lib/prisma";
 import { invalidate, raceKey } from "@/lib/ttl-cache";
-import { lockRace } from "@/lib/race-results";
+import { lockRace, recalcPositions } from "@/lib/race-results";
+import { parseScanTime } from "@/lib/scan-time";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -12,22 +13,11 @@ const batchSchema = z.object({
   scans: z.array(
     z.object({
       ringNo: z.string(),
-      timestamp: z.string(),
+      timestamp: z.union([z.string(), z.number()]),
       antenna: z.string().optional(),
     })
   ).min(1).max(1000),
 });
-
-function parseTimestamp(ts: string): Date {
-  return new Date(
-    parseInt(ts.substring(0, 4)),
-    parseInt(ts.substring(4, 6)) - 1,
-    parseInt(ts.substring(6, 8)),
-    parseInt(ts.substring(8, 10)),
-    parseInt(ts.substring(10, 12)),
-    parseInt(ts.substring(12, 14)),
-  );
-}
 
 export async function POST(
   request: NextRequest,
@@ -43,24 +33,42 @@ export async function POST(
     const body = await request.json();
     const { scans } = batchSchema.parse(body);
 
-    // ── 1. Deduplicate: keep earliest timestamp per ringNo ──────────────────
-    const dedupedMap = new Map<string, string>(); // ringNo → timestamp
+    // ── 1. Parse + deduplicate: keep earliest time per ringNo ───────────────
+    const skipped: Array<{ ringNo: string; reason: string }> = [];
+    const dedupedMap = new Map<string, Date>(); // ringNo → arrival time
     for (const s of scans) {
-      const existing = dedupedMap.get(s.ringNo);
-      if (!existing || s.timestamp < existing) {
-        dedupedMap.set(s.ringNo, s.timestamp);
+      const at = parseScanTime(s.timestamp);
+      if (!at) {
+        skipped.push({ ringNo: s.ringNo, reason: `Invalid timestamp: ${s.timestamp}` });
+        continue;
       }
+      const existing = dedupedMap.get(s.ringNo);
+      if (!existing || at < existing) dedupedMap.set(s.ringNo, at);
     }
-    const deduped = Array.from(dedupedMap.entries()).map(([ringNo, timestamp]) => ({ ringNo, timestamp }));
+    const parsedRings = new Set(dedupedMap.keys());
+    // A ring with one bad and one good stamp is still processed; drop its skip.
+    for (let i = skipped.length - 1; i >= 0; i--) if (parsedRings.has(skipped[i].ringNo)) skipped.splice(i, 1);
 
     // ── 2. Fetch race once ──────────────────────────────────────────────────
     const race = await prisma.race.findUnique({
       where: { id: raceIdInt },
-      include: { seasonRel: { select: { eventId: true } } },
+      include: {
+        seasonRel: { select: { eventId: true } },
+        raceType: { select: { prizeRole: true } },
+      },
     });
     if (!race) return NextResponse.json({ message: "Race not found" }, { status: 404 });
 
     const isLive = race.status === "STARTED" || race.status === "ENDED";
+    // Live-race scans stamped at/before release are clock or format errors — skip them.
+    const deduped: Array<{ ringNo: string; at: Date }> = [];
+    for (const [ringNo, at] of dedupedMap) {
+      if (isLive && race.startTime && at <= race.startTime) {
+        skipped.push({ ringNo, reason: `Scan time ${at.toISOString()} is not after race start ${race.startTime.toISOString()}` });
+      } else {
+        deduped.push({ ringNo, at });
+      }
+    }
     const ringNos = deduped.map((s) => s.ringNo);
 
     // ── 3. Bulk fetch birds (by band OR rfid) ───────────────────────────────
@@ -93,18 +101,13 @@ export async function POST(
       existingRaceItems.map((ri) => [ri.inventoryItem?.birdId, ri])
     );
 
-    // ── 5. Resolve presetId + arrivedCount once ─────────────────────────────
-    const [arrivedStatusId, arrivedCountNow] = await Promise.all([
-      isLive
-        ? prisma.birdStatusPreset.findFirst({
-            where: { trigger: "ARRIVE", isActive: true, OR: [{ seasonId: race.seasonId ?? undefined }, { seasonId: null }] },
-            orderBy: [{ seasonId: "desc" }, { sortOrder: "asc" }],
-          }).then((p) => p?.id ?? null)
-        : Promise.resolve(null),
-      isLive
-        ? prisma.raceItem.count({ where: { raceId: raceIdInt, status: "ARRIVED" } })
-        : Promise.resolve(0),
-    ]);
+    // ── 5. Resolve presetId once ────────────────────────────────────────────
+    const arrivedStatusId = isLive
+      ? await prisma.birdStatusPreset.findFirst({
+          where: { trigger: "ARRIVE", isActive: true, OR: [{ seasonId: race.seasonId ?? undefined }, { seasonId: null }] },
+          orderBy: [{ seasonId: "desc" }, { sortOrder: "asc" }],
+        }).then((p) => p?.id ?? null)
+      : null;
 
     // ── 6. Resolve defaulter group once (for foreign birds) ─────────────────
     let defaulterGroup: { id: number } | null = null;
@@ -124,27 +127,24 @@ export async function POST(
     };
 
     // ── 7. Process each scan ────────────────────────────────────────────────
-    let positionCounter = arrivedCountNow;
-
     const results: Array<{
       ringNo: string;
       scanType: string;
       isNewScan: boolean;
       message: string;
-      birdPosition?: number;
+      birdPosition?: number | null;
     }> = [];
 
     // Separate into known-registered, and foreign
-    const toArrive: Array<{ ringNo: string; timestamp: string; raceItem: typeof existingRaceItems[0] }> = [];
-    const toForeign: Array<{ ringNo: string; timestamp: string; bird?: { id: number } }> = [];
-    const skipped: Array<{ ringNo: string; reason: string }> = [];
+    const toArrive: Array<{ ringNo: string; at: Date; raceItem: typeof existingRaceItems[0] }> = [];
+    const toForeign: Array<{ ringNo: string; at: Date; bird?: { id: number } }> = [];
 
     for (const scan of deduped) {
       const bird = ringToBird.get(scan.ringNo);
       const raceItem = bird ? birdIdToRaceItem.get(bird.id) : undefined;
 
       if (!bird || !raceItem) {
-        toForeign.push({ ringNo: scan.ringNo, timestamp: scan.timestamp, bird: bird ?? undefined });
+        toForeign.push({ ringNo: scan.ringNo, at: scan.at, bird: bird ?? undefined });
         continue;
       }
 
@@ -163,7 +163,7 @@ export async function POST(
         if (raceItem.status === "LOFT_BASKETED") {
           skipped.push({ ringNo: scan.ringNo, reason: "Already loft-basketed" });
         } else {
-          toArrive.push({ ringNo: scan.ringNo, timestamp: scan.timestamp, raceItem });
+          toArrive.push({ ringNo: scan.ringNo, at: scan.at, raceItem });
         }
         continue;
       }
@@ -174,7 +174,7 @@ export async function POST(
         continue;
       }
 
-      toArrive.push({ ringNo: scan.ringNo, timestamp: scan.timestamp, raceItem });
+      toArrive.push({ ringNo: scan.ringNo, at: scan.at, raceItem });
     }
 
     // ── 8a. Process loft / arrivals ─────────────────────────────────────────
@@ -189,26 +189,15 @@ export async function POST(
           results.push({ ringNo: a.ringNo, scanType: "loft", isNewScan: true, message: "Added to loft" });
         }
       } else {
-        // Assign positions sequentially (sorted by timestamp for correct order)
-        toArrive.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-
-        // Positions must be allocated under the race lock, and the ARRIVED
-        // count re-read inside it — the count taken at step 5 is stale the
-        // moment another scanner commits. Everything that depends on the
-        // position runs in the same transaction so a conflict rolls back the
-        // whole batch rather than leaving a half-numbered race.
+        // Positions are recomputed for the whole race under the race lock
+        // after the results are written, so out-of-order and concurrent scans
+        // rank by arrival time and the FINAL unpaid rule is applied. Everything
+        // runs in one transaction so a conflict rolls back the whole batch.
         const arrivalUpdates = await prisma.$transaction(
           async (tx) => {
             await lockRace(tx, raceIdInt);
 
-            positionCounter = await tx.raceItem.count({
-              where: { raceId: raceIdInt, status: "ARRIVED" },
-            });
-
-            const updates = toArrive.map((a) => {
-              positionCounter++;
-              return { scan: a, pos: positionCounter, arrivalTime: parseTimestamp(a.timestamp) };
-            });
+            const updates = toArrive.map((a) => ({ scan: a, pos: null as number | null, arrivalTime: a.at }));
 
             for (const { scan, arrivalTime } of updates) {
               await tx.raceItem.update({
@@ -221,13 +210,21 @@ export async function POST(
               });
             }
 
-            for (const { scan, pos, arrivalTime } of updates) {
-              if (race.status === "ENDED") continue; // ended → foreign, no result row
-              await tx.raceItemResult.upsert({
-                where: { raceItemId: scan.raceItem.id },
-                create: { raceItemId: scan.raceItem.id, arrivalTime, birdPosition: pos },
-                update: { arrivalTime, birdPosition: pos },
+            if (race.status !== "ENDED") { // ended → foreign, no result row
+              for (const { scan, arrivalTime } of updates) {
+                await tx.raceItemResult.upsert({
+                  where: { raceItemId: scan.raceItem.id },
+                  create: { raceItemId: scan.raceItem.id, arrivalTime },
+                  update: { arrivalTime },
+                });
+              }
+              await recalcPositions(tx, raceIdInt, race.raceType?.prizeRole === "FINAL");
+              const placed = await tx.raceItemResult.findMany({
+                where: { raceItemId: { in: updates.map((u) => u.scan.raceItem.id) } },
+                select: { raceItemId: true, birdPosition: true },
               });
+              const posById = new Map(placed.map((r) => [r.raceItemId, r.birdPosition]));
+              for (const u of updates) u.pos = posById.get(u.scan.raceItem.id) ?? null;
             }
 
             await tx.birdEventHistory.createMany({
@@ -237,7 +234,7 @@ export async function POST(
                 detail:
                   race.status === "ENDED"
                     ? "Marked as FOREIGN_BIRD (arrived after race ended)"
-                    : `Arrived at position ${pos}, race ${raceId}`,
+                    : pos != null ? `Arrived at position ${pos}, race ${raceId}` : `Arrived (unplaced), race ${raceId}`,
                 performedById: session.user.id ?? null,
               })),
             });
@@ -252,7 +249,7 @@ export async function POST(
             ringNo: scan.ringNo,
             scanType: race.status === "ENDED" ? "foreign" : "arrival",
             isNewScan: true,
-            message: race.status === "ENDED" ? "Marked as foreign (after race ended)" : `Arrived at position ${pos}`,
+            message: race.status === "ENDED" ? "Marked as foreign (after race ended)" : pos != null ? `Arrived at position ${pos}` : "Arrived (unplaced)",
             birdPosition: race.status === "ENDED" ? undefined : pos,
           });
         }
@@ -279,7 +276,7 @@ export async function POST(
             raceId: raceIdInt,
             eventId: race.seasonRel?.eventId ?? null,
             rfid: u.ringNo,
-            arrivalTime: parseTimestamp(u.timestamp),
+            arrivalTime: u.at,
           })),
         });
       }
@@ -302,8 +299,7 @@ export async function POST(
 
       // Sequential: one transaction each in parallel would take one pool
       // connection per foreign bird and starve every other request.
-      for (const { ringNo, timestamp, bird } of knownForeign) {
-        const arrivalTime = parseTimestamp(timestamp);
+      for (const { ringNo, at: arrivalTime, bird } of knownForeign) {
 
         await prisma.$transaction(async (tx) => {
           const birdId = bird!.id;
@@ -338,7 +334,7 @@ export async function POST(
     }
 
     const summary = {
-      total: deduped.length,
+      total: new Set(scans.map((s) => s.ringNo)).size,
       arrived: results.filter((r) => r.scanType === "arrival").length,
       loft: results.filter((r) => r.scanType === "loft").length,
       foreign: results.filter((r) => r.scanType === "foreign").length,

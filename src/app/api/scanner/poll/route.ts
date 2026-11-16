@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 
 function getClientIp(req: NextRequest): string {
   return (
@@ -15,6 +16,9 @@ const tipesLastRfid = new Map<string, string>();
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session?.user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
     const body = await request.json().catch(() => ({}));
     const { startedAt } = body;
 
@@ -48,7 +52,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json([]);
     }
 
-    // No local scan for this device — fall back to tipes.de
+    // No local scan for this device — fall back to tipes.de, only if an account is configured.
+    const tipesOid = process.env.TIPES_OID;
+    if (!tipesOid) return NextResponse.json([]);
     const response = await fetch("https://olr.tipes.de/backend/inc/funcs/jsFuncs.php", {
       method: "POST",
       headers: {
@@ -57,7 +63,7 @@ export async function POST(request: NextRequest) {
         Origin: "https://olr.tipes.de",
         Referer: "https://olr.tipes.de/backend/index.php?mod=pigeons",
       },
-      body: "action=get_last_reg_el&oid=20210012&zid=1&lang=EN",
+      body: `action=get_last_reg_el&oid=${encodeURIComponent(tipesOid)}&zid=1&lang=EN`,
     });
 
     if (!response.ok) {

@@ -249,6 +249,7 @@ class PigeonPulseClient:
             resp = self.session.post(
                 url,
                 json={"rfidTag": rfid_tag, "scannerId": scanner_id},
+                headers={"Authorization": f"Bearer {self.token}"} if self.token else {},
                 timeout=5
             )
             if resp.ok:
