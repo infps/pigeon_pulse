@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Check, ShieldQuestion, UserX, Undo2 } from "lucide-react";
+import { Check, ChevronDown, ShieldQuestion, UserX, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 
 type Approval = "PENDING" | "APPROVED" | "DECLINED";
@@ -68,6 +68,7 @@ export function ApprovalQueue({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const [declining, setDeclining] = useState<QueueUser | null>(null);
   const [note, setNote] = useState("");
   const [working, setWorking] = useState<string | null>(null);
+  const [open, setOpen] = useState(true);
 
   // Only the latest request may write state; a slow reply for a tab the
   // admin already left would otherwise replace the current list.
@@ -130,8 +131,8 @@ export function ApprovalQueue({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
   return (
     <Card>
-      <CardHeader className="pb-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <CardHeader className={open ? "pb-3" : undefined}>
+        <div className="flex flex-wrap items-center gap-3 min-w-0">
           <CardTitle className="text-base flex items-center gap-2">
             <ShieldQuestion className="h-4 w-4" />
             Registrations
@@ -139,33 +140,44 @@ export function ApprovalQueue({ isSuperAdmin }: { isSuperAdmin: boolean }) {
               <Badge className="ml-1">{counts.PENDING} waiting</Badge>
             )}
           </CardTitle>
+          <div className="flex flex-wrap gap-1.5">
+            {FILTERS.map((f) => (
+              <Button
+                key={f.key}
+                size="sm"
+                variant={filter === f.key ? "default" : "outline"}
+                className="h-7 text-xs"
+                onClick={() => setFilter(f.key)}
+              >
+                {f.label}
+                {f.key !== "ALL" && counts[f.key] != null && (
+                  <span className="ml-1.5 opacity-70">{counts[f.key]}</span>
+                )}
+              </Button>
+            ))}
+          </div>
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name, email or loft"
-            className="h-8 w-56 text-xs"
+            className="h-8 w-56 text-xs ml-auto"
           />
-        </div>
-
-        <div className="flex flex-wrap gap-1.5 pt-2">
-          {FILTERS.map((f) => (
-            <Button
-              key={f.key}
-              size="sm"
-              variant={filter === f.key ? "default" : "outline"}
-              className="h-7 text-xs"
-              onClick={() => setFilter(f.key)}
-            >
-              {f.label}
-              {f.key !== "ALL" && counts[f.key] != null && (
-                <span className="ml-1.5 opacity-70">{counts[f.key]}</span>
-              )}
-            </Button>
-          ))}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 w-7 p-0"
+            onClick={() => setOpen(!open)}
+            aria-expanded={open}
+            aria-label={open ? "Collapse registrations" : "Expand registrations"}
+          >
+            <ChevronDown className={`h-4 w-4 transition-transform ${open ? "" : "-rotate-90"}`} />
+          </Button>
         </div>
       </CardHeader>
 
-      <CardContent>
+      {open && (
+      // ponytail: capped height so the sticky card never covers the table; collapse hides it fully
+      <CardContent className="max-h-[30vh] overflow-y-auto">
         {loading ? (
           <div className="space-y-2">
             <Skeleton className="h-16 w-full" />
@@ -259,6 +271,7 @@ export function ApprovalQueue({ isSuperAdmin }: { isSuperAdmin: boolean }) {
           </div>
         )}
       </CardContent>
+      )}
 
       <Dialog open={declining !== null} onOpenChange={(o) => !o && setDeclining(null)}>
         <DialogContent className="sm:max-w-md">

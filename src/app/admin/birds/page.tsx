@@ -204,7 +204,7 @@ export default function AdminBirdsPage() {
   );
 
   return (
-    <div className="p-8 w-full mx-auto">
+    <div className="p-8 w-full min-w-0 mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <h1 className="text-3xl font-bold">All Birds</h1>
@@ -212,8 +212,9 @@ export default function AdminBirdsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-3 mb-4 items-end">
-        <div className="md:col-span-2">
+      <div className="rounded-lg border bg-card p-4 min-w-0 space-y-4">
+      <div className="flex flex-wrap gap-2 items-end">
+        <div className="flex-1 min-w-48">
           <Label htmlFor="search">Search</Label>
           <Input
             id="search"
@@ -222,7 +223,7 @@ export default function AdminBirdsPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div>
+        <div className="w-40">
           <Label htmlFor="band">Band</Label>
           <Input
             id="band"
@@ -231,7 +232,7 @@ export default function AdminBirdsPage() {
             onChange={(e) => setBand(e.target.value)}
           />
         </div>
-        <div>
+        <div className="w-40">
           <Label>Breeder</Label>
           <Select
             value={breederId === "" ? ALL : breederId}
@@ -250,7 +251,7 @@ export default function AdminBirdsPage() {
             </SelectContent>
           </Select>
         </div>
-        <div>
+        <div className="w-40">
           <Label>Color</Label>
           <Select
             value={color === "" ? ALL : color}
@@ -269,7 +270,7 @@ export default function AdminBirdsPage() {
             </SelectContent>
           </Select>
         </div>
-        <div>
+        <div className="w-40">
           <Label>Sex</Label>
           <Select
             value={sex === "" ? ALL : sex}
@@ -286,7 +287,7 @@ export default function AdminBirdsPage() {
             </SelectContent>
           </Select>
         </div>
-        <div>
+        <div className="w-40">
           <Label>Status</Label>
           <Select value={status} onValueChange={setStatus}>
             <SelectTrigger className="w-full">
@@ -298,11 +299,6 @@ export default function AdminBirdsPage() {
               <SelectItem value="lost">Lost</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-        <div className="md:col-span-6">
-          <Button variant="outline" size="sm" onClick={clearFilters}>
-            Clear filters
-          </Button>
         </div>
       </div>
 
@@ -319,8 +315,15 @@ export default function AdminBirdsPage() {
           data={birds}
           onRowClick={(bird) => setSelectedBirdId(bird.id)}
           rowClickMode="action"
+          // ponytail: Clear rides DataTable's toolbar slot so it shares the row with View options
+          toolbarExtra={
+            <Button variant="outline" size="sm" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          }
         />
       )}
+      </div>
 
       <BirdDetailDialog
         open={selectedBirdId !== null}

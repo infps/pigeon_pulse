@@ -308,13 +308,13 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="p-8 w-full mx-auto">
-      <div className="mb-6">
+    <div className="p-8 w-full min-w-0 mx-auto">
+      <div className="sticky top-0 z-20 mb-6 bg-background">
         <ApprovalQueue isSuperAdmin={isSuperAdmin} />
       </div>
 
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           <Select
             value={statusFilter}
             onValueChange={setStatusFilter}
@@ -389,7 +389,7 @@ export default function UsersPage() {
           />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"

@@ -9,6 +9,7 @@ import {
   SortingState,
   VisibilityState,
   RowSelectionState,
+  RowData,
   flexRender,
   getCoreRowModel,
   getFacetedRowModel,
@@ -48,6 +49,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+
+declare module "@tanstack/react-table" {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ColumnMeta<TData extends RowData, TValue> {
+    /** Hidden by default; user can re-enable via View options. */
+    hidden?: boolean
+  }
+}
 
 export interface FacetedFilter {
   id: string
@@ -124,11 +133,14 @@ export function DataTable<TData, TValue>({
   )
 
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(() => {
-    if (tableId) {
-      const saved = loadPrefs(tableId)
-      if (saved?.visibility) return saved.visibility
+    // meta.hidden defaults sit under saved prefs, so explicit user toggles win
+    const defaults: VisibilityState = {}
+    for (const c of columns) {
+      const id = c.id ?? ("accessorKey" in c ? String(c.accessorKey) : undefined)
+      if (c.meta?.hidden && id) defaults[id] = false
     }
-    return initialColumnVisibility ?? {}
+    const saved = tableId ? loadPrefs(tableId)?.visibility : undefined
+    return { ...defaults, ...(saved ?? initialColumnVisibility) }
   })
 
   const [columnOrder, setColumnOrder] = React.useState<ColumnOrderState>(() => {

@@ -333,472 +333,456 @@ export function AddEditBreederDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl !flex flex-col max-h-[90vh] overflow-hidden">
+      <DialogContent className="w-[95vw] max-w-[95vw] xl:max-w-7xl !flex flex-col max-h-[95vh] overflow-hidden">
         <DialogHeader className="shrink-0">
           <DialogTitle>
             {editingUser ? "Edit Breeder" : copyUser ? "Copy Breeder" : "Add New Breeder"}
           </DialogTitle>
         </DialogHeader>
         <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-          <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-          <div>
-            <Label>Profile Picture</Label>
-            <ImageUploadWithCrop
-              aspect={1}
-              value={imagePreview}
-              onChange={(url, file) => {
-                setImagePreview(url);
-                setImageFile(file || null);
-              }}
-              placeholder="Click or drag to upload profile picture"
-            />
-          </div>
-
-          <div>
-            <div className="flex items-center gap-1 mb-1">
-              <Label htmlFor="loftName">Loft Name</Label>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                </TooltipTrigger>
-                <TooltipContent className="max-w-xs">
-                  <p className="font-medium mb-1">Why add a loft name?</p>
-                  <ul className="list-disc list-inside space-y-1 text-xs">
-                    <li>Identifies the breeder&apos;s physical loft during basketting (e.g. LB-SMITH-1)</li>
-                    <li>Distinguishes breeders with the same last name</li>
-                    <li>Used on basket labels and race sheets</li>
-                    <li>Common designations: AGN, AS, OLR club tags, or custom names</li>
-                    <li>Helpful when one person manages multiple lofts</li>
-                  </ul>
-                </TooltipContent>
-              </Tooltip>
-            </div>
-            <Input
-              id="loftName"
-              value={formData.loftName}
-              onChange={(e) =>
-                setFormData({ ...formData, loftName: e.target.value })
-              }
-              placeholder="e.g. Smith Loft, AGN-42"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="name">Name *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setField("name", e.target.value)}
-              />
-              <FE field="name" />
-            </div>
-
-            <div>
-              <Label htmlFor="lastName">Last Name</Label>
-              <Input
-                id="lastName"
-                value={formData.lastName}
-                onChange={(e) =>
-                  setFormData({ ...formData, lastName: e.target.value })
-                }
-              />
-            </div>
-          </div>
-
-          {editingUser ? (
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={formData.email} disabled />
-            </div>
-          ) : (
-            <>
-              <div>
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setField("email", e.target.value)}
-                />
-                <FE field="email" />
-              </div>
-
-              <div>
-                <Label htmlFor="password">Password *</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    value={formData.password}
-                    onChange={(e) => setField("password", e.target.value)}
-                    minLength={8}
-                    autoComplete="new-password"
+          <div className="flex-1 overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-x-6 gap-y-4">
+              <section className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground border-b pb-1">Identity</h3>
+                <div>
+                  <Label>Profile Picture</Label>
+                  <ImageUploadWithCrop
+                    aspect={1}
+                    value={imagePreview}
+                    onChange={(url, file) => {
+                      setImagePreview(url);
+                      setImageFile(file || null);
+                    }}
+                    placeholder="Upload profile picture"
+                    className="h-32 w-full"
                   />
-                  <button
-                    type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    onClick={() => setShowPassword(!showPassword)}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
                 </div>
-                <FE field="password" />
-              </div>
+                <div>
+                  <div className="flex items-center gap-1 mb-1">
+                    <Label htmlFor="loftName">Loft Name</Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        <p className="font-medium mb-1">Why add a loft name?</p>
+                        <ul className="list-disc list-inside space-y-1 text-xs">
+                          <li>Identifies the breeder&apos;s physical loft during basketting (e.g. LB-SMITH-1)</li>
+                          <li>Distinguishes breeders with the same last name</li>
+                          <li>Used on basket labels and race sheets</li>
+                          <li>Common designations: AGN, AS, OLR club tags, or custom names</li>
+                          <li>Helpful when one person manages multiple lofts</li>
+                        </ul>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <Input
+                    id="loftName"
+                    value={formData.loftName}
+                    onChange={(e) =>
+                      setFormData({ ...formData, loftName: e.target.value })
+                    }
+                    placeholder="e.g. Smith Loft, AGN-42"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="name">Name *</Label>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) => setField("name", e.target.value)}
+                    />
+                    <FE field="name" />
+                  </div>
 
-              <div>
-                <Label htmlFor="confirmPassword">Confirm Password *</Label>
-                <Input
-                  id="confirmPassword"
-                  type={showPassword ? "text" : "password"}
-                  value={confirmPassword}
-                  onChange={(e) => {
-                    setConfirmPassword(e.target.value);
-                    setFieldErrors((er) => { const n = { ...er }; delete n.confirmPassword; return n; });
-                  }}
-                  autoComplete="new-password"
-                />
-                <FE field="confirmPassword" />
-              </div>
-            </>
-          )}
+                  <div>
+                    <Label htmlFor="lastName">Last Name</Label>
+                    <Input
+                      id="lastName"
+                      value={formData.lastName}
+                      onChange={(e) =>
+                        setFormData({ ...formData, lastName: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="username">Username</Label>
+                    <Input
+                      id="username"
+                      value={formData.username}
+                      onChange={(e) => setField("username", e.target.value)}
+                    />
+                    <FE field="username" />
+                  </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                value={formData.username}
-                onChange={(e) => setField("username", e.target.value)}
-              />
-              <FE field="username" />
-            </div>
+                  <div>
+                    <Label htmlFor="displayUsername">Display Username</Label>
+                    <Input
+                      id="displayUsername"
+                      value={formData.displayUsername}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          displayUsername: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="role">Role</Label>
+                    <Select
+                      value={formData.role}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, role: value as UserRole })
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="BREEDER">Breeder</SelectItem>
+                        <SelectItem value="ADMIN">Admin</SelectItem>
+                        <SelectItem value="SUPERADMIN">Super Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-            <div>
-              <Label htmlFor="displayUsername">Display Username</Label>
-              <Input
-                id="displayUsername"
-                value={formData.displayUsername}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    displayUsername: e.target.value,
-                  })
-                }
-              />
-            </div>
-          </div>
+                  <div>
+                    <Label htmlFor="status">Status</Label>
+                    <Select
+                      value={formData.status}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, status: value as UserStatus })
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ACTIVE">Active</SelectItem>
+                        <SelectItem value="INACTIVE">Inactive</SelectItem>
+                        <SelectItem value="PROSPECT">Prospect</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </section>
+              <section className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground border-b pb-1">Account &amp; Contact</h3>
+                {editingUser ? (
+                  <div>
+                    <Label htmlFor="email">Email</Label>
+                    <Input id="email" type="email" value={formData.email} disabled />
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <Label htmlFor="email">Email *</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setField("email", e.target.value)}
+                      />
+                      <FE field="email" />
+                    </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="role">Role</Label>
-              <Select
-                value={formData.role}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, role: value as UserRole })
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="BREEDER">Breeder</SelectItem>
-                  <SelectItem value="ADMIN">Admin</SelectItem>
-                  <SelectItem value="SUPERADMIN">Super Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                    <div>
+                      <Label htmlFor="password">Password *</Label>
+                      <div className="relative">
+                        <Input
+                          id="password"
+                          type={showPassword ? "text" : "password"}
+                          value={formData.password}
+                          onChange={(e) => setField("password", e.target.value)}
+                          minLength={8}
+                          autoComplete="new-password"
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          onClick={() => setShowPassword(!showPassword)}
+                          aria-label={showPassword ? "Hide password" : "Show password"}
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      <FE field="password" />
+                    </div>
 
-            <div>
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, status: value as UserStatus })
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ACTIVE">Active</SelectItem>
-                  <SelectItem value="INACTIVE">Inactive</SelectItem>
-                  <SelectItem value="PROSPECT">Prospect</SelectItem>
-                </SelectContent>
-              </Select>
+                    <div>
+                      <Label htmlFor="confirmPassword">Confirm Password *</Label>
+                      <Input
+                        id="confirmPassword"
+                        type={showPassword ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value);
+                          setFieldErrors((er) => { const n = { ...er }; delete n.confirmPassword; return n; });
+                        }}
+                        autoComplete="new-password"
+                      />
+                      <FE field="confirmPassword" />
+                    </div>
+                  </>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="phoneNumber">Phone Number</Label>
+                    <Input
+                      id="phoneNumber"
+                      value={formData.phoneNumber}
+                      onChange={(e) =>
+                        setFormData({ ...formData, phoneNumber: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="phoneNumber2">2nd Mobile Number</Label>
+                    <Input
+                      id="phoneNumber2"
+                      value={formData.phoneNumber2}
+                      onChange={(e) => setField("phoneNumber2", e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="webAddress">Website</Label>
+                  <Input
+                    id="webAddress"
+                    type="url"
+                    value={formData.webAddress}
+                    onChange={(e) =>
+                      setFormData({ ...formData, webAddress: e.target.value })
+                    }
+                    placeholder="https://example.com"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="defaultTeamName">Default Team Name</Label>
+                  <Input
+                    id="defaultTeamName"
+                    value={formData.defaultTeamName}
+                    onChange={(e) => setField("defaultTeamName", e.target.value)}
+                    placeholder="Pre-fills loft name on registration"
+                  />
+                </div>
+              </section>
+              <section className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground border-b pb-1">Address</h3>
+                <div>
+                  <Label htmlFor="country">Country</Label>
+                  <CountrySelect
+                    id="country"
+                    value={formData.country}
+                    onChange={(value) =>
+                      setFormData({ ...formData, country: value, state: "" })
+                    }
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="state">State</Label>
+                    <Select
+                      value={formData.state}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, state: value })
+                      }
+                      disabled={!formData.country || availableStates.length === 0}
+                    >
+                      <SelectTrigger id="state" className="w-full">
+                        <SelectValue placeholder={formData.country ? "Select state" : "Select country first"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableStates.map((s) => (
+                          <SelectItem key={s.code} value={s.code}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="city">City</Label>
+                    <Input
+                      id="city"
+                      value={formData.city}
+                      onChange={(e) =>
+                        setFormData({ ...formData, city: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="address">Address</Label>
+                    <PrimaryRadio id="primary-address-1" checked={formData.primaryAddress === "1"} onSelect={() => setField("primaryAddress", "1")} />
+                  </div>
+                  <Input
+                    id="address"
+                    value={formData.address}
+                    onChange={(e) =>
+                      setFormData({ ...formData, address: e.target.value })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="postalCode">Postal Code</Label>
+                  <Input
+                    id="postalCode"
+                    value={formData.postalCode}
+                    onChange={(e) =>
+                      setFormData({ ...formData, postalCode: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="country2">Country 2</Label>
+                    <CountrySelect
+                      id="country2"
+                      value={formData.country2}
+                      onChange={(value) =>
+                        setFormData({ ...formData, country2: value, state2: "" })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="state2">State 2</Label>
+                    <Select
+                      value={formData.state2}
+                      onValueChange={(value) => setField("state2", value)}
+                      disabled={!formData.country2 || availableStates2.length === 0}
+                    >
+                      <SelectTrigger id="state2" className="w-full">
+                        <SelectValue placeholder={formData.country2 ? "Select state" : "Select country first"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableStates2.map((s) => (
+                          <SelectItem key={s.code} value={s.code}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="address2">Address 2</Label>
+                    <PrimaryRadio id="primary-address-2" checked={formData.primaryAddress === "2"} onSelect={() => setField("primaryAddress", "2")} />
+                  </div>
+                  <Input
+                    id="address2"
+                    value={formData.address2}
+                    onChange={(e) => setField("address2", e.target.value)}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="city2">City 2</Label>
+                    <Input id="city2" value={formData.city2} onChange={(e) => setField("city2", e.target.value)} />
+                  </div>
+                  <div>
+                    <Label htmlFor="zip2">Postal Code 2</Label>
+                    <Input id="zip2" value={formData.zip2} onChange={(e) => setField("zip2", e.target.value)} />
+                  </div>
+                </div>
+              </section>
+              <section className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground border-b pb-1">Tax, Legal &amp; Settings</h3>
+                <div>
+                  <Label htmlFor="legalName">Legal Name (for tax purposes)</Label>
+                  <Input
+                    id="legalName"
+                    value={formData.legalName}
+                    onChange={(e) => setFormData({ ...formData, legalName: e.target.value })}
+                    placeholder="Full legal name"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="ssn">SSN</Label>
+                    <Input
+                      id="ssn"
+                      value={formData.ssn}
+                      onChange={(e) =>
+                        setFormData({ ...formData, ssn: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="taxNumber">Tax Number</Label>
+                    <Input
+                      id="taxNumber"
+                      value={formData.taxNumber}
+                      onChange={(e) =>
+                        setFormData({ ...formData, taxNumber: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="ssnDoc">SSN Document (PDF/Image)</Label>
+                  <Input
+                    id="ssnDoc"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => setSsnDocFile(e.target.files?.[0] || null)}
+                  />
+                  {editingUser?.ssnDocKey && !ssnDocFile && (
+                    <p className="text-xs text-muted-foreground mt-1">Document on file</p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="taxDoc">Tax Document (PDF/Image)</Label>
+                  <Input
+                    id="taxDoc"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => setTaxDocFile(e.target.files?.[0] || null)}
+                  />
+                  {editingUser?.taxDocKey && !taxDocFile && (
+                    <p className="text-xs text-muted-foreground mt-1">Document on file</p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="timezone">Timezone</Label>
+                  <Select
+                    value={formData.timezone}
+                    onValueChange={(value) => setFormData({ ...formData, timezone: value })}
+                  >
+                    <SelectTrigger id="timezone">
+                      <SelectValue placeholder="Select timezone" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(typeof Intl.supportedValuesOf === "function"
+                        ? Intl.supportedValuesOf("timeZone")
+                        : ["America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Phoenix","Pacific/Honolulu","America/Anchorage","Europe/London","Europe/Paris","Asia/Tokyo","Australia/Sydney"]
+                      ).map((tz) => (
+                        <SelectItem key={tz} value={tz}>{tz}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="note">Note</Label>
+                  <Input
+                    id="note"
+                    value={formData.note}
+                    onChange={(e) =>
+                      setFormData({ ...formData, note: e.target.value })
+                    }
+                    placeholder="Additional notes..."
+                  />
+                </div>
+              </section>
             </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <Label htmlFor="country">Country</Label>
-              <CountrySelect
-                id="country"
-                value={formData.country}
-                onChange={(value) =>
-                  setFormData({ ...formData, country: value, state: "" })
-                }
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="state">State</Label>
-              <Select
-                value={formData.state}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, state: value })
-                }
-                disabled={!formData.country || availableStates.length === 0}
-              >
-                <SelectTrigger id="state">
-                  <SelectValue placeholder={formData.country ? "Select state" : "Select country first"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableStates.map((s) => (
-                    <SelectItem key={s.code} value={s.code}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="city">City</Label>
-              <Input
-                id="city"
-                value={formData.city}
-                onChange={(e) =>
-                  setFormData({ ...formData, city: e.target.value })
-                }
-              />
-            </div>
-          </div>
-
-
-          <div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="address">Address</Label>
-              <PrimaryRadio id="primary-address-1" checked={formData.primaryAddress === "1"} onSelect={() => setField("primaryAddress", "1")} />
-            </div>
-            <Input
-              id="address"
-              value={formData.address}
-              onChange={(e) =>
-                setFormData({ ...formData, address: e.target.value })
-              }
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="country2">Country 2</Label>
-              <CountrySelect
-                id="country2"
-                value={formData.country2}
-                onChange={(value) =>
-                  setFormData({ ...formData, country2: value, state2: "" })
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor="state2">State 2</Label>
-              <Select
-                value={formData.state2}
-                onValueChange={(value) => setField("state2", value)}
-                disabled={!formData.country2 || availableStates2.length === 0}
-              >
-                <SelectTrigger id="state2" className="w-full">
-                  <SelectValue placeholder={formData.country2 ? "Select state" : "Select country first"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableStates2.map((s) => (
-                    <SelectItem key={s.code} value={s.code}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="address2">Address 2</Label>
-              <PrimaryRadio id="primary-address-2" checked={formData.primaryAddress === "2"} onSelect={() => setField("primaryAddress", "2")} />
-            </div>
-            <Input
-              id="address2"
-              value={formData.address2}
-              onChange={(e) => setField("address2", e.target.value)}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="city2">City 2</Label>
-              <Input id="city2" value={formData.city2} onChange={(e) => setField("city2", e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="zip2">Postal Code 2</Label>
-              <Input id="zip2" value={formData.zip2} onChange={(e) => setField("zip2", e.target.value)} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="postalCode">Postal Code</Label>
-              <Input
-                id="postalCode"
-                value={formData.postalCode}
-                onChange={(e) =>
-                  setFormData({ ...formData, postalCode: e.target.value })
-                }
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="phoneNumber">Phone Number</Label>
-              <Input
-                id="phoneNumber"
-                value={formData.phoneNumber}
-                onChange={(e) =>
-                  setFormData({ ...formData, phoneNumber: e.target.value })
-                }
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="phoneNumber2">2nd Mobile Number</Label>
-              <Input
-                id="phoneNumber2"
-                value={formData.phoneNumber2}
-                onChange={(e) => setField("phoneNumber2", e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="defaultTeamName">Default Team Name</Label>
-              <Input
-                id="defaultTeamName"
-                value={formData.defaultTeamName}
-                onChange={(e) => setField("defaultTeamName", e.target.value)}
-                placeholder="Pre-fills loft name on registration"
-              />
-            </div>
-          </div>
-
-          <div>
-            <Label htmlFor="webAddress">Website</Label>
-            <Input
-              id="webAddress"
-              type="url"
-              value={formData.webAddress}
-              onChange={(e) =>
-                setFormData({ ...formData, webAddress: e.target.value })
-              }
-              placeholder="https://example.com"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="ssn">SSN</Label>
-              <Input
-                id="ssn"
-                value={formData.ssn}
-                onChange={(e) =>
-                  setFormData({ ...formData, ssn: e.target.value })
-                }
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="taxNumber">Tax Number</Label>
-              <Input
-                id="taxNumber"
-                value={formData.taxNumber}
-                onChange={(e) =>
-                  setFormData({ ...formData, taxNumber: e.target.value })
-                }
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="ssnDoc">SSN Document (PDF/Image)</Label>
-              <Input
-                id="ssnDoc"
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={(e) => setSsnDocFile(e.target.files?.[0] || null)}
-              />
-              {editingUser?.ssnDocKey && !ssnDocFile && (
-                <p className="text-xs text-muted-foreground mt-1">Document on file</p>
-              )}
-            </div>
-            <div>
-              <Label htmlFor="taxDoc">Tax Document (PDF/Image)</Label>
-              <Input
-                id="taxDoc"
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={(e) => setTaxDocFile(e.target.files?.[0] || null)}
-              />
-              {editingUser?.taxDocKey && !taxDocFile && (
-                <p className="text-xs text-muted-foreground mt-1">Document on file</p>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="note">Note</Label>
-              <Input
-                id="note"
-                value={formData.note}
-                onChange={(e) =>
-                  setFormData({ ...formData, note: e.target.value })
-                }
-                placeholder="Additional notes..."
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="timezone">Timezone</Label>
-              <Select
-                value={formData.timezone}
-                onValueChange={(value) => setFormData({ ...formData, timezone: value })}
-              >
-                <SelectTrigger id="timezone">
-                  <SelectValue placeholder="Select timezone" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(typeof Intl.supportedValuesOf === "function"
-                    ? Intl.supportedValuesOf("timeZone")
-                    : ["America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Phoenix","Pacific/Honolulu","America/Anchorage","Europe/London","Europe/Paris","Asia/Tokyo","Australia/Sydney"]
-                  ).map((tz) => (
-                    <SelectItem key={tz} value={tz}>{tz}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="legalName">Legal Name (for tax purposes)</Label>
-              <Input
-                id="legalName"
-                value={formData.legalName}
-                onChange={(e) => setFormData({ ...formData, legalName: e.target.value })}
-                placeholder="Full legal name"
-              />
-            </div>
-          </div>
-
           </div>{/* end scrollable area */}
           <div className="flex gap-2 justify-end pt-4 shrink-0 border-t mt-2">
             <Button type="button" variant="outline" onClick={handleClose}>

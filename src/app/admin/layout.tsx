@@ -30,7 +30,7 @@ export default async function AdminLayout({
         userEmail={session.user.email}
         userImage={session.user.image || undefined}
       />
-      <SidebarInset className="overflow-hidden">
+      <SidebarInset className="h-svh overflow-hidden">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <div className="flex-1" />

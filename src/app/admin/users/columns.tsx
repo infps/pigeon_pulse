@@ -245,6 +245,7 @@ export const createColumns = (
   },
   {
     accessorKey: "ssn",
+    meta: { hidden: true },
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="SSN" />
     ),
@@ -252,6 +253,7 @@ export const createColumns = (
   },
   {
     accessorKey: "taxNumber",
+    meta: { hidden: true },
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Tax Number" />
     ),
@@ -259,6 +261,7 @@ export const createColumns = (
   },
   {
     accessorKey: "legalName",
+    meta: { hidden: true },
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Legal Name" />
     ),
@@ -266,6 +269,7 @@ export const createColumns = (
   },
   {
     accessorKey: "timezone",
+    meta: { hidden: true },
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Timezone" />
     ),
