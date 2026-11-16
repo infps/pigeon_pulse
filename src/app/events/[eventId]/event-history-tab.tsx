@@ -59,28 +59,25 @@ export function EventHistoryTab({ eventId }: { eventId: string }) {
     },
   });
 
-  const grouped = useMemo(() => {
+  // Same grouping as the app's Trainings and Races page: live, upcoming, then results by day.
+  const sections = useMemo(() => {
     const races = data?.races ?? [];
-    const map = new Map<string, HistoryRace[]>();
-    for (const r of races) {
-      const key = deriveSeason(r);
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(r);
+    const t = (r: HistoryRace) => (r.startTime ? new Date(r.startTime).getTime() : 0);
+    const live = races.filter((r) => r.status === "STARTED").sort((a, b) => t(a) - t(b));
+    const upcoming = races
+      .filter((r) => r.status !== "STARTED" && r.status !== "ENDED")
+      .sort((a, b) => (t(a) || Infinity) - (t(b) || Infinity));
+    const byDay = new Map<string, HistoryRace[]>();
+    for (const r of races.filter((r) => r.status === "ENDED").sort((a, b) => t(b) - t(a))) {
+      const day = r.startTime ? new Date(r.startTime).toLocaleDateString(undefined, { dateStyle: "full" }) : "Date not set";
+      byDay.set(day, [...(byDay.get(day) ?? []), r]);
     }
-    // Sort each group by startTime asc, keep insertion order of seasons
-    for (const list of map.values()) {
-      list.sort((a, b) => {
-        const ta = a.startTime ? new Date(a.startTime).getTime() : 0;
-        const tb = b.startTime ? new Date(b.startTime).getTime() : 0;
-        return ta - tb;
-      });
-    }
-    return Array.from(map.entries());
+    return { live, upcoming, byDay: [...byDay.entries()] };
   }, [data]);
 
   if (isPending) return <Skeleton className="h-96 w-full" />;
   if (isError) return <p className="text-red-500 text-center py-8">Failed to load history.</p>;
-  if (grouped.length === 0) {
+  if (!data?.races.length) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-muted-foreground border rounded-md">
         <History className="h-12 w-12 mb-3" />
@@ -106,59 +103,74 @@ export function EventHistoryTab({ eventId }: { eventId: string }) {
         <RaceCalendar races={calendarRaces} />
       </div>
 
-      <h2 className="text-lg font-bold text-center mb-2">List Archived Races</h2>
-      <div className="rounded-md border overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-12">Cnt</TableHead>
-              <TableHead>Report Name</TableHead>
-              <TableHead>Liberation</TableHead>
-              <TableHead>Season</TableHead>
-              <TableHead>Station Name</TableHead>
-              <TableHead className="text-right">Distance</TableHead>
-              <TableHead>Race</TableHead>
-              <TableHead className="w-24">Results</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {grouped.map(([season, races]) => (
-              <RaceGroup key={season} season={season} races={races} />
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      {sections.live.length > 0 && (
+        <Section title="Flying now">
+          <RaceTable races={sections.live} />
+        </Section>
+      )}
+      {sections.upcoming.length > 0 && (
+        <Section title="Coming up">
+          <RaceTable races={sections.upcoming} />
+        </Section>
+      )}
+      {sections.byDay.length > 0 && (
+        <Section title="Results">
+          {sections.byDay.map(([day, races]) => (
+            <div key={day} className="space-y-2">
+              <h3 className="text-sm font-medium text-muted-foreground">{day}</h3>
+              <RaceTable races={races} />
+            </div>
+          ))}
+        </Section>
+      )}
     </div>
   );
 }
 
-function RaceGroup({ season, races }: { season: string; races: HistoryRace[] }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <>
-      <TableRow className="bg-muted/60 hover:bg-muted/60">
-        <TableCell colSpan={8} className="font-bold">
-          Year: {season}
-        </TableCell>
-      </TableRow>
-      {races.map((r, i) => (
-        <TableRow key={r.id}>
-          <TableCell>{i + 1}</TableCell>
-          <TableCell className="font-medium">{r.description || r.name || `Race ${r.raceNumber ?? r.id}`}</TableCell>
-          <TableCell className="font-mono text-xs">{formatLiberation(r.startTime)}</TableCell>
-          <TableCell>{deriveSeason(r)}</TableCell>
-          <TableCell>{r.location ?? "-"}</TableCell>
-          <TableCell className="text-right">{r.distance ?? "-"}</TableCell>
-          <TableCell>{r.raceType?.name ?? "-"}</TableCell>
-          <TableCell>
-            <Link
-              href={`/races/${r.id}`}
-              className="text-blue-600 hover:underline"
-            >
-              Results
-            </Link>
-          </TableCell>
-        </TableRow>
-      ))}
-    </>
+    <section className="space-y-3">
+      <h2 className="text-lg font-bold">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function RaceTable({ races }: { races: HistoryRace[] }) {
+  return (
+    <div className="rounded-md border overflow-hidden">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-12">Cnt</TableHead>
+            <TableHead>Report Name</TableHead>
+            <TableHead>Liberation</TableHead>
+            <TableHead>Season</TableHead>
+            <TableHead>Station Name</TableHead>
+            <TableHead className="text-right">Distance</TableHead>
+            <TableHead>Race</TableHead>
+            <TableHead className="w-24">Results</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {races.map((r, i) => (
+            <TableRow key={r.id}>
+              <TableCell>{i + 1}</TableCell>
+              <TableCell className="font-medium">{r.description || r.name || `Race ${r.raceNumber ?? r.id}`}</TableCell>
+              <TableCell className="font-mono text-xs">{formatLiberation(r.startTime)}</TableCell>
+              <TableCell>{deriveSeason(r)}</TableCell>
+              <TableCell>{r.location ?? "-"}</TableCell>
+              <TableCell className="text-right">{r.distance ?? "-"}</TableCell>
+              <TableCell>{r.raceType?.name ?? "-"}</TableCell>
+              <TableCell>
+                <Link href={`/races/${r.id}`} className="text-blue-600 hover:underline">
+                  Results
+                </Link>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

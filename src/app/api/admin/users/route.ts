@@ -40,7 +40,12 @@ const userSelect = {
   legalName: true,
   ssnDocKey: true,
   taxDocKey: true,
+  approvalStatus: true,
 } as const;
+
+// Account lists show approved users only; pending/declined live in the approval queue.
+// Filtered after the legacy-breeder dedupe so a pending user never resurfaces as a legacy row.
+const approved = <T extends { approvalStatus: string }>(us: T[]) => us.filter((u) => u.approvalStatus === "APPROVED");
 
 const breederExtraSelect = {
   cell: true, address2: true, city2: true, state2: true, zip2: true, country2: true, defNameAgn: true,
@@ -185,7 +190,7 @@ export async function GET(request: Request) {
           select: userListSelect,
         });
         const nextCursor = page.length === take ? `u:${page[page.length - 1].id}` : includeLegacy ? "b:0" : null;
-        return NextResponse.json({ users: await attachBreeders(page), nextCursor }, { status: 200 });
+        return NextResponse.json({ users: await attachBreeders(approved(page)), nextCursor }, { status: 200 });
       }
 
       const afterId = Number(cursor.slice(2)) || 0;
@@ -257,7 +262,7 @@ export async function GET(request: Request) {
       }
     }
 
-    const merged = [...(await attachBreeders(users)), ...legacyBreeders];
+    const merged = [...(await attachBreeders(approved(users))), ...legacyBreeders];
 
     return NextResponse.json(
       { users: merged, message: "Users fetched successfully" },
