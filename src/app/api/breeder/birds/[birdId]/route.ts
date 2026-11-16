@@ -139,6 +139,13 @@ export async function PATCH(
     const body = await request.json();
     const validatedData = updateBirdSchema.parse(body);
 
+    for (const pid of [validatedData.fatherId, validatedData.motherId]) {
+      if (pid == null) continue;
+      if (pid === birdIdInt || !(await prisma.bird.findUnique({ where: { id: pid }, select: { id: true } }))) {
+        return NextResponse.json({ message: "Invalid parent bird" }, { status: 400 });
+      }
+    }
+
     const band1 = validatedData.band1 ?? existingBird.band1;
     const band2 = validatedData.band2 ?? existingBird.band2;
     const band3 = validatedData.band3 ?? existingBird.band3;

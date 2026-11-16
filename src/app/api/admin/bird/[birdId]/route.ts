@@ -28,6 +28,8 @@ const updateBirdSchema = z.object({
   image: z.string().nullable().optional(),
   isPublic: z.coerce.number().int().min(0).max(1).optional(),
   attention: z.coerce.boolean().optional(),
+  fatherId: z.number().int().nullable().optional(),
+  motherId: z.number().int().nullable().optional(),
 });
 
 type UpdateBirdInput = z.infer<typeof updateBirdSchema>;
@@ -151,6 +153,13 @@ export async function PATCH(
     const body = await request.json();
     const data: UpdateBirdInput = updateBirdSchema.parse(body);
 
+    for (const pid of [data.fatherId, data.motherId]) {
+      if (pid == null) continue;
+      if (pid === id || !(await prisma.bird.findUnique({ where: { id: pid }, select: { id: true } }))) {
+        return NextResponse.json({ message: "Invalid parent bird" }, { status: 400 });
+      }
+    }
+
     const band1 = data.band1 ?? existing.band1;
     const band2 = data.band2 ?? existing.band2;
     const band3 = data.band3 ?? existing.band3;
@@ -191,6 +200,8 @@ export async function PATCH(
         ...(data.image !== undefined && { image: data.image }),
         ...(data.isPublic !== undefined && { isPublic: data.isPublic }),
         ...(data.attention !== undefined && { attention: data.attention }),
+        ...(data.fatherId !== undefined && { fatherId: data.fatherId }),
+        ...(data.motherId !== undefined && { motherId: data.motherId }),
       },
     });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useApiQuery } from "@/hooks/useApi";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { apiEndpoints } from "@/lib/endpoints";
@@ -16,12 +16,6 @@ import { ExportButton } from "@/components/export-button";
 import { useUpdateRace } from "@/lib/api/races";
 import { shortBand } from "@/lib/bird-constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { BasketTabs } from "./basket-tabs";
 import { StartRaceDialog } from "./start-race-dialog";
@@ -32,14 +26,14 @@ import { RaceStatusFilter } from "./race-status-filter";
 import { RecalculateDialog } from "./recalculate-dialog";
 import { CorrectionsDialog } from "./corrections-dialog";
 import { getWeatherIcon } from "@/lib/weather-constants";
-import { StationsMap } from "@/components/map";
 import type { Race, Event, RaceItem } from "@/lib/types";
 import Image from "next/image";
-import { Pencil, Printer, Radio, Square, StopCircle, Usb } from "lucide-react";
+import { ArrowLeft, Link2, Pencil, Printer, Radio, Square, StopCircle, Usb } from "lucide-react";
 import { RaceWindButton } from "@/components/map/race-wind-dialog";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useWebSerial } from "@/hooks/useWebSerial";
+import { LinksDialog } from "@/components/race-links-dialog";
 
 /** Entry fees not settled: the bird's registration is unpaid or only partly paid (hybrid status). */
 const isUnpaid = (ri: RaceItem) => ri.paymentStatus === "PENDING" || ri.paymentStatus === "PARTIAL";
@@ -95,10 +89,11 @@ export default function RaceDetailsPage() {
   const params = useParams();
   const eventId = params?.eventId as string;
   const raceId = params?.raceId as string;
+  const router = useRouter();
 
-  const [pathOpen, setPathOpen] = useState(false);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [isScanning, setIsScanning] = useState(false);
+  const [linksOpen, setLinksOpen] = useState(false);
   const [arrivalFrom, setArrivalFrom] = useState<string>("");
   const [arrivalTo, setArrivalTo] = useState<string>("");
   const [arrivalDefaultSet, setArrivalDefaultSet] = useState(false);
@@ -111,11 +106,17 @@ export default function RaceDetailsPage() {
   const pollStartedAtRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
 
+  // Live while STARTED: poll so arrivals/End from other devices/scanner tabs show up.
+  // Status read from cache (last render's race) since a hook can't see its own result.
+  const isLive =
+    queryClient.getQueryData<{ race?: Race }>(["races", "detail", raceId])?.race?.status === "STARTED";
+
   // Fetch race details
   const { data: raceData, isPending: raceLoading } = useApiQuery({
     endpoint: apiEndpoints.races.base,
     queryKey: ["races", "detail", raceId],
     params: { raceId },
+    refetchInterval: isLive ? 15000 : false,
   });
 
   // Fetch event details
@@ -128,6 +129,7 @@ export default function RaceDetailsPage() {
   // Fetch race items
   const { data: raceItemsData, isPending: raceItemsLoading } = useListRaceItems({
     params: { raceId },
+    refetchInterval: (raceData?.race as Race | undefined)?.status === "STARTED" ? 5000 : false,
   });
 
   // Start race mutation
@@ -269,6 +271,11 @@ export default function RaceDetailsPage() {
   const race = raceData?.race as Race;
   const event = eventData?.event as Event;
   const allRaceItems = (raceItemsData?.raceItems || []) as RaceItem[];
+  const homeCount = allRaceItems.filter((ri) => ri.status === "ARRIVED").length;
+  // Denominator: birds released (incl. arrived/foreign); before release, loft-basketed birds.
+  const outCount =
+    allRaceItems.filter((ri) => ["RELEASED", "ARRIVED", "FOREIGN_BIRD"].includes(ri.status ?? "")).length ||
+    allRaceItems.filter((ri) => ri.status === "LOFT_BASKETED").length;
 
   // Set default arrivalFrom to first bird's arrival time once data loads
   if (!arrivalDefaultSet && allRaceItems.length > 0) {
@@ -302,10 +309,6 @@ export default function RaceDetailsPage() {
     }
     return true;
   });
-
-  // Launch path available when race has a station + event has loft coords.
-  const hasPath =
-    !!race?.raceStation && event?.latitude != null && event?.longitude != null;
 
   if (!race || !event) {
     return (
@@ -351,6 +354,19 @@ export default function RaceDetailsPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Back: history if came from in-app, else event page (new tab / direct link) */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() =>
+          window.history.length > 1
+            ? router.back()
+            : router.push(`/admin/events/${eventId}`)
+        }
+      >
+        <ArrowLeft className="h-4 w-4 mr-1" /> Back
+      </Button>
 
       {/* Compact Race Header */}
       <Card className="overflow-hidden">
@@ -499,13 +515,6 @@ export default function RaceDetailsPage() {
                         <span className="text-foreground">{race.wind}</span>
                       </div>
                     )}
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-blue-600 dark:text-blue-400">
-                      <path d="m3 8 4-4 4 4"/>
-                      <path d="M7 4v16"/>
-                      <path d="M11 12h4"/>
-                      <path d="M11 16h7"/>
-                      <path d="M11 20h10"/>
-                    </svg>
                   </div>
 
                   {/* Arrival Conditions */}
@@ -541,18 +550,11 @@ export default function RaceDetailsPage() {
                         <span className="text-foreground">{race.arrivalWind}</span>
                       </div>
                     )}
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-blue-600 dark:text-blue-400">
-                      <path d="m3 8 4-4 4 4"/>
-                      <path d="M7 4v16"/>
-                      <path d="M11 12h4"/>
-                      <path d="M11 16h7"/>
-                      <path d="M11 20h10"/>
-                    </svg>
                   </div>
                 </div>
 
                 {/* Stats Row */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
                   <div className="border border-border rounded-lg p-2 md:p-3 bg-card text-card-foreground text-center">
                     <div className="text-lg md:text-xl font-bold text-foreground">
                       {race.startTime ? new Date(race.startTime).toLocaleDateString() : "-"}
@@ -562,20 +564,11 @@ export default function RaceDetailsPage() {
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">Start Time</div>
                   </div>
-                  <button
-                    type="button"
-                    disabled={!hasPath}
-                    onClick={() => hasPath && setPathOpen(true)}
-                    className={`border border-border rounded-lg p-2 md:p-3 bg-card text-card-foreground text-center ${
-                      hasPath ? "cursor-pointer hover:border-muted-foreground hover:bg-muted" : ""
-                    }`}
-                  >
+                  <div className="border border-border rounded-lg p-2 md:p-3 bg-card text-card-foreground text-center">
                     <div className="text-lg md:text-xl font-bold text-foreground">{race.distance}</div>
                     <div className="text-xs md:text-sm text-muted-foreground">Mi</div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Distance{hasPath ? " · View path" : ""}
-                    </div>
-                  </button>
+                    <div className="text-xs text-muted-foreground mt-1">Distance</div>
+                  </div>
                   <div className="border border-border rounded-lg p-2 md:p-3 bg-card text-card-foreground text-center">
                     <div className="text-lg md:text-xl font-bold text-foreground">
                       {race.sunrise ? new Date(race.sunrise).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-"}
@@ -585,14 +578,24 @@ export default function RaceDetailsPage() {
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">Sunrise / Sunset</div>
                   </div>
+                  <div className="border border-border rounded-lg p-2 md:p-3 bg-card text-card-foreground text-center">
+                    <div className="text-lg md:text-xl font-bold text-foreground">{homeCount}</div>
+                    <div className="text-xs md:text-sm text-muted-foreground">home of {outCount}</div>
+                    <div className="text-xs text-muted-foreground mt-1">Arrivals</div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Side panel — map */}
+            {/* Side panel — route map with weather */}
             <div className="flex flex-col items-end gap-2 shrink-0">
               <span className="text-xs text-muted-foreground">Tools</span>
               <RaceWindButton raceId={race.id} />
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setLinksOpen(true)}>
+                <Link2 className="h-3.5 w-3.5" />
+                Links
+              </Button>
+              <LinksDialog open={linksOpen} onClose={() => setLinksOpen(false)} race={race} />
             </div>
           </div>
         </CardContent>
@@ -697,6 +700,7 @@ export default function RaceDetailsPage() {
                 setStatusOpen(true);
               })}
               data={raceItems}
+              emptyState={allRaceItems.length === 0 ? "No birds in this race yet." : undefined}
               rowClassName={(ri) => (isUnpaid(ri) ? "bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50" : undefined)}
               resetFiltersKey={tableResetKey}
               filterableColumns={[
@@ -724,33 +728,6 @@ export default function RaceDetailsPage() {
         <BasketTabs eventId={eventId} />
       </div>
 
-      {/* Launch path popup: station → loft */}
-      {hasPath && race.raceStation && (
-        <Dialog open={pathOpen} onOpenChange={setPathOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>
-                Launch Path — {race.raceStation.name} → {event.name ?? "Loft"}
-                {race.distance != null ? ` (${race.distance} mi)` : ""}
-              </DialogTitle>
-            </DialogHeader>
-            <StationsMap
-              base={{ lat: event.latitude as number, lng: event.longitude as number, name: event.name ?? "Loft" }}
-              stations={[
-                {
-                  id: race.raceStation.id,
-                  name: race.raceStation.name,
-                  latitude: race.raceStation.latitude,
-                  longitude: race.raceStation.longitude,
-                  miles: race.raceStation.miles ?? race.distance,
-                  isActive: race.raceStation.isActive,
-                },
-              ]}
-              height={420}
-            />
-          </DialogContent>
-        </Dialog>
-      )}
 
       <RaceStatusDialog
         item={statusItem}

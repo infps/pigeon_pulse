@@ -11,9 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
-import { Cloud, Thermometer, Wind, TrendingUp, Gauge, Building, Home as HomeIcon, Users, Calendar, ExternalLink, DollarSign, MapPin as MapPinIcon, Volume2, VolumeX, MapPin, Link2, Check, Copy, ArrowLeft } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { Cloud, Thermometer, Wind, TrendingUp, Building, Home as HomeIcon, Users, Calendar, DollarSign, MapPin as MapPinIcon, Volume2, VolumeX, MapPin, Check, Share2, ArrowLeft } from "lucide-react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { makeRaceResultsColumns, type EnrichedRaceItem } from "./race-results-columns";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RaceBettingTab } from "./race-betting-tab";
@@ -39,6 +38,11 @@ function ElapsedTimer({ startTime }: { startTime: string | null | undefined }) {
   const s = Math.floor((elapsed % 60000) / 1000);
   return <>{`+${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`}</>;
 }
+
+// "View All" sub-views (mirrors the reference results board).
+type AllView = "all" | "latest" | "out" | "waiting" | "other";
+const OTHER_STATUSES = new Set(["FOREIGN_BIRD", "STRAY", "LOST", "IGNORED"]);
+const RELEASED_OR_OTHER = new Set(["RELEASED", "ARRIVED", ...OTHER_STATUSES]);
 
 function raceTypeLabel(code?: string | null): string {
   if (!code) return "";
@@ -70,15 +74,29 @@ export default function PublicRacePage() {
   const raceId = params?.raceId as string;
   const { data: sessionData } = authClient.useSession();
   const currentUserId = sessionData?.user?.id ?? null;
-  const [activeTab, setActiveTab] = useState("arrivals");
+  // null = not picked yet → default depends on live state (see below)
+  const [pickedTab, setActiveTab] = useState<string | null>(null);
   const [myTeamOnly, setMyTeamOnly] = useState(false);
+  const [pickedView, setAllView] = useState<AllView | null>(null);
+  const [raceStatus, setRaceStatus] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const prevArrivedCountRef = useRef<number>(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   useEffect(() => {
     audioRef.current = new Audio("/audio/freesound_community-bird-3-f-89236.mp3");
   }, []);
-  const [linksOpen, setLinksOpen] = useState(false);
+  const [shared, setShared] = useState(false);
+  // Breeders share the race page itself; OBS/stream links live on the admin page.
+  const shareRace = async () => {
+    const url = window.location.href.split("?")[0];
+    if (navigator.share) {
+      await navigator.share({ title: document.title, url }).catch(() => undefined);
+      return;
+    }
+    await navigator.clipboard.writeText(url).catch(() => undefined);
+    setShared(true);
+    setTimeout(() => setShared(false), 2000);
+  };
   const [breederPopup, setBreederPopup] = useState<{ id: number; name: string } | null>(null);
   const { openBird } = useBirdPopup();
   const { velocityUnit, sexTerminology } = useSettings();
@@ -93,10 +111,16 @@ export default function PublicRacePage() {
     endpoint: apiEndpoints.breeder.races,
     queryKey: ["breeder", "races", "detail", raceId],
     params: { raceId },
+    // Poll until ENDED so start/release/end flips show without reload.
+    refetchInterval: raceStatus === "ENDED" ? false : 15000,
   });
 
   const race = raceData?.race as Race;
   const isLive = race?.status === "STARTED";
+  if (race?.status && race.status !== raceStatus) setRaceStatus(race.status); // derived state, React "adjust during render" pattern
+  // While live, open on View All → Just landed (newest arrivals first).
+  const activeTab = pickedTab ?? (isLive ? "all" : "arrivals");
+  const allView: AllView = pickedView ?? (isLive ? "latest" : "all");
 
   const { data: raceItemsData, isPending: raceItemsLoading } = useApiQuery({
     endpoint: apiEndpoints.breeder.raceItems(raceId),
@@ -199,17 +223,64 @@ export default function PublicRacePage() {
   const raceVelocity = enriched.find((e) => e.rank === 1)?.ypm ?? null;
 
   const completedTime = race.status === "ENDED" && race.endTime ? formatTime(race.endTime) : null;
+  const firstBirdTime = arrived[0]?.arrivalTime ? formatTime(arrived[0].arrivalTime) : null;
+
+  // View All sub-views
+  const isMine = (e: EnrichedRaceItem) => !!currentUserId && e.bird?.breeder?.user?.id === currentUserId;
+  const mineRowClass = (e: EnrichedRaceItem) => (isMine(e) ? "bg-purple-50 dark:bg-purple-950/30" : undefined);
+  const teamItems = myTeamOnly && currentUserId ? enriched.filter(isMine) : enriched;
+  const arrivalRows = teamItems.filter((e) => e.rank != null);
+  const allViews: { id: AllView; label: string; n?: number; rows: EnrichedRaceItem[] }[] = [
+    { id: "all", label: "All", n: teamItems.length, rows: teamItems },
+    {
+      id: "latest",
+      label: "Just landed",
+      rows: teamItems
+        .filter((e) => e.rank != null && e.arrivalTime)
+        .sort((a, b) => b.arrivalTime!.localeCompare(a.arrivalTime!))
+        .slice(0, 15),
+    },
+    { id: "out", label: "Still out", rows: teamItems.filter((e) => e.status === "RELEASED" && e.rank == null) },
+    // Entered but never released (not basketed, or left out of a partial release) — so the tabs add up to All.
+    { id: "waiting", label: "Not released", rows: teamItems.filter((e) => !RELEASED_OR_OTHER.has(e.status ?? "") && e.rank == null) },
+    { id: "other", label: "Strays & others", rows: teamItems.filter((e) => OTHER_STATUSES.has(e.status ?? "")) },
+  ];
+  for (const v of allViews) if (v.id !== "all" && v.id !== "latest") v.n = v.rows.length;
+  const allRows = allViews.find((v) => v.id === allView)!.rows;
+  const viewTabs = (
+    <div role="tablist" aria-label="Results view" className="flex w-fit max-w-full gap-1 overflow-x-auto rounded-lg bg-muted p-1">
+      {allViews.map((v) => (
+        <button
+          key={v.id}
+          role="tab"
+          aria-selected={allView === v.id}
+          onClick={() => setAllView(v.id)}
+          className={`whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ${allView === v.id ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          {v.label}
+          {v.n != null && <span className="ml-1.5 tabular-nums text-muted-foreground">{v.n}</span>}
+        </button>
+      ))}
+    </div>
+  );
 
   // Partial release: transport not yet fully arrived at loft
   const isPartialRelease = race.transportStatus != null && race.transportStatus !== "ARRIVED" && isLive;
 
   return (
     <div className="container mx-auto p-4 md:p-6 space-y-4">
-      {race.eventId && (
-        <Button variant="ghost" size="sm" onClick={() => router.push(`/events/${race.eventId}`)}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Back to {race.event?.name ?? "event"}
-        </Button>
-      )}
+      {/* Back: history if came from in-app (races list, calendar, bird...), else event page / races list */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() =>
+          window.history.length > 1
+            ? router.back()
+            : router.push(race.eventId ? `/events/${race.eventId}` : "/races")
+        }
+      >
+        <ArrowLeft className="h-4 w-4 mr-1" /> Back
+      </Button>
       {/* Race Header */}
       <Card className="overflow-hidden">
         <CardContent className="p-4 md:p-5">
@@ -265,16 +336,17 @@ export default function PublicRacePage() {
                   {isLive && (
                     <div className="flex items-center gap-1.5 bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-700 rounded-full px-3 py-1">
                       <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                      <span className="text-sm font-semibold text-red-600 dark:text-red-400">Live</span>
                       <span className="text-sm font-mono font-semibold text-red-600 dark:text-red-400"><ElapsedTimer startTime={race.startTime} /></span>
                     </div>
                   )}
                   {race.status === "REGISTERING" && (
                     <Badge variant="default" className="bg-blue-600">Registering</Badge>
                   )}
-                  {completedTime && (
+                  {race.status === "ENDED" && (
                     <Badge variant="outline" className="text-sm gap-1.5">
                       <span className="h-2 w-2 rounded-full bg-gray-500" />
-                      Completed {completedTime}
+                      Completed {completedTime ?? ""}
                     </Badge>
                   )}
                 </div>
@@ -332,8 +404,19 @@ export default function PublicRacePage() {
 
               {/* Stats + actions row */}
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                <span className="text-2xl font-bold tabular-nums leading-none">
+                  {released > 0 ? (
+                    <>
+                      {returned} <span className="text-sm font-normal text-muted-foreground">home of {released} released</span>
+                    </>
+                  ) : (
+                    <span className="text-sm font-normal text-muted-foreground">
+                      No birds released yet · {raceItems.length} entered
+                    </span>
+                  )}
+                </span>
+                {firstBirdTime && <span>First bird: <span className="font-bold font-mono">{firstBirdTime}</span></span>}
                 <span>Active Lofts: <span className="font-bold">{activeLofts}</span></span>
-                <span>Returned: <span className="font-bold">{returned}</span></span>
                 {isPartialRelease && (
                   <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-300 dark:border-purple-700 font-medium">
                     Partial Release
@@ -341,9 +424,9 @@ export default function PublicRacePage() {
                 )}
                 {/* Action buttons inline */}
                 <div className="ml-auto flex items-center gap-2 flex-wrap">
-                  <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs" onClick={() => setLinksOpen(true)}>
-                    <Link2 className="h-3.5 w-3.5" />
-                    Links
+                  <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs" onClick={shareRace}>
+                    {shared ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Share2 className="h-3.5 w-3.5" />}
+                    {shared ? "Link copied" : "Share"}
                   </Button>
                   <RaceWindButton raceId={raceId} />
                   {currentUserId && (
@@ -393,13 +476,6 @@ export default function PublicRacePage() {
               </span>
               Go Live
             </TabsTrigger>
-            <TabsTrigger
-              value="avgspeed"
-              className="gap-1.5 text-sm px-3 py-1.5 data-[state=active]:text-green-600 data-[state=active]:bg-green-50 dark:data-[state=active]:bg-green-950/40"
-              onClick={() => race.eventId && router.push(`/events/${race.eventId}/avg-speed`)}
-            >
-              <Gauge className="h-3.5 w-3.5" /> Avg. Speed
-            </TabsTrigger>
             <TabsTrigger value="all" className="gap-1.5 text-sm px-3 py-1.5">
               <TrendingUp className="h-3.5 w-3.5" /> View All Results
             </TabsTrigger>
@@ -414,15 +490,22 @@ export default function PublicRacePage() {
           <Card>
             <CardContent className="p-4 md:p-6">
               <h2 className="text-center text-lg font-bold text-blue-600 mb-4">Arrival Results by Rank</h2>
-              <DataTable
-                columns={columns}
-                data={(myTeamOnly && currentUserId
-                  ? enriched.filter((e) => e.bird?.breeder?.user?.id === currentUserId)
-                  : enriched
-                ).filter((e) => e.rank != null)}
-                searchKey="loftAndBand"
-                searchPlaceholder="Loft Name or Bird Band"
-              />
+              <ArrivalCards rows={arrivalRows} isMine={isMine} velocityUnit={velocityUnit} />
+              <div className="hidden md:block">
+                <DataTable
+                  columns={columns}
+                  data={arrivalRows}
+                  searchKey="loftAndBand"
+                  searchPlaceholder="Loft Name or Bird Band"
+                  rowClassName={mineRowClass}
+                  emptyState={
+                    <>
+                      No birds home yet — {enriched.length} in this race.{" "}
+                      <button className="underline" onClick={() => setActiveTab("all")}>View all birds</button>
+                    </>
+                  }
+                />
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -438,22 +521,27 @@ export default function PublicRacePage() {
           />
         </TabsContent>
 
-        {/* Avg Speed — navigates away, placeholder */}
-        <TabsContent value="avgspeed" className="mt-4" />
-
         {/* View All Results — includes not-yet-arrived birds */}
         <TabsContent value="all" className="mt-4">
           <Card>
             <CardContent className="p-4 md:p-6">
               <h2 className="text-center text-lg font-bold text-foreground mb-4">All Birds</h2>
-              <DataTable
-                columns={columns}
-                data={myTeamOnly && currentUserId
-                  ? enriched.filter((e) => e.bird?.breeder?.user?.id === currentUserId)
-                  : enriched}
-                searchKey="loftAndBand"
-                searchPlaceholder="Loft Name or Bird Band"
-              />
+              {/* Phones: tabs above the cards; desktop: in the table toolbar next to search */}
+              <div className="mb-4 md:hidden">{viewTabs}</div>
+              {allView === "latest" && (
+                <p className="mb-2 text-center text-xs text-muted-foreground">The 15 most recent birds to clock, newest first.</p>
+              )}
+              <ArrivalCards rows={allRows} isMine={isMine} velocityUnit={velocityUnit} />
+              <div className="hidden md:block">
+                <DataTable
+                  columns={columns}
+                  data={allRows}
+                  searchKey="loftAndBand"
+                  searchPlaceholder="Loft Name or Bird Band"
+                  rowClassName={mineRowClass}
+                  toolbarExtra={viewTabs}
+                />
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -468,7 +556,6 @@ export default function PublicRacePage() {
         </TabsContent>
       </Tabs>
 
-      <LinksDialog open={linksOpen} onClose={() => setLinksOpen(false)} race={race} />
       {breederPopup && (
         <BreederBirdsModal
           loftName={breederPopup.name}
@@ -483,6 +570,39 @@ export default function PublicRacePage() {
 }
 
 // ── Shared helpers ─────────────────────────────────────────────────────────
+
+// Phone layout (< md): plain cards instead of the sideways-scrolling table.
+// ponytail: no search/pagination on phones; add if big races feel slow.
+function ArrivalCards({
+  rows,
+  isMine,
+  velocityUnit,
+}: {
+  rows: EnrichedRaceItem[];
+  isMine: (e: EnrichedRaceItem) => boolean;
+  velocityUnit: string;
+}) {
+  if (!rows.length) return <p className="md:hidden py-8 text-center text-sm text-muted-foreground">No birds.</p>;
+  return (
+    <ul className="md:hidden divide-y rounded-md border">
+      {rows.map((e) => (
+        <li key={e.id} className={`flex items-center gap-3 p-3 ${isMine(e) ? "bg-purple-50 dark:bg-purple-950/30" : ""}`}>
+          <span className="w-8 shrink-0 text-center text-lg font-bold tabular-nums">{e.rank ?? "-"}</span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-mono text-sm text-green-700">{e.band || "-"}</p>
+            <p className="truncate text-xs text-muted-foreground">{e.loftName}</p>
+          </div>
+          <div className="shrink-0 text-right">
+            <p className="font-mono text-xs">{e.arrivalTime ? fmsArrival(e.arrivalTime) : "-"}</p>
+            <p className="text-xs font-semibold text-blue-600">
+              {e.ypm != null ? `${(velocityUnit === "MPM" ? e.ypm * 0.9144 : e.ypm).toFixed(3)} ${velocityUnit}` : "-"}
+            </p>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 
 function fmsArrival(d: string): string {
@@ -501,72 +621,6 @@ function fmsGap(ms: number): string {
 
 
 // ── Links Dialog ──────────────────────────────────────────────────────────
-
-function CopyField({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {}
-  };
-  return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{label}</label>
-      <div className="flex gap-2">
-        <Input value={value} readOnly className="font-mono text-xs h-8" />
-        <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0" onClick={copy}>
-          {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
-        </Button>
-        <a href={value} target="_blank" rel="noreferrer">
-          <Button type="button" variant="outline" size="icon" className="h-8 w-8 shrink-0">
-            <ExternalLink className="h-3.5 w-3.5" />
-          </Button>
-        </a>
-      </div>
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-    </div>
-  );
-}
-
-function LinksDialog({ open, onClose, race }: { open: boolean; onClose: () => void; race: Race }) {
-  const obsUrl = typeof window === "undefined"
-    ? `/overlay/race/${race.id}`
-    : `${window.location.origin}/overlay/race/${race.id}`;
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Link2 className="h-4 w-4" /> Broadcast &amp; Social Links
-          </DialogTitle>
-          <DialogDescription>Copy or open links for OBS and social platforms.</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 pt-1">
-          <CopyField
-            label="OBS Browser Source"
-            value={obsUrl}
-            hint="Sources → + → Browser → paste → 1920×1080"
-          />
-          {race.youtubeUrl && (
-            <CopyField label="YouTube Stream" value={race.youtubeUrl} />
-          )}
-          {race.facebookStreamUrl && (
-            <CopyField label="Facebook Video" value={race.facebookStreamUrl} hint="Used to embed the player." />
-          )}
-          {race.facebookPageUrl && (
-            <CopyField label="Facebook Page" value={race.facebookPageUrl} hint="Watch on Facebook link." />
-          )}
-          {!race.youtubeUrl && !race.facebookStreamUrl && !race.facebookPageUrl && (
-            <p className="text-sm text-muted-foreground">No social links set. Add them in the race edit form.</p>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 // ── Breeder Birds Modal ────────────────────────────────────────────────────
 
@@ -621,7 +675,7 @@ function BreederBirdsModal({
                   <span className="font-semibold">{race.distance.toFixed(2)}</span>MI
                 </span>
               )}
-              <span className="font-semibold">{sorted.filter((r) => r.rank != null).length}</span>
+              <span><span className="font-semibold">{sorted.filter((r) => r.rank != null).length}</span> birds home</span>
               {isTraining && <Badge variant="outline" className="text-xs">Training</Badge>}
             </div>
           </div>
@@ -643,7 +697,6 @@ function BreederBirdsModal({
                 <th className="text-right p-3">Speed {velocityUnit}</th>
                 <th className="text-right p-3">Color</th>
                 <th className="text-left p-3">Name</th>
-                <th className="text-center p-3">Competitions</th>
               </tr>
             </thead>
             <tbody>
@@ -658,8 +711,8 @@ function BreederBirdsModal({
                 const speed =
                   item.ypm != null
                     ? velocityUnit === "MPM"
-                      ? (item.ypm * 0.9144).toFixed(6)
-                      : item.ypm.toFixed(6)
+                      ? (item.ypm * 0.9144).toFixed(3)
+                      : item.ypm.toFixed(3)
                     : null;
                 const sexIcon = item.bandSex === 1 ? "♂" : item.bandSex === 2 ? "♀" : "";
                 const sexColor = item.bandSex === 1 ? "text-blue-500" : "text-pink-500";
@@ -688,12 +741,6 @@ function BreederBirdsModal({
                     </td>
                     <td className="p-3 text-right text-muted-foreground">{item.color || "-"}</td>
                     <td className="p-3">{item.bird?.birdName || "-"}</td>
-                    <td className="p-3 text-center">
-                      <Badge variant="outline" className="gap-1 border-red-300 text-red-600 text-xs">
-                        <DollarSign className="h-3 w-3" />
-                        RACE
-                      </Badge>
-                    </td>
                   </tr>
                 );
               })}

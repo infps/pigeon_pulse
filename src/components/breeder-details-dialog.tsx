@@ -907,14 +907,14 @@ export function BreederDetailsDialog({
                           <td className="px-3 py-2 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                             {item && (
                               <div className="flex gap-1">
-                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setReplacingItem(item)}>
-                                  <Repeat className="h-3 w-3 mr-1" />Replace
+                                <Button size="icon" variant="outline" className="h-7 w-7" title="Replace bird" aria-label="Replace bird" onClick={() => setReplacingItem(item)}>
+                                  <Repeat className="h-3.5 w-3.5" />
                                 </Button>
-                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setChangeBreederItem({ ...item, eventInventory })}>
-                                  <UserCog className="h-3 w-3 mr-1" />Breeder
+                                <Button size="icon" variant="outline" className="h-7 w-7" title="Change breeder" aria-label="Change breeder" onClick={() => setChangeBreederItem({ ...item, eventInventory })}>
+                                  <UserCog className="h-3.5 w-3.5" />
                                 </Button>
-                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs text-red-600" onClick={() => handleDeleteEntry(item)}>
-                                  <Trash2 className="h-3 w-3 mr-1" />Delete
+                                <Button size="icon" variant="outline" className="h-7 w-7 text-red-600" title="Delete entry" aria-label="Delete entry" onClick={() => handleDeleteEntry(item)}>
+                                  <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
                               </div>
                             )}

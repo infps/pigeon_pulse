@@ -32,6 +32,7 @@ import { Trash2 } from "lucide-react";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { apiEndpoints } from "@/lib/endpoints";
 import { FEDERATIONS, COLORS, SEX_LABELS } from "@/lib/bird-constants";
+import { resolveParentId } from "@/app/admin/birds/[birdId]/bird-edit-dialog";
 
 interface Bird {
   id: number;
@@ -44,6 +45,10 @@ interface Bird {
   color: string;
   sex: number;
   attention?: boolean;
+  rfid?: string | null;
+  note?: string | null;
+  father?: { band: string | null } | null;
+  mother?: { band: string | null } | null;
 }
 
 interface StagedBird {
@@ -76,6 +81,9 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
   const [sex, setSex] = useState("1");
   const [rfid, setRfid] = useState("");
   const [attention, setAttention] = useState(false);
+  const [note, setNote] = useState("");
+  const [fatherBand, setFatherBand] = useState("");
+  const [motherBand, setMotherBand] = useState("");
   const [stagedBirds, setStagedBirds] = useState<StagedBird[]>([]);
   const bandNumberRef = useRef<HTMLInputElement>(null);
 
@@ -122,8 +130,11 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
       setBandNumber(bird.band4 || "");
       setColor(bird.color || "BB");
       setSex(String(bird.sex ?? 1));
-      setRfid("");
+      setRfid(bird.rfid ?? "");
       setAttention(!!bird.attention);
+      setNote(bird.note ?? "");
+      setFatherBand(bird.father?.band ?? "");
+      setMotherBand(bird.mother?.band ?? "");
     } else {
       setName("");
       setFederation("AU");
@@ -167,7 +178,18 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
     const payload = buildPayload();
 
     if (isEdit) {
-      await updateMutation.mutateAsync(payload);
+      try {
+        await updateMutation.mutateAsync({
+          ...payload,
+          rfid: rfid.trim() || null,
+          note: note.trim() || null,
+          fatherId: await resolveParentId(fatherBand, bird.father?.band ?? ""),
+          motherId: await resolveParentId(motherBand, bird.mother?.band ?? ""),
+        });
+      } catch (err) {
+        // mutation errors already toast via onError; this catches parent lookup misses
+        if (err instanceof Error && err.message.startsWith("Parent")) toast.error(err.message);
+      }
     } else {
       const result = await createMutation.mutateAsync(payload);
       const createdBird = (result as any)?.data?.bird as Bird | undefined;
@@ -340,6 +362,35 @@ export function BirdDialog({ open, onOpenChange, bird, onSuccess }: BirdDialogPr
                 </Select>
               </div>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="rfid">RFID</Label>
+              <Input id="rfid" value={rfid} onChange={(e) => setRfid(e.target.value)} placeholder="RFID tag" />
+            </div>
+
+            {isEdit && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="fatherBand">Father (band)</Label>
+                    <Input id="fatherBand" value={fatherBand} onChange={(e) => setFatherBand(e.target.value)} placeholder="AU-25-ABC-1234" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="motherBand">Mother (band)</Label>
+                    <Input id="motherBand" value={motherBand} onChange={(e) => setMotherBand(e.target.value)} placeholder="AU-25-ABC-1234" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="note">Note</Label>
+                  <textarea
+                    id="note"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    className="w-full text-sm border rounded-md p-2 min-h-[70px] resize-y"
+                  />
+                </div>
+              </>
+            )}
 
             <div className="flex items-center gap-2">
               <Checkbox

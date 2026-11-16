@@ -3,7 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { Badge } from "@/components/ui/badge";
-import { DollarSign, Trophy, MapPin, ArrowUp, ArrowDown, Minus } from "lucide-react";
+import { Trophy, MapPin, ArrowUp, ArrowDown, Minus } from "lucide-react";
 import Image from "next/image";
 import type { RaceItem } from "@/lib/types";
 import { getSexLabel } from "@/lib/bird-constants";
@@ -216,20 +216,10 @@ return [
     cell: ({ row }) => {
       const v = row.original.ypm;
       if (v == null) return <span className="text-muted-foreground text-xs">-</span>;
-      const display = velocityUnit === "MPM" ? (v * 0.9144).toFixed(4) : v.toFixed(4);
+      const display = velocityUnit === "MPM" ? (v * 0.9144).toFixed(3) : v.toFixed(3);
       return <span className="font-semibold text-blue-600">{display} <span className="text-xs font-normal">{velocityUnit}</span></span>;
     },
     sortingFn: (a, b) => (b.original.ypm ?? -1) - (a.original.ypm ?? -1),
-  },
-  {
-    id: "competitions",
-    header: () => <span>Competitions</span>,
-    cell: () => (
-      <Badge variant="outline" className="gap-1 border-red-300 text-red-600">
-        <DollarSign className="h-3 w-3" />
-        RACE
-      </Badge>
-    ),
   },
 ];
 }

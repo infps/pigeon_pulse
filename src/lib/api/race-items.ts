@@ -3,8 +3,10 @@ import { apiEndpoints } from "../endpoints";
 
 export function useListRaceItems({
   params,
+  refetchInterval,
 }: {
   params?: Record<string, string>;
+  refetchInterval?: number | false;
 } = {}) {
   const paramKeys = params
     ? Object.keys(params)
@@ -16,5 +18,6 @@ export function useListRaceItems({
     endpoint: apiEndpoints.raceItems.base,
     queryKey: ["raceItems", "list", paramKeys],
     params,
+    refetchInterval,
   });
 }

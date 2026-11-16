@@ -9,7 +9,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ExternalLink, Feather } from "lucide-react";
+import { ExternalLink, Feather, Pencil } from "lucide-react";
+import { useBird } from "@/lib/api/bird";
+import { BirdEditDialog } from "@/app/admin/birds/[birdId]/bird-edit-dialog";
+import type { Bird } from "@/lib/types";
 
 // ---------------------------------------------------------------- types (GET /api/birds/:id/card)
 
@@ -171,6 +174,8 @@ export function BirdPopup({
   onOpenBird?: (birdId: number) => void;
 }) {
   const [chosenSeason, setChosenSeason] = useState<number | null>(null);
+  const [editing, setEditing] = useState(false);
+  const qc = useQueryClient();
   const season = chosenSeason ?? seasonId ?? null;
   const qs = new URLSearchParams();
   if (season != null) qs.set("seasonId", String(season));
@@ -193,7 +198,7 @@ export function BirdPopup({
     <Dialog
       open={open}
       onOpenChange={(o) => {
-        if (!o) setChosenSeason(null);
+        if (!o) { setChosenSeason(null); setEditing(false); }
         onOpenChange(o);
       }}
     >
@@ -259,9 +264,21 @@ export function BirdPopup({
                         : <Feather className="h-12 w-12 text-muted-foreground" />}
                     </div>
                     {card.access === "admin" && (
+                      <>
+                        <Button variant="outline" size="sm" className="w-full" onClick={() => setEditing(true)}>
+                          <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit bird
+                        </Button>
+                        <Button variant="ghost" size="sm" className="w-full" asChild>
+                          <a href={`/admin/birds/${b.id}`}>
+                            <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Open bird page (image)
+                          </a>
+                        </Button>
+                      </>
+                    )}
+                    {card.access === "owner" && (
                       <Button variant="outline" size="sm" className="w-full" asChild>
-                        <a href={`/admin/birds/${b.id}`}>
-                          <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Edit bird, image, pedigree
+                        <a href={`/birds/${b.id}`}>
+                          <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Open bird page to edit
                         </a>
                       </Button>
                     )}
@@ -414,8 +431,23 @@ export function BirdPopup({
           )}
         </div>
       </DialogContent>
+      {editing && birdId != null && (
+        <PopupBirdEditor
+          birdId={birdId}
+          onClose={() => setEditing(false)}
+          onSaved={() => { refetch(); qc.invalidateQueries(); }}
+        />
+      )}
     </Dialog>
   );
+}
+
+/** Admin: load the full bird, then reuse the bird page's edit dialog. */
+function PopupBirdEditor({ birdId, onClose, onSaved }: { birdId: number; onClose: () => void; onSaved: () => void }) {
+  const { data } = useBird(birdId, "ADMIN");
+  const bird = (data as { bird?: Bird } | undefined)?.bird;
+  if (!bird) return null;
+  return <BirdEditDialog key={bird.id} bird={bird} open onOpenChange={(o) => !o && onClose()} onSaved={onSaved} />;
 }
 
 // ---------------------------------------------------------------- admin: move
