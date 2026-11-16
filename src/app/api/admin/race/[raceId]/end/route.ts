@@ -79,11 +79,21 @@ export async function POST(
           select: {
             id: true,
             isLost: true,
+            status: true,
             inventoryItemId: true,
-            inventoryItem: { select: { birdId: true } },
+            inventoryItem: { select: { birdId: true, bird: { select: { isLost: true, lostRaceId: true } } } },
             result: { select: { arrivalTime: true } },
           },
         });
+
+        // Only birds that flew can be lost here. When the race was basketed,
+        // that is the released birds: held-back ones stay in the loft. A race
+        // started without basketing releases nobody, so every entry counts.
+        // A bird already lost in an earlier race keeps that loss.
+        const basketed = items.some((i) => i.status === "RELEASED");
+        const flew = (i: (typeof items)[number]) =>
+          (!basketed || i.status === "RELEASED") &&
+          !(i.inventoryItem?.bird?.isLost === 1 && i.inventoryItem.bird.lostRaceId !== raceIdInt);
 
         const toLose: number[] = [];
         const toRecover: number[] = [];
@@ -99,7 +109,7 @@ export async function POST(
           const isLost = item.isLost === 1;
           const birdId = item.inventoryItem?.birdId;
 
-          if (!isLost && !arrived) {
+          if (!isLost && !arrived && flew(item)) {
             toLose.push(item.id);
             if (birdId != null) birdsToLose.push(birdId);
             if (item.inventoryItemId != null) itemsToLose.push(item.inventoryItemId);
