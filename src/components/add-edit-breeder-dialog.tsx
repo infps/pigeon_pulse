@@ -215,7 +215,7 @@ export function AddEditBreederDialog({
     e.preventDefault();
 
     const errs: Record<string, string> = {};
-    if (!formData.name.trim()) errs.name = "Name is required";
+    if (!formData.name.trim()) errs.name = "First name is required";
     if (!editingUser && !formData.email.trim()) errs.email = "Email is required";
     if (!editingUser && !formData.password.trim()) errs.password = "Password is required";
     if (!editingUser && formData.password !== confirmPassword) errs.confirmPassword = "Passwords do not match";
@@ -387,7 +387,7 @@ export function AddEditBreederDialog({
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label htmlFor="name">Name *</Label>
+                    <Label htmlFor="name">First Name *</Label>
                     <Input
                       id="name"
                       value={formData.name}

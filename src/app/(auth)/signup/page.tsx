@@ -85,7 +85,8 @@ export default function SignupPage() {
 
       const { data: signupData, error: signupError } =
         await authClient.signUp.email({
-          name: data.firstName + " " + data.lastName,
+          name: data.firstName,
+          lastName: data.lastName,
           email: data.email,
           username: data.username,
           password: data.password,

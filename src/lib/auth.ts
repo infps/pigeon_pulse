@@ -29,6 +29,8 @@ const auth = betterAuth({
         additionalFields: {
             role: { type: "string", required: false, input: false },
             approvalStatus: { type: "string", required: false, input: false },
+            // name = first name; signups send lastName separately.
+            lastName: { type: "string", required: false, input: true },
         },
     },
     databaseHooks: {
@@ -36,7 +38,6 @@ const auth = betterAuth({
             create: {
                 after: async (user) => {
                     try {
-                        const nameParts = (user.name || "").split(" ");
                         // Check if legacy breeder exists by email → link it
                         const existing = await prisma.breeder.findFirst({
                             where: { email: user.email },
@@ -51,8 +52,8 @@ const auth = betterAuth({
                                 data: {
                                     email: user.email,
                                     userId: user.id,
-                                    firstName: nameParts[0] || null,
-                                    lastName: nameParts.slice(1).join(" ") || null,
+                                    firstName: user.name || null,
+                                    lastName: (user as any).lastName || null,
                                     loginName: user.email,
                                     status: 1,
                                 },
