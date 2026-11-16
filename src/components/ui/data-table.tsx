@@ -159,9 +159,29 @@ export function DataTable<TData, TValue>({
   const rowSelection = externalRowSelection ?? internalRowSelection
   const setRowSelection = externalOnRowSelectionChange ?? setInternalRowSelection
 
+  // Blanks (null/"") sort last in both directions: TanStack's sortUndefined only
+  // recognises undefined, so accessors map blanks to it.
+  const blanksLastColumns = React.useMemo(
+    () =>
+      columns.map((c) => {
+        const { accessorKey, accessorFn } = c as { accessorKey?: string; accessorFn?: (r: TData, i: number) => unknown }
+        if (!accessorKey && !accessorFn) return c
+        const get = accessorFn ?? ((r: TData) => accessorKey!.split(".").reduce<any>((o, k) => o?.[k], r))
+        return {
+          ...c,
+          sortUndefined: "last",
+          accessorFn: (r: TData, i: number) => {
+            const v = get(r, i)
+            return v === null || (typeof v === "string" && v.trim() === "") ? undefined : v
+          },
+        } as ColumnDef<TData, TValue>
+      }),
+    [columns]
+  )
+
   const table = useReactTable({
     data,
-    columns,
+    columns: blanksLastColumns,
     initialState: { pagination: { pageSize: 150 } },
     state: {
       sorting,

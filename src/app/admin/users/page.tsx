@@ -309,11 +309,13 @@ export default function UsersPage() {
 
   return (
     <div className="p-8 w-full min-w-0 mx-auto">
-      <div className="sticky top-0 z-20 mb-6 bg-background">
-        <ApprovalQueue isSuperAdmin={isSuperAdmin} />
-      </div>
+      {/* Registrations + filters stick together so filters stay reachable while scrolling */}
+      <div className="sticky top-0 z-20 mb-4 bg-background pb-4">
+        <div className="mb-6">
+          <ApprovalQueue isSuperAdmin={isSuperAdmin} />
+        </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-4 min-w-0">
+      <div className="flex flex-wrap items-center justify-between gap-4 min-w-0">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
           <Select
             value={statusFilter}
@@ -445,6 +447,7 @@ export default function UsersPage() {
             Add Breeder
           </Button>
         </div>
+      </div>
       </div>
 
       <DataTable

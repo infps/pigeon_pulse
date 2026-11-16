@@ -218,7 +218,7 @@ export function ApprovalQueue({ isSuperAdmin }: { isSuperAdmin: boolean }) {
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5 space-x-2">
-                    <span>{u.email}</span>
+                    <a href={`mailto:${u.email}`} className="text-primary hover:underline">{u.email}</a>
                     {u.loftName && <span>· {u.loftName}</span>}
                     {place(u) && <span>· {place(u)}</span>}
                     {u.phoneNumber && <span>· {u.phoneNumber}</span>}

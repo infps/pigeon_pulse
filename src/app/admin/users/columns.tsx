@@ -82,9 +82,8 @@ export const createColumns = (
             return <span>{row.getValue("name") as string}</span>
           },
           sortingFn: (rowA: import("@tanstack/react-table").Row<User>, rowB: import("@tanstack/react-table").Row<User>) => {
-            const a = `${rowA.original.lastName || ""} ${rowA.original.name}`.trim().toLowerCase()
-            const b = `${rowB.original.lastName || ""} ${rowB.original.name}`.trim().toLowerCase()
-            return a.localeCompare(b)
+            // Sort by what's shown (first + last); split mode sorts by last name.
+            return String(rowA.getValue("name")).trim().localeCompare(String(rowB.getValue("name")).trim(), undefined, { sensitivity: "base" })
           },
         } as ColumnDef<User>,
       ]),
@@ -116,6 +115,15 @@ export const createColumns = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Email" />
     ),
+    cell: ({ row }) => {
+      const email = row.getValue("email") as string | undefined
+      return email ? (
+        // stopPropagation: row click opens the edit dialog
+        <a href={`mailto:${email}`} onClick={(e) => e.stopPropagation()} className="text-primary hover:underline">
+          {email}
+        </a>
+      ) : "-"
+    },
   },
   {
     accessorKey: "username",
