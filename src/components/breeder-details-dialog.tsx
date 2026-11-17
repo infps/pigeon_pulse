@@ -14,11 +14,13 @@ import { useGetEventInventory, useCreatePayment, useUpdatePayment, useDeletePaym
 import { useAdminListBirds } from "@/lib/api/admin-birds";
 import { useSettleRefund } from "@/lib/api/event-inventory";
 import { setEntryDeleted } from "@/lib/api/event-inventory-items";
-import { ChevronRight, Download, Plus, Trash2, Edit, UserPlus, ArrowLeft, Repeat, UserCog } from "lucide-react";
+import { ChevronRight, Download, FileText, Plus, Trash2, Edit, UserPlus, ArrowLeft, Repeat, UserCog } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { Event, EventInventory, EventInventoryItem } from "@/lib/types";
 import type { RegistrationAccount } from "@/lib/hayloft-account";
 import { useQuery } from "@tanstack/react-query";
+import { useApiQuery } from "@/hooks/useApi";
+import { apiEndpoints } from "@/lib/endpoints";
 import {
   MANUAL_PAYMENT_TYPES,
   isOutgoing,
@@ -120,6 +122,14 @@ export function BreederDetailsDialog({
     accountQuery.refetch();
   };
   const account = accountQuery.data ?? null;
+  const { data: catalogue } = useApiQuery({
+    endpoint: apiEndpoints.reports.base,
+    queryKey: ["reports", "catalogue"],
+    enabled: open,
+  });
+  // ponytail: season-scoped only; race reports need a race picker, use Reports page for those
+  const breederReports = ((catalogue?.reports ?? []) as Array<{ key: string; title: string; requires: string | null; perBreeder: boolean }>)
+    .filter((r) => r.perBreeder && r.requires === "seasonId");
   const { data: breedersData } = useListBreeders();
   const breederId = (data as any)?.eventInventory?.breederId;
   const { data: allBirdsData } = useAdminListBirds(
@@ -497,12 +507,19 @@ export function BreederDetailsDialog({
                   ["Loft", eventInventory.loft || "-"],
                   ["Sign-in Date", fmtDate(eventInventory.signInDate)],
                   ["Reserved Birds", String(items.length)],
-                  ["Email", eventInventory?.breeder?.email || "-"],
+                  [
+                    "Email",
+                    eventInventory?.breeder?.email ? (
+                      <a href={`mailto:${eventInventory.breeder.email}`} className="text-primary hover:underline">
+                        {eventInventory.breeder.email}
+                      </a>
+                    ) : "-",
+                  ],
                   ["Phone", eventInventory?.breeder?.phone || "-"],
                   ["Country", eventInventory?.breeder?.country || "-"],
                   ["State", eventInventory?.breeder?.state1 || "-"],
                 ].map(([label, value]) => (
-                  <div key={label} className="flex items-baseline gap-2">
+                  <div key={label as string} className="flex items-baseline gap-2">
                     <span className="text-sm text-muted-foreground w-28 shrink-0">{label}</span>
                     <span className="text-sm font-medium">{value}</span>
                   </div>
@@ -559,6 +576,37 @@ export function BreederDetailsDialog({
                 </div>
               </div>
             </div>
+
+            {/* This breeder's reports for the registration's season. */}
+            {eventInventory.breederId != null && (eventInventory.seasonId ?? event.seasonId) != null && breederReports.length > 0 && (
+              <details className="group border rounded-lg">
+                <summary className="flex cursor-pointer select-none items-center gap-2 px-4 py-2 font-semibold text-lg">
+                  <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+                  Reports
+                </summary>
+                <div className="p-4 pt-0 flex flex-wrap gap-2">
+                  {breederReports.map((r) => (
+                    <Button
+                      key={r.key}
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        showDoc(
+                          apiEndpoints.reports.download(r.key, "pdf", {
+                            seasonId: eventInventory.seasonId ?? event.seasonId ?? undefined,
+                            breederId: eventInventory.breederId ?? undefined,
+                          }),
+                          r.title
+                        )
+                      }
+                    >
+                      <FileText className="h-3.5 w-3.5 mr-1" />
+                      {r.title}
+                    </Button>
+                  ))}
+                </div>
+              </details>
+            )}
 
             {/* Approval + registration note. Keyed so it resyncs after a save. */}
             <details className="group border rounded-lg">

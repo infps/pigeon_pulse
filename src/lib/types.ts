@@ -285,6 +285,7 @@ export interface EventInventoryFeeTotals {
 export interface EventInventory {
   id: number;
   eventId: number | null;
+  seasonId?: number | null;
   breederId: number | null;
   reservedBirds: number | null;
   loft: string | null;
